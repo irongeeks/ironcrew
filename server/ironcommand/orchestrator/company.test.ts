@@ -308,7 +308,9 @@ describe("runtime selection", () => {
     const updated = orc.setAgentRuntimeProvider(companyId, agent.id, "mock");
     expect(updated!.runtime_provider).toBe("mock");
 
-    const rows = db.prepare("SELECT action, details_json FROM ic_audit_events WHERE action = 'agent.runtime_changed'").all() as Array<{
+    const rows = db
+      .prepare("SELECT action, details_json FROM ic_audit_events WHERE action = 'agent.runtime_changed'")
+      .all() as Array<{
       action: string;
       details_json: string;
     }>;
@@ -457,9 +459,9 @@ describe("permission resolution — elevation reachable only through a live gran
   it("audits the permission resolution for every run", async () => {
     orc.handleCeoMessage(companyId, "Bitte dokumentiere das Verfahren.");
     await orc.executeNextTask(companyId);
-    const rows = db
-      .prepare("SELECT * FROM ic_audit_events WHERE action = 'permission.resolved'")
-      .all() as Array<{ details_json: string }>;
+    const rows = db.prepare("SELECT * FROM ic_audit_events WHERE action = 'permission.resolved'").all() as Array<{
+      details_json: string;
+    }>;
     expect(rows).toHaveLength(1);
     expect(JSON.parse(rows[0].details_json)).toMatchObject({ mode: "restricted", code: "default_restricted" });
     expect(verifyAuditChain(db, companyId).valid).toBe(true);

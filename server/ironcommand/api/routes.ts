@@ -168,7 +168,9 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
       const { runtimeProvider } = setAgentRuntimeSchema.parse(req.body ?? {});
       const registered = orchestrator.listRuntimes().map((r) => r.type);
       if (!registered.includes(runtimeProvider)) {
-        res.status(400).json({ error: "unknown_runtime", message: `No runtime registered for "${runtimeProvider}".`, registered });
+        res
+          .status(400)
+          .json({ error: "unknown_runtime", message: `No runtime registered for "${runtimeProvider}".`, registered });
         return;
       }
       const agent = orchestrator.setAgentRuntimeProvider(companyId, param(req, "id"), runtimeProvider);

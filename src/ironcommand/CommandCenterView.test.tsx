@@ -402,7 +402,13 @@ describe("runtime selection", () => {
   it("lists every registered runtime with a health marker", async () => {
     const client = makeClient({
       runtimes: vi.fn().mockResolvedValue({
-        runtimes: [runtimeInfo({ type: "mock" }), runtimeInfo({ type: "claude", health: { healthy: false, installed: false, detail: "claude CLI is not installed.", checkedAt: Date.now() } })],
+        runtimes: [
+          runtimeInfo({ type: "mock" }),
+          runtimeInfo({
+            type: "claude",
+            health: { healthy: false, installed: false, detail: "claude CLI is not installed.", checkedAt: Date.now() },
+          }),
+        ],
       }),
     });
     render(<CommandCenterView client={client} />);
@@ -420,7 +426,9 @@ describe("runtime selection", () => {
     const setAgentRuntime = vi.fn().mockResolvedValue({ agent: agent({ runtimeProvider: "claude" }) });
     const client = makeClient({
       setAgentRuntime,
-      runtimes: vi.fn().mockResolvedValue({ runtimes: [runtimeInfo({ type: "mock" }), runtimeInfo({ type: "claude" })] }),
+      runtimes: vi
+        .fn()
+        .mockResolvedValue({ runtimes: [runtimeInfo({ type: "mock" }), runtimeInfo({ type: "claude" })] }),
       // After the change, /agents must report the new provider too — the
       // dialog is derived from the live agents list, not a local echo.
       agents: vi

@@ -479,7 +479,9 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                     honestly as its own option rather than silently showing a
                     different one selected. */}
                 {!runtimes.some((r) => r.type === currentAgent.runtimeProvider) && (
-                  <option value={currentAgent.runtimeProvider}>{currentAgent.runtimeProvider} (nicht registriert)</option>
+                  <option value={currentAgent.runtimeProvider}>
+                    {currentAgent.runtimeProvider} (nicht registriert)
+                  </option>
                 )}
                 {runtimes.map((r) => (
                   <option key={r.type} value={r.type}>
@@ -493,7 +495,8 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                 <>
                   <br />
                   <span className="ic-note" data-testid="agent-runtime-detail">
-                    {currentRuntime.auth.authenticated ? "Angemeldet" : "Nicht angemeldet"} · {currentRuntime.health.detail}
+                    {currentRuntime.auth.authenticated ? "Angemeldet" : "Nicht angemeldet"} ·{" "}
+                    {currentRuntime.health.detail}
                   </span>
                 </>
               )}

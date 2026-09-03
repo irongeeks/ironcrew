@@ -17,11 +17,15 @@ const scenario = process.env.STUB_SCENARIO ?? "success";
 const protocol = process.env.STUB_PROTOCOL ?? "claude";
 
 let stdinData = "";
-process.stdin.on("data", (c) => { stdinData += c.toString("utf8"); });
+process.stdin.on("data", (c) => {
+  stdinData += c.toString("utf8");
+});
 process.stdin.on("end", () => run());
 // Some scenarios don't wait on stdin at all (no prompt is written in the
 // spawn-error test path); guard against never firing 'end'.
-setTimeout(() => { if (!started) run(); }, 500);
+setTimeout(() => {
+  if (!started) run();
+}, 500);
 let started = false;
 
 function assistantLine(text) {
