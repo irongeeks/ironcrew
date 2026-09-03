@@ -27,6 +27,10 @@ export default tseslint.config(
       "**/.agents/**",
       "**/tools/**",
       "**/docs/reports/**",
+      // Standalone Node test fixtures spawned as real child processes in
+      // integration tests — plain .mjs scripts, not part of the TS-linted
+      // codebase (same rationale as the exclusions above).
+      "**/__fixtures__/**",
       "**/*.d.ts",
     ],
   },

@@ -58,9 +58,17 @@ describe("shipped configuration", () => {
   it("commits no real person or franchise names as display names", () => {
     // The public repo ships original archetypes only.
     const forbidden =
-      /cersei|lannister|stark|fury|batman|wayne|goodman|specter|holmes|house|edna|draper|shelby|hermione|granger|scotty|bumblebee/i;
+      /cersei|lannister|stark|fury|batman|wayne|goodman|specter|holmes|house|edna|draper|shelby|hermione|granger|scotty|bumblebee|spaulding|superbeasto/i;
     for (const a of crew.agents) {
       expect(a.skin.display_name).not.toMatch(forbidden);
+    }
+  });
+
+  it("never uses red as a persona accent — red is reserved for error/risk/blocker states", () => {
+    // A cosmetic accent must never collide with the one colour the design
+    // system uses as a real status signal (docs/ARCHITECTURE.md; command-center.css).
+    for (const a of crew.agents) {
+      expect(a.skin.accent).not.toBe("red");
     }
   });
 

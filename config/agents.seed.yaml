@@ -187,7 +187,11 @@ agents:
     runtime_profile: deep_reasoning
     skin:
       display_name: Probe
-      accent: red
+      # Not red: the design system reserves red exclusively for error/risk/
+      # blocker states (docs/ARCHITECTURE.md invariants; command-center.css).
+      # A persona accent is cosmetic and must never collide with that signal,
+      # even for an adversarial red-team role.
+      accent: cyan
       traits: [skeptical, blunt_about_facts]
       forbidden_traits: [insulting, demeaning]
     policy:
