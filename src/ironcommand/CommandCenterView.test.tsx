@@ -87,7 +87,7 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     revise: vi.fn().mockResolvedValue({ task: task({ status: "ready" }) }),
     decide: vi.fn().mockResolvedValue({ approval: {} }),
     runEvents: vi.fn().mockResolvedValue({ events: [] }),
-    task: vi.fn(),
+    task: vi.fn().mockResolvedValue({ task: task(), runs: [], audit: [], blockers: [], blocking: [] }),
     runtimes: vi.fn().mockResolvedValue({ runtimes: [runtimeInfo()] }),
     setAgentRuntime: vi.fn().mockResolvedValue({ agent: agent({ runtimeProvider: "claude" }) }),
     goals: vi.fn().mockResolvedValue({ goals: [] }),
@@ -100,6 +100,8 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     setProjectStatus: vi.fn(),
     addMilestone: vi.fn(),
     setMilestoneStatus: vi.fn(),
+    addDependency: vi.fn(),
+    removeDependency: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -493,6 +495,79 @@ describe("errors are surfaced, never swallowed", () => {
     const client = makeClient({ agents: vi.fn().mockRejectedValue(new Error("500: control plane down")) });
     render(<CommandCenterView client={client} />);
     expect(await screen.findByTestId("error-banner")).toHaveTextContent("control plane down");
+  });
+});
+
+describe("task detail — dependencies", () => {
+  it("shows blockers and blocking tasks fetched for the selected task", async () => {
+    const client = makeClient({
+      task: vi.fn().mockResolvedValue({
+        task: task(),
+        runs: [],
+        audit: [],
+        blockers: [task({ id: "task_2", title: "Design freeze" })],
+        blocking: [task({ id: "task_3", title: "Launch" })],
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByText("Backup dokumentieren"));
+
+    const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
+    expect(within(dialog).getByText("Design freeze")).toBeInTheDocument();
+    expect(within(dialog).getByText("Launch")).toBeInTheDocument();
+  });
+
+  it("adds a blocker via the select and refreshes the list", async () => {
+    const addDependency = vi.fn().mockResolvedValue({ blockers: [] });
+    const client = makeClient({
+      tasks: vi.fn().mockResolvedValue({ tasks: [task(), task({ id: "task_2", title: "Design freeze" })] }),
+      task: vi
+        .fn()
+        .mockResolvedValueOnce({ task: task(), runs: [], audit: [], blockers: [], blocking: [] })
+        .mockResolvedValue({
+          task: task(),
+          runs: [],
+          audit: [],
+          blockers: [task({ id: "task_2", title: "Design freeze" })],
+          blocking: [],
+        }),
+      addDependency,
+    });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByText("Backup dokumentieren"));
+
+    const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
+    const user = userEvent.setup();
+    await user.selectOptions(within(dialog).getByLabelText(/Blocker für/), "task_2");
+    await user.click(within(dialog).getByRole("button", { name: "Hinzufügen" }));
+
+    expect(addDependency).toHaveBeenCalledWith("task_1", "task_2");
+    await waitFor(() => expect(within(dialog).getByText("Design freeze")).toBeInTheDocument());
+  });
+
+  it("removes a blocker", async () => {
+    const removeDependency = vi.fn().mockResolvedValue({ blockers: [] });
+    const client = makeClient({
+      task: vi
+        .fn()
+        .mockResolvedValueOnce({
+          task: task(),
+          runs: [],
+          audit: [],
+          blockers: [task({ id: "task_2", title: "Design freeze" })],
+          blocking: [],
+        })
+        .mockResolvedValue({ task: task(), runs: [], audit: [], blockers: [], blocking: [] }),
+      removeDependency,
+    });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByText("Backup dokumentieren"));
+
+    const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
+    await userEvent.setup().click(within(dialog).getByRole("button", { name: "Entfernen" }));
+
+    expect(removeDependency).toHaveBeenCalledWith("task_1", "task_2");
+    await waitFor(() => expect(within(dialog).queryByText("Design freeze")).toBeNull());
   });
 });
 

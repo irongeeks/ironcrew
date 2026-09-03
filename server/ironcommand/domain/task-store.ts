@@ -25,6 +25,8 @@ import { appendAuditEvent, type ActorType } from "./audit.ts";
 /** How long a claim stays valid without a heartbeat. */
 export const DEFAULT_LOCK_TTL_MS = 5 * 60 * 1000;
 
+export class TaskDependencyError extends Error {}
+
 export interface TaskRow {
   id: string;
   company_id: string;
@@ -362,10 +364,15 @@ export class TaskStore {
 
   // --- dependencies -------------------------------------------------------
 
-  addDependency(companyId: string, taskId: string, dependsOnId: string): void {
-    if (taskId === dependsOnId) throw new Error("A task cannot depend on itself.");
+  addDependency(
+    companyId: string,
+    taskId: string,
+    dependsOnId: string,
+    opts: { actorType?: ActorType; actorId?: string } = {},
+  ): void {
+    if (taskId === dependsOnId) throw new TaskDependencyError("A task cannot depend on itself.");
     if (this.wouldCreateCycle(taskId, dependsOnId)) {
-      throw new Error(`Adding dependency ${taskId} -> ${dependsOnId} would create a cycle.`);
+      throw new TaskDependencyError(`Adding dependency ${taskId} -> ${dependsOnId} would create a cycle.`);
     }
     this.db
       .prepare(
@@ -373,6 +380,42 @@ export class TaskStore {
          VALUES (?,?,?,?)`,
       )
       .run(newId("dep"), companyId, taskId, dependsOnId);
+
+    appendAuditEvent(this.db, {
+      companyId,
+      actorType: opts.actorType ?? "owner",
+      actorId: opts.actorId ?? "ceo",
+      action: "task.dependency_added",
+      entityType: "task",
+      entityId: taskId,
+      taskId,
+      details: { dependsOnId },
+    });
+  }
+
+  /** Idempotent: removing an edge that isn't there is a no-op, not an error. */
+  removeDependency(
+    companyId: string,
+    taskId: string,
+    dependsOnId: string,
+    opts: { actorType?: ActorType; actorId?: string } = {},
+  ): boolean {
+    const res = this.db
+      .prepare("DELETE FROM ic_task_dependencies WHERE company_id = ? AND task_id = ? AND depends_on_id = ?")
+      .run(companyId, taskId, dependsOnId);
+    if (res.changes === 0) return false;
+
+    appendAuditEvent(this.db, {
+      companyId,
+      actorType: opts.actorType ?? "owner",
+      actorId: opts.actorId ?? "ceo",
+      action: "task.dependency_removed",
+      entityType: "task",
+      entityId: taskId,
+      taskId,
+      details: { dependsOnId },
+    });
+    return true;
   }
 
   /** Walk the existing edges to see whether the new edge closes a loop. */
@@ -398,6 +441,17 @@ export class TaskStore {
         `SELECT t.* FROM ic_tasks t
            JOIN ic_task_dependencies d ON d.depends_on_id = t.id
           WHERE d.task_id = ?`,
+      )
+      .all(taskId) as unknown as TaskRow[];
+  }
+
+  /** The mirror of blockers(): tasks that depend on this one, i.e. this task blocks them. */
+  blocking(taskId: string): TaskRow[] {
+    return this.db
+      .prepare(
+        `SELECT t.* FROM ic_tasks t
+           JOIN ic_task_dependencies d ON d.task_id = t.id
+          WHERE d.depends_on_id = ?`,
       )
       .all(taskId) as unknown as TaskRow[];
   }

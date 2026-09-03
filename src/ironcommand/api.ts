@@ -31,7 +31,7 @@ function get<T>(path: string): Promise<T> {
   return request<T>(`${BASE}${path}`);
 }
 
-function send<T>(path: string, method: "POST" | "PUT" | "PATCH", body?: unknown): Promise<T> {
+function send<T>(path: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
   return request<T>(`${BASE}${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
@@ -46,12 +46,17 @@ export const api = {
   sendMessage: (body: string) =>
     send<{ reply: string; task: Task | null; assignedAgent: Agent | null }>("/chat", "POST", { body }),
   tasks: () => get<{ tasks: Task[] }>("/tasks"),
-  task: (id: string) => get<{ task: Task; runs: unknown[]; audit: unknown[] }>(`/tasks/${id}`),
+  task: (id: string) =>
+    get<{ task: Task; runs: unknown[]; audit: unknown[]; blockers: Task[]; blocking: Task[] }>(`/tasks/${id}`),
   executeNext: () => send<{ executed: boolean; task?: Task; runId?: string }>("/tasks/execute-next", "POST"),
   accept: (id: string, note?: string) => send<{ task: Task }>(`/tasks/${id}/accept`, "POST", { note }),
   revise: (id: string, reason: string) => send<{ task: Task }>(`/tasks/${id}/revise`, "POST", { reason }),
   setTaskStatus: (id: string, status: Task["status"], reason?: string) =>
     send<{ task: Task }>(`/tasks/${id}/status`, "POST", { status, reason }),
+  addDependency: (taskId: string, dependsOnId: string) =>
+    send<{ blockers: Task[] }>(`/tasks/${taskId}/dependencies`, "POST", { dependsOnId }),
+  removeDependency: (taskId: string, dependsOnId: string) =>
+    send<{ blockers: Task[] }>(`/tasks/${taskId}/dependencies/${dependsOnId}`, "DELETE"),
   approvals: () => get<{ approvals: Approval[] }>("/approvals"),
   decide: (id: string, decision: "approved" | "rejected", reason?: string) =>
     send<{ approval: Approval }>(`/approvals/${id}/decide`, "POST", { decision, reason }),

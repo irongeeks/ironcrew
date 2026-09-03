@@ -128,6 +128,34 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     setProjectDetail(detail);
   }, [client, projectDetail]);
 
+  // Blocking/blocked-by are not in the plain `tasks` list — they need their
+  // own fetch, same shape as the project-detail pattern above.
+  const [taskBlockers, setTaskBlockers] = useState<Task[]>([]);
+  const [taskBlocking, setTaskBlocking] = useState<Task[]>([]);
+  const [addBlockerId, setAddBlockerId] = useState("");
+
+  const refreshTaskDependencies = useCallback(
+    async (taskId: string) => {
+      try {
+        const detail = await client.task(taskId);
+        setTaskBlockers(detail.blockers);
+        setTaskBlocking(detail.blocking);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [client],
+  );
+
+  const openTaskDetail = useCallback(
+    (t: Task) => {
+      setSelectedTask(t);
+      setAddBlockerId("");
+      void refreshTaskDependencies(t.id);
+    },
+    [refreshTaskDependencies],
+  );
+
   // Provider Health: kept separate from refresh() — each registered runtime
   // probes its own CLI (e.g. `claude --version`), so this is refreshed on
   // demand from the agent-detail dialog rather than on every poll.
@@ -244,6 +272,8 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   // refresh() lands, same as every other figure in this view.
   const currentAgent = selectedAgent ? (agentById.get(selectedAgent.id) ?? selectedAgent) : null;
   const currentRuntime = currentAgent ? runtimes.find((r) => r.type === currentAgent.runtimeProvider) : undefined;
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+  const currentTask = selectedTask ? (taskById.get(selectedTask.id) ?? selectedTask) : null;
 
   return (
     <div className="ic-root" data-testid="command-center">
@@ -365,7 +395,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                         data-priority={task.priority}
                         data-risk={task.risk_level}
                         data-dragging={draggedTaskId === task.id || undefined}
-                        onClick={() => setSelectedTask(task)}
+                        onClick={() => openTaskDetail(task)}
                         onDragStart={(e) => {
                           e.dataTransfer.setData("text/plain", task.id);
                           e.dataTransfer.effectAllowed = "move";
@@ -535,23 +565,101 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
         </div>
       </section>
 
-      {selectedTask && (
-        <DetailDialog title={selectedTask.title} onClose={() => setSelectedTask(null)}>
+      {currentTask && (
+        <DetailDialog title={currentTask.title} onClose={() => setSelectedTask(null)}>
           <dl>
             <dt>Status</dt>
-            <dd>{TASK_STATUS_LABEL[selectedTask.status]}</dd>
+            <dd>{TASK_STATUS_LABEL[currentTask.status]}</dd>
             <dt>Priorität</dt>
-            <dd>{selectedTask.priority}</dd>
+            <dd>{currentTask.priority}</dd>
             <dt>Risiko</dt>
-            <dd>{selectedTask.risk_level}</dd>
+            <dd>{currentTask.risk_level}</dd>
             <dt>Verantwortlich</dt>
-            <dd>{agentById.get(selectedTask.assigned_agent_id ?? "")?.displayName ?? "nicht zugewiesen"}</dd>
+            <dd>{agentById.get(currentTask.assigned_agent_id ?? "")?.displayName ?? "nicht zugewiesen"}</dd>
             <dt>Correlation</dt>
             <dd>
-              <code>{selectedTask.correlation_id}</code>
+              <code>{currentTask.correlation_id}</code>
             </dd>
           </dl>
-          {selectedTask.result_summary && <p className="ic-note">{selectedTask.result_summary}</p>}
+          {currentTask.result_summary && <p className="ic-note">{currentTask.result_summary}</p>}
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Blockiert durch
+          </h3>
+          {taskBlockers.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {taskBlockers.map((b) => (
+              <li key={b.id}>
+                <span className="ic-milestone-title">{b.title}</span>
+                <span className="ic-tag" data-tone={b.status === "done" ? "policy" : "gate"}>
+                  {TASK_STATUS_LABEL[b.status]}
+                </span>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  disabled={busy}
+                  onClick={() =>
+                    act(async () => {
+                      await client.removeDependency(currentTask.id, b.id);
+                      await refreshTaskDependencies(currentTask.id);
+                    })
+                  }
+                >
+                  Entfernen
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="ic-composer" style={{ padding: 0 }}>
+            <label className="ic-sr-only" htmlFor="ic-add-blocker-select">
+              Blocker für {currentTask.title} hinzufügen
+            </label>
+            <select
+              id="ic-add-blocker-select"
+              className="ic-select"
+              value={addBlockerId}
+              onChange={(e) => setAddBlockerId(e.target.value)}
+            >
+              <option value="">Blocker wählen…</option>
+              {tasks
+                .filter((t) => t.id !== currentTask.id && !taskBlockers.some((b) => b.id === t.id))
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+            </select>
+            <button
+              type="button"
+              className="ic-btn"
+              disabled={!addBlockerId || busy}
+              onClick={() =>
+                act(async () => {
+                  await client.addDependency(currentTask.id, addBlockerId);
+                  setAddBlockerId("");
+                  await refreshTaskDependencies(currentTask.id);
+                })
+              }
+            >
+              Hinzufügen
+            </button>
+          </div>
+
+          {taskBlocking.length > 0 && (
+            <>
+              <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+                Blockiert
+              </h3>
+              <ul className="ic-milestone-list">
+                {taskBlocking.map((b) => (
+                  <li key={b.id}>
+                    <span className="ic-milestone-title">{b.title}</span>
+                    <span className="ic-tag">{TASK_STATUS_LABEL[b.status]}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </DetailDialog>
       )}
 

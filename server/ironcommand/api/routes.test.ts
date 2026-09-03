@@ -201,6 +201,67 @@ describe("task lifecycle over HTTP", () => {
       await request(app).post(`/api/ic/tasks/${taskId}/status`).send({ status: "nonsense" }).expect(400);
     });
   });
+
+  describe("task dependencies", () => {
+    function pair() {
+      const dependent = orchestrator.tasks.create({ companyId, title: "dependent", status: "ready" });
+      const blocker = orchestrator.tasks.create({ companyId, title: "blocker", status: "ready" });
+      return { dependent, blocker };
+    }
+
+    it("adds a dependency and surfaces it on both sides", async () => {
+      const { dependent, blocker } = pair();
+      const res = await request(app)
+        .post(`/api/ic/tasks/${dependent.id}/dependencies`)
+        .send({ dependsOnId: blocker.id })
+        .expect(201);
+      expect(res.body.blockers.map((t: { id: string }) => t.id)).toEqual([blocker.id]);
+
+      const detail = await request(app).get(`/api/ic/tasks/${dependent.id}`).expect(200);
+      expect(detail.body.blockers.map((t: { id: string }) => t.id)).toEqual([blocker.id]);
+
+      const blockerDetail = await request(app).get(`/api/ic/tasks/${blocker.id}`).expect(200);
+      expect(blockerDetail.body.blocking.map((t: { id: string }) => t.id)).toEqual([dependent.id]);
+    });
+
+    it("rejects a cycle with 400", async () => {
+      const { dependent, blocker } = pair();
+      await request(app)
+        .post(`/api/ic/tasks/${dependent.id}/dependencies`)
+        .send({ dependsOnId: blocker.id })
+        .expect(201);
+      const res = await request(app)
+        .post(`/api/ic/tasks/${blocker.id}/dependencies`)
+        .send({ dependsOnId: dependent.id })
+        .expect(400);
+      expect(res.body.error).toBe("invalid_task_dependency");
+    });
+
+    it("404s when the target task doesn't exist", async () => {
+      const { dependent } = pair();
+      await request(app)
+        .post(`/api/ic/tasks/${dependent.id}/dependencies`)
+        .send({ dependsOnId: "task_missing" })
+        .expect(404);
+    });
+
+    it("removes a dependency", async () => {
+      const { dependent, blocker } = pair();
+      await request(app)
+        .post(`/api/ic/tasks/${dependent.id}/dependencies`)
+        .send({ dependsOnId: blocker.id })
+        .expect(201);
+
+      const res = await request(app).delete(`/api/ic/tasks/${dependent.id}/dependencies/${blocker.id}`).expect(200);
+      expect(res.body.blockers).toEqual([]);
+    });
+
+    it("404s for a task that doesn't exist when adding or removing", async () => {
+      const { blocker } = pair();
+      await request(app).post("/api/ic/tasks/task_missing/dependencies").send({ dependsOnId: blocker.id }).expect(404);
+      await request(app).delete(`/api/ic/tasks/task_missing/dependencies/${blocker.id}`).expect(404);
+    });
+  });
 });
 
 describe("approvals over HTTP", () => {

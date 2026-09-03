@@ -21,6 +21,7 @@ import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/
 import { ApprovalRequiredError } from "../policy/approval-policy.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
 import { InvalidTransitionError, TASK_STATUSES } from "../domain/task-state.ts";
+import { TaskDependencyError } from "../domain/task-store.ts";
 import { GoalMutationError } from "../domain/goal-store.ts";
 import { GOAL_STATUSES, InvalidGoalTransitionError } from "../domain/goal-state.ts";
 import { ProjectMutationError } from "../domain/project-store.ts";
@@ -38,6 +39,7 @@ const ceoMessageSchema = z.object({ body: z.string().min(1).max(20000) });
 const reviewSchema = z.object({ note: z.string().max(5000).optional() });
 const revisionSchema = z.object({ reason: z.string().min(1).max(5000) });
 const taskStatusSchema = z.object({ status: z.enum(TASK_STATUSES), reason: z.string().max(2000).optional() });
+const taskDependencySchema = z.object({ dependsOnId: z.string().min(1).max(200) });
 const decisionSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
   reason: z.string().max(5000).optional(),
@@ -117,6 +119,10 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof InvalidTransitionError) {
     res.status(409).json({ error: "invalid_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof TaskDependencyError) {
+    res.status(400).json({ error: "invalid_task_dependency", message: err.message });
     return true;
   }
   if (err instanceof InvalidGoalTransitionError) {
@@ -329,6 +335,7 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
         task,
         runs: orchestrator.runs.listForTask(task.id),
         blockers: orchestrator.tasks.blockers(task.id),
+        blocking: orchestrator.tasks.blocking(task.id),
         audit: listAuditEvents(db, companyId, { taskId: task.id, limit: 200 }),
       });
     }),
@@ -408,6 +415,43 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
       }
       broadcast("ic_task_changed", { taskId: task.id, status: task.status });
       res.json({ task });
+    }),
+  );
+
+  app.post(
+    `${base}/tasks/:id/dependencies`,
+    wrap((req, res) => {
+      const { dependsOnId } = taskDependencySchema.parse(req.body ?? {});
+      const task = orchestrator.tasks.get(param(req, "id"));
+      if (!task || task.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const blocker = orchestrator.tasks.get(dependsOnId);
+      if (!blocker || blocker.company_id !== companyId) {
+        res.status(404).json({ error: "depends_on_not_found" });
+        return;
+      }
+      orchestrator.tasks.addDependency(companyId, task.id, dependsOnId, { actorType: "owner", actorId: "ceo" });
+      broadcast("ic_task_changed", { taskId: task.id, status: task.status });
+      res.status(201).json({ blockers: orchestrator.tasks.blockers(task.id) });
+    }),
+  );
+
+  app.delete(
+    `${base}/tasks/:id/dependencies/:dependsOnId`,
+    wrap((req, res) => {
+      const task = orchestrator.tasks.get(param(req, "id"));
+      if (!task || task.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.tasks.removeDependency(companyId, task.id, param(req, "dependsOnId"), {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("ic_task_changed", { taskId: task.id, status: task.status });
+      res.json({ blockers: orchestrator.tasks.blockers(task.id) });
     }),
   );
 

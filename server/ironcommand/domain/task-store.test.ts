@@ -298,6 +298,53 @@ describe("dependencies", () => {
     store.addDependency(companyId, a.id, b.id);
     expect(store.blockers(a.id)).toHaveLength(1);
   });
+
+  it("audits an added dependency", () => {
+    const a = readyTask({ title: "a" });
+    const b = readyTask({ title: "b" });
+    store.addDependency(companyId, a.id, b.id);
+    const rows = db
+      .prepare("SELECT action FROM ic_audit_events WHERE entity_id = ? AND action = 'task.dependency_added'")
+      .all(a.id);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("reports the reverse direction via blocking()", () => {
+    const blocker = readyTask({ title: "blocker" });
+    const dependent = readyTask({ title: "dependent" });
+    store.addDependency(companyId, dependent.id, blocker.id);
+
+    expect(store.blocking(blocker.id).map((t) => t.id)).toEqual([dependent.id]);
+    expect(store.blocking(dependent.id)).toEqual([]);
+  });
+
+  it("removes a dependency", () => {
+    const blocker = readyTask({ title: "blocker" });
+    const dependent = readyTask({ title: "dependent" });
+    store.addDependency(companyId, dependent.id, blocker.id);
+
+    const removed = store.removeDependency(companyId, dependent.id, blocker.id);
+    expect(removed).toBe(true);
+    expect(store.blockers(dependent.id)).toEqual([]);
+    expect(store.isDependencyReady(dependent.id)).toBe(true);
+  });
+
+  it("removing a dependency that doesn't exist is a no-op, not an error", () => {
+    const a = readyTask({ title: "a" });
+    const b = readyTask({ title: "b" });
+    expect(store.removeDependency(companyId, a.id, b.id)).toBe(false);
+  });
+
+  it("audits a removed dependency", () => {
+    const a = readyTask({ title: "a" });
+    const b = readyTask({ title: "b" });
+    store.addDependency(companyId, a.id, b.id);
+    store.removeDependency(companyId, a.id, b.id);
+    const rows = db
+      .prepare("SELECT action FROM ic_audit_events WHERE entity_id = ? AND action = 'task.dependency_removed'")
+      .all(a.id);
+    expect(rows).toHaveLength(1);
+  });
 });
 
 describe("findClaimable ordering", () => {
