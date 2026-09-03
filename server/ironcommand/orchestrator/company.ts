@@ -17,6 +17,8 @@ import { appendAuditEvent } from "../domain/audit.ts";
 import { canTransition, deriveAgentStatus, type TaskStatus } from "../domain/task-state.ts";
 import { ApprovalEngine } from "../policy/approval-policy.ts";
 import { BudgetEngine } from "../policy/budget-engine.ts";
+import { SandboxGrantStore } from "../domain/sandbox-grant-store.ts";
+import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
   buildAgentGuidance,
@@ -64,6 +66,7 @@ export class CompanyOrchestrator {
   readonly runs: RunStore;
   readonly approvals: ApprovalEngine;
   readonly budgets: BudgetEngine;
+  readonly sandboxGrants: SandboxGrantStore;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -72,6 +75,7 @@ export class CompanyOrchestrator {
     this.tasks = new TaskStore(db);
     this.runs = new RunStore(db);
     this.approvals = new ApprovalEngine(db);
+    this.sandboxGrants = new SandboxGrantStore(db);
     this.budgets = new BudgetEngine(db);
   }
 
@@ -533,13 +537,44 @@ export class CompanyOrchestrator {
       runtimeType,
     });
 
+    // Elevation is reachable only through a live grant minted from an
+    // approved sandbox_elevation approval (SandboxGrantStore). Its mere
+    // presence is what the orchestrator "asks" resolvePermissionMode() for —
+    // the resolver re-validates company/runtime/task scope and expiry itself
+    // and fails closed to "restricted" on any mismatch, so this lookup is a
+    // narrowing convenience, never the authority.
+    const grant = this.sandboxGrants.findLive({
+      companyId,
+      provider: runtimeType,
+      taskId: candidate.id,
+    });
+    const permission = resolvePermissionMode({
+      provider: runtimeType,
+      companyId,
+      taskId: candidate.id,
+      requested: grant ? "elevated" : "restricted",
+      grant,
+    });
+    appendAuditEvent(this.db, {
+      companyId,
+      actorType: "system",
+      actorId: "permission-resolver",
+      action: "permission.resolved",
+      entityType: "task",
+      entityId: candidate.id,
+      taskId: candidate.id,
+      correlationId: candidate.correlation_id,
+      details: { mode: permission.mode, code: permission.code, grantId: permission.grantId ?? null },
+    });
+
     const run = this.runs.create({
       companyId,
       taskId: candidate.id,
       agentId,
       projectId: candidate.project_id,
       runtimeType,
-      permissionMode: "restricted",
+      permissionMode: permission.mode,
+      sandboxGrantId: permission.grantId ?? null,
       correlationId: candidate.correlation_id,
     });
 
@@ -590,7 +625,7 @@ export class CompanyOrchestrator {
           agentId,
           correlationId: candidate.correlation_id,
           workspacePath: opts.workspacePath ?? "/tmp/iron-command-workspace",
-          permissionMode: "restricted",
+          permissionMode: permission.mode,
         },
       )) {
         const persisted = this.runs.appendEvent({
