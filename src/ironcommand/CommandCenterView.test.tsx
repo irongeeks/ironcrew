@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CommandCenterView } from "./CommandCenterView.tsx";
 import type { api } from "./api.ts";
-import type { Agent, Approval, Dashboard, Message, RuntimeInfo, Task } from "./types.ts";
+import type { Agent, Approval, Dashboard, Message, Milestone, Project, RuntimeInfo, Task } from "./types.ts";
 
 function agent(over: Partial<Agent> = {}): Agent {
   return {
@@ -90,6 +90,16 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     task: vi.fn(),
     runtimes: vi.fn().mockResolvedValue({ runtimes: [runtimeInfo()] }),
     setAgentRuntime: vi.fn().mockResolvedValue({ agent: agent({ runtimeProvider: "claude" }) }),
+    goals: vi.fn().mockResolvedValue({ goals: [] }),
+    goal: vi.fn(),
+    createGoal: vi.fn(),
+    setGoalStatus: vi.fn(),
+    projects: vi.fn().mockResolvedValue({ projects: [] }),
+    project: vi.fn(),
+    createProject: vi.fn(),
+    setProjectStatus: vi.fn(),
+    addMilestone: vi.fn(),
+    setMilestoneStatus: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -108,6 +118,37 @@ function runtimeInfo(over: Partial<RuntimeInfo> = {}): RuntimeInfo {
     },
     health: { healthy: true, installed: true, detail: "MockRuntime is always available.", checkedAt: Date.now() },
     auth: { authenticated: true, method: "subscription-cli", detail: "n/a" },
+    ...over,
+  };
+}
+
+function project(over: Partial<Project> = {}): Project {
+  return {
+    id: "prj_1",
+    goal_id: null,
+    key: "website-relaunch",
+    title: "Website Relaunch",
+    summary: "",
+    status: "active",
+    owner_agent_id: null,
+    workspace_path: null,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    ...over,
+  };
+}
+
+function milestone(over: Partial<Milestone> = {}): Milestone {
+  return {
+    id: "mile_1",
+    project_id: "prj_1",
+    title: "Design freeze",
+    description: "",
+    status: "pending",
+    due_at: null,
+    sort_order: 0,
+    created_at: Date.now(),
+    completed_at: null,
     ...over,
   };
 }
@@ -459,5 +500,102 @@ describe("runtime selection", () => {
     const select = await screen.findByTestId("agent-runtime-select");
     await waitFor(() => expect(client.runtimes).toHaveBeenCalled());
     expect(within(select).getByText(/codex \(nicht registriert\)/)).toBeInTheDocument();
+  });
+});
+
+describe("projects", () => {
+  it("lists projects and opens a project's detail on click", async () => {
+    const client = makeClient({
+      projects: vi.fn().mockResolvedValue({ projects: [project()] }),
+      project: vi.fn().mockResolvedValue({
+        project: project(),
+        milestones: [milestone()],
+        tasks: [task({ id: "task_2", title: "Redesign the pricing page" })],
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const openButton = await screen.findByTestId("open-projects");
+    expect(openButton).toHaveTextContent("Projekte (1)");
+    await userEvent.setup().click(openButton);
+
+    const listDialog = await screen.findByRole("dialog", { name: "Projekte" });
+    await userEvent.setup().click(within(listDialog).getByTestId("project-website-relaunch"));
+
+    const detail = await screen.findByRole("dialog", { name: "Website Relaunch" });
+    expect(within(detail).getByText("website-relaunch")).toBeInTheDocument();
+    expect(within(detail).getByText("Design freeze")).toBeInTheDocument();
+    expect(within(detail).getByText("Redesign the pricing page")).toBeInTheDocument();
+    // The list dialog is replaced, not stacked.
+    expect(screen.queryByRole("dialog", { name: "Projekte" })).toBeNull();
+  });
+
+  it("shows the goal ancestry breadcrumb when the project traces to a goal", async () => {
+    const client = makeClient({
+      projects: vi.fn().mockResolvedValue({ projects: [project({ goal_id: "goal_1" })] }),
+      project: vi.fn().mockResolvedValue({
+        project: project({ goal_id: "goal_1" }),
+        milestones: [],
+        tasks: [],
+      }),
+      goal: vi.fn().mockResolvedValue({
+        goal: {
+          id: "goal_1",
+          parent_id: null,
+          title: "Grow revenue 20%",
+          description: "",
+          status: "active",
+          created_at: 0,
+        },
+        ancestry: [
+          {
+            id: "goal_0",
+            parent_id: null,
+            title: "Grow the company",
+            description: "",
+            status: "active",
+            created_at: 0,
+          },
+          {
+            id: "goal_1",
+            parent_id: "goal_0",
+            title: "Grow revenue 20%",
+            description: "",
+            status: "active",
+            created_at: 0,
+          },
+        ],
+        children: [],
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-projects"));
+    await userEvent.setup().click(await screen.findByTestId("project-website-relaunch"));
+
+    const breadcrumb = await screen.findByTestId("project-goal-ancestry");
+    expect(breadcrumb).toHaveTextContent("Grow the company -> Grow revenue 20%");
+  });
+
+  it("marks a milestone done from the project detail view", async () => {
+    const setMilestoneStatus = vi.fn().mockResolvedValue({ milestone: milestone({ status: "done" }) });
+    const client = makeClient({
+      projects: vi.fn().mockResolvedValue({ projects: [project()] }),
+      project: vi
+        .fn()
+        .mockResolvedValueOnce({ project: project(), milestones: [milestone()], tasks: [] })
+        .mockResolvedValue({ project: project(), milestones: [milestone({ status: "done" })], tasks: [] }),
+      setMilestoneStatus,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-projects"));
+    await userEvent.setup().click(await screen.findByTestId("project-website-relaunch"));
+
+    const detail = await screen.findByRole("dialog", { name: "Website Relaunch" });
+    await userEvent.setup().click(within(detail).getByRole("button", { name: "Erledigt" }));
+
+    expect(setMilestoneStatus).toHaveBeenCalledWith("mile_1", "done");
+    await waitFor(() => expect(within(detail).queryByRole("button", { name: "Erledigt" })).toBeNull());
   });
 });

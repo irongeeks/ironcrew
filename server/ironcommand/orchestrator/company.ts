@@ -19,6 +19,7 @@ import { ApprovalEngine } from "../policy/approval-policy.ts";
 import { BudgetEngine } from "../policy/budget-engine.ts";
 import { SandboxGrantStore } from "../domain/sandbox-grant-store.ts";
 import { GoalStore } from "../domain/goal-store.ts";
+import { ProjectStore } from "../domain/project-store.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -69,6 +70,7 @@ export class CompanyOrchestrator {
   readonly budgets: BudgetEngine;
   readonly sandboxGrants: SandboxGrantStore;
   readonly goals: GoalStore;
+  readonly projects: ProjectStore;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -80,6 +82,7 @@ export class CompanyOrchestrator {
     this.sandboxGrants = new SandboxGrantStore(db);
     this.budgets = new BudgetEngine(db);
     this.goals = new GoalStore(db);
+    this.projects = new ProjectStore(db);
   }
 
   registerRuntime(runtime: AgentRuntime): void {
@@ -528,6 +531,23 @@ export class CompanyOrchestrator {
     return this.getAgent(companyId, "coo") ?? null;
   }
 
+  /**
+   * "Goals and goal ancestry in the context builder" (docs/ROADMAP.md Phase
+   * 2): when a task's project traces up to a strategic goal, tell the agent
+   * why the work matters, not only what to do. Returns "" — never a
+   * fabricated block — when the task has no project, the project has no
+   * goal, or the goal chain cannot be resolved, so a run's prompt never
+   * claims strategic context that does not actually exist.
+   */
+  private buildStrategicContext(projectId: string | null): string {
+    if (!projectId) return "";
+    const project = this.projects.get(projectId);
+    if (!project?.goal_id) return "";
+    const chain = this.goals.ancestry(project.goal_id);
+    if (chain.length === 0) return "";
+    return `\n\n# Strategischer Kontext\nDieser Auftrag dient dem Projekt "${project.title}", das folgendem Ziel folgt:\n${chain.map((g) => g.title).join(" -> ")}`;
+  }
+
   buildStatusSummary(companyId: string): string {
     const counts = this.db
       .prepare("SELECT status, COUNT(*) AS n FROM ic_tasks WHERE company_id = ? GROUP BY status")
@@ -645,6 +665,8 @@ export class CompanyOrchestrator {
       policy: JSON.parse(agent.policy_json),
     });
 
+    const strategicContext = this.buildStrategicContext(candidate.project_id);
+
     const events: RunEvent[] = [];
     let failed = false;
     let waiting = false;
@@ -652,7 +674,7 @@ export class CompanyOrchestrator {
 
     try {
       for await (const ev of runtime.startRun(
-        { prompt: `${seedAgentGuidance}\n\n# Aufgabe\n${candidate.description}` },
+        { prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}` },
         {
           companyId,
           projectId: candidate.project_id,

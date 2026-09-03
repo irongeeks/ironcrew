@@ -23,6 +23,13 @@ import { BudgetExceededError } from "../policy/budget-engine.ts";
 import { InvalidTransitionError, TASK_STATUSES } from "../domain/task-state.ts";
 import { GoalMutationError } from "../domain/goal-store.ts";
 import { GOAL_STATUSES, InvalidGoalTransitionError } from "../domain/goal-state.ts";
+import { ProjectMutationError } from "../domain/project-store.ts";
+import {
+  InvalidMilestoneTransitionError,
+  InvalidProjectTransitionError,
+  MILESTONE_STATUSES,
+  PROJECT_STATUSES,
+} from "../domain/project-state.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -57,6 +64,35 @@ const updateGoalSchema = z.object({
 });
 const goalStatusSchema = z.object({ status: z.enum(GOAL_STATUSES) });
 const goalReparentSchema = z.object({ parentId: z.string().max(200).nullable() });
+const createProjectSchema = z.object({
+  title: z.string().min(1).max(500),
+  key: z.string().min(1).max(200).optional(),
+  summary: z.string().max(20000).optional(),
+  goalId: z.string().max(200).nullable().optional(),
+  ownerAgentId: z.string().max(200).nullable().optional(),
+  workspacePath: z.string().max(2000).nullable().optional(),
+});
+const updateProjectSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  summary: z.string().max(20000).optional(),
+  goalId: z.string().max(200).nullable().optional(),
+  ownerAgentId: z.string().max(200).nullable().optional(),
+  workspacePath: z.string().max(2000).nullable().optional(),
+});
+const projectStatusSchema = z.object({ status: z.enum(PROJECT_STATUSES) });
+const createMilestoneSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().max(20000).optional(),
+  dueAt: z.number().int().nullable().optional(),
+  sortOrder: z.number().int().optional(),
+});
+const updateMilestoneSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  description: z.string().max(20000).optional(),
+  dueAt: z.number().int().nullable().optional(),
+  sortOrder: z.number().int().optional(),
+});
+const milestoneStatusSchema = z.object({ status: z.enum(MILESTONE_STATUSES) });
 
 /** Translate domain errors into honest HTTP statuses rather than a blanket 500. */
 function sendDomainError(res: Response, err: unknown): boolean {
@@ -88,6 +124,18 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof GoalMutationError) {
     res.status(400).json({ error: "invalid_goal_mutation", message: err.message });
+    return true;
+  }
+  if (err instanceof InvalidProjectTransitionError) {
+    res.status(409).json({ error: "invalid_project_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof InvalidMilestoneTransitionError) {
+    res.status(409).json({ error: "invalid_milestone_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof ProjectMutationError) {
+    res.status(400).json({ error: "invalid_project_mutation", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -425,6 +473,126 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
       const goal = orchestrator.goals.reparent(existing.id, parentId, { actorType: "owner", actorId: "ceo" });
       broadcast("ic_goal_changed", { goalId: existing.id });
       res.json({ goal });
+    }),
+  );
+
+  // --- projects and milestones ---------------------------------------------
+
+  app.get(
+    `${base}/projects`,
+    wrap((req, res) => {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      if (status && !(PROJECT_STATUSES as readonly string[]).includes(status)) {
+        res.status(400).json({ error: "invalid_status", allowed: PROJECT_STATUSES });
+        return;
+      }
+      const goalId = typeof req.query.goalId === "string" ? req.query.goalId : undefined;
+      res.json({ projects: orchestrator.projects.list(companyId, { status: status as never, goalId }) });
+    }),
+  );
+
+  /** Project detail view: the project itself, its milestones and its tasks. */
+  app.get(
+    `${base}/projects/:id`,
+    wrap((req, res) => {
+      const project = orchestrator.projects.get(param(req, "id"));
+      if (!project || project.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({
+        project,
+        milestones: orchestrator.projects.listMilestones(project.id),
+        tasks: orchestrator.tasks.list(companyId, { projectId: project.id }),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/projects`,
+    wrap((req, res) => {
+      const input = createProjectSchema.parse(req.body ?? {});
+      const project = orchestrator.projects.create({ companyId, ...input });
+      broadcast("ic_project_changed", { projectId: project.id });
+      res.status(201).json({ project });
+    }),
+  );
+
+  app.patch(
+    `${base}/projects/:id`,
+    wrap((req, res) => {
+      const patch = updateProjectSchema.parse(req.body ?? {});
+      const existing = orchestrator.projects.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const project = orchestrator.projects.update(existing.id, patch);
+      broadcast("ic_project_changed", { projectId: existing.id });
+      res.json({ project });
+    }),
+  );
+
+  app.post(
+    `${base}/projects/:id/status`,
+    wrap((req, res) => {
+      const { status } = projectStatusSchema.parse(req.body ?? {});
+      const existing = orchestrator.projects.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const project = orchestrator.projects.setStatus(existing.id, status, { actorType: "owner", actorId: "ceo" });
+      broadcast("ic_project_changed", { projectId: existing.id, status });
+      res.json({ project });
+    }),
+  );
+
+  app.post(
+    `${base}/projects/:id/milestones`,
+    wrap((req, res) => {
+      const input = createMilestoneSchema.parse(req.body ?? {});
+      const project = orchestrator.projects.get(param(req, "id"));
+      if (!project || project.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const milestone = orchestrator.projects.addMilestone({ companyId, projectId: project.id, ...input });
+      broadcast("ic_project_changed", { projectId: project.id });
+      res.status(201).json({ milestone });
+    }),
+  );
+
+  app.patch(
+    `${base}/milestones/:id`,
+    wrap((req, res) => {
+      const patch = updateMilestoneSchema.parse(req.body ?? {});
+      const existing = orchestrator.projects.getMilestone(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const milestone = orchestrator.projects.updateMilestone(existing.id, patch);
+      broadcast("ic_project_changed", { projectId: existing.project_id });
+      res.json({ milestone });
+    }),
+  );
+
+  app.post(
+    `${base}/milestones/:id/status`,
+    wrap((req, res) => {
+      const { status } = milestoneStatusSchema.parse(req.body ?? {});
+      const existing = orchestrator.projects.getMilestone(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const milestone = orchestrator.projects.setMilestoneStatus(existing.id, status, {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("ic_project_changed", { projectId: existing.project_id, status });
+      res.json({ milestone });
     }),
   );
 

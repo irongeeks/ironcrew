@@ -9,7 +9,21 @@
  */
 
 import { request } from "../api/core";
-import type { Agent, Approval, Dashboard, Department, Message, RunEvent, RuntimeInfo, Task } from "./types.ts";
+import type {
+  Agent,
+  Approval,
+  Dashboard,
+  Department,
+  Goal,
+  GoalStatus,
+  Message,
+  Milestone,
+  Project,
+  ProjectStatus,
+  RunEvent,
+  RuntimeInfo,
+  Task,
+} from "./types.ts";
 
 const BASE = "/api/ic";
 
@@ -44,4 +58,21 @@ export const api = {
   runtimes: () => get<{ runtimes: RuntimeInfo[] }>("/runtimes"),
   setAgentRuntime: (agentId: string, runtimeProvider: string) =>
     send<{ agent: Agent }>(`/agents/${agentId}/runtime`, "PATCH", { runtimeProvider }),
+
+  goals: () => get<{ goals: Goal[] }>("/goals"),
+  goal: (id: string) => get<{ goal: Goal; ancestry: Goal[]; children: Goal[] }>(`/goals/${id}`),
+  createGoal: (input: { title: string; description?: string; parentId?: string | null }) =>
+    send<{ goal: Goal }>("/goals", "POST", input),
+  setGoalStatus: (id: string, status: GoalStatus) => send<{ goal: Goal }>(`/goals/${id}/status`, "POST", { status }),
+
+  projects: () => get<{ projects: Project[] }>("/projects"),
+  project: (id: string) => get<{ project: Project; milestones: Milestone[]; tasks: Task[] }>(`/projects/${id}`),
+  createProject: (input: { title: string; key?: string; summary?: string; goalId?: string | null }) =>
+    send<{ project: Project }>("/projects", "POST", input),
+  setProjectStatus: (id: string, status: ProjectStatus) =>
+    send<{ project: Project }>(`/projects/${id}/status`, "POST", { status }),
+  addMilestone: (projectId: string, input: { title: string; description?: string; dueAt?: number | null }) =>
+    send<{ milestone: Milestone }>(`/projects/${projectId}/milestones`, "POST", input),
+  setMilestoneStatus: (id: string, status: Milestone["status"]) =>
+    send<{ milestone: Milestone }>(`/milestones/${id}/status`, "POST", { status }),
 };

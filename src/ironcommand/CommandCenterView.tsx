@@ -15,11 +15,16 @@ import { api } from "./api.ts";
 import {
   AGENT_STATUS_LABEL,
   BOARD_COLUMNS,
+  MILESTONE_STATUS_LABEL,
+  PROJECT_STATUS_LABEL,
   TASK_STATUS_LABEL,
   type Agent,
   type Approval,
   type Dashboard,
+  type Goal,
   type Message,
+  type Milestone,
+  type Project,
   type RunEvent,
   type RuntimeInfo,
   type Task,
@@ -49,35 +54,78 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [companyName, setCompanyName] = useState("Iron Command");
   const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [showProjectList, setShowProjectList] = useState(false);
+  const [projectDetail, setProjectDetail] = useState<{
+    project: Project;
+    milestones: Milestone[];
+    tasks: Task[];
+  } | null>(null);
+  const [projectGoalAncestry, setProjectGoalAncestry] = useState<Goal[] | null>(null);
 
   const logRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [a, t, c, ap, d] = await Promise.all([
+      const [a, t, c, ap, d, p] = await Promise.all([
         client.agents(),
         client.tasks(),
         client.chat(),
         client.approvals(),
         client.dashboard(),
+        client.projects(),
       ]);
       setAgents(a.agents);
       setTasks(t.tasks);
       setMessages(c.messages);
       setApprovals(ap.approvals);
       setDashboard(d);
+      setProjects(p.projects);
       setError(null);
     } catch (err) {
       // Never fail silently — an unreachable control plane is information.
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [client]);
+
+  const openProjectDetail = useCallback(
+    async (projectId: string) => {
+      setShowProjectList(false);
+      try {
+        const detail = await client.project(projectId);
+        setProjectDetail(detail);
+        setProjectGoalAncestry(null);
+        if (detail.project.goal_id) {
+          // Best-effort: the detail dialog still works without the goal
+          // breadcrumb if this second call fails.
+          client
+            .goal(detail.project.goal_id)
+            .then((g) => setProjectGoalAncestry(g.ancestry))
+            .catch(() => setProjectGoalAncestry(null));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [client],
+  );
+
+  const closeProjectDetail = useCallback(() => {
+    setProjectDetail(null);
+    setProjectGoalAncestry(null);
+  }, []);
+
+  const refreshProjectDetail = useCallback(async () => {
+    if (!projectDetail) return;
+    const detail = await client.project(projectDetail.project.id);
+    setProjectDetail(detail);
+  }, [client, projectDetail]);
 
   // Provider Health: kept separate from refresh() — each registered runtime
   // probes its own CLI (e.g. `claude --version`), so this is refreshed on
@@ -185,6 +233,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
           <span className="ic-brand-mark">IRON COMMAND</span>
           <span className="ic-brand-sub">{companyName}</span>
         </div>
+
+        <button type="button" className="ic-btn" data-testid="open-projects" onClick={() => setShowProjectList(true)}>
+          Projekte ({projects.length})
+        </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
           <Metric label="Läuft" value={dashboard?.tasks.running ?? 0} tone="accent" />
@@ -528,6 +580,95 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
             Das Auftreten ist rein stilistisch. Es kann Berechtigungen, Werkzeuge oder Freigabepflichten nicht verändern
             — Policy hat immer Vorrang.
           </p>
+        </DetailDialog>
+      )}
+
+      {showProjectList && !projectDetail && (
+        <DetailDialog title="Projekte" onClose={() => setShowProjectList(false)}>
+          {projects.length === 0 && <p className="ic-empty">Noch keine Projekte.</p>}
+          <div className="ic-project-list">
+            {projects.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="ic-project"
+                data-testid={`project-${p.key}`}
+                onClick={() => void openProjectDetail(p.id)}
+              >
+                <span className="ic-project-title">{p.title}</span>
+                <span className="ic-project-meta">
+                  {p.key} · {PROJECT_STATUS_LABEL[p.status]}
+                </span>
+              </button>
+            ))}
+          </div>
+        </DetailDialog>
+      )}
+
+      {projectDetail && (
+        <DetailDialog title={projectDetail.project.title} onClose={closeProjectDetail}>
+          <dl>
+            <dt>Schlüssel</dt>
+            <dd>
+              <code>{projectDetail.project.key}</code>
+            </dd>
+            <dt>Status</dt>
+            <dd>{PROJECT_STATUS_LABEL[projectDetail.project.status]}</dd>
+            {projectGoalAncestry && projectGoalAncestry.length > 0 && (
+              <>
+                <dt>Ziel</dt>
+                <dd data-testid="project-goal-ancestry">{projectGoalAncestry.map((g) => g.title).join(" -> ")}</dd>
+              </>
+            )}
+            {projectDetail.project.summary && (
+              <>
+                <dt>Zusammenfassung</dt>
+                <dd>{projectDetail.project.summary}</dd>
+              </>
+            )}
+          </dl>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Meilensteine
+          </h3>
+          {projectDetail.milestones.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {projectDetail.milestones.map((m) => (
+              <li key={m.id} className="ic-milestone" data-status={m.status}>
+                <span className="ic-milestone-title">{m.title}</span>
+                <span className="ic-tag" data-tone={m.status === "missed" ? "gate" : "policy"}>
+                  {MILESTONE_STATUS_LABEL[m.status]}
+                </span>
+                {m.status === "pending" && (
+                  <button
+                    type="button"
+                    className="ic-btn"
+                    disabled={busy}
+                    onClick={() =>
+                      act(async () => {
+                        await client.setMilestoneStatus(m.id, "done");
+                        await refreshProjectDetail();
+                      })
+                    }
+                  >
+                    Erledigt
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Aufgaben
+          </h3>
+          {projectDetail.tasks.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {projectDetail.tasks.map((t) => (
+              <li key={t.id}>
+                <span>{t.title}</span> <span className="ic-tag">{TASK_STATUS_LABEL[t.status]}</span>
+              </li>
+            ))}
+          </ul>
         </DetailDialog>
       )}
     </div>

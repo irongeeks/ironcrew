@@ -9,6 +9,7 @@ import { TaskStore } from "../domain/task-store.ts";
 import { verifyAuditChain } from "../domain/audit.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
 import { configDir, loadCrewConfig, loadDepartmentConfig } from "../domain/crew-config.ts";
+import type { AgentRuntime, RunContext, RunInput } from "../runtime/run-events.ts";
 
 let db: DatabaseSync;
 let orc: CompanyOrchestrator;
@@ -465,6 +466,111 @@ describe("permission resolution — elevation reachable only through a live gran
     expect(rows).toHaveLength(1);
     expect(JSON.parse(rows[0].details_json)).toMatchObject({ mode: "restricted", code: "default_restricted" });
     expect(verifyAuditChain(db, companyId).valid).toBe(true);
+  });
+});
+
+describe("goal ancestry in the run context", () => {
+  /**
+   * Captures the prompt a run actually receives — MockRuntime doesn't echo
+   * it back in any event, so this is the minimal double that lets the test
+   * observe what executeNextTask() built, not just that it ran.
+   */
+  class PromptCapturingRuntime implements AgentRuntime {
+    readonly id = "capture";
+    readonly type = "capture";
+    receivedPrompt: string | null = null;
+
+    async capabilities() {
+      return {
+        streaming: false,
+        sessionResume: false,
+        usageReporting: false,
+        costReporting: false,
+        toolCalls: false,
+        subagents: false,
+        defaultConcurrency: 1,
+      };
+    }
+    async healthCheck() {
+      return { healthy: true, installed: true, detail: "", checkedAt: Date.now() };
+    }
+    async authStatus() {
+      return { authenticated: true, method: "none" as const, detail: "" };
+    }
+    async cancelRun(): Promise<void> {}
+
+    async *startRun(input: RunInput, context: RunContext) {
+      this.receivedPrompt = input.prompt;
+      yield {
+        eventId: "evt_capture",
+        companyId: context.companyId,
+        projectId: context.projectId,
+        taskId: context.taskId,
+        runId: context.runId,
+        agentId: context.agentId,
+        seq: 0,
+        type: "run.completed" as const,
+        timestamp: Date.now(),
+        correlationId: context.correlationId,
+        payload: { summary: "ok" },
+        redaction: { redacted: false, rules: [] },
+      };
+    }
+  }
+
+  it("tells the agent why the task matters when its project traces to a goal", async () => {
+    const capture = new PromptCapturingRuntime();
+    orc.registerRuntime(capture);
+
+    const goal = orc.goals.create({ companyId, title: "Grow revenue 20%" });
+    const project = orc.projects.create({ companyId, title: "Pricing page", goalId: goal.id });
+    const cto = orc.getAgent(companyId, "cto")!;
+    orc.tasks.create({
+      companyId,
+      title: "Redesign pricing",
+      status: "ready",
+      projectId: project.id,
+      assignedAgentId: cto.id,
+    });
+
+    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+
+    expect(capture.receivedPrompt).toContain("Strategischer Kontext");
+    expect(capture.receivedPrompt).toContain("Pricing page");
+    expect(capture.receivedPrompt).toContain("Grow revenue 20%");
+    // The strategic-context block comes before the task section, never replacing it.
+    expect(capture.receivedPrompt!.indexOf("Strategischer Kontext")).toBeLessThan(
+      capture.receivedPrompt!.indexOf("# Aufgabe"),
+    );
+  });
+
+  it("adds no strategic-context block when the project has no goal", async () => {
+    const capture = new PromptCapturingRuntime();
+    orc.registerRuntime(capture);
+
+    const project = orc.projects.create({ companyId, title: "Ad-hoc cleanup" });
+    const cto = orc.getAgent(companyId, "cto")!;
+    orc.tasks.create({
+      companyId,
+      title: "Tidy the workspace",
+      status: "ready",
+      projectId: project.id,
+      assignedAgentId: cto.id,
+    });
+
+    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+    expect(capture.receivedPrompt).not.toContain("Strategischer Kontext");
+  });
+
+  it("adds no strategic-context block for a task with no project at all", async () => {
+    const capture = new PromptCapturingRuntime();
+    orc.registerRuntime(capture);
+
+    const cto = orc.getAgent(companyId, "cto")!;
+    orc.tasks.create({ companyId, title: "Standalone task", status: "ready", assignedAgentId: cto.id });
+
+    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+    expect(capture.receivedPrompt).not.toContain("Strategischer Kontext");
   });
 });
 

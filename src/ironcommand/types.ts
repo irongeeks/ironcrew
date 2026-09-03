@@ -78,6 +78,46 @@ export interface Task {
   updated_at: number;
 }
 
+export type GoalStatus = "active" | "achieved" | "abandoned" | "on_hold";
+
+export interface Goal {
+  id: string;
+  parent_id: string | null;
+  title: string;
+  description: string;
+  status: GoalStatus;
+  created_at: number;
+}
+
+export type ProjectStatus = "draft" | "active" | "on_hold" | "done" | "cancelled";
+
+export interface Project {
+  id: string;
+  goal_id: string | null;
+  key: string;
+  title: string;
+  summary: string;
+  status: ProjectStatus;
+  owner_agent_id: string | null;
+  workspace_path: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export type MilestoneStatus = "pending" | "done" | "missed" | "cancelled";
+
+export interface Milestone {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  status: MilestoneStatus;
+  due_at: number | null;
+  sort_order: number;
+  created_at: number;
+  completed_at: number | null;
+}
+
 export interface Message {
   id: string;
   role: "ceo" | "agent" | "system";
@@ -191,6 +231,28 @@ export const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
   rate_limited: "Rate-Limit",
   paused: "Pausiert",
   error: "Fehler",
+};
+
+export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
+  active: "Aktiv",
+  achieved: "Erreicht",
+  abandoned: "Aufgegeben",
+  on_hold: "Pausiert",
+};
+
+export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
+  draft: "Entwurf",
+  active: "Aktiv",
+  on_hold: "Pausiert",
+  done: "Abgeschlossen",
+  cancelled: "Abgebrochen",
+};
+
+export const MILESTONE_STATUS_LABEL: Record<MilestoneStatus, string> = {
+  pending: "Ausstehend",
+  done: "Erledigt",
+  missed: "Verpasst",
+  cancelled: "Abgebrochen",
 };
 
 /** Columns shown on the board, in workflow order. */

@@ -11,6 +11,7 @@ export type IdPrefix =
   | "agt"
   | "goal"
   | "prj"
+  | "mile"
   | "task"
   | "dep"
   | "run"

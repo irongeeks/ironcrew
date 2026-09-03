@@ -4,12 +4,14 @@
  */
 import { DatabaseSync } from "node:sqlite";
 import { migration as ironCommandDomain } from "../../modules/bootstrap/migrations/0002-iron-command-domain.ts";
+import { migration as icMilestones } from "../../modules/bootstrap/migrations/0003-ic-milestones.ts";
 import { newId } from "./ids.ts";
 
 export function createTestDb(): DatabaseSync {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
   ironCommandDomain.up(db);
+  icMilestones.up(db);
   return db;
 }
 

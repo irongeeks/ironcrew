@@ -303,6 +303,68 @@
   border: 1px solid var(--ic-amber-dim);
 }
 
+/* ---------------------------------------------------------------- projects */
+
+.ic-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ic-project {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--ic-bg-inset);
+  border: 1px solid var(--ic-line);
+  border-radius: var(--ic-radius);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ic-project:hover {
+  border-color: var(--ic-cyan-dim);
+}
+.ic-project:focus-visible {
+  outline: 2px solid var(--ic-cyan);
+  outline-offset: 1px;
+}
+.ic-project-title {
+  font-size: 12px;
+  font-weight: 500;
+}
+.ic-project-meta {
+  font-size: 10px;
+  color: var(--ic-text-faint);
+  font-family: var(--ic-mono);
+}
+
+.ic-milestone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ic-milestone-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--ic-line);
+}
+.ic-milestone-title {
+  flex: 1;
+}
+.ic-milestone[data-status="done"] .ic-milestone-title {
+  color: var(--ic-text-faint);
+  text-decoration: line-through;
+}
+
 /* ------------------------------------------------------------------ kanban */
 
 .ic-board {

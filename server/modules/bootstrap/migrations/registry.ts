@@ -5,9 +5,10 @@ import type { Migration } from "./migration-types.ts";
 import { migration as baseline } from "./0000-baseline.ts";
 import { migration as m0001DropPresentationTaskType } from "./0001-drop-presentation-task-type.ts";
 import { migration as m0002IronCommandDomain } from "./0002-iron-command-domain.ts";
+import { migration as m0003IcMilestones } from "./0003-ic-milestones.ts";
 
 // Import future migrations here:
-// import { migration as m0002 } from "./0002-example.ts";
+// import { migration as m0004 } from "./0004-example.ts";
 
 /**
  * Entry in the registry — pairs each Migration with the on-disk filename that
@@ -23,6 +24,7 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0000-baseline.ts", migration: baseline },
   { filename: "0001-drop-presentation-task-type.ts", migration: m0001DropPresentationTaskType },
   { filename: "0002-iron-command-domain.ts", migration: m0002IronCommandDomain },
+  { filename: "0003-ic-milestones.ts", migration: m0003IcMilestones },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

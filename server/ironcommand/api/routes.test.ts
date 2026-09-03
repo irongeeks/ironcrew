@@ -450,3 +450,134 @@ describe("goals over HTTP", () => {
     await request(app).get("/api/ic/goals?status=nonsense").expect(400);
   });
 });
+
+describe("projects and milestones over HTTP", () => {
+  it("creates a project with a slugified key and reads it back with the detail view", async () => {
+    const created = await request(app).post("/api/ic/projects").send({ title: "Website Relaunch" }).expect(201);
+    expect(created.body.project.key).toBe("website-relaunch");
+    expect(created.body.project.status).toBe("active");
+
+    const res = await request(app).get(`/api/ic/projects/${created.body.project.id}`).expect(200);
+    expect(res.body.project.title).toBe("Website Relaunch");
+    expect(res.body.milestones).toEqual([]);
+    expect(res.body.tasks).toEqual([]);
+  });
+
+  it("links a project to a goal", async () => {
+    const goal = await request(app).post("/api/ic/goals").send({ title: "Grow revenue" }).expect(201);
+    const project = await request(app)
+      .post("/api/ic/projects")
+      .send({ title: "Pricing page", goalId: goal.body.goal.id })
+      .expect(201);
+    expect(project.body.project.goal_id).toBe(goal.body.goal.id);
+  });
+
+  it("404s creating a project against a goal that doesn't exist", async () => {
+    await request(app).post("/api/ic/projects").send({ title: "x", goalId: "goal_nope" }).expect(400);
+  });
+
+  it("lists projects filtered by status and by goal", async () => {
+    const goal = await request(app).post("/api/ic/goals").send({ title: "Grow revenue" }).expect(201);
+    const a = await request(app).post("/api/ic/projects").send({ title: "A", goalId: goal.body.goal.id }).expect(201);
+    await request(app).post(`/api/ic/projects/${a.body.project.id}/status`).send({ status: "on_hold" }).expect(200);
+    await request(app).post("/api/ic/projects").send({ title: "B" }).expect(201);
+
+    const byStatus = await request(app).get("/api/ic/projects?status=on_hold").expect(200);
+    expect(byStatus.body.projects.map((p: { id: string }) => p.id)).toEqual([a.body.project.id]);
+
+    const byGoal = await request(app).get(`/api/ic/projects?goalId=${goal.body.goal.id}`).expect(200);
+    expect(byGoal.body.projects.map((p: { id: string }) => p.id)).toEqual([a.body.project.id]);
+  });
+
+  it("updates a project's title and summary", async () => {
+    const p = await request(app).post("/api/ic/projects").send({ title: "old" }).expect(201);
+    const res = await request(app)
+      .patch(`/api/ic/projects/${p.body.project.id}`)
+      .send({ title: "new", summary: "why" })
+      .expect(200);
+    expect(res.body.project.title).toBe("new");
+    expect(res.body.project.summary).toBe("why");
+    expect(broadcasts.some((b) => b.type === "ic_project_changed")).toBe(true);
+  });
+
+  it("moves a project through draft -> active -> done", async () => {
+    const p = await request(app).post("/api/ic/projects").send({ title: "A" }).expect(201);
+    const res = await request(app)
+      .post(`/api/ic/projects/${p.body.project.id}/status`)
+      .send({ status: "done" })
+      .expect(200);
+    expect(res.body.project.status).toBe("done");
+  });
+
+  it("rejects an illegal project status transition with 409", async () => {
+    const p = await request(app).post("/api/ic/projects").send({ title: "A" }).expect(201);
+    await request(app).post(`/api/ic/projects/${p.body.project.id}/status`).send({ status: "done" }).expect(200);
+    const res = await request(app)
+      .post(`/api/ic/projects/${p.body.project.id}/status`)
+      .send({ status: "active" })
+      .expect(409);
+    expect(res.body.error).toBe("invalid_project_transition");
+  });
+
+  it("404s for a project that doesn't exist", async () => {
+    await request(app).get("/api/ic/projects/prj_nope").expect(404);
+    await request(app).patch("/api/ic/projects/prj_nope").send({ title: "x" }).expect(404);
+  });
+
+  it("adds a milestone and surfaces it in the project detail view", async () => {
+    const p = await request(app).post("/api/ic/projects").send({ title: "Website Relaunch" }).expect(201);
+    const m = await request(app)
+      .post(`/api/ic/projects/${p.body.project.id}/milestones`)
+      .send({ title: "Design freeze", dueAt: 1234 })
+      .expect(201);
+    expect(m.body.milestone.project_id).toBe(p.body.project.id);
+    expect(m.body.milestone.status).toBe("pending");
+
+    const detail = await request(app).get(`/api/ic/projects/${p.body.project.id}`).expect(200);
+    expect(detail.body.milestones.map((x: { id: string }) => x.id)).toEqual([m.body.milestone.id]);
+  });
+
+  it("404s adding a milestone to a project that doesn't exist", async () => {
+    await request(app).post("/api/ic/projects/prj_nope/milestones").send({ title: "x" }).expect(404);
+  });
+
+  it("updates and transitions a milestone", async () => {
+    const p = await request(app).post("/api/ic/projects").send({ title: "A" }).expect(201);
+    const m = await request(app)
+      .post(`/api/ic/projects/${p.body.project.id}/milestones`)
+      .send({ title: "old" })
+      .expect(201);
+
+    const updated = await request(app)
+      .patch(`/api/ic/milestones/${m.body.milestone.id}`)
+      .send({ title: "new" })
+      .expect(200);
+    expect(updated.body.milestone.title).toBe("new");
+
+    const done = await request(app)
+      .post(`/api/ic/milestones/${m.body.milestone.id}/status`)
+      .send({ status: "done" })
+      .expect(200);
+    expect(done.body.milestone.status).toBe("done");
+    expect(done.body.milestone.completed_at).not.toBeNull();
+  });
+
+  it("rejects an illegal milestone status transition with 409", async () => {
+    const p = await request(app).post("/api/ic/projects").send({ title: "A" }).expect(201);
+    const m = await request(app)
+      .post(`/api/ic/projects/${p.body.project.id}/milestones`)
+      .send({ title: "x" })
+      .expect(201);
+    await request(app).post(`/api/ic/milestones/${m.body.milestone.id}/status`).send({ status: "done" }).expect(200);
+    const res = await request(app)
+      .post(`/api/ic/milestones/${m.body.milestone.id}/status`)
+      .send({ status: "pending" })
+      .expect(409);
+    expect(res.body.error).toBe("invalid_milestone_transition");
+  });
+
+  it("404s for a milestone that doesn't exist", async () => {
+    await request(app).patch("/api/ic/milestones/mile_nope").send({ title: "x" }).expect(404);
+    await request(app).post("/api/ic/milestones/mile_nope/status").send({ status: "done" }).expect(404);
+  });
+});
