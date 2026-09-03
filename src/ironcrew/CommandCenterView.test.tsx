@@ -19,6 +19,7 @@ import type {
   Message,
   Milestone,
   Notification,
+  NotificationChannelStatus,
   Project,
   RemoteWorker,
   RuntimeInfo,
@@ -159,6 +160,9 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     memoryContent: vi.fn(),
     deleteMemory: vi.fn(),
     searchMemory: vi.fn(),
+    notificationChannels: vi.fn().mockResolvedValue({ channels: [] }),
+    testNotificationChannel: vi.fn(),
+    sendTestNotification: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -357,6 +361,10 @@ function memoryRef(over: Partial<MemoryRef> = {}): MemoryRef {
     created_at: Date.now(),
     ...over,
   };
+}
+
+function notificationChannelStatus(over: Partial<NotificationChannelStatus> = {}): NotificationChannelStatus {
+  return { kind: "discord", registered: true, ok: true, message: 'Webhook "IronCrew Alerts" erreichbar.', ...over };
 }
 
 function tailscaleInfo(over: Partial<TailscaleInfo> = {}): TailscaleInfo {
@@ -1644,5 +1652,67 @@ describe("memory (Obsidian vault, the first MemoryProvider)", () => {
 
     expect(searchMemory).toHaveBeenCalledWith("obsidian", "nightly");
     expect(await within(dialog).findByTestId("memory-search-results")).toHaveTextContent("Backup policy");
+  });
+});
+
+describe("notification channels (Discord, Telegram, email fan-out)", () => {
+  it("shows registered channels with their status", async () => {
+    const client = makeClient({
+      notificationChannels: vi.fn().mockResolvedValue({ channels: [notificationChannelStatus()] }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-channels"));
+    const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
+
+    expect(await within(dialog).findByTestId("channel-discord")).toHaveTextContent("Discord");
+    expect(within(dialog).getByTestId("channel-discord")).toHaveTextContent("verbunden");
+  });
+
+  it("tests a channel's reachability and shows the result", async () => {
+    const testNotificationChannel = vi
+      .fn()
+      .mockResolvedValue({ ok: false, message: "Discord-Webhook antwortet mit 401." });
+    const client = makeClient({
+      notificationChannels: vi.fn().mockResolvedValue({ channels: [notificationChannelStatus()] }),
+      testNotificationChannel,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-channels"));
+    const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
+    await userEvent.setup().click(await within(dialog).findByRole("button", { name: "Testen" }));
+
+    expect(testNotificationChannel).toHaveBeenCalledWith("discord");
+    expect(await within(dialog).findByTestId("channel-test-discord")).toHaveTextContent(
+      "Discord-Webhook antwortet mit 401.",
+    );
+  });
+
+  it("sends a real test notification through a channel", async () => {
+    const sendTestNotification = vi.fn().mockResolvedValue({ ok: true, message: "Testbenachrichtigung gesendet." });
+    const client = makeClient({
+      notificationChannels: vi.fn().mockResolvedValue({ channels: [notificationChannelStatus({ kind: "telegram" })] }),
+      sendTestNotification,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-channels"));
+    const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
+    await userEvent.setup().click(await within(dialog).findByRole("button", { name: "Testnachricht senden" }));
+
+    expect(sendTestNotification).toHaveBeenCalledWith("telegram");
+    expect(await within(dialog).findByTestId("channel-test-telegram")).toHaveTextContent(
+      "Testbenachrichtigung gesendet.",
+    );
+  });
+
+  it("shows an empty state when nothing is registered", async () => {
+    const client = makeClient();
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-channels"));
+    const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
+    expect(await within(dialog).findByText("Kein Kanal registriert.")).toBeInTheDocument();
   });
 });

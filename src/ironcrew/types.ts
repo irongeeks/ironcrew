@@ -462,3 +462,16 @@ export interface MemorySearchHit {
   snippet: string;
   path: string | null;
 }
+
+export interface NotificationChannelStatus {
+  kind: string;
+  registered: boolean;
+  ok: boolean;
+  message: string;
+}
+
+export const NOTIFICATION_CHANNEL_LABEL: Record<string, string> = {
+  discord: "Discord",
+  telegram: "Telegram",
+  email: "E-Mail",
+};

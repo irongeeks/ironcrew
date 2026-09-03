@@ -41,6 +41,9 @@ import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provid
 import { ProtonPassSecretProvider } from "./ironcrew/secrets/protonpass-provider.ts";
 import { TailscaleProvider } from "./ironcrew/network/tailscale-provider.ts";
 import { ObsidianProvider } from "./ironcrew/memory/obsidian-provider.ts";
+import { DiscordChannel } from "./ironcrew/notify/discord-channel.ts";
+import { TelegramChannel } from "./ironcrew/notify/telegram-channel.ts";
+import { EmailChannel } from "./ironcrew/notify/email-channel.ts";
 import { createOAuthContext } from "./contexts/oauth-context.ts";
 import { createMessagingContext } from "./contexts/messaging-context.ts";
 import { createTaskExecutionContext } from "./contexts/task-execution-context.ts";
@@ -316,6 +319,30 @@ ironCrewOrchestrator.registerTailscaleProvider(new TailscaleProvider({ tailscale
 // nonsensical default directory.
 if (process.env.OBSIDIAN_VAULT_PATH) {
   ironCrewOrchestrator.registerMemoryProvider(new ObsidianProvider({ vaultPath: process.env.OBSIDIAN_VAULT_PATH }));
+}
+// Notification channels: same conditional posture as ObsidianProvider above
+// — each needs real configuration to even construct, so an unconfigured
+// channel is simply never registered rather than wrapping a broken one.
+if (process.env.DISCORD_WEBHOOK_URL) {
+  ironCrewOrchestrator.registerNotificationChannel(new DiscordChannel({ webhookUrl: process.env.DISCORD_WEBHOOK_URL }));
+}
+if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+  ironCrewOrchestrator.registerNotificationChannel(
+    new TelegramChannel({ botToken: process.env.TELEGRAM_BOT_TOKEN, chatId: process.env.TELEGRAM_CHAT_ID }),
+  );
+}
+if (process.env.SMTP_HOST && process.env.SMTP_FROM && process.env.SMTP_TO) {
+  ironCrewOrchestrator.registerNotificationChannel(
+    new EmailChannel({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? 587),
+      secure: process.env.SMTP_SECURE === "true",
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+      from: process.env.SMTP_FROM,
+      to: process.env.SMTP_TO,
+    }),
+  );
 }
 registerIronCrewRoutes(app, {
   db,

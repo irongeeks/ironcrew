@@ -18,6 +18,7 @@ import {
   MEETING_STATUS_LABEL,
   MEMORY_KIND_LABEL,
   MILESTONE_STATUS_LABEL,
+  NOTIFICATION_CHANNEL_LABEL,
   NOTIFICATION_SEVERITY_LABEL,
   PROJECT_STATUS_LABEL,
   SECRET_PROVIDER_LABEL,
@@ -41,6 +42,7 @@ import {
   type Message,
   type Milestone,
   type Notification,
+  type NotificationChannelStatus,
   type Project,
   type RemoteWorker,
   type RunEvent,
@@ -158,6 +160,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [newMemoryKind, setNewMemoryKind] = useState<MemoryKind>("note");
   const [newMemoryTitle, setNewMemoryTitle] = useState("");
   const [newMemoryContent, setNewMemoryContent] = useState("");
+
+  const [notificationChannels, setNotificationChannels] = useState<NotificationChannelStatus[]>([]);
+  const [showChannels, setShowChannels] = useState(false);
+  const [channelTestResults, setChannelTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -771,6 +777,45 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     );
   }, [actWith, client, memoryQuery, memoryProviders]);
 
+  // --- notification channels (Discord, Telegram, email fan-out) -----------
+
+  const refreshChannels = useCallback(async () => {
+    const { channels } = await client.notificationChannels();
+    setNotificationChannels(channels);
+  }, [client]);
+
+  const openChannels = useCallback(() => {
+    setShowChannels(true);
+    setChannelTestResults({});
+    void refreshChannels();
+  }, [refreshChannels]);
+
+  const testChannel = useCallback(
+    (kind: string) => {
+      void actWith(
+        async () => {
+          const result = await client.testNotificationChannel(kind);
+          setChannelTestResults((prev) => ({ ...prev, [kind]: result }));
+        },
+        async () => {},
+      );
+    },
+    [actWith, client],
+  );
+
+  const sendTestNotification = useCallback(
+    (kind: string) => {
+      void actWith(
+        async () => {
+          const result = await client.sendTestNotification(kind);
+          setChannelTestResults((prev) => ({ ...prev, [kind]: result }));
+        },
+        async () => {},
+      );
+    },
+    [actWith, client],
+  );
+
   // --- attachments (task/project-scoped + the general document store) ----
   // refreshTaskAttachments / refreshProjectAttachments are declared earlier,
   // alongside openTaskDetail / openProjectDetail, which call them on open.
@@ -900,6 +945,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-memory" onClick={openMemory}>
           Wissen
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-channels" onClick={openChannels}>
+          Kanäle
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -2293,6 +2342,43 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               Speichern
             </button>
           </div>
+        </DetailDialog>
+      )}
+
+      {showChannels && (
+        <DetailDialog title="Kanäle" onClose={() => setShowChannels(false)}>
+          <p className="ic-note">
+            Fan-out für den Entscheidungs-Posteingang (aktuell: Freigabeanfragen) an Discord, Telegram und E-Mail. Ein
+            Kanal wird beim Serverstart aus Umgebungsvariablen registriert — hier lässt sich nur prüfen, ob er wirklich
+            funktioniert.
+          </p>
+          {notificationChannels.length === 0 && <p className="ic-empty">Kein Kanal registriert.</p>}
+          <ul className="ic-milestone-list">
+            {notificationChannels.map((c) => (
+              <li key={c.kind} data-testid={`channel-${c.kind}`}>
+                <span className="ic-milestone-title">{NOTIFICATION_CHANNEL_LABEL[c.kind] ?? c.kind}</span>
+                <span className="ic-tag" data-tone={c.ok ? "policy" : "gate"}>
+                  {c.ok ? "verbunden" : "nicht erreichbar"}
+                </span>
+                <span className="ic-note">{c.message}</span>
+                <button type="button" className="ic-btn" disabled={busy} onClick={() => testChannel(c.kind)}>
+                  Testen
+                </button>
+                <button type="button" className="ic-btn" disabled={busy} onClick={() => sendTestNotification(c.kind)}>
+                  Testnachricht senden
+                </button>
+                {channelTestResults[c.kind] && (
+                  <span
+                    className="ic-tag"
+                    data-testid={`channel-test-${c.kind}`}
+                    data-tone={channelTestResults[c.kind].ok ? "policy" : "gate"}
+                  >
+                    {channelTestResults[c.kind].message}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
         </DetailDialog>
       )}
     </div>

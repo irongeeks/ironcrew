@@ -31,6 +31,7 @@ import type {
   Message,
   Milestone,
   Notification,
+  NotificationChannelStatus,
   Project,
   ProjectStatus,
   RemoteWorker,
@@ -194,4 +195,10 @@ export const api = {
     get<{ hits: MemorySearchHit[] }>(
       `/memory/search?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(query)}`,
     ),
+
+  notificationChannels: () => get<{ channels: NotificationChannelStatus[] }>("/notification-channels"),
+  testNotificationChannel: (kind: string) =>
+    send<{ ok: boolean; message: string }>(`/notification-channels/${kind}/test`, "POST"),
+  sendTestNotification: (kind: string) =>
+    send<{ ok: boolean; message: string }>(`/notification-channels/${kind}/send-test`, "POST"),
 };
