@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
+import path from "node:path";
 import {
   applyCharacterPack,
   buildAgentGuidance,
   CharacterPackError,
+  configDir,
   loadCrewConfig,
   loadDepartmentConfig,
   OVERRIDABLE_SKIN_FIELDS,
@@ -12,7 +14,14 @@ import {
   riskRank,
 } from "./crew-config.ts";
 
-const crew = loadCrewConfig();
+// "Shipped configuration" means what config/agents.seed.yaml actually
+// commits. A developer's machine may have a private, gitignored
+// config/private/character-pack.local.yaml sitting on disk (loadCrewConfig()
+// applies it automatically when present, by design) — but that file never
+// ships, so these tests must not become flaky depending on whether one
+// happens to exist locally. Point at a packFile that can never exist so
+// `crew` always reflects only the tracked seed file.
+const crew = loadCrewConfig(undefined, path.join(configDir(), "private", "__no_such_pack__.local.yaml"));
 const departments = loadDepartmentConfig();
 
 describe("shipped configuration", () => {
