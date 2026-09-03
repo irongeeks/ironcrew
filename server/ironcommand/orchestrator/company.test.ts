@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
+import path from "node:path";
 import { createTestDb } from "../domain/test-db.ts";
 import { CompanyOrchestrator } from "./company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
@@ -7,13 +8,18 @@ import { RunStore } from "../runtime/run-store.ts";
 import { TaskStore } from "../domain/task-store.ts";
 import { verifyAuditChain } from "../domain/audit.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
-import { loadCrewConfig, loadDepartmentConfig } from "../domain/crew-config.ts";
+import { configDir, loadCrewConfig, loadDepartmentConfig } from "../domain/crew-config.ts";
 
 let db: DatabaseSync;
 let orc: CompanyOrchestrator;
 let companyId: string;
 
-const crew = loadCrewConfig();
+// Explicitly bypass any private, gitignored character-pack.local.yaml a
+// developer's machine might have on disk — this crew is used as an
+// explicit seedCompany() override below, so it must be identical in every
+// environment regardless of local dev state (see the same guard in
+// crew-config.test.ts).
+const crew = loadCrewConfig(undefined, path.join(configDir(), "private", "__no_such_pack__.local.yaml"));
 const departments = loadDepartmentConfig();
 
 beforeEach(() => {
@@ -283,6 +289,182 @@ describe("agent status reflects real backend state", () => {
     const exec = await orc.executeNextTask(companyId);
     orc.acceptReview(companyId, exec!.task.id);
     expect(orc.agentStatus(companyId, r.assignedAgent!.id)).toBe("idle");
+  });
+});
+
+describe("runtime selection", () => {
+  it("lists every registered runtime", () => {
+    expect(orc.listRuntimes().map((r) => r.type)).toEqual(["mock"]);
+  });
+
+  it("moves an agent onto a different registered runtime and audits it", () => {
+    orc.registerRuntime(new MockRuntime({ responseText: "zweite Instanz" }));
+    // Same type ("mock") is fine here — the point under test is the write
+    // path and audit trail, not routing to a genuinely distinct provider
+    // (that's covered by the real CliAdapterRuntime tests).
+    const agent = orc.getAgent(companyId, "finance")!;
+    expect(agent.runtime_provider).toBe("mock");
+
+    const updated = orc.setAgentRuntimeProvider(companyId, agent.id, "mock");
+    expect(updated!.runtime_provider).toBe("mock");
+
+    const rows = db
+      .prepare("SELECT action, details_json FROM ic_audit_events WHERE action = 'agent.runtime_changed'")
+      .all() as Array<{
+      action: string;
+      details_json: string;
+    }>;
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0].details_json)).toEqual({ from: "mock", to: "mock" });
+  });
+
+  it("returns null for an agent outside the company", () => {
+    expect(orc.setAgentRuntimeProvider(companyId, "agt_nope", "mock")).toBeNull();
+  });
+
+  it("refuses an unregistered runtime provider", () => {
+    const agent = orc.getAgent(companyId, "finance")!;
+    expect(() => orc.setAgentRuntimeProvider(companyId, agent.id, "claude")).toThrow(/Unknown runtime provider/);
+  });
+});
+
+describe("permission resolution — elevation reachable only through a live grant", () => {
+  it("defaults every run to restricted with no grant in play", async () => {
+    const r = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Verfahren.");
+    let seenMode: string | undefined;
+    const exec = await orc.executeNextTask(companyId, {
+      onEvent: (e) => {
+        if (e.type === "run.started") seenMode = e.payload.permissionMode as string;
+      },
+    });
+    expect(seenMode).toBe("restricted");
+    expect(orc.runs.get(exec!.runId)!.permission_mode).toBe("restricted");
+    void r;
+  });
+
+  it("elevates a run once a live grant covers its exact task and runtime", async () => {
+    const r = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Verfahren.");
+    const taskId = r.task!.id;
+
+    const approval = orc.approvals.request(
+      companyId,
+      { approvalType: "sandbox_elevation", requestedBy: r.assignedAgent!.id, summary: "one-off script" },
+      { taskId },
+    );
+    orc.approvals.decide(approval.id, "approved", "owner-1", "reviewed, time-boxed");
+    const grant = orc.sandboxGrants.mintFromApproval({
+      approval: orc.approvals.get(approval.id)!,
+      providers: ["mock"],
+      requestedDurationMs: 60 * 60_000,
+      taskId,
+    });
+
+    let seenMode: string | undefined;
+    const exec = await orc.executeNextTask(companyId, {
+      onEvent: (e) => {
+        if (e.type === "run.started") seenMode = e.payload.permissionMode as string;
+      },
+    });
+
+    expect(seenMode).toBe("elevated");
+    const run = orc.runs.get(exec!.runId)!;
+    expect(run.permission_mode).toBe("elevated");
+    expect(run.sandbox_grant_id).toBe(grant.id);
+  });
+
+  it("does not elevate a run for a different task even with a live grant elsewhere", async () => {
+    // The only claimable task in this test is the one the CEO asks about
+    // below; the grant is deliberately scoped to an unrelated task id, so
+    // there is exactly one candidate run and no ambiguity about which task
+    // this assertion is about.
+    const r = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Verfahren.");
+    const unrelatedTaskId = orc.tasks.create({ companyId, title: "unrelated", status: "ready" }).id;
+
+    const approval = orc.approvals.request(
+      companyId,
+      { approvalType: "sandbox_elevation", requestedBy: "agt_x", summary: "unrelated task" },
+      { taskId: unrelatedTaskId },
+    );
+    orc.approvals.decide(approval.id, "approved", "owner-1");
+    orc.sandboxGrants.mintFromApproval({
+      approval: orc.approvals.get(approval.id)!,
+      providers: ["mock"],
+      requestedDurationMs: 60_000,
+      taskId: unrelatedTaskId,
+    });
+
+    let seenMode: string | undefined;
+    const exec = await orc.executeNextTask(companyId, {
+      onEvent: (e) => {
+        if (e.type === "run.started") seenMode = e.payload.permissionMode as string;
+      },
+    });
+
+    expect(exec!.task.id).toBe(r.task!.id);
+    expect(seenMode).toBe("restricted");
+  });
+
+  it("does not elevate a run for a different runtime provider", async () => {
+    const r = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Verfahren.");
+    const taskId = r.task!.id;
+    const approval = orc.approvals.request(
+      companyId,
+      { approvalType: "sandbox_elevation", requestedBy: r.assignedAgent!.id, summary: "x" },
+      { taskId },
+    );
+    orc.approvals.decide(approval.id, "approved", "owner-1");
+    orc.sandboxGrants.mintFromApproval({
+      approval: orc.approvals.get(approval.id)!,
+      providers: ["claude"], // this company's agents run on "mock"
+      requestedDurationMs: 60_000,
+      taskId,
+    });
+
+    let seenMode: string | undefined;
+    await orc.executeNextTask(companyId, {
+      onEvent: (e) => {
+        if (e.type === "run.started") seenMode = e.payload.permissionMode as string;
+      },
+    });
+    expect(seenMode).toBe("restricted");
+  });
+
+  it("does not elevate a run once the grant has expired", async () => {
+    const r = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Verfahren.");
+    const taskId = r.task!.id;
+    const approval = orc.approvals.request(
+      companyId,
+      { approvalType: "sandbox_elevation", requestedBy: r.assignedAgent!.id, summary: "x" },
+      { taskId },
+    );
+    orc.approvals.decide(approval.id, "approved", "owner-1");
+    const grant = orc.sandboxGrants.mintFromApproval({
+      approval: orc.approvals.get(approval.id)!,
+      providers: ["mock"],
+      requestedDurationMs: 1,
+      taskId,
+    });
+    // Force the grant to be already expired without waiting on the clock.
+    db.prepare("UPDATE ic_sandbox_grants SET expires_at = ? WHERE id = ?").run(Date.now() - 1000, grant.id);
+
+    let seenMode: string | undefined;
+    await orc.executeNextTask(companyId, {
+      onEvent: (e) => {
+        if (e.type === "run.started") seenMode = e.payload.permissionMode as string;
+      },
+    });
+    expect(seenMode).toBe("restricted");
+  });
+
+  it("audits the permission resolution for every run", async () => {
+    orc.handleCeoMessage(companyId, "Bitte dokumentiere das Verfahren.");
+    await orc.executeNextTask(companyId);
+    const rows = db.prepare("SELECT * FROM ic_audit_events WHERE action = 'permission.resolved'").all() as Array<{
+      details_json: string;
+    }>;
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0].details_json)).toMatchObject({ mode: "restricted", code: "default_restricted" });
+    expect(verifyAuditChain(db, companyId).valid).toBe(true);
   });
 });
 

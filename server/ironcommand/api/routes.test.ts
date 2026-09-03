@@ -309,3 +309,46 @@ describe("agent shape is consistent across endpoints", () => {
     expect(Object.keys(assigned).sort()).toEqual(Object.keys(listed.body.agents[0]).sort());
   });
 });
+
+describe("runtime providers", () => {
+  it("lists every registered runtime with its capabilities, health and auth", async () => {
+    const res = await request(app).get("/api/ic/runtimes").expect(200);
+    expect(res.body.runtimes).toHaveLength(1);
+    const mock = res.body.runtimes[0];
+    expect(mock.type).toBe("mock");
+    expect(mock.health.healthy).toBe(true);
+    expect(mock.auth.authenticated).toBe(true);
+    expect(mock.capabilities.streaming).toBe(true);
+  });
+
+  it("lets an operator select a registered runtime for an agent", async () => {
+    const agents = await request(app).get("/api/ic/agents").expect(200);
+    const finance = agents.body.agents.find((a: { key: string }) => a.key === "finance");
+
+    const res = await request(app)
+      .patch(`/api/ic/agents/${finance.id}/runtime`)
+      .send({ runtimeProvider: "mock" })
+      .expect(200);
+    expect(res.body.agent.runtimeProvider).toBe("mock");
+    expect(broadcasts.some((b) => b.type === "ic_agent_changed")).toBe(true);
+
+    const audit = await request(app).get("/api/ic/audit").expect(200);
+    expect(audit.body.events.some((e: { action: string }) => e.action === "agent.runtime_changed")).toBe(true);
+  });
+
+  it("refuses a runtime that isn't registered", async () => {
+    const agents = await request(app).get("/api/ic/agents").expect(200);
+    const finance = agents.body.agents.find((a: { key: string }) => a.key === "finance");
+
+    const res = await request(app)
+      .patch(`/api/ic/agents/${finance.id}/runtime`)
+      .send({ runtimeProvider: "claude" })
+      .expect(400);
+    expect(res.body.error).toBe("unknown_runtime");
+    expect(res.body.registered).toEqual(["mock"]);
+  });
+
+  it("404s for an agent that doesn't exist", async () => {
+    await request(app).patch("/api/ic/agents/agt_nope/runtime").send({ runtimeProvider: "mock" }).expect(404);
+  });
+});

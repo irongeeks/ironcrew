@@ -43,6 +43,7 @@ const modelCheckSchema = z.object({
   model: z.string().min(1).max(200),
   provider: z.string().max(200).optional(),
 });
+const setAgentRuntimeSchema = z.object({ runtimeProvider: z.string().min(1).max(100) });
 
 /** Translate domain errors into honest HTTP statuses rather than a blanket 500. */
 function sendDomainError(res: Response, err: unknown): boolean {
@@ -158,6 +159,52 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
     `${base}/agents`,
     wrap((_req, res) => {
       res.json({ agents: orchestrator.listAgents(companyId).map(presentAgent) });
+    }),
+  );
+
+  app.patch(
+    `${base}/agents/:id/runtime`,
+    wrap((req, res) => {
+      const { runtimeProvider } = setAgentRuntimeSchema.parse(req.body ?? {});
+      const registered = orchestrator.listRuntimes().map((r) => r.type);
+      if (!registered.includes(runtimeProvider)) {
+        res
+          .status(400)
+          .json({ error: "unknown_runtime", message: `No runtime registered for "${runtimeProvider}".`, registered });
+        return;
+      }
+      const agent = orchestrator.setAgentRuntimeProvider(companyId, param(req, "id"), runtimeProvider);
+      if (!agent) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("ic_agent_changed", { agentId: agent.id, runtimeProvider: agent.runtime_provider });
+      res.json({ agent: presentAgent(agent) });
+    }),
+  );
+
+  // --- runtime providers ---------------------------------------------------
+
+  /**
+   * Provider Health: capabilities/health/auth for every runtime registered
+   * with this orchestrator, mock and real CLI adapters alike. Each of these
+   * three calls does its own capability probe (e.g. `claude --version`) per
+   * the AgentRuntime contract, so this is meant for an on-demand panel, not
+   * a tight poll. Never carries a token — AuthStatus.accountHint is
+   * contractually non-identifying (docs/PROVIDER_AUTH.md).
+   */
+  app.get(
+    `${base}/runtimes`,
+    wrap(async (_req, res) => {
+      const runtimes = await Promise.all(
+        orchestrator.listRuntimes().map(async (r) => ({
+          type: r.type,
+          capabilities: await r.capabilities(),
+          health: await r.healthCheck(),
+          auth: await r.authStatus(),
+        })),
+      );
+      res.json({ runtimes });
     }),
   );
 

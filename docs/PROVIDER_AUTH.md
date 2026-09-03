@@ -42,6 +42,16 @@ wrong-runtime or wrong-task grant degrades to `restricted`.
 `assertArgsMatchMode()` runs immediately before `spawn()` and throws if argv
 carries a bypass flag the resolved mode does not authorise.
 
+**Status: wired end-to-end.** `SandboxGrantStore.mintFromApproval()` is the
+only path to a grant — reachable solely from an *approved* `sandbox_elevation`
+`ApprovalRequest`. `CompanyOrchestrator.executeNextTask()` looks up a live
+grant (`SandboxGrantStore.findLive()`) for the task about to run and asks
+`resolvePermissionMode()` to resolve it; the resolver, not the lookup, stays
+the sole authority and still fails closed on any mismatch. The resolved mode
+and its grant id (if any) are persisted on the run row and audited as their
+own `permission.resolved` event, independent of the grant's own
+mint/revoke audit trail.
+
 > **Flag names must be capability-detected.** The table above reflects the flags
 > those CLIs published at the time of writing. A runtime must verify against
 > `--help` output for the installed version rather than assuming. Policy (which
@@ -52,8 +62,11 @@ carries a bypass flag the resolved mode does not authorise.
 - Uses the officially installed `claude` CLI and the login already stored by the
   OS user. Iron Command never touches `~/.claude` credentials.
 - Version detection via `claude --version`.
-- Streaming JSON and session resume are used where the installed version offers
-  them.
+- Streaming JSON is used. Session resume is not — none of the wrapped
+  adapters (claude, codex, gemini) currently expose a resume flag to
+  `CliAdapterRuntime`, so `capabilities().sessionResume` reports `false`
+  honestly rather than aspirationally, and `resumeRun()` degrades to a fresh
+  run rather than silently losing context differently.
 - Subscription limits are respected — there is no attempt to work around them.
 - A rate limit surfaces as a `rate_limit.detected` event and moves the run to
   `waiting`, never a generic failure.

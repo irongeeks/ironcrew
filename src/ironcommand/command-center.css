@@ -705,6 +705,24 @@
   color: var(--ic-text-dim);
 }
 
+.ic-select {
+  padding: 4px 8px;
+  background: var(--ic-bg-inset);
+  border: 1px solid var(--ic-line-strong);
+  border-radius: var(--ic-radius);
+  color: var(--ic-text);
+  font: inherit;
+  font-size: 11px;
+}
+.ic-select:focus-visible {
+  outline: 2px solid var(--ic-cyan);
+  outline-offset: 1px;
+}
+.ic-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ------------------------------------------------------------- responsive */
 
 @media (max-width: 1100px) {
