@@ -30,7 +30,10 @@ export const api = {
   agents: () => req<{ agents: Agent[] }>("/agents"),
   chat: () => req<{ conversationId: string; messages: Message[] }>("/chat"),
   sendMessage: (body: string) =>
-    req<{ reply: string; task: Task | null }>("/chat", { method: "POST", body: JSON.stringify({ body }) }),
+    req<{ reply: string; task: Task | null; assignedAgent: Agent | null }>("/chat", {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
   tasks: () => req<{ tasks: Task[] }>("/tasks"),
   task: (id: string) => req<{ task: Task; runs: unknown[]; audit: unknown[] }>(`/tasks/${id}`),
   executeNext: () => req<{ executed: boolean; task?: Task; runId?: string }>("/tasks/execute-next", { method: "POST" }),

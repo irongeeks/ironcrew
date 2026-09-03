@@ -14,7 +14,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { CompanyOrchestrator } from "../orchestrator/company.ts";
+import { CompanyOrchestrator, type AgentRow } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
 import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
@@ -132,27 +132,32 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
     }),
   );
 
+  /**
+   * One agent shape for every endpoint that returns an agent, so a client
+   * never has to handle both a mapped shape and a raw database row.
+   */
+  const presentAgent = (a: AgentRow) => ({
+    id: a.id,
+    key: a.key,
+    displayName: a.display_name,
+    professionalRole: a.professional_role,
+    roleSummary: a.role_summary,
+    seniority: a.seniority,
+    departmentId: a.department_id,
+    runtimeProfile: a.runtime_profile,
+    runtimeProvider: a.runtime_provider,
+    isExecutiveAssistant: a.is_executive_assistant === 1,
+    // Persona is cosmetic; policy is authoritative. Both are exposed so the
+    // UI can show that they are separate, but they are never merged.
+    persona: JSON.parse(a.persona_json),
+    policy: JSON.parse(a.policy_json),
+    status: orchestrator.agentStatus(companyId, a.id),
+  });
+
   app.get(
     `${base}/agents`,
     wrap((_req, res) => {
-      const agents = orchestrator.listAgents(companyId).map((a) => ({
-        id: a.id,
-        key: a.key,
-        displayName: a.display_name,
-        professionalRole: a.professional_role,
-        roleSummary: a.role_summary,
-        seniority: a.seniority,
-        departmentId: a.department_id,
-        runtimeProfile: a.runtime_profile,
-        runtimeProvider: a.runtime_provider,
-        isExecutiveAssistant: a.is_executive_assistant === 1,
-        // Persona is cosmetic; policy is authoritative. Both are exposed so the
-        // UI can show that they are separate, but they are never merged.
-        persona: JSON.parse(a.persona_json),
-        policy: JSON.parse(a.policy_json),
-        status: orchestrator.agentStatus(companyId, a.id),
-      }));
-      res.json({ agents });
+      res.json({ agents: orchestrator.listAgents(companyId).map(presentAgent) });
     }),
   );
 
@@ -173,7 +178,11 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
       const result = orchestrator.handleCeoMessage(companyId, body);
       broadcast("ic_chat_message", { conversationId: result.conversationId, reply: result.reply });
       if (result.task) broadcast("ic_task_changed", { taskId: result.task.id, status: result.task.status });
-      res.status(201).json(result);
+      res.status(201).json({
+        ...result,
+        // Same agent shape as /agents, rather than a raw database row.
+        assignedAgent: result.assignedAgent ? presentAgent(result.assignedAgent) : null,
+      });
     }),
   );
 

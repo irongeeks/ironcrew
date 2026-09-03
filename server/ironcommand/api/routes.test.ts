@@ -291,3 +291,21 @@ describe("audit and dashboard", () => {
     expect(res.body.tasks.approvalRequired).toBe(1);
   });
 });
+
+describe("agent shape is consistent across endpoints", () => {
+  it("returns the same camelCase shape from /chat as from /agents", async () => {
+    const listed = await request(app).get("/api/ic/agents").expect(200);
+    const chat = await request(app)
+      .post("/api/ic/chat")
+      .send({ body: "Bitte dokumentiere das Backup-Verfahren." })
+      .expect(201);
+
+    const assigned = chat.body.assignedAgent;
+    expect(assigned).not.toBeNull();
+    // A raw database row would expose display_name / policy_json instead.
+    expect(assigned.displayName).toBeTruthy();
+    expect(assigned.display_name).toBeUndefined();
+    expect(assigned.policy_json).toBeUndefined();
+    expect(Object.keys(assigned).sort()).toEqual(Object.keys(listed.body.agents[0]).sort());
+  });
+});

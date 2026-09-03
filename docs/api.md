@@ -78,13 +78,13 @@ Runtime behavior highlights:
 
 ### Messenger (Built-in Channels)
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/messenger/sessions` | List runtime messenger sessions resolved from persisted settings |
-| GET | `/api/messenger/receiver/telegram` | Telegram webhook/poll receiver status |
-| GET | `/api/messenger/receiver/discord` | Discord polling receiver status |
-| POST | `/api/messenger/discord/channels` | Discover accessible Discord text channels by Bot token |
-| POST | `/api/messenger/send` | Send message by `sessionKey` or (`channel` + `targetId`) |
+| Method | Path                               | Purpose                                                          |
+| ------ | ---------------------------------- | ---------------------------------------------------------------- |
+| GET    | `/api/messenger/sessions`          | List runtime messenger sessions resolved from persisted settings |
+| GET    | `/api/messenger/receiver/telegram` | Telegram webhook/poll receiver status                            |
+| GET    | `/api/messenger/receiver/discord`  | Discord polling receiver status                                  |
+| POST   | `/api/messenger/discord/channels`  | Discover accessible Discord text channels by Bot token           |
+| POST   | `/api/messenger/send`              | Send message by `sessionKey` or (`channel` + `targetId`)         |
 
 `POST /api/messenger/send` request body:
 
@@ -107,52 +107,52 @@ or
 
 ### Workflow Pack Routing
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/workflow-packs` | List workflow packs and effective enable state |
-| PUT | `/api/workflow-packs/:key` | Update workflow pack metadata/flags/json fields |
-| POST | `/api/workflow/route` | Resolve workflow pack by explicit/session/project/text context |
+| Method | Path                       | Purpose                                                        |
+| ------ | -------------------------- | -------------------------------------------------------------- |
+| GET    | `/api/workflow-packs`      | List workflow packs and effective enable state                 |
+| PUT    | `/api/workflow-packs/:key` | Update workflow pack metadata/flags/json fields                |
+| POST   | `/api/workflow/route`      | Resolve workflow pack by explicit/session/project/text context |
 
 ### Runtime / Org
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/departments` | List departments |
-| POST | `/api/departments` | Create department |
-| PATCH | `/api/departments/:id` | Update department |
-| PATCH | `/api/departments/reorder` | Reorder departments |
-| GET | `/api/agents` | List agents |
-| POST | `/api/agents` | Create agent |
-| PATCH | `/api/agents/:id` | Update agent |
-| DELETE | `/api/agents/:id` | Delete agent |
-| DELETE | `/api/departments/:id` | Delete department |
-| GET | `/api/stats` | Dashboard/company stats |
-| GET | `/api/settings` | Read settings |
-| PUT | `/api/settings` | Save settings |
+| Method | Path                       | Purpose                 |
+| ------ | -------------------------- | ----------------------- |
+| GET    | `/api/departments`         | List departments        |
+| POST   | `/api/departments`         | Create department       |
+| PATCH  | `/api/departments/:id`     | Update department       |
+| PATCH  | `/api/departments/reorder` | Reorder departments     |
+| GET    | `/api/agents`              | List agents             |
+| POST   | `/api/agents`              | Create agent            |
+| PATCH  | `/api/agents/:id`          | Update agent            |
+| DELETE | `/api/agents/:id`          | Delete agent            |
+| DELETE | `/api/departments/:id`     | Delete department       |
+| GET    | `/api/stats`               | Dashboard/company stats |
+| GET    | `/api/settings`            | Read settings           |
+| PUT    | `/api/settings`            | Save settings           |
 
 ### Docs / Knowledge (Obsidian Vault)
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/knowledge/docs/skills` | Built-in docs skill profile |
-| GET | `/api/knowledge/docs/providers` | List docs providers |
-| POST | `/api/knowledge/docs/providers` | Create provider (`obsidian_local`) |
-| PATCH | `/api/knowledge/docs/providers/:id` | Update provider |
-| DELETE | `/api/knowledge/docs/providers/:id` | Delete provider |
-| GET | `/api/knowledge/docs/providers/:id/test` | Validate vault connectivity |
-| GET | `/api/knowledge/docs/providers/:id/raw` | Get raw provider view |
-| GET | `/api/knowledge/docs/providers/:id/bindings` | List provider bindings |
-| POST | `/api/knowledge/docs/providers/:id/bindings` | Bind provider to project/path |
-| DELETE | `/api/knowledge/docs/bindings/:bindingId` | Delete provider binding |
-| GET | `/api/knowledge/docs/providers/:id/notes` | List notes |
-| GET | `/api/knowledge/docs/providers/:id/notes/content` | Read note |
-| PUT | `/api/knowledge/docs/providers/:id/notes/content` | Update note content/tags |
-| POST | `/api/knowledge/docs/providers/:id/notes` | Create note |
-| POST | `/api/knowledge/docs/providers/:id/search` | Full-text/tag search |
-| GET | `/api/knowledge/docs/providers/:id/backlinks` | Backlink lookup |
-| POST | `/api/knowledge/docs/wikilinks/format` | Generate wikilink + optional extraction |
-| GET | `/api/knowledge/docs/tasks/:taskId/providers` | Resolve docs providers for task |
-| POST | `/api/knowledge/docs/tasks/:taskId/sync` | Sync task docs/output back to vault |
+| Method | Path                                              | Purpose                                 |
+| ------ | ------------------------------------------------- | --------------------------------------- |
+| GET    | `/api/knowledge/docs/skills`                      | Built-in docs skill profile             |
+| GET    | `/api/knowledge/docs/providers`                   | List docs providers                     |
+| POST   | `/api/knowledge/docs/providers`                   | Create provider (`obsidian_local`)      |
+| PATCH  | `/api/knowledge/docs/providers/:id`               | Update provider                         |
+| DELETE | `/api/knowledge/docs/providers/:id`               | Delete provider                         |
+| GET    | `/api/knowledge/docs/providers/:id/test`          | Validate vault connectivity             |
+| GET    | `/api/knowledge/docs/providers/:id/raw`           | Get raw provider view                   |
+| GET    | `/api/knowledge/docs/providers/:id/bindings`      | List provider bindings                  |
+| POST   | `/api/knowledge/docs/providers/:id/bindings`      | Bind provider to project/path           |
+| DELETE | `/api/knowledge/docs/bindings/:bindingId`         | Delete provider binding                 |
+| GET    | `/api/knowledge/docs/providers/:id/notes`         | List notes                              |
+| GET    | `/api/knowledge/docs/providers/:id/notes/content` | Read note                               |
+| PUT    | `/api/knowledge/docs/providers/:id/notes/content` | Update note content/tags                |
+| POST   | `/api/knowledge/docs/providers/:id/notes`         | Create note                             |
+| POST   | `/api/knowledge/docs/providers/:id/search`        | Full-text/tag search                    |
+| GET    | `/api/knowledge/docs/providers/:id/backlinks`     | Backlink lookup                         |
+| POST   | `/api/knowledge/docs/wikilinks/format`            | Generate wikilink + optional extraction |
+| GET    | `/api/knowledge/docs/tasks/:taskId/providers`     | Resolve docs providers for task         |
+| POST   | `/api/knowledge/docs/tasks/:taskId/sync`          | Sync task docs/output back to vault     |
 
 Example provider create payload:
 
@@ -167,20 +167,20 @@ Example provider create payload:
 
 ### Server Management (ComfyUI / LLM / External Runtimes)
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/ops/servers/presets` | Server-type presets/examples |
-| GET | `/api/ops/servers` | List registered servers + allocation counts |
-| GET | `/api/ops/servers/:id` | Server detail + active/queued allocations |
-| POST | `/api/ops/servers` | Register server endpoint |
-| PATCH | `/api/ops/servers/:id` | Update server config/status |
-| DELETE | `/api/ops/servers/:id` | Remove server |
-| POST | `/api/ops/servers/health-check` | Batch health check |
-| POST | `/api/ops/servers/:id/health-check` | Health check one server |
-| GET | `/api/ops/servers/allocations` | List allocation queue/activity |
-| POST | `/api/ops/servers/allocations/request` | Request server allocation |
-| POST | `/api/ops/servers/allocations/release` | Release allocation by task |
-| POST | `/api/ops/servers/allocations/process-queue` | Promote queued allocations |
+| Method | Path                                         | Purpose                                     |
+| ------ | -------------------------------------------- | ------------------------------------------- |
+| GET    | `/api/ops/servers/presets`                   | Server-type presets/examples                |
+| GET    | `/api/ops/servers`                           | List registered servers + allocation counts |
+| GET    | `/api/ops/servers/:id`                       | Server detail + active/queued allocations   |
+| POST   | `/api/ops/servers`                           | Register server endpoint                    |
+| PATCH  | `/api/ops/servers/:id`                       | Update server config/status                 |
+| DELETE | `/api/ops/servers/:id`                       | Remove server                               |
+| POST   | `/api/ops/servers/health-check`              | Batch health check                          |
+| POST   | `/api/ops/servers/:id/health-check`          | Health check one server                     |
+| GET    | `/api/ops/servers/allocations`               | List allocation queue/activity              |
+| POST   | `/api/ops/servers/allocations/request`       | Request server allocation                   |
+| POST   | `/api/ops/servers/allocations/release`       | Release allocation by task                  |
+| POST   | `/api/ops/servers/allocations/process-queue` | Promote queued allocations                  |
 
 Supported `requested_server_type` values:
 
@@ -202,93 +202,93 @@ Example allocation request payload:
 
 ### ComfyUI Workflows
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/ops/comfyui-workflows` | List saved workflows |
-| GET | `/api/ops/comfyui-workflows/:id` | Workflow detail |
-| POST | `/api/ops/comfyui-workflows` | Create workflow |
-| PUT | `/api/ops/comfyui-workflows/:id` | Update workflow |
-| DELETE | `/api/ops/comfyui-workflows/:id` | Delete workflow |
+| Method | Path                             | Purpose              |
+| ------ | -------------------------------- | -------------------- |
+| GET    | `/api/ops/comfyui-workflows`     | List saved workflows |
+| GET    | `/api/ops/comfyui-workflows/:id` | Workflow detail      |
+| POST   | `/api/ops/comfyui-workflows`     | Create workflow      |
+| PUT    | `/api/ops/comfyui-workflows/:id` | Update workflow      |
+| DELETE | `/api/ops/comfyui-workflows/:id` | Delete workflow      |
 
 ### Agent Inspection
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/agents/:id/process` | Agent process status (PID, uptime) |
-| GET | `/api/agents/:id/sprite` | Agent sprite URL resolution |
+| Method | Path                      | Purpose                            |
+| ------ | ------------------------- | ---------------------------------- |
+| GET    | `/api/agents/:id/process` | Agent process status (PID, uptime) |
+| GET    | `/api/agents/:id/sprite`  | Agent sprite URL resolution        |
 
 ### Tasks / Execution
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/tasks` | List tasks (supports filters) |
-| GET | `/api/tasks/:id` | Task detail |
-| POST | `/api/tasks` | Create task |
-| PATCH | `/api/tasks/:id` | Update task |
-| DELETE | `/api/tasks/:id` | Delete task |
-| POST | `/api/tasks/:id/assign` | Assign agent |
-| POST | `/api/tasks/:id/run` | Start task |
-| POST | `/api/tasks/:id/stop` | Cancel or pause task |
-| POST | `/api/tasks/:id/resume` | Resume paused task |
-| POST | `/api/tasks/:id/inject` | Queue sanitized interrupt prompt (paused session) |
-| GET | `/api/tasks/:id/terminal` | Task terminal logs |
-| GET | `/api/tasks/:id/meeting-minutes` | Meeting minutes |
-| GET | `/api/subtasks?active=1` | Active subtasks |
-| POST | `/api/tasks/:id/subtasks` | Create subtask |
-| PATCH | `/api/subtasks/:id` | Update subtask |
+| Method | Path                             | Purpose                                           |
+| ------ | -------------------------------- | ------------------------------------------------- |
+| GET    | `/api/tasks`                     | List tasks (supports filters)                     |
+| GET    | `/api/tasks/:id`                 | Task detail                                       |
+| POST   | `/api/tasks`                     | Create task                                       |
+| PATCH  | `/api/tasks/:id`                 | Update task                                       |
+| DELETE | `/api/tasks/:id`                 | Delete task                                       |
+| POST   | `/api/tasks/:id/assign`          | Assign agent                                      |
+| POST   | `/api/tasks/:id/run`             | Start task                                        |
+| POST   | `/api/tasks/:id/stop`            | Cancel or pause task                              |
+| POST   | `/api/tasks/:id/resume`          | Resume paused task                                |
+| POST   | `/api/tasks/:id/inject`          | Queue sanitized interrupt prompt (paused session) |
+| GET    | `/api/tasks/:id/terminal`        | Task terminal logs                                |
+| GET    | `/api/tasks/:id/meeting-minutes` | Meeting minutes                                   |
+| GET    | `/api/subtasks?active=1`         | Active subtasks                                   |
+| POST   | `/api/tasks/:id/subtasks`        | Create subtask                                    |
+| PATCH  | `/api/subtasks/:id`              | Update subtask                                    |
 
 `GET /api/tasks` supports query filters: `status`, `department_id`, `agent_id`, `project_id`, `workflow_pack_key`.
 
 ### Messaging / Inbox / Decision
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/messages` | Message history |
-| POST | `/api/messages` | Send message |
-| POST | `/api/announcements` | Broadcast announcement |
-| POST | `/api/directives` | Send directive |
-| DELETE | `/api/messages` | Clear messages |
-| POST | `/api/inbox` | External webhook ingestion |
-| GET | `/api/decision-inbox` | Decision inbox items |
-| POST | `/api/decision-inbox/:id/reply` | Decision reply |
+| Method | Path                            | Purpose                    |
+| ------ | ------------------------------- | -------------------------- |
+| GET    | `/api/messages`                 | Message history            |
+| POST   | `/api/messages`                 | Send message               |
+| POST   | `/api/announcements`            | Broadcast announcement     |
+| POST   | `/api/directives`               | Send directive             |
+| DELETE | `/api/messages`                 | Clear messages             |
+| POST   | `/api/inbox`                    | External webhook ingestion |
+| GET    | `/api/decision-inbox`           | Decision inbox items       |
+| POST   | `/api/decision-inbox/:id/reply` | Decision reply             |
 
 ### Skills / Providers / OAuth
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/skills` | Skill catalog |
-| GET | `/api/skills/detail` | Skill detail |
-| POST | `/api/skills/learn` | Start learn job |
-| GET | `/api/skills/learn/:jobId` | Learn job status |
-| GET | `/api/skills/history` | Learn history |
-| POST | `/api/skills/unlearn` | Unlearn skill |
-| POST | `/api/skills/custom` | Upload custom skill |
-| GET | `/api/skills/custom` | List custom skills |
+| Method | Path                            | Purpose             |
+| ------ | ------------------------------- | ------------------- |
+| GET    | `/api/skills`                   | Skill catalog       |
+| GET    | `/api/skills/detail`            | Skill detail        |
+| POST   | `/api/skills/learn`             | Start learn job     |
+| GET    | `/api/skills/learn/:jobId`      | Learn job status    |
+| GET    | `/api/skills/history`           | Learn history       |
+| POST   | `/api/skills/unlearn`           | Unlearn skill       |
+| POST   | `/api/skills/custom`            | Upload custom skill |
+| GET    | `/api/skills/custom`            | List custom skills  |
 | DELETE | `/api/skills/custom/:skillName` | Delete custom skill |
-| GET | `/api/api-providers` | List API providers |
-| POST | `/api/api-providers` | Create API provider |
-| PUT | `/api/api-providers/:id` | Update API provider |
-| DELETE | `/api/api-providers/:id` | Delete API provider |
-| GET | `/api/oauth/status` | OAuth status |
-| POST | `/api/oauth/disconnect` | OAuth disconnect |
-| POST | `/api/oauth/refresh` | OAuth token refresh |
+| GET    | `/api/api-providers`            | List API providers  |
+| POST   | `/api/api-providers`            | Create API provider |
+| PUT    | `/api/api-providers/:id`        | Update API provider |
+| DELETE | `/api/api-providers/:id`        | Delete API provider |
+| GET    | `/api/oauth/status`             | OAuth status        |
+| POST   | `/api/oauth/disconnect`         | OAuth disconnect    |
+| POST   | `/api/oauth/refresh`            | OAuth token refresh |
 
 ### Project / GitHub / Update
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/projects` | List projects |
-| POST | `/api/projects` | Create project |
-| PATCH | `/api/projects/:id` | Update project |
-| DELETE | `/api/projects/:id` | Delete project |
-| GET | `/api/projects/path-check` | Validate project path |
-| GET | `/api/projects/path-suggestions` | Suggested paths |
-| POST | `/api/projects/path-native-picker` | Native path picker |
-| GET | `/api/github/status` | GitHub integration status |
-| GET | `/api/github/repos` | Repositories |
-| POST | `/api/github/clone` | Clone repository |
-| GET | `/api/update-status` | Update status |
-| POST | `/api/update-auto-config` | Toggle auto update |
+| Method | Path                               | Purpose                   |
+| ------ | ---------------------------------- | ------------------------- |
+| GET    | `/api/projects`                    | List projects             |
+| POST   | `/api/projects`                    | Create project            |
+| PATCH  | `/api/projects/:id`                | Update project            |
+| DELETE | `/api/projects/:id`                | Delete project            |
+| GET    | `/api/projects/path-check`         | Validate project path     |
+| GET    | `/api/projects/path-suggestions`   | Suggested paths           |
+| POST   | `/api/projects/path-native-picker` | Native path picker        |
+| GET    | `/api/github/status`               | GitHub integration status |
+| GET    | `/api/github/repos`                | Repositories              |
+| POST   | `/api/github/clone`                | Clone repository          |
+| GET    | `/api/update-status`               | Update status             |
+| POST   | `/api/update-auto-config`          | Toggle auto update        |
 
 ## Known Follow-up
 

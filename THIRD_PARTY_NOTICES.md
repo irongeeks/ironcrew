@@ -25,19 +25,19 @@ continues to govern the vendored portions.
 Per section 4(b) of the Apache License, the following files carry
 Iron Command OS modifications:
 
-| File | Change |
-|---|---|
-| `server/adapters/adapter-interface.ts` | Added `permissionMode` to `InvocationContext`. |
-| `server/adapters/claude.ts` | Removed hardcoded `--dangerously-skip-permissions`; permission flags are now policy-driven. |
-| `server/adapters/codex.ts` | Removed hardcoded `--yolo`; defaults to a read-only sandbox. |
-| `server/adapters/gemini.ts` | Removed hardcoded `--yolo`; defaults to `--approval-mode default`. |
-| `server/modules/workflow/core/cli-tools.ts` | Same permission-flag change on the second argv-building path. |
-| `server/modules/workflow/agents/cli-runtime.ts` | Added a pre-spawn guard rejecting unauthorised permission-bypass flags. |
-| `server/modules/bootstrap/migrations/registry.ts` | Registered migration `0002-iron-command-domain`. |
-| `server/server-main.ts` | Mounted the Iron Command control plane under `/api/ic`. |
-| `server/test/adapters/{claude,codex,gemini}-adapter.test.ts` | Updated to assert the safe defaults instead of the removed unsafe flags. |
-| `src/app/types.ts`, `src/app/AppMainLayout.tsx`, `src/components/OctoOfficeTopBar.tsx` | Added the `command` view and its navigation entry. |
-| `.gitignore` | Added Iron Command entries. |
+| File                                                                                   | Change                                                                                      |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `server/adapters/adapter-interface.ts`                                                 | Added `permissionMode` to `InvocationContext`.                                              |
+| `server/adapters/claude.ts`                                                            | Removed hardcoded `--dangerously-skip-permissions`; permission flags are now policy-driven. |
+| `server/adapters/codex.ts`                                                             | Removed hardcoded `--yolo`; defaults to a read-only sandbox.                                |
+| `server/adapters/gemini.ts`                                                            | Removed hardcoded `--yolo`; defaults to `--approval-mode default`.                          |
+| `server/modules/workflow/core/cli-tools.ts`                                            | Same permission-flag change on the second argv-building path.                               |
+| `server/modules/workflow/agents/cli-runtime.ts`                                        | Added a pre-spawn guard rejecting unauthorised permission-bypass flags.                     |
+| `server/modules/bootstrap/migrations/registry.ts`                                      | Registered migration `0002-iron-command-domain`.                                            |
+| `server/server-main.ts`                                                                | Mounted the Iron Command control plane under `/api/ic`.                                     |
+| `server/test/adapters/{claude,codex,gemini}-adapter.test.ts`                           | Updated to assert the safe defaults instead of the removed unsafe flags.                    |
+| `src/app/types.ts`, `src/app/AppMainLayout.tsx`, `src/components/OctoOfficeTopBar.tsx` | Added the `command` view and its navigation entry.                                          |
+| `.gitignore`                                                                           | Added Iron Command entries.                                                                 |
 
 All files under `server/ironcommand/`, `src/ironcommand/` and `config/` are
 original Iron Command OS work, not derived from OctoOffice.

@@ -13,12 +13,12 @@ each. Written after reading the code, not the READMEs.
 
 **Verified upstream baseline (before any Iron Command change):**
 
-| Check | Result |
-|---|---|
-| `pnpm install` | ok |
+| Check           | Result                        |
+| --------------- | ----------------------------- |
+| `pnpm install`  | ok                            |
 | `pnpm test:api` | 190 files / 2493 tests passed |
-| `pnpm test:web` | 52 files / 270 tests passed |
-| `pnpm build` | ok |
+| `pnpm test:web` | 52 files / 270 tests passed   |
+| `pnpm build`    | ok                            |
 
 This is a healthy codebase. That finding is what justified forking it rather
 than starting over.
@@ -52,14 +52,14 @@ Local-first, single user. Apache-2.0.
 
 Every CLI adapter hardcoded a permission bypass into every invocation:
 
-| File | Flag |
-|---|---|
-| `server/adapters/claude.ts:17` | `--dangerously-skip-permissions` |
-| `server/adapters/codex.ts:18` | `--yolo` |
-| `server/adapters/gemini.ts:17` | `--yolo` |
-| `server/modules/workflow/core/cli-tools.ts:62,70,89` | both, on the second spawn path |
+| File                                                 | Flag                             |
+| ---------------------------------------------------- | -------------------------------- |
+| `server/adapters/claude.ts:17`                       | `--dangerously-skip-permissions` |
+| `server/adapters/codex.ts:18`                        | `--yolo`                         |
+| `server/adapters/gemini.ts:17`                       | `--yolo`                         |
+| `server/modules/workflow/core/cli-tools.ts:62,70,89` | both, on the second spawn path   |
 
-The upstream adapter tests asserted these as *required base flags*, so the
+The upstream adapter tests asserted these as _required base flags_, so the
 behaviour was locked in by the test suite. This is the single highest-impact
 issue found and is fixed in `fix(security): remove hardcoded permission-bypass
 flags from CLI runtimes`.
@@ -91,7 +91,7 @@ flags from CLI runtimes`.
    no injectable service layer to attach policy, audit or budget interceptors to.
 
 **Consequence for Iron Command's design.** Because of (7), the Iron Command
-control plane is deliberately *additive*: `server/ironcommand/` takes only a
+control plane is deliberately _additive_: `server/ironcommand/` takes only a
 database handle and a broadcast function. It does not reach into
 `runtimeContext`, which is why it is testable headlessly and why 2493 upstream
 tests kept passing throughout.
@@ -124,7 +124,7 @@ architecture rules forbid a Python sidecar.
   round just to answer YES/NO about whether they want to speak. That is
   O(participants × rounds) cost with no convergence guarantee and no moderator.
 - The **hardcoded five-founder org** (`CEO_ID="00001"` … `CSO_ID="00005"`) and
-  the physical-office simulation where a meeting can be *denied* because no room
+  the physical-office simulation where a meeting can be _denied_ because no room
   is free. Iron Command keeps org shape data-driven in `config/`.
 - **"No database — everything is YAML on disk."** It produced a 309 KB
   `routes.py` and a 191 KB `vessel.py` with pervasive function-local imports to
@@ -139,7 +139,7 @@ TypeScript, PostgreSQL + Drizzle, Node ≥24. **MIT.** No code copied — the
 storage engine differs — but the mechanics were studied closely and
 reimplemented for SQLite.
 
-**Atomic claiming.** Paperclip does *not* use `SELECT … FOR UPDATE SKIP LOCKED`.
+**Atomic claiming.** Paperclip does _not_ use `SELECT … FOR UPDATE SKIP LOCKED`.
 It uses a guarded compare-and-set:
 
 ```sql
@@ -167,7 +167,7 @@ append-only `status_decisions` table with a sha256 digest over canonical JSON.
 Iron Command adopted both ideas: `ic_tasks.status_version` and the hash-chained
 `ic_audit_events`.
 
-**Worth noting.** Paperclip's own `activity_log` is *not* tamper-evident — no
+**Worth noting.** Paperclip's own `activity_log` is _not_ tamper-evident — no
 hash chain, append-only by convention only. Iron Command's audit log is chained
 from the start, which is a deliberate improvement rather than a port.
 
