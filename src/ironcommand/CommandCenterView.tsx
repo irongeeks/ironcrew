@@ -23,6 +23,7 @@ import {
   type Approval,
   type Dashboard,
   type Decision,
+  type Department,
   type Goal,
   type Message,
   type Milestone,
@@ -62,6 +63,8 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [showOrgChart, setShowOrgChart] = useState(false);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -180,13 +183,26 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     }
   }, [client]);
 
+  // Shared by the roster and the org chart — the same agent-detail dialog
+  // opens from either place.
+  const openAgentDetail = useCallback(
+    (agent: Agent) => {
+      setSelectedAgent(agent);
+      void refreshRuntimes();
+    },
+    [refreshRuntimes],
+  );
+
   useEffect(() => {
     void refresh();
     client
       .company()
-      .then((r) => setCompanyName(r.company.name))
+      .then((r) => {
+        setCompanyName(r.company.name);
+        setDepartments(r.departments);
+      })
       .catch(() => {
-        /* header falls back to the default name */
+        /* header falls back to the default name; org chart stays empty */
       });
   }, [refresh, client]);
 
@@ -293,6 +309,15 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const currentRuntime = currentAgent ? runtimes.find((r) => r.type === currentAgent.runtimeProvider) : undefined;
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
   const currentTask = selectedTask ? (taskById.get(selectedTask.id) ?? selectedTask) : null;
+  const agentsByDepartment = useMemo(() => {
+    const map = new Map<string, Agent[]>();
+    for (const a of agents) {
+      const list = map.get(a.departmentId ?? "") ?? [];
+      list.push(a);
+      map.set(a.departmentId ?? "", list);
+    }
+    return map;
+  }, [agents]);
 
   return (
     <div className="ic-root" data-testid="command-center">
@@ -315,6 +340,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
           onClick={() => setShowInbox(true)}
         >
           Postfach ({unreadCount})
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-org-chart" onClick={() => setShowOrgChart(true)}>
+          Organigramm
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -346,10 +375,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                 type="button"
                 className="ic-agent"
                 aria-pressed={selectedAgent?.id === agent.id}
-                onClick={() => {
-                  setSelectedAgent(agent);
-                  void refreshRuntimes();
-                }}
+                onClick={() => openAgentDetail(agent)}
               >
                 <span
                   className="ic-status-dot"
@@ -899,6 +925,57 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               </li>
             ))}
           </ul>
+        </DetailDialog>
+      )}
+
+      {showOrgChart && (
+        <DetailDialog title="Organigramm" onClose={() => setShowOrgChart(false)}>
+          {departments.length === 0 && <p className="ic-empty">—</p>}
+          {departments.map((dept) => {
+            const deptAgents = agentsByDepartment.get(dept.id) ?? [];
+            return (
+              <div key={dept.id} data-testid={`org-department-${dept.key}`}>
+                <h3 className="ic-section-title" style={{ padding: "6px 0 4px" }}>
+                  {dept.name} ({deptAgents.length})
+                </h3>
+                {deptAgents.length === 0 && <p className="ic-empty">—</p>}
+                <div className="ic-project-list">
+                  {deptAgents.map((a) => (
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="ic-project"
+                      data-testid={`org-agent-${a.key}`}
+                      onClick={() => openAgentDetail(a)}
+                    >
+                      <span className="ic-project-title">
+                        {a.displayName}
+                        {a.isExecutiveAssistant ? " · EA" : ""}
+                      </span>
+                      <span className="ic-project-meta">
+                        {a.professionalRole} · {AGENT_STATUS_LABEL[a.status]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {(agentsByDepartment.get("") ?? []).length > 0 && (
+            <>
+              <h3 className="ic-section-title" style={{ padding: "6px 0 4px" }}>
+                Ohne Abteilung
+              </h3>
+              <div className="ic-project-list">
+                {(agentsByDepartment.get("") ?? []).map((a) => (
+                  <button key={a.id} type="button" className="ic-project" onClick={() => openAgentDetail(a)}>
+                    <span className="ic-project-title">{a.displayName}</span>
+                    <span className="ic-project-meta">{a.professionalRole}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </DetailDialog>
       )}
     </div>

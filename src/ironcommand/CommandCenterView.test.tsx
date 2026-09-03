@@ -8,6 +8,7 @@ import type {
   Approval,
   Dashboard,
   Decision,
+  Department,
   Message,
   Milestone,
   Notification,
@@ -197,6 +198,10 @@ function decisionRecord(over: Partial<Decision> = {}): Decision {
     created_at: Date.now(),
     ...over,
   };
+}
+
+function department(over: Partial<Department> = {}): Department {
+  return { id: "dept_1", key: "engineering", name: "Engineering", description: "", ...over };
 }
 
 /** jsdom has no real HTML5 drag-and-drop; this is the standard RTL stand-in. */
@@ -829,5 +834,40 @@ describe("decision inbox", () => {
     await userEvent.setup().click(within(dialog).getByRole("button", { name: "Gelesen" }));
     expect(markNotificationRead).toHaveBeenCalledWith("ntf_1");
     await waitFor(() => expect(screen.getByTestId("open-inbox")).toHaveTextContent("Postfach (0)"));
+  });
+});
+
+describe("org chart", () => {
+  it("groups agents under their department, from live backend data", async () => {
+    const client = makeClient({
+      company: vi.fn().mockResolvedValue({
+        company: { name: "Iron Command" },
+        departments: [department(), department({ id: "dept_2", key: "sales", name: "Sales" })],
+      }),
+      agents: vi.fn().mockResolvedValue({ agents: [agent()] }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-org-chart"));
+    const dialog = await screen.findByRole("dialog", { name: "Organigramm" });
+
+    const engineering = within(dialog).getByTestId("org-department-engineering");
+    expect(within(engineering).getByText("Forge")).toBeInTheDocument();
+    const sales = within(dialog).getByTestId("org-department-sales");
+    expect(within(sales).queryByText("Forge")).toBeNull();
+    expect(within(sales).getByText("—")).toBeInTheDocument();
+  });
+
+  it("opens the agent-detail dialog from an org chart entry", async () => {
+    const client = makeClient({
+      company: vi.fn().mockResolvedValue({ company: { name: "Iron Command" }, departments: [department()] }),
+      agents: vi.fn().mockResolvedValue({ agents: [agent()] }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-org-chart"));
+    await userEvent.setup().click(await screen.findByTestId("org-agent-cto"));
+
+    expect(await screen.findByRole("dialog", { name: "Forge" })).toBeInTheDocument();
   });
 });
