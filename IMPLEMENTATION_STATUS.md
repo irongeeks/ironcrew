@@ -8,14 +8,14 @@ Last updated: end of the Phase 0 + Phase 1 session.
 
 ## Verification summary
 
-| Check           | Result                                                                                                       |
-| --------------- | ------------------------------------------------------------------------------------------------------------ |
-| `pnpm test:api` | **201 files / 2834 tests passed** (upstream baseline 190/2493)                                               |
-| `pnpm test:web` | **53 files / 294 tests passed** (upstream baseline 52/270)                                                   |
-| `pnpm build`    | passes (`tsc -b && vite build`)                                                                              |
-| `pnpm lint`     | 0 errors; 441 warnings, all pre-existing upstream (Iron Command code contributes 0)                          |
-| Playwright E2E  | Iron Command CEO workflow spec — API scenarios pass; browser scenarios need `PW_CHROMIUM_PATH` in this image |
-| Manual live run | verified against a running server (see below)                                                                |
+| Check           | Result                                                                                                                                                    |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test:api` | **201 files / 2834 tests passed** (upstream baseline 190/2493)                                                                                            |
+| `pnpm test:web` | **53 files / 294 tests passed** (upstream baseline 52/270)                                                                                                |
+| `pnpm build`    | passes (`tsc -b && vite build`)                                                                                                                           |
+| `pnpm lint`     | 0 errors; 441 warnings, all pre-existing upstream (Iron Command code contributes 0)                                                                       |
+| Playwright E2E  | **10/10 passed** — the Iron Command CEO workflow spec, API and browser (set `PW_CHROMIUM_PATH` on images shipping Chromium but not chrome-headless-shell) |
+| Manual live run | verified against a running server (see below)                                                                                                             |
 
 Iron Command's own suites: **341 tests** across policy, domain, runtime,
 orchestrator, API and UI.
@@ -184,7 +184,7 @@ Measured against section 29 of the master prompt.
 | No telemetry                                                       | **met**                                                        |
 | Unit tests: state machines, policies, routing, event normalisation | **met**                                                        |
 | Integration tests: task / run / approval                           | **met**; memory **not met**                                    |
-| Playwright E2E for the CEO workflow                                | **met**                                                        |
+| Playwright E2E for the CEO workflow                                | **met** — 10/10                                                |
 | Secret redaction tests                                             | **met**                                                        |
 | Recovery-after-crash tests                                         | **met** — orphan recovery and restart persistence              |
 
