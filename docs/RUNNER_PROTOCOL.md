@@ -2,11 +2,12 @@
 
 How the control plane talks to the thing that actually executes agent work.
 
-> **Status.** The `AgentRuntime` interface, the normalised event model and
-> MockRuntime are implemented and tested. The `native-daemon` and
-> `remote-daemon` transports described below are **design, not code** — see
-> `IMPLEMENTATION_STATUS.md`. Today the control plane and the runtime share a
-> process (`embedded`).
+> **Status.** The `AgentRuntime` interface, the normalised event model,
+> MockRuntime and `CliAdapterRuntime` — the bridge onto the upstream CLI
+> adapters described below — are implemented and tested. The `native-daemon`
+> and `remote-daemon` transports described below are **design, not code** —
+> see `IMPLEMENTATION_STATUS.md`. Today the control plane and the runtime
+> share a process (`embedded`).
 
 ## Why a runner abstraction at all
 
@@ -154,10 +155,15 @@ same thing from the caller's side. Both paths are tested.
 
 ## Bridging the upstream adapters
 
-The upstream OctoOffice adapters emit six event types
+`CliAdapterRuntime` (`server/ironcommand/runtime/cli-adapter-runtime.ts`) is
+this bridge. It takes a `CliAdapter` — argv building and stream parsing stay
+the adapter's own job, since that's the part that actually knows each CLI's
+wire protocol — and supplies everything the normalised contract adds on top:
+redaction, rate-limit detection, idle/hard timeouts, process-group
+cancellation, and this mapping. The upstream adapters emit six event types
 (`output`, `tool_use`, `subtask_created`, `subtask_done`, `error`,
-`token_usage`). Mapping them onto the seventeen-type protocol is the next
-implementation step:
+`token_usage`); `mapAdapterEvent()` maps them onto the seventeen-type
+protocol:
 
 | Upstream          | Normalised                                                             |
 | ----------------- | ---------------------------------------------------------------------- |
@@ -166,6 +172,18 @@ implementation step:
 | `subtask_created` | `subagent.spawned`                                                     |
 | `subtask_done`    | `subagent.completed`                                                   |
 | `token_usage`     | `usage.updated`                                                        |
-| `error`           | `run.failed`, or `rate_limit.detected` when the text indicates a limit |
+| `error`           | (no wrapped adapter emits this today) folded into the stderr tail that surfaces on `run.failed` |
 
-Process exit maps to `run.completed` or `run.failed` depending on the exit code.
+A rate limit is detected from raw stdout/stderr text via `detectRateLimit()`
+(regex + reset-time extraction), not from an upstream event type none of the
+wrapped adapters emit, and surfaces as `rate_limit.detected` followed by
+`run.waiting` rather than a generic failure. Process exit maps to
+`run.completed`, or `run.failed` with the stderr tail attached when the exit
+code is non-zero, a hard/idle timeout fired, or output was truncated at
+`maxOutputBytes`.
+
+`CliAdapterRuntime` is registered for every CLI-transport adapter
+(`server/server-main.ts`, alongside MockRuntime) so the orchestrator can
+select it per agent (`PATCH /api/ic/agents/:id/runtime`) and see its live
+capabilities/health/auth (`GET /api/ic/runtimes`, the Command Center's
+Provider Health affordance in the agent-detail dialog).
