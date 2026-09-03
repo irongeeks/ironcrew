@@ -10,9 +10,10 @@ import { migration as m0004CrewSecrets } from "./0004-crew-secrets.ts";
 import { migration as m0005CrewAttachments } from "./0005-crew-attachments.ts";
 import { migration as m0006RenameIcToCrew } from "./0006-rename-ic-prefix-to-crew.ts";
 import { migration as m0007CrewRemoteWorkers } from "./0007-crew-remote-workers.ts";
+import { migration as m0008CrewMeetings } from "./0008-crew-meetings.ts";
 
 // Import future migrations here:
-// import { migration as m0008 } from "./0008-example.ts";
+// import { migration as m0009 } from "./0009-example.ts";
 
 /**
  * Entry in the registry — pairs each Migration with the on-disk filename that
@@ -33,6 +34,7 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0005-crew-attachments.ts", migration: m0005CrewAttachments },
   { filename: "0006-rename-ic-prefix-to-crew.ts", migration: m0006RenameIcToCrew },
   { filename: "0007-crew-remote-workers.ts", migration: m0007CrewRemoteWorkers },
+  { filename: "0008-crew-meetings.ts", migration: m0008CrewMeetings },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

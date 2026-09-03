@@ -894,3 +894,224 @@ describe("remote workers over SSH-over-tailnet", () => {
     expect((await orc.testRemoteWorker(companyId, foreignWorker.id)).ok).toBe(false);
   });
 });
+
+describe("meetings — moderator, bounded rounds, budget", () => {
+  function twoAgents(): [string, string] {
+    const agents = orc.listAgents(companyId);
+    return [agents[0].id, agents[1].id];
+  }
+
+  it("runs a turn against the registered runtime and records a real contribution + cost", async () => {
+    const [moderatorId, participantId] = twoAgents();
+    const meeting = orc.meetings.create({
+      companyId,
+      topic: "Q3 Roadmap",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+      maxRounds: 3,
+    });
+    orc.meetings.start(meeting.id);
+
+    const result = await orc.runMeetingTurn(companyId, meeting.id);
+    expect(result?.turn.contribution).toBe("Analyse abgeschlossen.");
+    expect(result?.turn.round).toBe(1);
+    expect(result?.meeting.current_round).toBe(1);
+    expect(result?.meeting.spent_micros).toBeGreaterThanOrEqual(0);
+  });
+
+  it("round-robins speakers across participants by default", async () => {
+    const [moderatorId, participantId] = twoAgents();
+    const meeting = orc.meetings.create({
+      companyId,
+      topic: "x",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+      maxRounds: 4,
+    });
+    orc.meetings.start(meeting.id);
+
+    const first = await orc.runMeetingTurn(companyId, meeting.id);
+    const second = await orc.runMeetingTurn(companyId, meeting.id);
+    expect(first?.turn.agent_id).not.toBe(second?.turn.agent_id);
+  });
+
+  it("lets the moderator pick an explicit speaker", async () => {
+    const [moderatorId, participantId] = twoAgents();
+    const meeting = orc.meetings.create({
+      companyId,
+      topic: "x",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+    });
+    orc.meetings.start(meeting.id);
+
+    const result = await orc.runMeetingTurn(companyId, meeting.id, { agentId: participantId });
+    expect(result?.turn.agent_id).toBe(participantId);
+  });
+
+  it("rejects an explicit speaker who isn't a participant", async () => {
+    const [moderatorId, participantId] = twoAgents();
+    const outsider = orc.listAgents(companyId)[2].id;
+    const meeting = orc.meetings.create({
+      companyId,
+      topic: "x",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+    });
+    orc.meetings.start(meeting.id);
+
+    await expect(orc.runMeetingTurn(companyId, meeting.id, { agentId: outsider })).rejects.toThrow();
+  });
+
+  it("self-closes the meeting the moment max_rounds is reached — bounded, not open-ended", async () => {
+    const [moderatorId, participantId] = twoAgents();
+    const meeting = orc.meetings.create({
+      companyId,
+      topic: "x",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+      maxRounds: 2,
+    });
+    orc.meetings.start(meeting.id);
+
+    await orc.runMeetingTurn(companyId, meeting.id);
+    const second = await orc.runMeetingTurn(companyId, meeting.id);
+    expect(second?.meeting.status).toBe("completed");
+
+    // A third call must not run another turn — the meeting is over.
+    const third = await orc.runMeetingTurn(companyId, meeting.id);
+    expect(third).toBeNull();
+    expect(orc.meetings.turns(meeting.id)).toHaveLength(2);
+  });
+
+  it("only ever sends a bounded recent-turns window as context, never the whole transcript", async () => {
+    const [moderatorId, participantId] = twoAgents();
+    const meeting = orc.meetings.create({
+      companyId,
+      topic: "x",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+      maxRounds: 10,
+    });
+    orc.meetings.start(meeting.id);
+
+    let lastPrompt = "";
+    const capturingRuntime: AgentRuntime = {
+      id: "capture",
+      type: "capture",
+      capabilities: async () => ({
+        streaming: true,
+        sessionResume: false,
+        usageReporting: false,
+        costReporting: false,
+        toolCalls: false,
+        subagents: false,
+        defaultConcurrency: 1,
+      }),
+      healthCheck: async () => ({ healthy: true, installed: true, detail: "", checkedAt: Date.now() }),
+      authStatus: async () => ({ authenticated: true, method: "none", detail: "" }),
+      async *startRun(input: RunInput) {
+        lastPrompt = input.prompt;
+        yield {
+          eventId: "e1",
+          companyId,
+          projectId: null,
+          taskId: meeting.id,
+          runId: "r1",
+          agentId: null,
+          seq: 0,
+          type: "message.completed",
+          timestamp: Date.now(),
+          correlationId: "c1",
+          payload: { text: "kurzer Beitrag" },
+          redaction: { redacted: false, rules: [] },
+        };
+      },
+      async cancelRun() {},
+      async *resumeRun() {},
+    };
+    // Both agents share whatever runtime provider the seed crew gave them —
+    // point that provider at the capturing fake for this test only.
+    const agentRow = orc.listAgents(companyId)[0];
+    orc.registerRuntime({ ...capturingRuntime, type: agentRow.runtime_provider });
+
+    for (let i = 0; i < 9; i++) await orc.runMeetingTurn(companyId, meeting.id);
+
+    // 9 prior turns exist, but the prompt only ever names a bounded window —
+    // it must not contain a marker from a turn far outside that window.
+    expect((lastPrompt.match(/kurzer Beitrag/g) ?? []).length).toBeLessThanOrEqual(6);
+  });
+
+  it("throws for a meeting that doesn't exist or isn't in_progress", async () => {
+    const [moderatorId, participantId] = twoAgents();
+    await expect(orc.runMeetingTurn(companyId, "mtg_nope")).rejects.toThrow();
+
+    const scheduled = orc.meetings.create({
+      companyId,
+      topic: "x",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+    });
+    await expect(orc.runMeetingTurn(companyId, scheduled.id)).rejects.toThrow();
+  });
+});
+
+describe("meeting action items become real tasks", () => {
+  function twoAgents(): [string, string] {
+    const agents = orc.listAgents(companyId);
+    return [agents[0].id, agents[1].id];
+  }
+
+  it("converts an action item into a real, visible task", () => {
+    const [moderatorId, participantId] = twoAgents();
+    const meeting = orc.meetings.create({
+      companyId,
+      topic: "Launch-Planung",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+    });
+    const item = orc.meetings.addActionItem({
+      meetingId: meeting.id,
+      description: "Preisseite überarbeiten",
+      assignedAgentId: participantId,
+    });
+
+    const task = orc.convertActionItemToTask(companyId, item.id);
+    expect(task?.title).toBe("Preisseite überarbeiten");
+    expect(task?.assigned_agent_id).toBe(participantId);
+    expect(orc.tasks.get(task!.id)).not.toBeNull();
+
+    const linked = orc.meetings.getActionItem(item.id);
+    expect(linked?.task_id).toBe(task!.id);
+  });
+
+  it("is idempotent — converting twice returns the same task, not a duplicate", () => {
+    const [moderatorId, participantId] = twoAgents();
+    const meeting = orc.meetings.create({
+      companyId,
+      topic: "x",
+      moderatorAgentId: moderatorId,
+      participantAgentIds: [participantId],
+    });
+    const item = orc.meetings.addActionItem({ meetingId: meeting.id, description: "y" });
+
+    const first = orc.convertActionItemToTask(companyId, item.id);
+    const second = orc.convertActionItemToTask(companyId, item.id);
+    expect(second?.id).toBe(first?.id);
+  });
+
+  it("returns null for a missing action item or a cross-company one", () => {
+    expect(orc.convertActionItemToTask(companyId, "action_nope")).toBeNull();
+
+    const other = orc.seedCompany({ name: "Other", slug: "other-mtg", crew, departments });
+    const [otherModerator, otherParticipant] = [orc.listAgents(other)[0].id, orc.listAgents(other)[1].id];
+    const foreignMeeting = orc.meetings.create({
+      companyId: other,
+      topic: "x",
+      moderatorAgentId: otherModerator,
+      participantAgentIds: [otherParticipant],
+    });
+    const foreignItem = orc.meetings.addActionItem({ meetingId: foreignMeeting.id, description: "z" });
+    expect(orc.convertActionItemToTask(companyId, foreignItem.id)).toBeNull();
+  });
+});

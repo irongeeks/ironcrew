@@ -29,6 +29,9 @@ export type IdPrefix =
   | "secret"
   | "att"
   | "worker"
+  | "mtg"
+  | "turn"
+  | "action"
   | "corr";
 
 export function newId(prefix: IdPrefix): string {

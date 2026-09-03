@@ -37,6 +37,7 @@ import {
 } from "../network/tailscale-provider.ts";
 import { createSshConnector, type SshConnectorInterface } from "../../modules/workflow/ssh/ssh-connector.ts";
 import type { SshConfig } from "../../modules/workflow/ssh/types.ts";
+import { MeetingStore, MeetingMutationError, type MeetingRow, type MeetingTurnRow } from "../domain/meeting-store.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -93,6 +94,7 @@ export class CompanyOrchestrator {
   readonly secrets: SecretStore;
   readonly attachments: AttachmentStore;
   readonly remoteWorkers: RemoteWorkerStore;
+  readonly meetings: MeetingStore;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private attachmentStorageInstance: AttachmentStorage | null = null;
   private tailscaleProviderInstance: TailscaleProvider | null = null;
@@ -121,6 +123,7 @@ export class CompanyOrchestrator {
     this.secrets = new SecretStore(db);
     this.attachments = new AttachmentStore(db);
     this.remoteWorkers = new RemoteWorkerStore(db);
+    this.meetings = new MeetingStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -174,6 +177,203 @@ export class CompanyOrchestrator {
         ? `Erreichbar über ${worker.host}:${worker.port}`
         : `Nicht erreichbar über ${worker.host}:${worker.port}`,
     };
+  }
+
+  /**
+   * How many of a meeting's most recent turns go into the next speaker's
+   * prompt. Deliberately NOT the whole growing transcript — together with
+   * MeetingStore's one-round-one-turn shape, this is what keeps a meeting's
+   * total token cost O(max_rounds) rather than the upstream god-object's
+   * O(participants x rounds) (docs/UPSTREAM_ANALYSIS.md).
+   */
+  private static readonly MEETING_TURN_CONTEXT_WINDOW = 6;
+
+  /**
+   * Runs exactly one meeting turn: picks the next speaker (moderator-chosen
+   * via `opts.agentId`, or round-robin), gives them a bounded recent-turns
+   * window as context, dispatches through the same registered AgentRuntime
+   * task execution uses, and records the result. Self-closes the meeting
+   * the moment max_rounds or its own budget cap is reached — a caller never
+   * has to separately poll for that.
+   */
+  async runMeetingTurn(
+    companyId: string,
+    meetingId: string,
+    opts: { agentId?: string; workspacePath?: string } = {},
+  ): Promise<{ meeting: MeetingRow; turn: MeetingTurnRow } | null> {
+    const meeting = this.meetings.get(meetingId);
+    if (!meeting || meeting.company_id !== companyId) {
+      throw new MeetingMutationError(`Meeting "${meetingId}" does not exist.`);
+    }
+    if (meeting.status === "completed" || meeting.status === "cancelled") {
+      // The meeting is already over — a caller that keeps polling after the
+      // bound was hit gets a quiet no-op, not an error.
+      return null;
+    }
+    if (meeting.status !== "in_progress") {
+      throw new MeetingMutationError(`Meeting "${meetingId}" is not in progress.`);
+    }
+
+    if (meeting.current_round >= meeting.max_rounds) {
+      this.meetings.end(meetingId, meeting.minutes || "Maximale Rundenzahl erreicht.", {
+        actorType: "system",
+        actorId: "meeting-moderator",
+      });
+      return null;
+    }
+    if (meeting.budget_micros > 0 && meeting.spent_micros >= meeting.budget_micros) {
+      this.meetings.end(meetingId, meeting.minutes || "Budget für dieses Meeting ausgeschöpft.", {
+        actorType: "system",
+        actorId: "meeting-moderator",
+      });
+      return null;
+    }
+
+    const participants = this.meetings.participants(meetingId);
+    if (participants.length === 0) {
+      throw new MeetingMutationError("A meeting with no participants cannot run a turn.");
+    }
+
+    let speakerAgentId = opts.agentId;
+    if (speakerAgentId) {
+      if (!participants.some((p) => p.agent_id === speakerAgentId)) {
+        throw new MeetingMutationError(`Agent "${speakerAgentId}" is not a participant in this meeting.`);
+      }
+    } else {
+      speakerAgentId = participants[meeting.current_round % participants.length].agent_id;
+    }
+
+    const agent = this.db.prepare("SELECT * FROM crew_agents WHERE id = ?").get(speakerAgentId) as
+      | AgentRow
+      | undefined;
+    if (!agent) throw new MeetingMutationError(`Agent "${speakerAgentId}" does not exist.`);
+
+    const runtimeType = agent.runtime_provider;
+    const runtime = this.runtimes.get(runtimeType);
+    if (!runtime) throw new Error(`No runtime registered for type "${runtimeType}".`);
+
+    // A meeting's spend is real spend — same pre-dispatch gate task execution uses.
+    this.budgets.assertRunPermitted(companyId, {
+      agentId: speakerAgentId,
+      projectId: meeting.project_id,
+      runtimeType,
+    });
+
+    const guidance = buildAgentGuidance({
+      key: agent.key,
+      department: "",
+      professional_role: agent.professional_role,
+      role_summary: agent.role_summary,
+      seniority: agent.seniority,
+      is_executive_assistant: agent.is_executive_assistant === 1,
+      runtime_profile: agent.runtime_profile,
+      skin: JSON.parse(agent.persona_json),
+      policy: JSON.parse(agent.policy_json),
+    });
+
+    const participantNames = new Map(participants.map((p) => [p.agent_id, p.display_name]));
+    const recent = this.meetings.recentTurns(meetingId, CompanyOrchestrator.MEETING_TURN_CONTEXT_WINDOW);
+    const transcript =
+      recent.length === 0
+        ? "(Noch keine Wortmeldungen.)"
+        : recent.map((t) => `${participantNames.get(t.agent_id) ?? t.agent_id}: ${t.contribution}`).join("\n");
+
+    const prompt = `${guidance}\n\n# Meeting\nThema: ${meeting.topic}\n\nBisherige Wortmeldungen (letzte ${recent.length}):\n${transcript}\n\nGib deine Wortmeldung kurz und konkret (2-4 Sätze).`;
+
+    const round = meeting.current_round + 1;
+    let contribution = "";
+    let costMicros = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    try {
+      for await (const ev of runtime.startRun(
+        { prompt },
+        {
+          companyId,
+          projectId: meeting.project_id,
+          // No real crew_tasks row backs a meeting turn (see the migration's
+          // comment on crew_meeting_turns) — RunContext.taskId is only ever
+          // used by a runtime to tag its own emitted events, never persisted
+          // through RunStore here, so the meeting id is a safe stand-in.
+          taskId: meetingId,
+          runId: newId("run"),
+          agentId: speakerAgentId,
+          correlationId: newCorrelationId(),
+          workspacePath: opts.workspacePath ?? "/tmp/iron-crew-workspace",
+          permissionMode: "restricted",
+        },
+      )) {
+        if (ev.type === "usage.updated") {
+          const p = ev.payload as { inputTokens?: number; outputTokens?: number; costMicros?: number };
+          inputTokens += p.inputTokens ?? 0;
+          outputTokens += p.outputTokens ?? 0;
+          costMicros += p.costMicros ?? 0;
+        }
+        if (ev.type === "message.completed") contribution = String((ev.payload as { text?: string }).text ?? "");
+      }
+    } catch (err) {
+      contribution = `[Fehler: ${err instanceof Error ? err.message : String(err)}]`;
+    }
+
+    if (costMicros > 0 || inputTokens > 0 || outputTokens > 0) {
+      this.budgets.recordCost({
+        companyId,
+        taskId: null,
+        projectId: meeting.project_id,
+        agentId: speakerAgentId,
+        runtimeType,
+        kind: costMicros > 0 ? "usage" : "quota",
+        inputTokens,
+        outputTokens,
+        costMicros,
+      });
+    }
+
+    const turn = this.meetings.recordTurn({ meetingId, round, agentId: speakerAgentId, contribution, costMicros });
+
+    const updated = this.meetings.get(meetingId)!;
+    if (
+      updated.current_round >= updated.max_rounds ||
+      (updated.budget_micros > 0 && updated.spent_micros >= updated.budget_micros)
+    ) {
+      this.meetings.end(meetingId, updated.minutes || "Automatisch beendet (Rundenlimit oder Budget erreicht).", {
+        actorType: "system",
+        actorId: "meeting-moderator",
+      });
+    }
+
+    return { meeting: this.meetings.get(meetingId)!, turn };
+  }
+
+  /**
+   * Turns one action item into a real task — idempotent: converting an
+   * already-linked item again just returns the existing task rather than
+   * creating a duplicate.
+   */
+  convertActionItemToTask(
+    companyId: string,
+    actionItemId: string,
+    opts: { actorType?: ActorType; actorId?: string } = {},
+  ): TaskRow | null {
+    const item = this.meetings.getActionItem(actionItemId);
+    if (!item) return null;
+    const meeting = this.meetings.get(item.meeting_id);
+    if (!meeting || meeting.company_id !== companyId) return null;
+
+    if (item.task_id) return this.tasks.get(item.task_id);
+
+    const task = this.tasks.create({
+      companyId,
+      title: item.description.length > 200 ? `${item.description.slice(0, 197)}...` : item.description,
+      description: `Aus Meeting "${meeting.topic}": ${item.description}`,
+      projectId: meeting.project_id,
+      assignedAgentId: item.assigned_agent_id,
+      createdBy: opts.actorId ?? "ceo",
+    });
+
+    this.meetings.linkActionItemToTask(actionItemId, task.id, opts);
+    return task;
   }
 
   /**
