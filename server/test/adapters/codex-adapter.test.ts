@@ -9,12 +9,15 @@ describe("codexAdapter", () => {
   });
 
   describe("buildArgs()", () => {
-    it("includes base flags: --enable multi_agent --yolo exec --json", () => {
+    it("includes base flags: --enable multi_agent, sandboxed exec --json", () => {
       const args = codexAdapter.buildArgs({ prompt: "hello", workdir: "/tmp" });
       expect(args).toContain("codex");
       expect(args).toContain("--enable");
       expect(args).toContain("multi_agent");
-      expect(args).toContain("--yolo");
+      // Iron Command: --yolo is no longer a base flag; default is a read-only sandbox.
+      expect(args).not.toContain("--yolo");
+      expect(args).toContain("--sandbox");
+      expect(args).toContain("read-only");
       expect(args).toContain("exec");
       expect(args).toContain("--json");
     });

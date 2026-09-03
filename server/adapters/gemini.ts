@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { CliAdapter, InvocationContext, AdapterStreamEvent } from "./adapter-interface.ts";
+import { permissionArgsFor } from "../ironcommand/policy/runtime-permissions.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -14,7 +15,8 @@ export const geminiAdapter: CliAdapter = {
   buildArgs(context: InvocationContext): string[] {
     const args = ["gemini"];
     if (context.model) args.push("-m", context.model);
-    args.push("--yolo", "--output-format=stream-json");
+    args.push(...permissionArgsFor("gemini", context.permissionMode ?? "restricted"));
+    args.push("--output-format=stream-json");
     return args;
   },
 

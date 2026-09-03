@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { permissionArgsFor, type PermissionMode } from "../../../ironcommand/policy/runtime-permissions.ts";
 
 export type CliOutputStream = "stdout" | "stderr";
 
@@ -50,24 +51,26 @@ export function createCliTools(deps: CreateCliToolsDeps) {
     provider: string,
     model?: string,
     reasoningLevel?: string,
-    opts: { noTools?: boolean; profile?: string } = {},
+    opts: { noTools?: boolean; profile?: string; permissionMode?: PermissionMode } = {},
   ): string[] {
     const { noTools = false, profile } = opts;
+    // Restricted unless an owner-approved sandbox grant resolved otherwise.
+    // noTools always forces the most restrictive mode.
+    const permissionMode: PermissionMode = noTools ? "restricted" : (opts.permissionMode ?? "restricted");
     switch (provider) {
       case "codex": {
         const args = ["codex"];
         if (!noTools) args.push("--enable", "multi_agent");
         if (model) args.push("-m", model);
         if (reasoningLevel) args.push("-c", `model_reasoning_effort="${reasoningLevel}"`);
-        if (!noTools) args.push("--yolo");
+        args.push(...permissionArgsFor("codex", permissionMode));
         args.push("exec", "--json");
-        if (noTools) args.push("--sandbox", "read-only");
         return args;
       }
       case "claude": {
         const args = [
           "claude",
-          "--dangerously-skip-permissions",
+          ...permissionArgsFor("claude", permissionMode),
           "--print",
           "--verbose",
           "--output-format=stream-json",
@@ -86,7 +89,8 @@ export function createCliTools(deps: CreateCliToolsDeps) {
         if (noTools) {
           args.push("--approval-mode", "plan", "--output-format=stream-json");
         } else {
-          args.push("--yolo", "--output-format=stream-json");
+          args.push(...permissionArgsFor("gemini", permissionMode));
+          args.push("--output-format=stream-json");
         }
         return args;
       }

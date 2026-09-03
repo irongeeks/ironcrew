@@ -8,6 +8,7 @@ import { isCliAdapter } from "../../../adapters/index.ts";
 import type { MetricsCollector } from "../../../observability/metrics.ts";
 import { logger } from "../../../observability/logger.ts";
 import { TokenAccumulator } from "./token-accumulator.ts";
+import { assertArgsMatchMode } from "../../../ironcommand/policy/runtime-permissions.ts";
 
 const log = logger.child({ module: "cli-runtime" });
 
@@ -231,6 +232,11 @@ export function createCliRuntimeTools(deps: CliRuntimeDeps) {
 
     const context = { prompt, workdir: projectPath, model, reasoningLevel, profile };
     const args = adapter.buildArgs(context);
+
+    // Last line of defence before we hand argv to the OS: a permission-bypass
+    // flag may only appear when policy actually resolved to "elevated".
+    // Throws rather than silently stripping, so the failure is visible.
+    assertArgsMatchMode(args, context.permissionMode ?? "restricted");
 
     // openclaw (and any future flag-delivery adapters) require prompt via CLI flag, not stdin.
     // On Windows (shell: true), passing the raw prompt as a CLI arg is unsafe due to shell
