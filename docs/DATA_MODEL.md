@@ -1,8 +1,14 @@
 # Data Model
 
-All IronCrew tables are prefixed `ic_` and live alongside the upstream
-OctoOffice tables. They are created by migration
-`server/modules/bootstrap/migrations/0002-iron-crew-domain.ts`.
+All IronCrew tables are prefixed `crew_` and live alongside the upstream
+OctoOffice tables. The base schema (companies through audit events) is
+created by migration `0002-iron-crew-domain.ts`; everything since —
+milestones, secrets, attachments, remote workers, meetings — arrived as
+additive migrations `0003`–`0008`, listed in `registry.ts` and applied in
+order at startup. `0006` is the one exception: it renamed every table from
+this project's original `ic_` prefix to `crew_` in place (see
+`docs/UPSTREAM_ANALYSIS.md`), which is also why this file no longer matches
+its own migration filename above.
 
 Conventions:
 
@@ -47,6 +53,7 @@ UI figure cannot disagree with the control plane.
 | ------------------------ | ----------------------------------------------------------------- |
 | `crew_goals`             | Company goals, self-referential via `parent_id` for goal ancestry |
 | `crew_projects`          | Projects, optionally linked to a goal and a workspace path        |
+| `crew_milestones`        | Project milestones, `sort_order` for the detail view's ordering (migration `0003`) |
 | `crew_tasks`             | Tasks — the heart of the system                                   |
 | `crew_task_dependencies` | Blocker edges                                                     |
 
@@ -151,10 +158,48 @@ local-first deployment — see `docs/THREAT_MODEL.md` T-06.
 
 ## Memory and notifications
 
-| Table                | Purpose                                                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crew_memory_refs`   | Provenance for vault notes and Honcho entries: `kind` distinguishes fact / preference / hypothesis / summary, with `confidence` and `sensitivity` |
-| `crew_notifications` | Decision inbox and outbound channels                                                                                                              |
+| Table                | Purpose                                                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `crew_memory_refs`   | Provenance for vault notes: `kind` distinguishes fact / preference / hypothesis / summary, with `confidence` and `sensitivity`. `provider` + `external_id` locate the real content (an Obsidian markdown file, for the "obsidian" `MemoryProvider`) — this table never stores the content itself, only where it lives; see `server/ironcrew/memory/` and `docs/UPSTREAM_ANALYSIS.md`'s Honcho note for why a second provider was deliberately not built alongside it |
+| `crew_notifications` | The decision inbox's feed. `crew_notifications`' own doc-comment calls out "Discord fan-out" — as of `server/ironcrew/notify/`, that fan-out is real and covers Discord, Telegram and email, best-effort, on every notification this table's own `create()` persists |
+
+## Meetings
+
+| Table                          | Purpose                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `crew_meetings`                | One meeting: moderator, `max_rounds`, `budget_micros`/`spent_micros`, `status` |
+| `crew_meeting_participants`    | Who's in the meeting — the moderator is always included                        |
+| `crew_meeting_turns`           | One row per turn (one participant's contribution for one round)                |
+| `crew_meeting_action_items`    | Follow-ups from a meeting; `task_id` once converted to a real task             |
+
+Migration `0008`. A meeting's turns are deliberately bounded two ways —
+`max_rounds` caps total turns regardless of participant count (one round is
+one turn, not every participant every round), and each turn's prompt only
+ever includes a bounded recent-turns window, never the whole transcript —
+specifically to avoid the upstream meetings god-object's documented
+O(participants × rounds) "token grab" pattern (`docs/UPSTREAM_ANALYSIS.md`).
+A meeting turn is dispatched through the same `AgentRuntime`/`BudgetEngine`
+path task execution uses but is **not** persisted through `crew_runs` (which
+requires a real `task_id`) — only the turn's outcome lands in
+`crew_meeting_turns`.
+
+## Secrets, attachments and remote workers
+
+| Table                  | Purpose                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `crew_secrets`          | A `SecretRef` — provider (`vaultwarden`/`protonpass`) + item locator, **never a value** (migration `0004`) |
+| `crew_attachments`      | Task-, project- or general-scoped file metadata; `storage_key` is content-addressed (migration `0005`) |
+| `crew_remote_workers`   | SSH-over-tailnet worker registry for Tier0/customer environments (migration `0007`)                 |
+
+`crew_secrets` is the DB half of the password-manager integration — the
+value itself is resolved live, in memory, at the moment of use
+(`server/ironcrew/secrets/`) and never written here or to a log. Attachment
+bytes live on disk under a content-addressed key
+(`server/ironcrew/domain/attachment-storage.ts`); `crew_attachments` only
+ever carries the key, filename and scope. `crew_remote_workers` stores an SSH
+target (host, user, key path) reachable over Tailscale/Headscale, not a
+credential — the private key itself stays a file path on the server's own
+filesystem, never database content.
 
 ## Indexes
 

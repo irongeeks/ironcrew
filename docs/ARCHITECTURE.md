@@ -64,9 +64,15 @@ It never imports `runtimeContext`. The consequences are concrete:
 | `server/ironcrew/runtime/run-store.ts`          | Run and event persistence, redaction, sequencing.                 |
 | `server/ironcrew/runtime/mock-runtime.ts`       | MockRuntime.                                                      |
 | `server/ironcrew/orchestrator/triage.ts`        | EA message classification and routing.                            |
-| `server/ironcrew/orchestrator/company.ts`       | The CEO → EA → task → run → review flow.                          |
+| `server/ironcrew/orchestrator/company.ts`       | The CEO → EA → task → run → review flow, plus every provider registry (secrets, memory, notification channels) and their fan-out/dispatch logic. |
 | `server/ironcrew/api/routes.ts`                 | REST surface under `/api/crew`.                                   |
 | `server/ironcrew/security/redaction.ts`         | Secret redaction for logs, events and streams.                    |
+| `server/ironcrew/domain/meeting-store.ts`       | Meetings — moderator, bounded rounds, budget (`docs/UPSTREAM_ANALYSIS.md`'s anti-god-object design). |
+| `server/ironcrew/memory/`                       | `MemoryProvider` contract + `ObsidianProvider` (a real vault of markdown files) — the first memory backend. |
+| `server/ironcrew/secrets/`                      | `SecretProvider` contract + Vaultwarden/Proton Pass — a `SecretRef` never carries a value. |
+| `server/ironcrew/notify/`                       | `NotificationChannel` contract + Discord/Telegram/email — best-effort fan-out for the decision inbox. |
+| `server/ironcrew/network/tailscale-provider.ts` | Tailscale/Headscale status (`tailscale status --json`).           |
+| `server/ironcrew/domain/remote-worker-store.ts` | SSH-over-tailnet worker registry for Tier0/customer networks.     |
 | `src/ironcrew/`                                 | Command Center UI.                                                |
 
 ## Key invariants
@@ -154,7 +160,12 @@ adapter are additive later rather than a schema rewrite.
 
 ## What is not built yet
 
-See `IMPLEMENTATION_STATUS.md`. In short: the IronCrew control plane does
-not yet drive the real CLI runtimes (the upstream execution path still does
-that, now with safe permission defaults), and memory, MCP registry, native
-runner daemon, Discord and the business packs are Phase 2+.
+See `IMPLEMENTATION_STATUS.md` for the exhaustive, test-backed list. In
+short: `CliAdapterRuntime` now drives real CLI runtimes end-to-end (Phase
+1.5), and Phase 2's Company OS — goals, projects, Kanban, dependencies, the
+decision inbox, the org chart, bounded meetings, an Obsidian `MemoryProvider`,
+and Discord/Telegram/email notification fan-out — is built and tested. What
+remains: the MCP registry, a tool registry with risk-classed approvals, a
+native runner daemon (so the control plane and the runtime stop sharing a
+process), and the business packs (MSP, Web Agency, Finance, Legal,
+Knowledge) — all Phase 3+.

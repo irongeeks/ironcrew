@@ -11,11 +11,15 @@ atomic task claiming, an approval engine that technically blocks high-risk
 actions, budget enforcement, a hash-chained audit log, and a vendor policy that
 is enforced in the backend rather than hidden in the UI.
 
-> **Status: early.** The vertical CEO workflow works end to end and is covered
-> by 341 tests, but it currently runs on **MockRuntime**. Driving the real CLI
-> runtimes through this control plane is the next step. See
-> [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for an honest list of
-> what is and is not built — nothing is claimed there without a passing test.
+> **Status: Phase 2 (Company OS) complete.** The CEO slice runs end to end on
+> a real, permission-aware `CliAdapterRuntime` (Claude Code, Codex, Gemini)
+> alongside MockRuntime, and goals, projects, Kanban, meetings, an Obsidian
+> memory, and Discord/Telegram/email notifications are all built and tested —
+> 3,600+ tests across the server and client suites. A live task run through
+> an *authenticated* CLI login is still the operator's own manual step (no
+> CLI login exists in this development environment). See
+> [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for an honest,
+> test-backed breakdown of what is and is not built.
 
 ## Quick start
 
