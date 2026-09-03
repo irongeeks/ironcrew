@@ -9,7 +9,7 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { establishSession } from "../fixtures/test-helpers";
 
-const IC = "/api/crew";
+const CREW = "/api/crew";
 
 async function session(request: APIRequestContext): Promise<Record<string, string>> {
   const csrf = await establishSession(request);
