@@ -16,7 +16,10 @@ describe("claudeAdapter", () => {
     it("includes all required base flags", () => {
       const args = claudeAdapter.buildArgs({ prompt: "hello", workdir: "/tmp" });
       expect(args).toContain("claude");
-      expect(args).toContain("--dangerously-skip-permissions");
+      // Iron Command: permission bypass is no longer a base flag. It is granted
+      // only via an owner-approved sandbox grant; see
+      // server/ironcommand/policy/runtime-permissions.test.ts.
+      expect(args).not.toContain("--dangerously-skip-permissions");
       expect(args).toContain("--print");
       expect(args).toContain("--verbose");
       expect(args).toContain("--output-format=stream-json");

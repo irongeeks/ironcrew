@@ -1,0 +1,18 @@
+# Copy to character-pack.local.yaml (gitignored) to override display names and
+# portraits locally.
+#
+# This file exists so that private, personal skin choices never enter the
+# repository. Only cosmetic fields may be overridden here: a character pack
+# can never widen an agent's policy, tools or permissions.
+#
+# Do NOT commit copyrighted images, actor likenesses, audio or logos.
+# Place local image files under data/private-assets/characters/ (gitignored).
+
+version: 1
+overrides:
+  ea:
+    display_name: "Ihr Wunschname"
+    portrait: "private-assets/characters/ea/portrait.webp"
+    full_body: "private-assets/characters/ea/full-body.webp"
+    model_3d: null
+    accent: amber

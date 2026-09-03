@@ -68,9 +68,9 @@ When the agent process exits, the run-complete handler chain executes:
 
 After the final phase succeeds, a **review consensus meeting** is convened (see [Meeting System](#meeting-system)). Outcomes:
 
-| Decision | Effect |
-|----------|--------|
-| **Approved** | Task status → `done`, completion recorded |
+| Decision               | Effect                                                        |
+| ---------------------- | ------------------------------------------------------------- |
+| **Approved**           | Task status → `done`, completion recorded                     |
 | **Revision requested** | Task status → `planned`, revision memo attached, task re-runs |
 
 ---
@@ -81,14 +81,14 @@ After the final phase succeeds, a **review consensus meeting** is convened (see 
 
 Agents communicate through several channels:
 
-| Type | Description | Trigger |
-|------|-------------|---------|
-| `chat` | Direct conversation between agents | Manual or automated |
-| `task_assign` | Task delegation notification | Agent assignment |
-| `announcement` | Company-wide broadcast | CEO directive |
-| `directive` | CEO directive (`$` prefix) | User input |
-| `report` | Task completion report | Task done |
-| `status_update` | Agent status change | State transition |
+| Type            | Description                        | Trigger             |
+| --------------- | ---------------------------------- | ------------------- |
+| `chat`          | Direct conversation between agents | Manual or automated |
+| `task_assign`   | Task delegation notification       | Agent assignment    |
+| `announcement`  | Company-wide broadcast             | CEO directive       |
+| `directive`     | CEO directive (`$` prefix)         | User input          |
+| `report`        | Task completion report             | Task done           |
+| `status_update` | Agent status change                | State transition    |
 
 All messages are persisted to the `messages` table and broadcast via WebSocket (`new_message` event) for real-time UI updates.
 
@@ -120,15 +120,15 @@ When a task requires work from multiple departments:
 
 The frontend stays synchronized via WebSocket events:
 
-| Event | Content | Batching |
-|-------|---------|----------|
-| `task_update` | Task status/details | Immediate |
-| `agent_status` | Agent state change | Immediate |
-| `cli_output` | CLI process output | 250ms batch |
-| `subtask_update` | Subtask progress | 150ms batch |
-| `ceo_office_call` | Meeting presence | Immediate |
-| `new_message` | Agent/CEO message | Immediate |
-| `cross_dept_delivery` | Department handoff | Immediate |
+| Event                 | Content             | Batching    |
+| --------------------- | ------------------- | ----------- |
+| `task_update`         | Task status/details | Immediate   |
+| `agent_status`        | Agent state change  | Immediate   |
+| `cli_output`          | CLI process output  | 250ms batch |
+| `subtask_update`      | Subtask progress    | 150ms batch |
+| `ceo_office_call`     | Meeting presence    | Immediate   |
+| `new_message`         | Agent/CEO message   | Immediate   |
+| `cross_dept_delivery` | Department handoff  | Immediate   |
 
 ---
 
@@ -174,18 +174,19 @@ All meetings take place in the **CEO Office** in the pixel-art office view. Up t
 
 ### Meeting Parameters
 
-| Parameter | Value |
-|-----------|-------|
-| Max review rounds | 3 (configurable via `REVIEW_MAX_ROUNDS`) |
-| Meeting timeout | 65 seconds per one-shot (with retry) |
-| Planned approval hold | 90 seconds |
-| Review consensus hold | 600 seconds (10 minutes) |
-| Max revision signals per round | Configurable |
-| Max revision signals per dept per round | Configurable |
+| Parameter                               | Value                                    |
+| --------------------------------------- | ---------------------------------------- |
+| Max review rounds                       | 3 (configurable via `REVIEW_MAX_ROUNDS`) |
+| Meeting timeout                         | 65 seconds per one-shot (with retry)     |
+| Planned approval hold                   | 90 seconds                               |
+| Review consensus hold                   | 600 seconds (10 minutes)                 |
+| Max revision signals per round          | Configurable                             |
+| Max revision signals per dept per round | Configurable                             |
 
 ### Meeting Speech
 
 During meetings, agents emit speech via `emitMeetingSpeech()`:
+
 - Speech is broadcast to the CEO office UI.
 - Summarized to 96 characters for the speech bubble.
 - Decision classification: `"approved"`, `"hold"`, or `"reviewing"`.
@@ -194,6 +195,7 @@ During meetings, agents emit speech via `emitMeetingSpeech()`:
 ### Meeting Records
 
 All meetings are persisted:
+
 - `meeting_minutes` table — meeting metadata (type, round, status, timestamps).
 - `meeting_minute_entries` table — individual speaker turns with content and message type.
 - Revision items extracted via `collectRevisionMemoItems()` and attached to the task.
@@ -218,15 +220,15 @@ planning   planning         dev               qa             dev           plann
 
 On first execution, `seedVideoPipelineSubtasks()` creates 7 subtasks:
 
-| # | Phase | Department | Initial Status |
-|---|-------|------------|----------------|
-| 1 | `concept` | planning | `pending` |
-| 2 | `screenplay` | planning | `blocked` |
-| 3 | `image_generation` | dev | `blocked` |
-| 4 | `image_review` | qa | `blocked` |
-| 5 | `video_generation` | dev | `blocked` |
-| 6 | `voice_prep` | planning | `blocked` |
-| 7 | `assembly` | dev | `blocked` |
+| #   | Phase              | Department | Initial Status |
+| --- | ------------------ | ---------- | -------------- |
+| 1   | `concept`          | planning   | `pending`      |
+| 2   | `screenplay`       | planning   | `blocked`      |
+| 3   | `image_generation` | dev        | `blocked`      |
+| 4   | `image_review`     | qa         | `blocked`      |
+| 5   | `video_generation` | dev        | `blocked`      |
+| 6   | `voice_prep`       | planning   | `blocked`      |
+| 7   | `assembly`         | dev        | `blocked`      |
 
 Only the first phase (`concept`) starts as `pending`. All others are `blocked` until the preceding phase completes.
 
@@ -239,6 +241,7 @@ Only the first phase (`concept`) starts as `pending`. All others are `blocked` u
 **Output:** Concept pitch with character descriptions
 
 The agent:
+
 1. Analyzes the topic and target platform.
 2. Creates a concept pitch with characters, visual style, and narrative arc.
 3. Defines prompt-ready character descriptions that will be reused verbatim across all shots.
@@ -252,6 +255,7 @@ The agent:
 **Output:** Shot list as JSON with ComfyUI prompts
 
 The agent:
+
 1. Creates a structured shot list (JSON) with per-scene details.
 2. Each shot includes:
    - **Positive prompt** (4-part structure): Subject (with character name), Setting, Artistic Style, Lighting.
@@ -268,6 +272,7 @@ The agent:
 **Output:** Images at `video_output/images/shot_XX.png`
 
 The agent:
+
 1. Executes ComfyUI `text2img` workflows for each shot.
 2. Uses the ComfyUI connector: `submitWorkflow()` → `pollJobCompletion()` → `downloadOutput()`.
 3. Workflow JSON templates are injected with per-shot parameters via `injectParameters()`.
@@ -282,6 +287,7 @@ The agent:
 **Output:** Review notes; optionally flags shots for regeneration
 
 The agent:
+
 1. Reviews each image for quality, consistency, and adherence to the shot list.
 2. Checks character consistency across shots.
 3. If issues found: writes `review_notes.json` with flagged shot indices.
@@ -297,6 +303,7 @@ The agent:
 **Output:** Clips at `video_output/clips/shot_XX.mp4`
 
 The agent:
+
 1. Executes ComfyUI `img2video` workflows for each approved image.
 2. Uses LTX I2V motion prompts from the screenplay.
 3. Image paths are injected into the subtask description by the artifact bridge.
@@ -310,6 +317,7 @@ The agent:
 **Output:** Voiceover script with timecodes
 
 The agent:
+
 1. Creates a voiceover script aligned to the shot timing.
 2. Adds timecodes for synchronization.
 3. TTS execution is currently a stub (`tts-stub-connector.ts`) — the actual TTS service is TBD.
@@ -323,6 +331,7 @@ The agent:
 **Output:** `video_output/final.mp4`
 
 The agent:
+
 1. Concatenates all clips using ffmpeg.
 2. Target format: 720x1280 portrait.
 3. Overlays voiceover if available.
@@ -351,6 +360,7 @@ handleVideoPhaseAdvancement()
 ### Agent Reassignment Between Phases
 
 Each phase maps to a department. When the pipeline advances:
+
 1. `getCurrentPipelinePhase()` determines the active phase.
 2. `VIDEO_PHASE_DEPARTMENT_MAP[phaseId]` returns the target department.
 3. If the current agent is not in that department, `selectAgentForDepartment()` picks a new agent.
@@ -371,6 +381,7 @@ concept ──pitch──→ screenplay ──shot list──→ image_generatio
 ```
 
 Artifact bridging functions inject file paths and content from prior phases into the next phase's subtask description:
+
 - `bridgeImagesForVideoGeneration()` — scans `video_output/images/`, injects paths into video_generation subtask.
 - `bridgeClipsForAssembly()` — scans `video_output/clips/`, injects paths into assembly subtask.
 
@@ -395,11 +406,11 @@ planning ──→ crawl:0 ──┐
 
 The `depth` parameter (from `workflow_meta_json.depth`) controls parallelism and thoroughness:
 
-| Depth | Crawlers | Phases | Max Rounds |
-|-------|----------|--------|------------|
-| `quick` | 1 | planning → crawl → final_report (fact_check skipped) | 5 |
-| `standard` | 3 | all 5 phases | 5 |
-| `deep` | 5 | all 5 phases | 5 |
+| Depth      | Crawlers | Phases                                               | Max Rounds |
+| ---------- | -------- | ---------------------------------------------------- | ---------- |
+| `quick`    | 1        | planning → crawl → final_report (fact_check skipped) | 5          |
+| `standard` | 3        | all 5 phases                                         | 5          |
+| `deep`     | 5        | all 5 phases                                         | 5          |
 
 ### Pipeline Seeding
 
@@ -407,15 +418,15 @@ On first execution, `seedResearchPipelineSubtasks()` creates subtasks based on d
 
 **Standard depth (3 crawlers) example:**
 
-| # | Subtask | Department | Initial Status |
-|---|---------|------------|----------------|
-| 1 | `[pipeline:planning]` | planning | `pending` |
-| 2 | `[pipeline:crawl:0]` | dev | `blocked` |
-| 3 | `[pipeline:crawl:1]` | dev | `blocked` |
-| 4 | `[pipeline:crawl:2]` | dev | `blocked` |
-| 5 | `[pipeline:synthesis]` | planning | `blocked` |
-| 6 | `[pipeline:fact_check]` | qa | `blocked` |
-| 7 | `[pipeline:final_report]` | qa | `blocked` |
+| #   | Subtask                   | Department | Initial Status |
+| --- | ------------------------- | ---------- | -------------- |
+| 1   | `[pipeline:planning]`     | planning   | `pending`      |
+| 2   | `[pipeline:crawl:0]`      | dev        | `blocked`      |
+| 3   | `[pipeline:crawl:1]`      | dev        | `blocked`      |
+| 4   | `[pipeline:crawl:2]`      | dev        | `blocked`      |
+| 5   | `[pipeline:synthesis]`    | planning   | `blocked`      |
+| 6   | `[pipeline:fact_check]`   | qa         | `blocked`      |
+| 7   | `[pipeline:final_report]` | qa         | `blocked`      |
 
 For `quick` depth: 1 crawler, `fact_check` is seeded as `cancelled`.
 
@@ -428,6 +439,7 @@ For `quick` depth: 1 crawler, `fact_check` is seeded as `cancelled`.
 **Output:** `research_output/search_strategy.json`
 
 The agent:
+
 1. Analyzes the topic and identifies knowledge gaps.
 2. Performs MECE decomposition into N sub-questions.
 3. For each sub-question, defines:
@@ -445,6 +457,7 @@ The agent:
 **Output:** `research_output/findings/crawler_N.md` per crawler
 
 Each crawler agent:
+
 1. Receives its assigned sub-question with keywords and source types.
 2. Uses WebSearch and WebFetch tools to investigate.
 3. Evaluates source quality (authority, recency, type).
@@ -461,6 +474,7 @@ Each crawler agent:
 **Output:** `research_output/draft_report.md`
 
 The agent:
+
 1. Receives merged findings from all crawlers.
 2. Performs **thematic** merge (NOT crawler-by-crawler summary).
 3. Identifies contradictions between sources and resolves them.
@@ -476,6 +490,7 @@ The agent:
 **Output:** `research_output/fact_check_results.json`
 
 The agent:
+
 1. Re-verifies key claims against original sources.
 2. Cross-validates facts across multiple sources.
 3. Assigns confidence scores: `high`, `medium`, or `low`.
@@ -491,6 +506,7 @@ The agent:
 **Output:** `research_output/final_report.md`
 
 The agent:
+
 1. Polishes the draft report with fact-check results.
 2. Adds inline citations throughout.
 3. Adjusts confidence levels based on fact-check findings.
@@ -524,13 +540,13 @@ handleResearchPhaseAdvancement()
 
 Department mapping per phase:
 
-| Phase | Department | Ideal Model Profile |
-|-------|-----------|-------------------|
-| Planning | `planning` | Strong reasoning (Opus, o3) |
-| Crawl | `dev` | Fast + tool-use (Sonnet, GPT-4o) |
-| Synthesis | `planning` | Long context + reasoning |
-| Fact Check | `qa` | Precise + tool-use |
-| Final Report | `qa` | Good writing |
+| Phase        | Department | Ideal Model Profile              |
+| ------------ | ---------- | -------------------------------- |
+| Planning     | `planning` | Strong reasoning (Opus, o3)      |
+| Crawl        | `dev`      | Fast + tool-use (Sonnet, GPT-4o) |
+| Synthesis    | `planning` | Long context + reasoning         |
+| Fact Check   | `qa`       | Precise + tool-use               |
+| Final Report | `qa`       | Good writing                     |
 
 On each phase transition, `selectAgentForDepartment()` picks an idle agent from the target department. Multiple crawlers can run simultaneously with different dev-department agents.
 
@@ -547,6 +563,7 @@ planning ──search_strategy.json──→ crawl:0 ──crawler_0.md──┐
 ```
 
 Artifact validation is non-blocking:
+
 - `SearchStrategySchema` validates search strategy; falls back to legacy plain string array format.
 - `FactCheckResultSchema` validates fact-check results; falls back to raw content on invalid JSON.
 - Per-crawler findings capped at 8KB before injection into synthesis.
@@ -569,15 +586,15 @@ Task created → Agent assigned → Single execution → Review meeting → Done
 
 ### Input Schema
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `design_goal` | Yes | What the design should accomplish |
-| `target_surface` | Yes | Platform/device target |
-| `brand_constraints` | Yes | Brand guidelines to follow |
-| `figma_url` | No | Figma file URL for reference |
-| `accessibility_target` | No | WCAG level or custom a11y target |
-| `component_inventory` | No | Existing components to reuse |
-| `handoff_scope` | No | What to include in dev handoff |
+| Field                  | Required | Description                       |
+| ---------------------- | -------- | --------------------------------- |
+| `design_goal`          | Yes      | What the design should accomplish |
+| `target_surface`       | Yes      | Platform/device target            |
+| `brand_constraints`    | Yes      | Brand guidelines to follow        |
+| `figma_url`            | No       | Figma file URL for reference      |
+| `accessibility_target` | No       | WCAG level or custom a11y target  |
+| `component_inventory`  | No       | Existing components to reuse      |
+| `handoff_scope`        | No       | What to include in dev handoff    |
 
 ### Execution Flow
 
@@ -592,14 +609,14 @@ Task created → Agent assigned → Single execution → Review meeting → Done
 
 ### Required Output Sections
 
-| Section | Content |
-|---------|---------|
-| `design_brief` | Summary of design decisions and rationale |
-| `mockup_summary` | Description of mockups produced |
-| `design_tokens` | Extracted design tokens (colors, spacing, typography) |
-| `accessibility_audit` | A11y check results (contrast, focus order, hit targets) |
-| `design_review_notes` | Notes for the review meeting |
-| `design_to_code_handoff` | Structured JSON for developers |
+| Section                  | Content                                                 |
+| ------------------------ | ------------------------------------------------------- |
+| `design_brief`           | Summary of design decisions and rationale               |
+| `mockup_summary`         | Description of mockups produced                         |
+| `design_tokens`          | Extracted design tokens (colors, spacing, typography)   |
+| `accessibility_audit`    | A11y check results (contrast, focus order, hit targets) |
+| `design_review_notes`    | Notes for the review meeting                            |
+| `design_to_code_handoff` | Structured JSON for developers                          |
 
 ### Developer Handoff JSON Structure
 
@@ -631,21 +648,21 @@ After execution, `syncDesignArtifactsFromWorktree()` scans for design files:
 
 **File categories:**
 
-| Category | Extensions |
-|----------|-----------|
-| Mockup | `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`, `.pdf` |
-| Screenshot | `.gif` |
-| Token | `.json`, `.yaml`, `.yml`, `.css`, `.scss` |
+| Category   | Extensions                                       |
+| ---------- | ------------------------------------------------ |
+| Mockup     | `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`, `.pdf` |
+| Screenshot | `.gif`                                           |
+| Token      | `.json`, `.yaml`, `.yml`, `.css`, `.scss`        |
 
 Output is copied to `design_output/task-{taskId}/` with a `manifest.json` listing all files.
 
 ### Agent Name Pool
 
-| Department | Agents |
-|-----------|--------|
-| Design Planning | Design PM |
-| UI Design | UI Designer |
-| Design QA | Design QA |
+| Department          | Agents           |
+| ------------------- | ---------------- |
+| Design Planning     | Design PM        |
+| UI Design           | UI Designer      |
+| Design QA           | Design QA        |
 | Handoff Engineering | Handoff Engineer |
 
 ---
@@ -664,11 +681,11 @@ Task created → Agent assigned → Execution → (Subtask delegation) → Revie
 
 ### Input Schema
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `project` | Yes | Project path or identifier |
-| `instruction` | Yes | What to build/fix |
-| `constraints` | No | Technical or business constraints |
+| Field         | Required | Description                       |
+| ------------- | -------- | --------------------------------- |
+| `project`     | Yes      | Project path or identifier        |
+| `instruction` | Yes      | What to build/fix                 |
+| `constraints` | No       | Technical or business constraints |
 
 ### Execution Flow
 
@@ -684,12 +701,12 @@ Task created → Agent assigned → Execution → (Subtask delegation) → Revie
 
 ### QA Rules
 
-| Rule | Value |
-|------|-------|
-| Require test evidence | Yes |
-| Require risk notes | Yes |
-| Max auto-fix passes | 3 |
-| Max rounds | 3 |
+| Rule                  | Value |
+| --------------------- | ----- |
+| Require test evidence | Yes   |
+| Require risk notes    | Yes   |
+| Max auto-fix passes   | 3     |
+| Max rounds            | 3     |
 
 ### Department Pipeline (Optional)
 
@@ -709,6 +726,7 @@ Development tasks can optionally use a **department pipeline** via `workflow_met
 ```
 
 This creates a sequential department handoff:
+
 1. Dev implements → on success, advance to next step.
 2. QA tests → on success, advance.
 3. DevSecOps reviews → on success, enter final review.
@@ -725,15 +743,15 @@ OpenClaw is a CLI provider type (`openclaw`) that enables **local LLM models** (
 
 ### How It Differs from Other Providers
 
-| Feature | Claude / Codex / Gemini | OpenClaw |
-|---------|------------------------|----------|
-| Prompt delivery | via stdin | via `--message` flag |
-| Model configuration | CLI flag (`--model`) | Profile config (`openclaw.json`) |
-| Isolation | None | Per-profile directory (`~/.openclaw-<name>/`) |
-| Auth | OAuth or API key | None (local only) |
-| Gateway mode | n/a | Removed — only `--local` mode |
-| Reasoning level | Supported (Codex) | Not supported |
-| Session tracking | Not used | `--session-id` per task |
+| Feature             | Claude / Codex / Gemini | OpenClaw                                      |
+| ------------------- | ----------------------- | --------------------------------------------- |
+| Prompt delivery     | via stdin               | via `--message` flag                          |
+| Model configuration | CLI flag (`--model`)    | Profile config (`openclaw.json`)              |
+| Isolation           | None                    | Per-profile directory (`~/.openclaw-<name>/`) |
+| Auth                | OAuth or API key        | None (local only)                             |
+| Gateway mode        | n/a                     | Removed — only `--local` mode                 |
+| Reasoning level     | Supported (Codex)       | Not supported                                 |
+| Session tracking    | Not used                | `--session-id` per task                       |
 
 ### Profile System
 
@@ -751,14 +769,18 @@ Each OpenClaw profile is fully isolated:
 
 ```json
 {
-  "models": { "providers": { "vllm": {
-    "baseUrl": "http://<host>:<port>/v1",
-    "apiKey": "vllm-local",
-    "api": "openai-completions",
-    "models": [{ "id": "<model-id>", "contextWindow": 32768, "maxTokens": 8192 }]
-  }}},
-  "agents": { "defaults": { "model": { "primary": "vllm/<model-id>" }}},
-  "tools": { "elevated": { "enabled": true }}
+  "models": {
+    "providers": {
+      "vllm": {
+        "baseUrl": "http://<host>:<port>/v1",
+        "apiKey": "vllm-local",
+        "api": "openai-completions",
+        "models": [{ "id": "<model-id>", "contextWindow": 32768, "maxTokens": 8192 }]
+      }
+    }
+  },
+  "agents": { "defaults": { "model": { "primary": "vllm/<model-id>" } } },
+  "tools": { "elevated": { "enabled": true } }
 }
 ```
 
@@ -778,6 +800,7 @@ openclaw --profile <name> agent --local --json --session-id <taskId> --message "
 ```
 
 Key points:
+
 - `--profile <name>` — selects the isolated profile directory.
 - `--local` — runs the embedded agent directly (no gateway dependency).
 - `--json` — structured output mode.
@@ -827,6 +850,7 @@ cli_profile  TEXT  -- nullable, used ONLY for openclaw
 **Agent creation form** (`AgentFormModal.tsx`): Includes `cli_profile` field, initialized as empty string.
 
 **Validation rules:**
+
 - Profile is only allowed when `cli_provider = 'openclaw'`.
 - Setting a profile on a non-OpenClaw agent returns `400 cli_profile_requires_openclaw_provider`.
 - Switching away from OpenClaw auto-clears the profile to `null`.
@@ -863,59 +887,59 @@ Setup scripts (`scripts/openclaw-setup.sh`, `scripts/openclaw-setup.ps1`) detect
 
 ### Key Source Files
 
-| Mechanism | File |
-|-----------|------|
-| CLI argument builder | `server/modules/workflow/core/cli-tools.ts` |
-| Spawn logic (--message, stdin skip) | `server/modules/workflow/agents/cli-runtime.ts` |
-| One-shot/meeting execution | `server/modules/workflow/core/one-shot-runner.ts` |
-| Agent CRUD + profile validation | `server/modules/routes/core/agents/crud.ts` |
-| Agent spawn endpoint | `server/modules/routes/core/agents/spawn.ts` |
-| DB schema (cli_profile column) | `server/modules/bootstrap/schema/base-schema.ts` |
-| Frontend profile input | `src/components/agent-detail/CliEditorInline.tsx` |
-| Frontend state management | `src/components/agent-detail/useAgentDetailState.ts` |
-| Agent creation form | `src/components/agent-manager/AgentFormModal.tsx` |
-| Provider constants & labels | `src/components/agent-detail/constants.ts` |
-| Setup scripts | `scripts/openclaw-setup.sh`, `scripts/openclaw-setup.ps1` |
+| Mechanism                           | File                                                      |
+| ----------------------------------- | --------------------------------------------------------- |
+| CLI argument builder                | `server/modules/workflow/core/cli-tools.ts`               |
+| Spawn logic (--message, stdin skip) | `server/modules/workflow/agents/cli-runtime.ts`           |
+| One-shot/meeting execution          | `server/modules/workflow/core/one-shot-runner.ts`         |
+| Agent CRUD + profile validation     | `server/modules/routes/core/agents/crud.ts`               |
+| Agent spawn endpoint                | `server/modules/routes/core/agents/spawn.ts`              |
+| DB schema (cli_profile column)      | `server/modules/bootstrap/schema/base-schema.ts`          |
+| Frontend profile input              | `src/components/agent-detail/CliEditorInline.tsx`         |
+| Frontend state management           | `src/components/agent-detail/useAgentDetailState.ts`      |
+| Agent creation form                 | `src/components/agent-manager/AgentFormModal.tsx`         |
+| Provider constants & labels         | `src/components/agent-detail/constants.ts`                |
+| Setup scripts                       | `scripts/openclaw-setup.sh`, `scripts/openclaw-setup.ps1` |
 
 ---
 
 ## Appendix: Key Source Files
 
-| Mechanism | File |
-|-----------|------|
-| Pack definitions | `server/modules/workflow/packs/definitions.ts` |
-| Execution guidance (all packs) | `server/modules/workflow/packs/execution-guidance.ts` |
-| Video phase seeding & advancement | `server/modules/workflow/packs/video-pipeline-phases.ts` |
-| Video artifact bridging | `server/modules/workflow/packs/video-pipeline-artifact-bridge.ts` |
-| Research phase seeding & advancement | `server/modules/workflow/packs/research-pipeline-phases.ts` |
-| Research artifact bridging | `server/modules/workflow/packs/research-artifact-bridge.ts` |
-| Design artifact sync | `server/modules/workflow/packs/design-asset.ts` |
-| Task execution entry point | `server/modules/routes/core/tasks/execution-run.ts` |
-| Agent auto-assignment | `server/modules/routes/core/tasks/execution-run-auto-assign.ts` |
-| Run-complete handler chain | `server/modules/workflow/orchestration/run-complete-handler.ts` |
-| Video phase advancement | `server/modules/workflow/orchestration/run-complete-video.ts` |
-| Research phase advancement | `server/modules/workflow/orchestration/run-complete-research.ts` |
-| Dept pipeline advancement | `server/modules/workflow/orchestration/run-complete-dept-pipeline.ts` |
-| Meeting orchestrator | `server/modules/workflow/orchestration/meetings.ts` |
-| Review consensus | `server/modules/workflow/orchestration/meetings/review-consensus.ts` |
-| Leader selection | `server/modules/workflow/orchestration/meetings/leader-selection.ts` |
-| Meeting presence (CEO office) | `server/modules/workflow/orchestration/meetings/presence.ts` |
-| Meeting minutes | `server/modules/workflow/orchestration/meetings/minutes.ts` |
-| Office pack config (name pools) | `src/app/office-workflow-pack.ts` |
-| CLI agent spawn | `server/modules/workflow/agents/cli-runtime.ts` |
-| Subtask seeding | `server/modules/workflow/agents/subtask-seeding.ts` |
-| Meeting prompt builder | `server/modules/workflow/core/meeting-prompt-tools.ts` |
+| Mechanism                            | File                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| Pack definitions                     | `server/modules/workflow/packs/definitions.ts`                        |
+| Execution guidance (all packs)       | `server/modules/workflow/packs/execution-guidance.ts`                 |
+| Video phase seeding & advancement    | `server/modules/workflow/packs/video-pipeline-phases.ts`              |
+| Video artifact bridging              | `server/modules/workflow/packs/video-pipeline-artifact-bridge.ts`     |
+| Research phase seeding & advancement | `server/modules/workflow/packs/research-pipeline-phases.ts`           |
+| Research artifact bridging           | `server/modules/workflow/packs/research-artifact-bridge.ts`           |
+| Design artifact sync                 | `server/modules/workflow/packs/design-asset.ts`                       |
+| Task execution entry point           | `server/modules/routes/core/tasks/execution-run.ts`                   |
+| Agent auto-assignment                | `server/modules/routes/core/tasks/execution-run-auto-assign.ts`       |
+| Run-complete handler chain           | `server/modules/workflow/orchestration/run-complete-handler.ts`       |
+| Video phase advancement              | `server/modules/workflow/orchestration/run-complete-video.ts`         |
+| Research phase advancement           | `server/modules/workflow/orchestration/run-complete-research.ts`      |
+| Dept pipeline advancement            | `server/modules/workflow/orchestration/run-complete-dept-pipeline.ts` |
+| Meeting orchestrator                 | `server/modules/workflow/orchestration/meetings.ts`                   |
+| Review consensus                     | `server/modules/workflow/orchestration/meetings/review-consensus.ts`  |
+| Leader selection                     | `server/modules/workflow/orchestration/meetings/leader-selection.ts`  |
+| Meeting presence (CEO office)        | `server/modules/workflow/orchestration/meetings/presence.ts`          |
+| Meeting minutes                      | `server/modules/workflow/orchestration/meetings/minutes.ts`           |
+| Office pack config (name pools)      | `src/app/office-workflow-pack.ts`                                     |
+| CLI agent spawn                      | `server/modules/workflow/agents/cli-runtime.ts`                       |
+| Subtask seeding                      | `server/modules/workflow/agents/subtask-seeding.ts`                   |
+| Meeting prompt builder               | `server/modules/workflow/core/meeting-prompt-tools.ts`                |
 
 ## Visual Node Editor
 
 Packs can be explored and edited visually via the **Visual Node Editor** in the Tasks tab (click the **Graph** button, or navigate to the dedicated **Workflows** tab if present).
 
-| Mode | Description |
-|------|-------------|
-| **Visualizer** | Read-only phase DAG — shows nodes, dependencies, and artifact edges |
-| **Monitor** | Live execution overlay — maps `subtask_update` WebSocket events to phase states |
-| **Editor** | Visual editing — drag-to-connect ports, PropertyPanel sidebar, YAML preview + save |
-| **Builder** | Create new community packs — node palette, guidance editor with language tabs |
+| Mode           | Description                                                                        |
+| -------------- | ---------------------------------------------------------------------------------- |
+| **Visualizer** | Read-only phase DAG — shows nodes, dependencies, and artifact edges                |
+| **Monitor**    | Live execution overlay — maps `subtask_update` WebSocket events to phase states    |
+| **Editor**     | Visual editing — drag-to-connect ports, PropertyPanel sidebar, YAML preview + save |
+| **Builder**    | Create new community packs — node palette, guidance editor with language tabs      |
 
 Changes made in Editor mode are saved via `PUT /api/ops/workflow-packs/:key/definition`.
 Node positions persist separately via `PUT /api/ops/workflow-packs/:key/positions`.
@@ -924,9 +948,9 @@ Node positions persist separately via `PUT /api/ops/workflow-packs/:key/position
 
 Running tasks can be partially rewound without cancelling the whole run:
 
-| Endpoint | Effect |
-|----------|--------|
-| `POST /api/core/tasks/:taskId/phases/:phaseId/reset` | Reset a single phase to `pending` |
+| Endpoint                                                  | Effect                                       |
+| --------------------------------------------------------- | -------------------------------------------- |
+| `POST /api/core/tasks/:taskId/phases/:phaseId/reset`      | Reset a single phase to `pending`            |
 | `POST /api/core/tasks/:taskId/phases/reset-from/:phaseId` | Reset phase + all downstream (BFS traversal) |
 
 Both endpoints stop any active agent process before mutating state to prevent race conditions.

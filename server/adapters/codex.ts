@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { CliAdapter, InvocationContext, AdapterStreamEvent } from "./adapter-interface.ts";
+import { permissionArgsFor } from "../ironcommand/policy/runtime-permissions.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,7 +16,8 @@ export const codexAdapter: CliAdapter = {
     const args = ["codex", "--enable", "multi_agent"];
     if (context.model) args.push("-m", context.model);
     if (context.reasoningLevel) args.push("-c", `model_reasoning_effort="${context.reasoningLevel}"`);
-    args.push("--yolo", "exec", "--json");
+    args.push(...permissionArgsFor("codex", context.permissionMode ?? "restricted"));
+    args.push("exec", "--json");
     return args;
   },
 

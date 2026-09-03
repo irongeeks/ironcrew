@@ -7,6 +7,11 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: process.env.PW_BASE_URL ?? "http://127.0.0.1:8810",
+    // Some environments (containers, CI images) ship a preinstalled Chromium
+    // but not the chrome-headless-shell build a pinned Playwright expects.
+    // PW_CHROMIUM_PATH points the runner at the browser that is actually there;
+    // unset, Playwright resolves its own download as usual.
+    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

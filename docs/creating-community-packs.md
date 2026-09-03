@@ -32,23 +32,23 @@ Here's the simplest possible pack — a 2-phase "Plan then Execute" workflow:
 
 ```yaml
 pack:
-  key: my_pack                   # Unique ID: lowercase, digits, underscores only
-  schema_version: 1              # Always 1
+  key: my_pack # Unique ID: lowercase, digits, underscores only
+  schema_version: 1 # Always 1
   name:
-    en: "My Pack"                # At least English required
-  version: "1.0.0"              # Semantic versioning
+    en: "My Pack" # At least English required
+  version: "1.0.0" # Semantic versioning
   description:
     en: "A simple 2-phase workflow"
 
 input:
-  required: []                   # No user inputs needed
+  required: [] # No user inputs needed
   optional: []
 
 phases:
-  - id: planning                 # Phase IDs: lowercase + underscores
+  - id: planning # Phase IDs: lowercase + underscores
     department: planning
-    guidance: "guidance/planning.{lang}.md"   # {lang} placeholder required!
-    gate: user_approval          # Pause for user review before continuing
+    guidance: "guidance/planning.{lang}.md" # {lang} placeholder required!
+    gate: user_approval # Pause for user review before continuing
     outputs:
       - name: plan
         type: markdown
@@ -58,7 +58,7 @@ phases:
     department: dev
     guidance: "guidance/execution.{lang}.md"
     inputs:
-      - name: plan               # Consume output from planning phase
+      - name: plan # Consume output from planning phase
         from: planning.plan
     outputs:
       - name: result
@@ -72,15 +72,15 @@ That's it — ~25 lines of YAML for a working workflow.
 
 ### `pack:` (required)
 
-| Field            | Required | Description                                          |
-| ---------------- | -------- | ---------------------------------------------------- |
-| `key`            | Yes      | Unique identifier. Regex: `^[a-z][a-z0-9_]*$`       |
-| `schema_version` | Yes      | Always `1`                                           |
-| `name`           | Yes      | Localized names: `{ en: "...", de: "...", ... }`     |
-| `version`        | Yes      | Semantic version string (e.g. `"1.0.0"`)            |
-| `description`    | Yes      | Localized descriptions                               |
-| `icon`           | No       | Emoji for UI display (e.g. `"🔬"`)                  |
-| `agent_routing`  | No       | `"department"` (default) or `"single"`              |
+| Field             | Required | Description                                                                   |
+| ----------------- | -------- | ----------------------------------------------------------------------------- |
+| `key`             | Yes      | Unique identifier. Regex: `^[a-z][a-z0-9_]*$`                                 |
+| `schema_version`  | Yes      | Always `1`                                                                    |
+| `name`            | Yes      | Localized names: `{ en: "...", de: "...", ... }`                              |
+| `version`         | Yes      | Semantic version string (e.g. `"1.0.0"`)                                      |
+| `description`     | Yes      | Localized descriptions                                                        |
+| `icon`            | No       | Emoji for UI display (e.g. `"🔬"`)                                            |
+| `agent_routing`   | No       | `"department"` (default) or `"single"`                                        |
 | `shared_guidance` | No       | Path to shared guidance file prepended to every phase. Must contain `{lang}`. |
 
 #### Shared Guidance
@@ -90,7 +90,7 @@ To avoid repeating the same instructions in every phase guidance file, use `shar
 ```yaml
 pack:
   key: my_pack
-  shared_guidance: "guidance/shared.{lang}.md"   # Prepended to every phase
+  shared_guidance: "guidance/shared.{lang}.md" # Prepended to every phase
 ```
 
 The content of this file is prepended to each phase's guidance automatically. Only create it if you have content that applies to ALL phases (e.g. output conventions, CLAUDE.md update rules).
@@ -102,8 +102,8 @@ Define what the user fills in when creating a task with this pack.
 ```yaml
 input:
   required:
-    - key: topic                 # Variable name (used in skip_when expressions)
-      type: string               # string | number | boolean
+    - key: topic # Variable name (used in skip_when expressions)
+      type: string # string | number | boolean
       label:
         en: "Research Topic"
   optional:
@@ -111,8 +111,8 @@ input:
       type: string
       label:
         en: "Depth"
-      default: "standard"        # Pre-filled value
-      enum:                      # Restrict to specific choices
+      default: "standard" # Pre-filled value
+      enum: # Restrict to specific choices
         - quick
         - standard
         - deep
@@ -122,11 +122,11 @@ input:
 
 Each phase is a step in the workflow. Phases form a DAG (directed acyclic graph) — the system determines execution order from the `inputs.from` references.
 
-| Field             | Required | Description                                                         |
-| ----------------- | -------- | ------------------------------------------------------------------- |
+| Field             | Required | Description                                                        |
+| ----------------- | -------- | ------------------------------------------------------------------ |
 | `id`              | Yes      | Unique within pack. Regex: `^[a-z][a-z0-9_]*$`                     |
-| `department`      | Yes      | Which department runs this phase (matches `staff.name_pool`)        |
-| `guidance`        | Yes      | Path to guidance file. **Must contain `{lang}`**                    |
+| `department`      | Yes      | Which department runs this phase (matches `staff.name_pool`)       |
+| `guidance`        | Yes      | Path to guidance file. **Must contain `{lang}`**                   |
 | `inputs`          | No       | List of `{ name, from }` — connects to upstream phase outputs      |
 | `outputs`         | No       | List of `{ name, type, path, schema? }` — what this phase produces |
 | `gate`            | No       | `"auto"` (default) or `"user_approval"` — pause for human review   |
@@ -135,8 +135,8 @@ Each phase is a step in the workflow. Phases form a DAG (directed acyclic graph)
 | `capability_mode` | No       | `"agent"` (default), `"hybrid"`, or `"server"`                     |
 | `fan_out`         | No       | `{ count_from: "phase.output.array.length" }` — parallel execution |
 | `on_review_fail`  | No       | `{ rerun: "phase_id", max_passes: 2, flag_output: "name" }`        |
-| `node_type`       | No       | Key of a registered NodeType for server-side execution              |
-| `node_config`     | No       | Config object passed to the NodeType's `execute()`                  |
+| `node_type`       | No       | Key of a registered NodeType for server-side execution             |
+| `node_config`     | No       | Config object passed to the NodeType's `execute()`                 |
 | `hooks`           | No       | `{ pre_run: "script.sh", post_run: "script.sh" }`                  |
 
 #### How phases connect
@@ -145,22 +145,22 @@ Phases don't need an explicit `depends_on` — the system infers the DAG from `i
 
 ```yaml
 phases:
-  - id: research          # No inputs → root phase (runs first)
+  - id: research # No inputs → root phase (runs first)
     outputs:
       - name: findings
         type: markdown
         path: output/findings.md
 
-  - id: writing           # Depends on research (via input reference)
+  - id: writing # Depends on research (via input reference)
     inputs:
       - name: context
-        from: research.findings    # Format: <phase_id>.<output_name>
+        from: research.findings # Format: <phase_id>.<output_name>
     outputs:
       - name: draft
         type: markdown
         path: output/draft.md
 
-  - id: review            # Depends on both research and writing
+  - id: review # Depends on both research and writing
     inputs:
       - name: draft
         from: writing.draft
@@ -185,13 +185,13 @@ Outputs also accept an optional `schema` field (string path to a JSON Schema fil
 
 #### `from` reference syntax
 
-| Pattern                              | Meaning                                    |
-| ------------------------------------ | ------------------------------------------ |
-| `planning.plan`                      | Output "plan" from phase "planning"                |
-| `crawl.findings.*`                   | All fan-out results (explicit fan-in aggregation)  |
-| `planning.items[{n}]`               | Index placeholder (expanded per fan-out instance)  |
-| `planning.strategy.items.length`     | JSON sub-path navigation                           |
-| `input.topic`                        | Pack-level input variable                          |
+| Pattern                          | Meaning                                           |
+| -------------------------------- | ------------------------------------------------- |
+| `planning.plan`                  | Output "plan" from phase "planning"               |
+| `crawl.findings.*`               | All fan-out results (explicit fan-in aggregation) |
+| `planning.items[{n}]`            | Index placeholder (expanded per fan-out instance) |
+| `planning.strategy.items.length` | JSON sub-path navigation                          |
+| `input.topic`                    | Pack-level input variable                         |
 
 > **Fan-in note:** Plain references to fan-out phase outputs (e.g. `crawl.findings` without `.*`) also work — the artifact bridge handles aggregation automatically. The `.*` wildcard is an explicit alternative.
 
@@ -199,9 +199,9 @@ Outputs also accept an optional `schema` field (string path to a JSON Schema fil
 
 ```yaml
 cost_profile:
-  max_rounds: 5            # Max conversation rounds per phase (default: 5)
+  max_rounds: 5 # Max conversation rounds per phase (default: 5)
   default_reasoning: medium # low | medium | high (default: medium)
-  max_input_tokens: 50000  # Optional hard limit
+  max_input_tokens: 50000 # Optional hard limit
   max_output_tokens: 16000 # Optional hard limit
 ```
 
@@ -209,8 +209,8 @@ cost_profile:
 
 ```yaml
 qa_rules:
-  require_test_evidence: false  # Require test output before approval (default: false)
-  max_auto_fix_passes: 2        # Auto-retry failed phases (default: 2)
+  require_test_evidence: false # Require test output before approval (default: false)
+  max_auto_fix_passes: 2 # Auto-retry failed phases (default: 2)
 ```
 
 ### `staff:` (optional but recommended)
@@ -219,22 +219,22 @@ Defines the agents that appear in the office for this pack.
 
 ```yaml
 staff:
-  default_workspace: "my_output"    # Output directory for tasks using this pack
+  default_workspace: "my_output" # Output directory for tasks using this pack
   name_pool:
-    - name: Alice                   # Display name
-      role: team_leader             # team_leader | agent
-      department: planning          # Must match a phase department
+    - name: Alice # Display name
+      role: team_leader # team_leader | agent
+      department: planning # Must match a phase department
       personality: "Strategic thinker who creates clear, actionable plans."
-      name_ko: "앨리스"             # Localized names (optional)
+      name_ko: "앨리스" # Localized names (optional)
       name_ja: "アリス"
       name_zh: "爱丽丝"
-      avatar_emoji: "🧭"           # Optional avatar
-      sprite_number: 3             # Optional pixel art sprite index
+      avatar_emoji: "🧭" # Optional avatar
+      sprite_number: 3 # Optional pixel art sprite index
     - name: Bob
       role: agent
       department: dev
       personality: "Fast, focused implementer."
-  room_theme:                       # Office room colors (optional)
+  room_theme: # Office room colors (optional)
     floor1: "#e2eef6"
     floor2: "#d8e7f1"
     wall: "#55728d"
@@ -247,7 +247,7 @@ Controls how the pack appears in the dashboard, pack selector, and office view.
 
 ```yaml
 ui:
-  slug: "MP"                        # Short identifier (max 5 chars)
+  slug: "MP" # Short identifier (max 5 chars)
   label:
     en: "My Pack"
   summary:
@@ -263,13 +263,13 @@ ui:
         en: "Development"
       icon: "💻"
       color: "#3b82f6"
-  room_themes:                      # Named room color schemes (numeric hex)
+  room_themes: # Named room color schemes (numeric hex)
     planning_room:
       floor1: 0xe2eef6
       floor2: 0xd8e7f1
       wall: 0x55728d
       accent: 0x5a9fd4
-  staff_cycle:                      # Department rotation order
+  staff_cycle: # Department rotation order
     - planning
     - dev
 ```
@@ -321,13 +321,16 @@ Save as output/plan.md with this structure:
 # Project Plan
 
 ## Summary
+
 (1-2 sentences)
 
 ## Steps
+
 1. **Step name** — Description. Output: `path/to/file`. Complexity: small.
 2. ...
 
 ## Risks
+
 - Risk 1: ...
 ```
 
@@ -344,6 +347,7 @@ Read the plan from the previous phase and implement each step.
 4. Document what you did and any deviations from the plan.
 
 Save as output/result.md:
+
 - Summary of completed work
 - List of files created/modified
 - Any issues encountered
@@ -372,7 +376,7 @@ Add `gate: user_approval` to pause the workflow and let the user review before c
 - id: planning
   department: planning
   guidance: "guidance/planning.{lang}.md"
-  gate: user_approval          # <-- pauses here
+  gate: user_approval # <-- pauses here
   outputs:
     - name: plan
       type: json
@@ -393,7 +397,7 @@ input:
 
 phases:
   - id: testing
-    skip_when: "input.skip_tests"   # <-- skipped if user checks the box
+    skip_when: "input.skip_tests" # <-- skipped if user checks the box
     # ...
 ```
 
@@ -406,18 +410,18 @@ Split work into parallel instances based on a previous phase's output:
   outputs:
     - name: items
       type: json
-      path: output/items.json      # Must contain an array
+      path: output/items.json # Must contain an array
 
 - id: work
   fan_out:
-    count_from: planning.items.length   # N instances spawned
+    count_from: planning.items.length # N instances spawned
   inputs:
     - name: items
       from: planning.items
   outputs:
     - name: result
       type: markdown
-      path: "output/results/item_{n}.md"   # {n} = instance index
+      path: "output/results/item_{n}.md" # {n} = instance index
 ```
 
 The downstream phase receives all parallel outputs automatically. You can use either a plain reference or the explicit wildcard:
@@ -426,7 +430,7 @@ The downstream phase receives all parallel outputs automatically. You can use ei
 - id: summary
   inputs:
     - name: all_results
-      from: work.result            # Fan-in: plain reference works too
+      from: work.result # Fan-in: plain reference works too
       # from: work.result.*        # Explicit wildcard form (equivalent)
 ```
 
@@ -437,9 +441,9 @@ If a review phase fails, automatically re-run an earlier phase:
 ```yaml
 - id: review
   on_review_fail:
-    rerun: implementation          # Phase to re-run
-    max_passes: 2                  # Maximum retry attempts
-    flag_output: issues            # Output name containing the failure reasons
+    rerun: implementation # Phase to re-run
+    max_passes: 2 # Maximum retry attempts
+    flag_output: issues # Output name containing the failure reasons
   inputs:
     - name: code
       from: implementation.changes
@@ -469,15 +473,15 @@ Use an external service like web search or image generation:
 - id: search
   department: research
   guidance: "guidance/search.{lang}.md"
-  capability: web_search           # Registered connector capability
-  capability_mode: agent           # Agent uses the tool (default)
+  capability: web_search # Registered connector capability
+  capability_mode: agent # Agent uses the tool (default)
   # ...
 
 - id: generate_image
   department: design
   guidance: "guidance/image.{lang}.md"
   capability: text2img
-  capability_mode: server          # Connector runs directly, no agent needed
+  capability_mode: server # Connector runs directly, no agent needed
   # ...
 ```
 
@@ -487,15 +491,15 @@ The server validates packs at startup. Check the server logs for errors.
 
 ### Common Errors
 
-| Error | Cause | Fix |
-| ----- | ----- | --- |
+| Error                                                                                           | Cause                                 | Fix                                      |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------- |
 | `Pack key must start with a letter and contain only lowercase letters, digits, and underscores` | Key uses uppercase, dashes, or spaces | Use `my_pack`, not `my-pack` or `MyPack` |
-| `Phase ID must start with a letter...` | Same as above, for phase IDs | Use `phase_one`, not `phase-one` |
-| `Guidance path must contain {lang} placeholder` | Missing `{lang}` in guidance path | Use `guidance/phase.{lang}.md` |
-| `references unknown phase "X"` | Typo in `inputs.from` reference | Check the source phase ID exists |
-| `references unknown output "X" on phase "Y"` | Typo in output name | Check `outputs.name` on the source phase |
-| `Cycle detected` | Circular dependency (A → B → A) | Redesign your DAG to flow forward only |
-| `Too small: expected array to have >=1 items` | No phases defined | Add at least one phase |
+| `Phase ID must start with a letter...`                                                          | Same as above, for phase IDs          | Use `phase_one`, not `phase-one`         |
+| `Guidance path must contain {lang} placeholder`                                                 | Missing `{lang}` in guidance path     | Use `guidance/phase.{lang}.md`           |
+| `references unknown phase "X"`                                                                  | Typo in `inputs.from` reference       | Check the source phase ID exists         |
+| `references unknown output "X" on phase "Y"`                                                    | Typo in output name                   | Check `outputs.name` on the source phase |
+| `Cycle detected`                                                                                | Circular dependency (A → B → A)       | Redesign your DAG to flow forward only   |
+| `Too small: expected array to have >=1 items`                                                   | No phases defined                     | Add at least one phase                   |
 
 ### Testing Your Pack
 
@@ -533,24 +537,24 @@ cp -r server/packs/built-in/development server/packs/community/development
 
 Study the built-in packs for inspiration:
 
-| Pack | Phases | Key Features | File |
-| ---- | ------ | ------------ | ---- |
-| Development | 7 | skip_when, user_approval, on_review_fail | `built-in/development/pack.yaml` |
-| Web Research | 5 | fan_out/fan_in, capability (web_search) | `built-in/web-research/pack.yaml` |
-| Video Pre-Production | 7 | Multiple capabilities (text2img, img2video) | `built-in/video-preprod/pack.yaml` |
-| Design Studio | 4 | Figma integration, a11y auditing | `built-in/design-studio/pack.yaml` |
+| Pack                 | Phases | Key Features                                | File                               |
+| -------------------- | ------ | ------------------------------------------- | ---------------------------------- |
+| Development          | 7      | skip_when, user_approval, on_review_fail    | `built-in/development/pack.yaml`   |
+| Web Research         | 5      | fan_out/fan_in, capability (web_search)     | `built-in/web-research/pack.yaml`  |
+| Video Pre-Production | 7      | Multiple capabilities (text2img, img2video) | `built-in/video-preprod/pack.yaml` |
+| Design Studio        | 4      | Figma integration, a11y auditing            | `built-in/design-studio/pack.yaml` |
 
 ## Glossary
 
-| Term | Meaning |
-| ---- | ------- |
-| **Pack** | A declarative YAML workflow definition |
-| **Phase** | One step in the workflow, executed by an agent or connector |
-| **Guidance** | Markdown instructions telling the agent what to do in a phase |
-| **DAG** | Directed Acyclic Graph — phases flow forward, no circular dependencies |
-| **Gate** | A checkpoint where the workflow pauses for user approval |
-| **Fan-out** | Splitting one phase into N parallel instances |
-| **Fan-in** | Collecting results from parallel fan-out instances |
-| **Connector** | An external service integration (web search, image generation, etc.) |
-| **Capability** | A named function provided by a connector (e.g. `text2img`) |
-| **Node Type** | A server-side TypeScript execution module (no agent needed) |
+| Term           | Meaning                                                                |
+| -------------- | ---------------------------------------------------------------------- |
+| **Pack**       | A declarative YAML workflow definition                                 |
+| **Phase**      | One step in the workflow, executed by an agent or connector            |
+| **Guidance**   | Markdown instructions telling the agent what to do in a phase          |
+| **DAG**        | Directed Acyclic Graph — phases flow forward, no circular dependencies |
+| **Gate**       | A checkpoint where the workflow pauses for user approval               |
+| **Fan-out**    | Splitting one phase into N parallel instances                          |
+| **Fan-in**     | Collecting results from parallel fan-out instances                     |
+| **Connector**  | An external service integration (web search, image generation, etc.)   |
+| **Capability** | A named function provided by a connector (e.g. `text2img`)             |
+| **Node Type**  | A server-side TypeScript execution module (no agent needed)            |

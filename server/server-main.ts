@@ -33,6 +33,7 @@ import { assertRuntimeFunctionsResolved, createDeferredRuntimeProxy } from "./mo
 import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
+import { registerIronCommandRoutes } from "./ironcommand/api/routes.ts";
 import { createOAuthContext } from "./contexts/oauth-context.ts";
 import { createMessagingContext } from "./contexts/messaging-context.ts";
 import { createTaskExecutionContext } from "./contexts/task-execution-context.ts";
@@ -273,6 +274,15 @@ Object.assign(runtimeContext, oauthCtx);
 Object.assign(runtimeContext, initializeWorkflow(runtimeProxy as RuntimeContext));
 graphRunner.setBroadcast((runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast);
 Object.assign(runtimeContext, registerApiRoutes(runtimeContext as RuntimeContext, oauthCtx));
+
+// Iron Command control plane. Mounted under /api/ic and deliberately
+// self-contained: it takes only the db handle and the broadcast function, so
+// it carries no dependency on the upstream runtime god-object.
+registerIronCommandRoutes(app, {
+  db,
+  broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
+});
+
 app.use(globalErrorHandler);
 
 // ── Phase 3 domain context factories (transitional pass-through wrappers) ──

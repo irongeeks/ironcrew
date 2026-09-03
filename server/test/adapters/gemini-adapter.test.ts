@@ -9,10 +9,13 @@ describe("geminiAdapter", () => {
   });
 
   describe("buildArgs()", () => {
-    it("includes base flags: --yolo --output-format=stream-json", () => {
+    it("includes base flags: approval-mode default --output-format=stream-json", () => {
       const args = geminiAdapter.buildArgs({ prompt: "hello", workdir: "/tmp" });
       expect(args).toContain("gemini");
-      expect(args).toContain("--yolo");
+      // Iron Command: --yolo is no longer a base flag.
+      expect(args).not.toContain("--yolo");
+      expect(args).toContain("--approval-mode");
+      expect(args).toContain("default");
       expect(args).toContain("--output-format=stream-json");
     });
 

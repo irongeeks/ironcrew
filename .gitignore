@@ -128,5 +128,6 @@ docs/launch-kit.md
 # --- Iron Command OS ---
 .references/
 data/private-assets/
-config/private/
+config/private/*
+!config/private/*.example.yaml
 vault/

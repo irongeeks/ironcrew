@@ -1,0 +1,129 @@
+# Iron Command OS — Vendor Policy
+#
+# This file is the single source of truth for which model vendors, families and
+# providers may be used by any runtime in this installation.
+#
+# It is enforced in the BACKEND (server/ironcommand/policy/vendor-policy.ts).
+# Hiding an entry in the UI is explicitly NOT considered enforcement: every
+# model resolution path runs through assertModelAllowed() before a run starts.
+#
+# Precedence (first match wins):
+#   1. blocked_families  — always denied, even if an allow rule would match
+#   2. allowed_families  — an explicit allowlist; anything not matched is denied
+#
+# Deny-by-default: a model that matches no allowed family is rejected.
+
+version: 1
+
+# Human-readable reason surfaced in the UI and audit log when a model is denied.
+policy_name: "Iron Command default vendor policy"
+
+# ---------------------------------------------------------------------------
+# Allowlist. Patterns are matched against the normalised model id
+# ("<vendor>/<model>", lowercased). "*" matches within a single path segment.
+# ---------------------------------------------------------------------------
+allowed_families:
+  - "openai/*"
+  - "anthropic/*"
+  - "google/*"
+  - "mistralai/*"
+  # meta-llama is optional; enabled by default but safe to remove.
+  - "meta-llama/*"
+
+# ---------------------------------------------------------------------------
+# Hard blocklist. Each entry blocks a vendor family regardless of the
+# allowlist. `match` entries are substring matches against the normalised
+# model id AND against the resolved provider name, so aliases and
+# re-hosted variants ("openrouter/deepseek-chat", "some-host/qwen2.5-72b")
+# are caught as well.
+# ---------------------------------------------------------------------------
+blocked_families:
+  - id: deepseek
+    reason: "Chinese vendor — excluded by company vendor policy"
+    match: ["deepseek"]
+  - id: qwen
+    reason: "Alibaba/Qwen — excluded by company vendor policy"
+    match: ["qwen", "alibaba", "tongyi", "qwq", "qvq"]
+  - id: moonshot
+    reason: "Moonshot AI / Kimi — excluded by company vendor policy"
+    match: ["moonshot", "kimi"]
+  - id: minimax
+    reason: "MiniMax — excluded by company vendor policy"
+    match: ["minimax", "abab"]
+  - id: zhipu
+    reason: "Zhipu / GLM / Z.ai — excluded by company vendor policy"
+    match: ["zhipu", "z-ai", "z.ai", "glm", "chatglm", "codegeex"]
+  - id: baichuan
+    reason: "Baichuan — excluded by company vendor policy"
+    match: ["baichuan"]
+  - id: yi
+    reason: "01.AI / Yi — excluded by company vendor policy"
+    match: ["01-ai", "01.ai", "zero-one", "yi-large", "yi-medium", "yi-vision", "yi-lightning", "yi-coder"]
+  - id: stepfun
+    reason: "StepFun — excluded by company vendor policy"
+    match: ["stepfun", "step-1", "step-2"]
+  - id: hunyuan
+    reason: "Tencent Hunyuan — excluded by company vendor policy"
+    match: ["hunyuan", "tencent"]
+  - id: doubao
+    reason: "ByteDance / Doubao — excluded by company vendor policy"
+    match: ["doubao", "bytedance", "seed-oss", "skylark"]
+  - id: ernie
+    reason: "Baidu ERNIE — excluded by company vendor policy"
+    match: ["ernie", "baidu", "wenxin"]
+  - id: sensetime
+    reason: "SenseTime — excluded by company vendor policy"
+    match: ["sensetime", "sensechat", "sensenova"]
+  - id: iflytek
+    reason: "iFlytek Spark — excluded by company vendor policy"
+    match: ["iflytek", "spark-desk", "sparkdesk"]
+  - id: internlm
+    reason: "Shanghai AI Lab / InternLM — excluded by company vendor policy"
+    match: ["internlm", "intern-vl", "internvl"]
+  - id: tele-ai
+    reason: "China Telecom TeleAI — excluded by company vendor policy"
+    match: ["telechat", "tele-ai"]
+
+# ---------------------------------------------------------------------------
+# OpenRouter-specific provider routing constraints.
+# Applied to every OpenRouter request body; see docs/PROVIDER_AUTH.md.
+# ---------------------------------------------------------------------------
+openrouter:
+  # Only these upstream providers may serve a request.
+  allowed_providers:
+    - OpenAI
+    - Anthropic
+    - Google
+    - Google AI Studio
+    - Google Vertex
+    - Mistral
+    - Amazon Bedrock
+    - Azure
+    - Fireworks
+    - Together
+    - DeepInfra
+  # Never silently fall back to a provider outside the allowlist.
+  allow_fallbacks: false
+  # Defaults applied to tasks flagged as sensitive.
+  sensitive_defaults:
+    data_collection: deny
+    zdr: true
+    allow_fallbacks: false
+
+# ---------------------------------------------------------------------------
+# Outbound services that must never be contacted.
+# Enforced by the HTTP tool egress guard.
+# ---------------------------------------------------------------------------
+blocked_endpoints:
+  - id: onemancompany-talent-market
+    reason: "Automatic Talent Market connections are disabled by policy"
+    match: ["talent.1mancompany", "talentmarket", "talent-market"]
+  - id: wechat
+    reason: "WeChat integration is disabled by policy"
+    match: ["wechat", "weixin.qq.com", "wx.qq.com"]
+
+# ---------------------------------------------------------------------------
+# Telemetry. Iron Command sends no usage analytics anywhere.
+# ---------------------------------------------------------------------------
+telemetry:
+  enabled: false

@@ -42,6 +42,7 @@ type NavTab = {
 };
 
 const NAV_TABS: NavTab[] = [
+  { key: "command", label: "COMMAND" },
   { key: "office", label: "OFFICE" },
   { key: "tasks", label: "TASKS" },
   { key: "workflows", label: "WORKFLOWS" },
