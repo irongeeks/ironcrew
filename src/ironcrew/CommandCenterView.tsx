@@ -18,9 +18,11 @@ import {
   MILESTONE_STATUS_LABEL,
   NOTIFICATION_SEVERITY_LABEL,
   PROJECT_STATUS_LABEL,
+  SECRET_PROVIDER_LABEL,
   TASK_STATUS_LABEL,
   type Agent,
   type Approval,
+  type Attachment,
   type Dashboard,
   type Decision,
   type Department,
@@ -31,12 +33,39 @@ import {
   type Project,
   type RunEvent,
   type RuntimeInfo,
+  type Secret,
+  type SecretProviderKind,
+  type SecretProviderStatus,
   type Task,
   type TaskStatus,
 } from "./types.ts";
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Reads a File as base64 (without the data: URL prefix), for the JSON upload body. */
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("could not read file"));
+        return;
+      }
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("could not read file"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function eventKind(type: string): "error" | "decision" | "normal" {
@@ -65,6 +94,18 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [showOrgChart, setShowOrgChart] = useState(false);
+
+  const [secrets, setSecrets] = useState<Secret[]>([]);
+  const [secretProviders, setSecretProviders] = useState<SecretProviderStatus[]>([]);
+  const [showSecrets, setShowSecrets] = useState(false);
+  const [secretTestResults, setSecretTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const [newSecretName, setNewSecretName] = useState("");
+  const [newSecretProvider, setNewSecretProvider] = useState<SecretProviderKind>("vaultwarden");
+  const [newSecretItemRef, setNewSecretItemRef] = useState("");
+  const [newSecretField, setNewSecretField] = useState("");
+
+  const [generalAttachments, setGeneralAttachments] = useState<Attachment[]>([]);
+  const [showDocuments, setShowDocuments] = useState(false);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -110,6 +151,28 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     }
   }, [client]);
 
+  // Attachments are not in the plain `tasks`/project-detail payloads — they
+  // need their own fetch, declared early so both the task- and
+  // project-detail openers below can load them on open.
+  const [taskAttachments, setTaskAttachments] = useState<Attachment[]>([]);
+  const [projectAttachments, setProjectAttachments] = useState<Attachment[]>([]);
+
+  const refreshTaskAttachments = useCallback(
+    async (taskId: string) => {
+      const { attachments } = await client.attachmentsForTask(taskId);
+      setTaskAttachments(attachments);
+    },
+    [client],
+  );
+
+  const refreshProjectAttachments = useCallback(
+    async (projectId: string) => {
+      const { attachments } = await client.attachmentsForProject(projectId);
+      setProjectAttachments(attachments);
+    },
+    [client],
+  );
+
   const openProjectDetail = useCallback(
     async (projectId: string) => {
       setShowProjectList(false);
@@ -117,6 +180,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
         const detail = await client.project(projectId);
         setProjectDetail(detail);
         setProjectGoalAncestry(null);
+        void refreshProjectAttachments(projectId);
         if (detail.project.goal_id) {
           // Best-effort: the detail dialog still works without the goal
           // breadcrumb if this second call fails.
@@ -129,7 +193,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [client],
+    [client, refreshProjectAttachments],
   );
 
   const closeProjectDetail = useCallback(() => {
@@ -167,8 +231,9 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
       setSelectedTask(t);
       setAddBlockerId("");
       void refreshTaskDependencies(t.id);
+      void refreshTaskAttachments(t.id);
     },
-    [refreshTaskDependencies],
+    [refreshTaskDependencies, refreshTaskAttachments],
   );
 
   // Provider Health: kept separate from refresh() — each registered runtime
@@ -248,27 +313,137 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     }
   }, [client, refresh]);
 
-  const act = useCallback(
-    async (fn: () => Promise<unknown>) => {
-      setBusy(true);
-      setError(null);
-      try {
-        await fn();
-        await refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [refresh],
-  );
+  // Shared mutation-dispatch shape: set busy, run the mutation, then run
+  // whichever read-back keeps that dialog's own data current — `refresh()`
+  // for the main poll, or a dialog-scoped refresher (refreshSecrets(),
+  // refreshTaskAttachments(), ...) for state `refresh()` doesn't cover.
+  const actWith = useCallback(async (fn: () => Promise<unknown>, after: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      await after();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const act = useCallback((fn: () => Promise<unknown>) => actWith(fn, refresh), [actWith, refresh]);
 
   const markNotificationRead = useCallback(
     (id: string) => {
       void act(() => client.markNotificationRead(id));
     },
     [act, client],
+  );
+
+  // --- secrets (password-manager integration) -----------------------------
+
+  const refreshSecrets = useCallback(async () => {
+    const { secrets: s } = await client.secrets();
+    setSecrets(s);
+  }, [client]);
+
+  const openSecrets = useCallback(() => {
+    setShowSecrets(true);
+    setSecretTestResults({});
+    void refreshSecrets();
+    client
+      .secretProviders()
+      .then((r) => setSecretProviders(r.providers))
+      .catch(() => setSecretProviders([]));
+  }, [client, refreshSecrets]);
+
+  const createSecret = useCallback(() => {
+    const name = newSecretName.trim();
+    const itemRef = newSecretItemRef.trim();
+    if (!name || !itemRef) return;
+    void actWith(
+      () =>
+        client.createSecret({
+          name,
+          provider: newSecretProvider,
+          itemRef,
+          field: newSecretField.trim() || undefined,
+        }),
+      async () => {
+        setNewSecretName("");
+        setNewSecretItemRef("");
+        setNewSecretField("");
+        await refreshSecrets();
+      },
+    );
+  }, [actWith, client, newSecretName, newSecretProvider, newSecretItemRef, newSecretField, refreshSecrets]);
+
+  const deleteSecret = useCallback(
+    (id: string) => {
+      void actWith(
+        () => client.deleteSecret(id),
+        async () => {
+          setSecretTestResults((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          await refreshSecrets();
+        },
+      );
+    },
+    [actWith, client, refreshSecrets],
+  );
+
+  const testSecret = useCallback(
+    (id: string) => {
+      void actWith(
+        async () => {
+          const result = await client.testSecret(id);
+          setSecretTestResults((prev) => ({
+            ...prev,
+            [id]: { ok: result.ok, message: result.ok ? `OK (${result.length ?? 0} Zeichen)` : (result.message ?? "") },
+          }));
+        },
+        async () => {},
+      );
+    },
+    [actWith, client],
+  );
+
+  // --- attachments (task/project-scoped + the general document store) ----
+  // refreshTaskAttachments / refreshProjectAttachments are declared earlier,
+  // alongside openTaskDetail / openProjectDetail, which call them on open.
+
+  const refreshGeneralAttachments = useCallback(async () => {
+    const { attachments } = await client.attachmentsGeneral();
+    setGeneralAttachments(attachments);
+  }, [client]);
+
+  const openDocuments = useCallback(() => {
+    setShowDocuments(true);
+    void refreshGeneralAttachments();
+  }, [refreshGeneralAttachments]);
+
+  const uploadAttachment = useCallback(
+    (file: File, scope: { taskId?: string; projectId?: string }, after: () => Promise<void>) => {
+      void actWith(async () => {
+        const dataBase64 = await readFileAsBase64(file);
+        await client.uploadAttachment({
+          filename: file.name,
+          contentType: file.type || undefined,
+          dataBase64,
+          ...scope,
+        });
+      }, after);
+    },
+    [actWith, client],
+  );
+
+  const deleteAttachment = useCallback(
+    (id: string, after: () => Promise<void>) => {
+      void actWith(() => client.deleteAttachment(id), after);
+    },
+    [actWith, client],
   );
 
   // Kanban drag & drop. There is no optimistic local mutation: a card only
@@ -344,6 +519,14 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-org-chart" onClick={() => setShowOrgChart(true)}>
           Organigramm
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-documents" onClick={openDocuments}>
+          Dokumente
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-secrets" onClick={openSecrets}>
+          Zugangsdaten
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -715,6 +898,17 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               </ul>
             </>
           )}
+
+          <AttachmentSection
+            title="Anhänge"
+            attachments={taskAttachments}
+            busy={busy}
+            onUpload={(file) =>
+              uploadAttachment(file, { taskId: currentTask.id }, () => refreshTaskAttachments(currentTask.id))
+            }
+            onDelete={(id) => deleteAttachment(id, () => refreshTaskAttachments(currentTask.id))}
+            downloadUrl={(id) => client.attachmentDownloadUrl(id)}
+          />
         </DetailDialog>
       )}
 
@@ -881,6 +1075,19 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               </li>
             ))}
           </ul>
+
+          <AttachmentSection
+            title="Anhänge"
+            attachments={projectAttachments}
+            busy={busy}
+            onUpload={(file) =>
+              uploadAttachment(file, { projectId: projectDetail.project.id }, () =>
+                refreshProjectAttachments(projectDetail.project.id),
+              )
+            }
+            onDelete={(id) => deleteAttachment(id, () => refreshProjectAttachments(projectDetail.project.id))}
+            downloadUrl={(id) => client.attachmentDownloadUrl(id)}
+          />
         </DetailDialog>
       )}
 
@@ -978,7 +1185,206 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
           )}
         </DetailDialog>
       )}
+
+      {showDocuments && (
+        <DetailDialog title="Dokumente" onClose={() => setShowDocuments(false)}>
+          <p className="ic-note">
+            Allgemeiner, unternehmensweiter Dokumenten-Speicher — nicht an eine Aufgabe oder ein Projekt gebunden.
+          </p>
+          <AttachmentSection
+            title="Dateien"
+            attachments={generalAttachments}
+            busy={busy}
+            onUpload={(file) => uploadAttachment(file, {}, refreshGeneralAttachments)}
+            onDelete={(id) => deleteAttachment(id, refreshGeneralAttachments)}
+            downloadUrl={(id) => client.attachmentDownloadUrl(id)}
+          />
+        </DetailDialog>
+      )}
+
+      {showSecrets && (
+        <DetailDialog title="Zugangsdaten" onClose={() => setShowSecrets(false)}>
+          <p className="ic-note">
+            Es wird nie ein Passwort gespeichert — nur ein Verweis (Anbieter + Eintrag), wo das Secret im
+            Passwort-Manager liegt. Aufgelöst wird der Wert erst im Moment der Nutzung, im Arbeitsspeicher.
+          </p>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Anbieter
+          </h3>
+          <ul className="ic-milestone-list">
+            {secretProviders.map((p) => (
+              <li key={p.kind} data-testid={`secret-provider-${p.kind}`}>
+                <span className="ic-milestone-title">{SECRET_PROVIDER_LABEL[p.kind]}</span>
+                <span className="ic-tag" data-tone={p.registered && p.ok ? "policy" : "gate"}>
+                  {p.registered ? (p.ok ? "verbunden" : "nicht erreichbar") : "nicht registriert"}
+                </span>
+                <span className="ic-note">{p.message}</span>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Gespeicherte Verweise
+          </h3>
+          {secrets.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {secrets.map((s) => (
+              <li key={s.id} data-testid={`secret-${s.id}`}>
+                <span className="ic-milestone-title">{s.name}</span>
+                <span className="ic-tag" data-tone="policy">
+                  {SECRET_PROVIDER_LABEL[s.provider]}
+                </span>
+                <span className="ic-note">
+                  {s.item_ref}
+                  {s.field ? ` · ${s.field}` : ""}
+                </span>
+                <button type="button" className="ic-btn" disabled={busy} onClick={() => testSecret(s.id)}>
+                  Testen
+                </button>
+                {secretTestResults[s.id] && (
+                  <span
+                    className="ic-tag"
+                    data-testid={`secret-test-${s.id}`}
+                    data-tone={secretTestResults[s.id].ok ? "policy" : "gate"}
+                  >
+                    {secretTestResults[s.id].message}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="danger"
+                  disabled={busy}
+                  onClick={() => deleteSecret(s.id)}
+                >
+                  Löschen
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Neuer Verweis
+          </h3>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-new-secret-name">
+              Name
+            </label>
+            <input
+              id="ic-new-secret-name"
+              data-testid="new-secret-name"
+              placeholder="Name (z. B. github-pat)"
+              value={newSecretName}
+              onChange={(e) => setNewSecretName(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-secret-provider">
+              Anbieter
+            </label>
+            <select
+              id="ic-new-secret-provider"
+              className="ic-select"
+              data-testid="new-secret-provider"
+              value={newSecretProvider}
+              onChange={(e) => setNewSecretProvider(e.target.value as SecretProviderKind)}
+            >
+              <option value="vaultwarden">Vaultwarden</option>
+              <option value="protonpass">Proton Pass</option>
+            </select>
+            <label className="ic-sr-only" htmlFor="ic-new-secret-itemref">
+              Eintrag
+            </label>
+            <input
+              id="ic-new-secret-itemref"
+              data-testid="new-secret-itemref"
+              placeholder={newSecretProvider === "vaultwarden" ? "Item-Name in Vaultwarden" : "shareId:itemId"}
+              value={newSecretItemRef}
+              onChange={(e) => setNewSecretItemRef(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-secret-field">
+              Feld (optional)
+            </label>
+            <input
+              id="ic-new-secret-field"
+              data-testid="new-secret-field"
+              placeholder="Feld (optional, z. B. password)"
+              value={newSecretField}
+              onChange={(e) => setNewSecretField(e.target.value)}
+            />
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="new-secret-submit"
+              disabled={busy || !newSecretName.trim() || !newSecretItemRef.trim()}
+              onClick={createSecret}
+            >
+              Hinzufügen
+            </button>
+          </div>
+        </DetailDialog>
+      )}
     </div>
+  );
+}
+
+function AttachmentSection({
+  title,
+  attachments,
+  busy,
+  onUpload,
+  onDelete,
+  downloadUrl,
+}: {
+  title: string;
+  attachments: Attachment[];
+  busy: boolean;
+  onUpload: (file: File) => void;
+  onDelete: (id: string) => void;
+  downloadUrl: (id: string) => string;
+}): React.JSX.Element {
+  return (
+    <>
+      <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+        {title}
+      </h3>
+      {attachments.length === 0 && <p className="ic-empty">—</p>}
+      <ul className="ic-milestone-list">
+        {attachments.map((a) => (
+          <li key={a.id} data-testid={`attachment-${a.id}`}>
+            <a className="ic-milestone-title" href={downloadUrl(a.id)} target="_blank" rel="noreferrer">
+              {a.filename}
+            </a>
+            <span className="ic-tag">{formatBytes(a.size_bytes)}</span>
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="danger"
+              disabled={busy}
+              onClick={() => onDelete(a.id)}
+            >
+              Entfernen
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="ic-composer" style={{ padding: 0 }}>
+        <label className="ic-sr-only" htmlFor={`ic-upload-${title}`}>
+          Datei hochladen für {title}
+        </label>
+        <input
+          id={`ic-upload-${title}`}
+          type="file"
+          data-testid="attachment-upload-input"
+          disabled={busy}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) onUpload(file);
+          }}
+        />
+      </div>
+    </>
   );
 }
 

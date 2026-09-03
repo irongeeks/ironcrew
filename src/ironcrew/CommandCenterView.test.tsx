@@ -6,6 +6,7 @@ import type { api } from "./api.ts";
 import type {
   Agent,
   Approval,
+  Attachment,
   Dashboard,
   Decision,
   Department,
@@ -14,6 +15,8 @@ import type {
   Notification,
   Project,
   RuntimeInfo,
+  Secret,
+  SecretProviderStatus,
   Task,
 } from "./types.ts";
 
@@ -117,6 +120,17 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     notifications: vi.fn().mockResolvedValue({ notifications: [], unreadCount: 0 }),
     markNotificationRead: vi.fn(),
     decisions: vi.fn().mockResolvedValue({ decisions: [] }),
+    secretProviders: vi.fn().mockResolvedValue({ providers: [] }),
+    secrets: vi.fn().mockResolvedValue({ secrets: [] }),
+    createSecret: vi.fn(),
+    deleteSecret: vi.fn(),
+    testSecret: vi.fn(),
+    attachmentsForTask: vi.fn().mockResolvedValue({ attachments: [] }),
+    attachmentsForProject: vi.fn().mockResolvedValue({ attachments: [] }),
+    attachmentsGeneral: vi.fn().mockResolvedValue({ attachments: [] }),
+    uploadAttachment: vi.fn(),
+    deleteAttachment: vi.fn(),
+    attachmentDownloadUrl: vi.fn((id: string) => `/api/crew/attachments/${id}/download`),
     ...over,
   } as unknown as Client;
 }
@@ -202,6 +216,39 @@ function decisionRecord(over: Partial<Decision> = {}): Decision {
 
 function department(over: Partial<Department> = {}): Department {
   return { id: "dept_1", key: "engineering", name: "Engineering", description: "", ...over };
+}
+
+function secret(over: Partial<Secret> = {}): Secret {
+  return {
+    id: "secret_1",
+    name: "github-pat",
+    provider: "vaultwarden",
+    item_ref: "github",
+    field: null,
+    description: "",
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    ...over,
+  };
+}
+
+function secretProviderStatus(over: Partial<SecretProviderStatus> = {}): SecretProviderStatus {
+  return { kind: "vaultwarden", registered: true, ok: true, message: "bw status: unlocked", ...over };
+}
+
+function attachment(over: Partial<Attachment> = {}): Attachment {
+  return {
+    id: "att_1",
+    task_id: null,
+    project_id: null,
+    filename: "notes.txt",
+    content_type: "text/plain",
+    size_bytes: 42,
+    sha256: "deadbeef",
+    uploaded_by: "ceo",
+    created_at: Date.now(),
+    ...over,
+  };
 }
 
 /** jsdom has no real HTML5 drag-and-drop; this is the standard RTL stand-in. */
@@ -869,5 +916,172 @@ describe("org chart", () => {
     await userEvent.setup().click(await screen.findByTestId("org-agent-cto"));
 
     expect(await screen.findByRole("dialog", { name: "Forge" })).toBeInTheDocument();
+  });
+});
+
+describe("secrets (password-manager integration)", () => {
+  it("shows provider status and stored secret refs — never a value", async () => {
+    const client = makeClient({
+      secretProviders: vi.fn().mockResolvedValue({
+        providers: [
+          secretProviderStatus({ kind: "vaultwarden", ok: true, message: "bw status: unlocked" }),
+          secretProviderStatus({ kind: "protonpass", registered: false, ok: false, message: "" }),
+        ],
+      }),
+      secrets: vi.fn().mockResolvedValue({ secrets: [secret()] }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-secrets"));
+    const dialog = await screen.findByRole("dialog", { name: "Zugangsdaten" });
+
+    expect(within(dialog).getByTestId("secret-provider-vaultwarden")).toHaveTextContent("verbunden");
+    expect(within(dialog).getByTestId("secret-provider-protonpass")).toHaveTextContent("nicht registriert");
+    expect(within(dialog).getByText("github-pat")).toBeInTheDocument();
+    expect(within(dialog).getByText("github")).toBeInTheDocument();
+    // The dialog never renders anything that looks like a resolved value.
+    expect(dialog.textContent).not.toMatch(/value/i);
+  });
+
+  it("creates a secret ref via the form and refreshes the list", async () => {
+    const createSecret = vi.fn().mockResolvedValue({ secret: secret() });
+    const client = makeClient({
+      secrets: vi
+        .fn()
+        .mockResolvedValueOnce({ secrets: [] })
+        .mockResolvedValue({ secrets: [secret()] }),
+      createSecret,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-secrets"));
+    const dialog = await screen.findByRole("dialog", { name: "Zugangsdaten" });
+    expect(within(dialog).getByText("—")).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.type(within(dialog).getByTestId("new-secret-name"), "github-pat");
+    await user.type(within(dialog).getByTestId("new-secret-itemref"), "github");
+    await user.click(within(dialog).getByTestId("new-secret-submit"));
+
+    expect(createSecret).toHaveBeenCalledWith({
+      name: "github-pat",
+      provider: "vaultwarden",
+      itemRef: "github",
+      field: undefined,
+    });
+    expect(await within(dialog).findByText("github-pat")).toBeInTheDocument();
+  });
+
+  it("tests a secret ref and shows the result without ever showing a resolved value", async () => {
+    const testSecret = vi.fn().mockResolvedValue({ ok: true, length: 12 });
+    const client = makeClient({ secrets: vi.fn().mockResolvedValue({ secrets: [secret()] }), testSecret });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-secrets"));
+    const dialog = await screen.findByRole("dialog", { name: "Zugangsdaten" });
+    await userEvent.setup().click(within(dialog).getByRole("button", { name: "Testen" }));
+
+    expect(testSecret).toHaveBeenCalledWith("secret_1");
+    expect(await within(dialog).findByTestId("secret-test-secret_1")).toHaveTextContent("OK (12 Zeichen)");
+  });
+
+  it("deletes a secret ref", async () => {
+    const deleteSecret = vi.fn().mockResolvedValue({ ok: true });
+    const client = makeClient({
+      secrets: vi
+        .fn()
+        .mockResolvedValueOnce({ secrets: [secret()] })
+        .mockResolvedValue({ secrets: [] }),
+      deleteSecret,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-secrets"));
+    const dialog = await screen.findByRole("dialog", { name: "Zugangsdaten" });
+    await userEvent.setup().click(within(dialog).getByRole("button", { name: "Löschen" }));
+
+    expect(deleteSecret).toHaveBeenCalledWith("secret_1");
+    await waitFor(() => expect(within(dialog).queryByText("github-pat")).toBeNull());
+  });
+});
+
+describe("attachments (task/project-scoped + the general document store)", () => {
+  it("shows the general document store and uploads a file to it", async () => {
+    const uploadAttachment = vi.fn().mockResolvedValue({ attachment: attachment() });
+    const client = makeClient({
+      attachmentsGeneral: vi
+        .fn()
+        .mockResolvedValueOnce({ attachments: [] })
+        .mockResolvedValue({ attachments: [attachment()] }),
+      uploadAttachment,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-documents"));
+    const dialog = await screen.findByRole("dialog", { name: "Dokumente" });
+    expect(within(dialog).getByText("—")).toBeInTheDocument();
+
+    const file = new File(["hello"], "hello.txt", { type: "text/plain" });
+    const input = within(dialog).getByTestId("attachment-upload-input");
+    await userEvent.setup().upload(input, file);
+
+    await waitFor(() => expect(uploadAttachment).toHaveBeenCalled());
+    const call = uploadAttachment.mock.calls[0][0];
+    expect(call.filename).toBe("hello.txt");
+    expect(call.contentType).toBe("text/plain");
+    expect(typeof call.dataBase64).toBe("string");
+    expect(call.taskId).toBeUndefined();
+    expect(call.projectId).toBeUndefined();
+    expect(await within(dialog).findByText("notes.txt")).toBeInTheDocument();
+  });
+
+  it("shows and uploads a task-scoped attachment from the task detail dialog", async () => {
+    const uploadAttachment = vi.fn().mockResolvedValue({ attachment: attachment({ task_id: "task_1" }) });
+    const client = makeClient({
+      attachmentsForTask: vi
+        .fn()
+        .mockResolvedValueOnce({ attachments: [] })
+        .mockResolvedValue({ attachments: [attachment({ id: "att_2", task_id: "task_1", filename: "spec.pdf" })] }),
+      uploadAttachment,
+    });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByText("Backup dokumentieren"));
+    const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
+
+    const file = new File(["spec"], "spec.pdf", { type: "application/pdf" });
+    await userEvent.setup().upload(within(dialog).getByTestId("attachment-upload-input"), file);
+
+    await waitFor(() => expect(uploadAttachment).toHaveBeenCalled());
+    expect(uploadAttachment.mock.calls[0][0]).toMatchObject({ filename: "spec.pdf", taskId: "task_1" });
+    expect(await within(dialog).findByText("spec.pdf")).toBeInTheDocument();
+  });
+
+  it("deletes an attachment from the general document store", async () => {
+    const deleteAttachment = vi.fn().mockResolvedValue({ ok: true });
+    const client = makeClient({
+      attachmentsGeneral: vi
+        .fn()
+        .mockResolvedValueOnce({ attachments: [attachment()] })
+        .mockResolvedValue({ attachments: [] }),
+      deleteAttachment,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-documents"));
+    const dialog = await screen.findByRole("dialog", { name: "Dokumente" });
+    await userEvent.setup().click(within(dialog).getByRole("button", { name: "Entfernen" }));
+
+    expect(deleteAttachment).toHaveBeenCalledWith("att_1");
+    await waitFor(() => expect(within(dialog).queryByText("notes.txt")).toBeNull());
+  });
+
+  it("links each attachment to its download URL", async () => {
+    const client = makeClient({ attachmentsGeneral: vi.fn().mockResolvedValue({ attachments: [attachment()] }) });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-documents"));
+    const dialog = await screen.findByRole("dialog", { name: "Dokumente" });
+    const link = await within(dialog).findByText("notes.txt");
+    expect(link.closest("a")).toHaveAttribute("href", "/api/crew/attachments/att_1/download");
   });
 });

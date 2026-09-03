@@ -298,3 +298,41 @@ export const BOARD_COLUMNS: Array<{ status: TaskStatus; accent?: "active" | "dec
   { status: "approval_required", accent: "decision" },
   { status: "done" },
 ];
+
+export type SecretProviderKind = "vaultwarden" | "protonpass";
+
+export const SECRET_PROVIDER_LABEL: Record<SecretProviderKind, string> = {
+  vaultwarden: "Vaultwarden",
+  protonpass: "Proton Pass",
+};
+
+/** A pointer to where a secret lives in an external vault — never a value. See docs/THREAT_MODEL.md. */
+export interface Secret {
+  id: string;
+  name: string;
+  provider: SecretProviderKind;
+  item_ref: string;
+  field: string | null;
+  description: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface SecretProviderStatus {
+  kind: SecretProviderKind;
+  registered: boolean;
+  ok: boolean;
+  message: string;
+}
+
+export interface Attachment {
+  id: string;
+  task_id: string | null;
+  project_id: string | null;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
+  uploaded_by: string;
+  created_at: number;
+}

@@ -12,6 +12,7 @@ import { request } from "../api/core";
 import type {
   Agent,
   Approval,
+  Attachment,
   Dashboard,
   Decision,
   Department,
@@ -24,6 +25,9 @@ import type {
   ProjectStatus,
   RunEvent,
   RuntimeInfo,
+  Secret,
+  SecretProviderKind,
+  SecretProviderStatus,
   Task,
 } from "./types.ts";
 
@@ -89,4 +93,30 @@ export const api = {
     get<{ notifications: Notification[]; unreadCount: number }>(`/notifications${unreadOnly ? "?unread=true" : ""}`),
   markNotificationRead: (id: string) => send<{ notification: Notification }>(`/notifications/${id}/read`, "POST"),
   decisions: () => get<{ decisions: Decision[] }>("/decisions"),
+
+  secretProviders: () => get<{ providers: SecretProviderStatus[] }>("/secret-providers"),
+  secrets: () => get<{ secrets: Secret[] }>("/secrets"),
+  createSecret: (input: {
+    name: string;
+    provider: SecretProviderKind;
+    itemRef: string;
+    field?: string;
+    description?: string;
+  }) => send<{ secret: Secret }>("/secrets", "POST", input),
+  deleteSecret: (id: string) => send<{ ok: boolean }>(`/secrets/${id}`, "DELETE"),
+  testSecret: (id: string) => send<{ ok: boolean; length?: number; message?: string }>(`/secrets/${id}/test`, "POST"),
+
+  attachmentsForTask: (taskId: string) => get<{ attachments: Attachment[] }>(`/attachments?taskId=${taskId}`),
+  attachmentsForProject: (projectId: string) =>
+    get<{ attachments: Attachment[] }>(`/attachments?projectId=${projectId}`),
+  attachmentsGeneral: () => get<{ attachments: Attachment[] }>("/attachments"),
+  uploadAttachment: (input: {
+    filename: string;
+    contentType?: string;
+    dataBase64: string;
+    taskId?: string;
+    projectId?: string;
+  }) => send<{ attachment: Attachment }>("/attachments", "POST", input),
+  deleteAttachment: (id: string) => send<{ ok: boolean }>(`/attachments/${id}`, "DELETE"),
+  attachmentDownloadUrl: (id: string) => `${BASE}/attachments/${id}/download`,
 };
