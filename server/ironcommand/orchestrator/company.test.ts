@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
+import path from "node:path";
 import { createTestDb } from "../domain/test-db.ts";
 import { CompanyOrchestrator } from "./company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
@@ -7,13 +8,18 @@ import { RunStore } from "../runtime/run-store.ts";
 import { TaskStore } from "../domain/task-store.ts";
 import { verifyAuditChain } from "../domain/audit.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
-import { loadCrewConfig, loadDepartmentConfig } from "../domain/crew-config.ts";
+import { configDir, loadCrewConfig, loadDepartmentConfig } from "../domain/crew-config.ts";
 
 let db: DatabaseSync;
 let orc: CompanyOrchestrator;
 let companyId: string;
 
-const crew = loadCrewConfig();
+// Explicitly bypass any private, gitignored character-pack.local.yaml a
+// developer's machine might have on disk — this crew is used as an
+// explicit seedCompany() override below, so it must be identical in every
+// environment regardless of local dev state (see the same guard in
+// crew-config.test.ts).
+const crew = loadCrewConfig(undefined, path.join(configDir(), "private", "__no_such_pack__.local.yaml"));
 const departments = loadDepartmentConfig();
 
 beforeEach(() => {
@@ -283,6 +289,40 @@ describe("agent status reflects real backend state", () => {
     const exec = await orc.executeNextTask(companyId);
     orc.acceptReview(companyId, exec!.task.id);
     expect(orc.agentStatus(companyId, r.assignedAgent!.id)).toBe("idle");
+  });
+});
+
+describe("runtime selection", () => {
+  it("lists every registered runtime", () => {
+    expect(orc.listRuntimes().map((r) => r.type)).toEqual(["mock"]);
+  });
+
+  it("moves an agent onto a different registered runtime and audits it", () => {
+    orc.registerRuntime(new MockRuntime({ responseText: "zweite Instanz" }));
+    // Same type ("mock") is fine here — the point under test is the write
+    // path and audit trail, not routing to a genuinely distinct provider
+    // (that's covered by the real CliAdapterRuntime tests).
+    const agent = orc.getAgent(companyId, "finance")!;
+    expect(agent.runtime_provider).toBe("mock");
+
+    const updated = orc.setAgentRuntimeProvider(companyId, agent.id, "mock");
+    expect(updated!.runtime_provider).toBe("mock");
+
+    const rows = db.prepare("SELECT action, details_json FROM ic_audit_events WHERE action = 'agent.runtime_changed'").all() as Array<{
+      action: string;
+      details_json: string;
+    }>;
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0].details_json)).toEqual({ from: "mock", to: "mock" });
+  });
+
+  it("returns null for an agent outside the company", () => {
+    expect(orc.setAgentRuntimeProvider(companyId, "agt_nope", "mock")).toBeNull();
+  });
+
+  it("refuses an unregistered runtime provider", () => {
+    const agent = orc.getAgent(companyId, "finance")!;
+    expect(() => orc.setAgentRuntimeProvider(companyId, agent.id, "claude")).toThrow(/Unknown runtime provider/);
   });
 });
 

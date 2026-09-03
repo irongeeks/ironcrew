@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import type { BaseRuntimeContext, RuntimeContext } from "./types/runtime-context.ts";
-import { createAdapterRegistry } from "./adapters/index.ts";
+import { createAdapterRegistry, isCliAdapter } from "./adapters/index.ts";
 import { PackLoader } from "./packs/pack-loader.ts";
 import { PackRegistry } from "./packs/pack-registry.ts";
 import { GraphRunner } from "./modules/workflow/orchestration/graph-runner.ts";
@@ -34,6 +34,9 @@ import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
 import { registerIronCommandRoutes } from "./ironcommand/api/routes.ts";
+import { CompanyOrchestrator } from "./ironcommand/orchestrator/company.ts";
+import { MockRuntime } from "./ironcommand/runtime/mock-runtime.ts";
+import { CliAdapterRuntime } from "./ironcommand/runtime/cli-adapter-runtime.ts";
 import { createOAuthContext } from "./contexts/oauth-context.ts";
 import { createMessagingContext } from "./contexts/messaging-context.ts";
 import { createTaskExecutionContext } from "./contexts/task-execution-context.ts";
@@ -278,9 +281,24 @@ Object.assign(runtimeContext, registerApiRoutes(runtimeContext as RuntimeContext
 // Iron Command control plane. Mounted under /api/ic and deliberately
 // self-contained: it takes only the db handle and the broadcast function, so
 // it carries no dependency on the upstream runtime god-object.
+//
+// Runtimes are registered explicitly rather than left to registerIronCommandRoutes()'s
+// MockRuntime-only default: MockRuntime stays available for demos and tests,
+// and every CLI-transport adapter this install already knows about (claude,
+// codex, gemini, ...) is wrapped in a CliAdapterRuntime and registered too.
+// Wrapping is unconditional — capabilities()/healthCheck()/authStatus() (the
+// Provider Health panel, GET /api/ic/runtimes) are what tell an operator
+// whether a given CLI is actually installed and logged in; a runtime that
+// isn't simply reports itself unhealthy rather than being hidden.
+const ironCommandOrchestrator = new CompanyOrchestrator(db);
+ironCommandOrchestrator.registerRuntime(new MockRuntime());
+for (const adapter of adapterRegistry.list()) {
+  if (isCliAdapter(adapter)) ironCommandOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
+}
 registerIronCommandRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
+  orchestrator: ironCommandOrchestrator,
 });
 
 app.use(globalErrorHandler);

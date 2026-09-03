@@ -21,6 +21,7 @@ import {
   type Dashboard,
   type Message,
   type RunEvent,
+  type RuntimeInfo,
   type Task,
 } from "./types.ts";
 
@@ -47,6 +48,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [companyName, setCompanyName] = useState("Iron Command");
+  const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,6 +75,18 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
       setError(null);
     } catch (err) {
       // Never fail silently — an unreachable control plane is information.
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [client]);
+
+  // Provider Health: kept separate from refresh() — each registered runtime
+  // probes its own CLI (e.g. `claude --version`), so this is refreshed on
+  // demand from the agent-detail dialog rather than on every poll.
+  const refreshRuntimes = useCallback(async () => {
+    try {
+      const { runtimes: r } = await client.runtimes();
+      setRuntimes(r);
+    } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [client]);
@@ -157,6 +171,11 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
   const agentById = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
   const reviewable = tasks.filter((t) => t.status === "review");
+  // Re-derived from the live agents list on every render, never a stale
+  // snapshot: a runtime change made in the dialog is reflected the moment
+  // refresh() lands, same as every other figure in this view.
+  const currentAgent = selectedAgent ? (agentById.get(selectedAgent.id) ?? selectedAgent) : null;
+  const currentRuntime = currentAgent ? runtimes.find((r) => r.type === currentAgent.runtimeProvider) : undefined;
 
   return (
     <div className="ic-root" data-testid="command-center">
@@ -196,7 +215,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                 type="button"
                 className="ic-agent"
                 aria-pressed={selectedAgent?.id === agent.id}
-                onClick={() => setSelectedAgent(agent)}
+                onClick={() => {
+                  setSelectedAgent(agent);
+                  void refreshRuntimes();
+                }}
               >
                 <span
                   className="ic-status-dot"
@@ -432,22 +454,55 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
         </DetailDialog>
       )}
 
-      {selectedAgent && (
-        <DetailDialog title={selectedAgent.displayName} onClose={() => setSelectedAgent(null)}>
+      {currentAgent && (
+        <DetailDialog title={currentAgent.displayName} onClose={() => setSelectedAgent(null)}>
           <dl>
             <dt>Rolle</dt>
-            <dd>{selectedAgent.professionalRole}</dd>
+            <dd>{currentAgent.professionalRole}</dd>
             <dt>Status</dt>
-            <dd>{AGENT_STATUS_LABEL[selectedAgent.status]}</dd>
+            <dd>{AGENT_STATUS_LABEL[currentAgent.status]}</dd>
             <dt>Runtime</dt>
             <dd>
-              {selectedAgent.runtimeProvider} · {selectedAgent.runtimeProfile}
+              <label className="ic-sr-only" htmlFor="ic-agent-runtime-select">
+                Runtime für {currentAgent.displayName}
+              </label>
+              <select
+                id="ic-agent-runtime-select"
+                className="ic-select"
+                data-testid="agent-runtime-select"
+                value={currentAgent.runtimeProvider}
+                disabled={busy}
+                onChange={(e) => act(() => client.setAgentRuntime(currentAgent.id, e.target.value))}
+              >
+                {/* An agent can be pointed at a provider this install no longer
+                    has registered (e.g. after a config change) — surface that
+                    honestly as its own option rather than silently showing a
+                    different one selected. */}
+                {!runtimes.some((r) => r.type === currentAgent.runtimeProvider) && (
+                  <option value={currentAgent.runtimeProvider}>{currentAgent.runtimeProvider} (nicht registriert)</option>
+                )}
+                {runtimes.map((r) => (
+                  <option key={r.type} value={r.type}>
+                    {r.type} {r.health.healthy ? "● bereit" : "○ nicht verfügbar"}
+                  </option>
+                ))}
+              </select>
+              {" · "}
+              {currentAgent.runtimeProfile}
+              {currentRuntime && (
+                <>
+                  <br />
+                  <span className="ic-note" data-testid="agent-runtime-detail">
+                    {currentRuntime.auth.authenticated ? "Angemeldet" : "Nicht angemeldet"} · {currentRuntime.health.detail}
+                  </span>
+                </>
+              )}
             </dd>
             <dt>Max. Risiko</dt>
-            <dd>{selectedAgent.policy.max_risk_level}</dd>
+            <dd>{currentAgent.policy.max_risk_level}</dd>
             <dt>Werkzeuge</dt>
             <dd>
-              {selectedAgent.policy.allowed_tools.map((t) => (
+              {currentAgent.policy.allowed_tools.map((t) => (
                 <span key={t} className="ic-tag" data-tone="policy">
                   {t}
                 </span>
@@ -455,16 +510,16 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
             </dd>
             <dt>Freigabepflichtig</dt>
             <dd>
-              {selectedAgent.policy.requires_approval_for.length === 0
+              {currentAgent.policy.requires_approval_for.length === 0
                 ? "—"
-                : selectedAgent.policy.requires_approval_for.map((t) => (
+                : currentAgent.policy.requires_approval_for.map((t) => (
                     <span key={t} className="ic-tag" data-tone="gate">
                       {t}
                     </span>
                   ))}
             </dd>
             <dt>Auftreten</dt>
-            <dd>{selectedAgent.persona.traits.join(", ") || "—"}</dd>
+            <dd>{currentAgent.persona.traits.join(", ") || "—"}</dd>
           </dl>
           <p className="ic-note">
             Das Auftreten ist rein stilistisch. Es kann Berechtigungen, Werkzeuge oder Freigabepflichten nicht verändern

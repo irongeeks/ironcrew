@@ -183,6 +183,39 @@ export class CompanyOrchestrator {
     return ea;
   }
 
+  /** Every runtime registered with this orchestrator, mock and real alike. */
+  listRuntimes(): AgentRuntime[] {
+    return [...this.runtimes.values()];
+  }
+
+  /**
+   * Change which registered runtime provider an agent's tasks execute
+   * against. Returns null when the agent does not exist in this company —
+   * callers translate that to a 404 rather than a validation error, since
+   * the provider itself is validated separately (against listRuntimes())
+   * before this is ever called.
+   */
+  setAgentRuntimeProvider(companyId: string, agentId: string, provider: string): AgentRow | null {
+    const agent = this.db.prepare("SELECT * FROM ic_agents WHERE id = ? AND company_id = ?").get(agentId, companyId) as
+      | AgentRow
+      | undefined;
+    if (!agent) return null;
+    if (!this.runtimes.has(provider)) {
+      throw new Error(`Unknown runtime provider "${provider}". Registered: ${[...this.runtimes.keys()].join(", ")}`);
+    }
+    this.db.prepare("UPDATE ic_agents SET runtime_provider = ? WHERE id = ?").run(provider, agentId);
+    appendAuditEvent(this.db, {
+      companyId,
+      actorType: "owner",
+      actorId: "ceo",
+      action: "agent.runtime_changed",
+      entityType: "agent",
+      entityId: agentId,
+      details: { from: agent.runtime_provider, to: provider },
+    });
+    return { ...agent, runtime_provider: provider };
+  }
+
   /**
    * Agent status derived from held work — never self-reported, so the UI
    * figure cannot disagree with the backend.

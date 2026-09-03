@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CommandCenterView } from "./CommandCenterView.tsx";
 import type { api } from "./api.ts";
-import type { Agent, Approval, Dashboard, Message, Task } from "./types.ts";
+import type { Agent, Approval, Dashboard, Message, RuntimeInfo, Task } from "./types.ts";
 
 function agent(over: Partial<Agent> = {}): Agent {
   return {
@@ -88,8 +88,28 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     decide: vi.fn().mockResolvedValue({ approval: {} }),
     runEvents: vi.fn().mockResolvedValue({ events: [] }),
     task: vi.fn(),
+    runtimes: vi.fn().mockResolvedValue({ runtimes: [runtimeInfo()] }),
+    setAgentRuntime: vi.fn().mockResolvedValue({ agent: agent({ runtimeProvider: "claude" }) }),
     ...over,
   } as unknown as Client;
+}
+
+function runtimeInfo(over: Partial<RuntimeInfo> = {}): RuntimeInfo {
+  return {
+    type: "mock",
+    capabilities: {
+      streaming: true,
+      sessionResume: false,
+      usageReporting: false,
+      costReporting: false,
+      toolCalls: true,
+      subagents: false,
+      defaultConcurrency: 1,
+    },
+    health: { healthy: true, installed: true, detail: "MockRuntime is always available.", checkedAt: Date.now() },
+    auth: { authenticated: true, method: "subscription-cli", detail: "n/a" },
+    ...over,
+  };
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -375,5 +395,61 @@ describe("agent detail", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
+
+describe("runtime selection", () => {
+  it("lists every registered runtime with a health marker", async () => {
+    const client = makeClient({
+      runtimes: vi.fn().mockResolvedValue({
+        runtimes: [runtimeInfo({ type: "mock" }), runtimeInfo({ type: "claude", health: { healthy: false, installed: false, detail: "claude CLI is not installed.", checkedAt: Date.now() } })],
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+    const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
+    await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
+
+    const select = await screen.findByTestId("agent-runtime-select");
+    await waitFor(() => expect(client.runtimes).toHaveBeenCalled());
+    const options = within(select).getAllByRole("option") as HTMLOptionElement[];
+    expect(options.map((o) => o.value)).toEqual(["mock", "claude"]);
+    expect(options[1].textContent).toContain("nicht verfügbar");
+  });
+
+  it("moves an agent onto a different runtime and reflects it immediately", async () => {
+    const setAgentRuntime = vi.fn().mockResolvedValue({ agent: agent({ runtimeProvider: "claude" }) });
+    const client = makeClient({
+      setAgentRuntime,
+      runtimes: vi.fn().mockResolvedValue({ runtimes: [runtimeInfo({ type: "mock" }), runtimeInfo({ type: "claude" })] }),
+      // After the change, /agents must report the new provider too — the
+      // dialog is derived from the live agents list, not a local echo.
+      agents: vi
+        .fn()
+        .mockResolvedValueOnce({ agents: [agent()] })
+        .mockResolvedValue({ agents: [agent({ runtimeProvider: "claude" })] }),
+    });
+    render(<CommandCenterView client={client} />);
+    const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
+    await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
+
+    const select = await screen.findByTestId("agent-runtime-select");
+    await userEvent.setup().selectOptions(select, "claude");
+
+    expect(setAgentRuntime).toHaveBeenCalledWith("agt_1", "claude");
+    await waitFor(() => expect((select as HTMLSelectElement).value).toBe("claude"));
+  });
+
+  it("surfaces an agent's provider even when this install no longer has it registered", async () => {
+    const client = makeClient({
+      agents: vi.fn().mockResolvedValue({ agents: [agent({ runtimeProvider: "codex" })] }),
+      runtimes: vi.fn().mockResolvedValue({ runtimes: [runtimeInfo({ type: "mock" })] }),
+    });
+    render(<CommandCenterView client={client} />);
+    const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
+    await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
+
+    const select = await screen.findByTestId("agent-runtime-select");
+    await waitFor(() => expect(client.runtimes).toHaveBeenCalled());
+    expect(within(select).getByText(/codex \(nicht registriert\)/)).toBeInTheDocument();
   });
 });

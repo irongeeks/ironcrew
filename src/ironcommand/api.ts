@@ -9,7 +9,7 @@
  */
 
 import { request } from "../api/core";
-import type { Agent, Approval, Dashboard, Department, Message, RunEvent, Task } from "./types.ts";
+import type { Agent, Approval, Dashboard, Department, Message, RunEvent, RuntimeInfo, Task } from "./types.ts";
 
 const BASE = "/api/ic";
 
@@ -17,7 +17,7 @@ function get<T>(path: string): Promise<T> {
   return request<T>(`${BASE}${path}`);
 }
 
-function send<T>(path: string, method: "POST" | "PUT", body?: unknown): Promise<T> {
+function send<T>(path: string, method: "POST" | "PUT" | "PATCH", body?: unknown): Promise<T> {
   return request<T>(`${BASE}${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
@@ -41,4 +41,7 @@ export const api = {
     send<{ approval: Approval }>(`/approvals/${id}/decide`, "POST", { decision, reason }),
   dashboard: () => get<Dashboard>("/dashboard"),
   runEvents: (runId: string) => get<{ events: RunEvent[] }>(`/runs/${runId}/events`),
+  runtimes: () => get<{ runtimes: RuntimeInfo[] }>("/runtimes"),
+  setAgentRuntime: (agentId: string, runtimeProvider: string) =>
+    send<{ agent: Agent }>(`/agents/${agentId}/runtime`, "PATCH", { runtimeProvider }),
 };

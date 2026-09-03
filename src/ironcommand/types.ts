@@ -136,6 +136,34 @@ export interface Department {
   description: string;
 }
 
+/**
+ * One registered runtime's live capability/health/auth probe — mock and
+ * real CLI adapters alike (server/ironcommand/runtime/run-events.ts).
+ * `auth.accountHint`, when present, is contractually never an email or a
+ * token (docs/PROVIDER_AUTH.md) — safe to render as-is.
+ */
+export interface RuntimeInfo {
+  type: string;
+  capabilities: {
+    streaming: boolean;
+    sessionResume: boolean;
+    usageReporting: boolean;
+    costReporting: boolean;
+    toolCalls: boolean;
+    subagents: boolean;
+    defaultConcurrency: number;
+    version?: string;
+  };
+  health: { healthy: boolean; installed: boolean; detail: string; checkedAt: number };
+  auth: {
+    authenticated: boolean;
+    method: "subscription-cli" | "oauth-cli" | "api-key" | "none";
+    accountHint?: string;
+    detail: string;
+    setupHint?: string;
+  };
+}
+
 /** German labels. The product ships German as its default locale. */
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   inbox: "Eingang",
