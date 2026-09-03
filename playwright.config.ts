@@ -11,9 +11,7 @@ export default defineConfig({
     // but not the chrome-headless-shell build a pinned Playwright expects.
     // PW_CHROMIUM_PATH points the runner at the browser that is actually there;
     // unset, Playwright resolves its own download as usual.
-    launchOptions: process.env.PW_CHROMIUM_PATH
-      ? { executablePath: process.env.PW_CHROMIUM_PATH }
-      : {},
+    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

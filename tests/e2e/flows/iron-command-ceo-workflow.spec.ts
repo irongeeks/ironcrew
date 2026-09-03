@@ -17,9 +17,7 @@ async function session(request: APIRequestContext): Promise<Record<string, strin
 }
 
 test.describe("Iron Command control plane (API)", () => {
-  test("seeds a company with exactly one executive assistant and no self-approving agent", async ({
-    request,
-  }) => {
+  test("seeds a company with exactly one executive assistant and no self-approving agent", async ({ request }) => {
     await session(request);
 
     const company = await request.get(`${IC}/company`);
@@ -93,9 +91,7 @@ test.describe("Iron Command control plane (API)", () => {
     expect((await revised.json()).task.status).toBe("ready");
   });
 
-  test("blocks a sensitive request behind an owner approval instead of executing it", async ({
-    request,
-  }) => {
+  test("blocks a sensitive request behind an owner approval instead of executing it", async ({ request }) => {
     const headers = await session(request);
 
     const chat = await request.post(`${IC}/chat`, {
@@ -110,9 +106,7 @@ test.describe("Iron Command control plane (API)", () => {
     expect(created.reply).toContain("NICHT ausgeführt");
 
     const { approvals } = await (await request.get(`${IC}/approvals`)).json();
-    const pending = approvals.find(
-      (a: { task_id: string }) => a.task_id === created.task.id,
-    );
+    const pending = approvals.find((a: { task_id: string }) => a.task_id === created.task.id);
     expect(pending.approval_type).toBe("bank_transfer");
 
     // A decision may be recorded exactly once.
