@@ -1,0 +1,199 @@
+pack:
+  key: design_studio
+  schema_version: 1
+  name:
+    en: "Design Studio"
+    ko: "디자인 스튜디오"
+    ja: "デザインスタジオ"
+    zh: "Design Studio"
+    de: "Design-Studio"
+  version: "2.0.0"
+  description:
+    en: "4-phase UI design workflow — brief, exploration, execution, and developer handoff with accessibility auditing"
+    ko: "브리프, 탐색, 실행, 개발자 핸드오프 및 접근성 감사를 포함한 4단계 UI 디자인 워크플로우"
+  icon: "🎨"
+  agent_routing: department
+
+input:
+  required:
+    - key: design_goal
+      type: string
+      label:
+        en: "Design Goal"
+        ko: "디자인 목표"
+    - key: target_surface
+      type: string
+      label:
+        en: "Target Surface"
+        ko: "대상 화면"
+    - key: brand_constraints
+      type: string
+      label:
+        en: "Brand Constraints"
+        ko: "브랜드 제약사항"
+  optional:
+    - key: figma_url
+      type: string
+      label:
+        en: "Figma URL"
+        ko: "Figma URL"
+    - key: accessibility_target
+      type: string
+      label:
+        en: "Accessibility Target"
+        ko: "접근성 목표"
+    - key: component_inventory
+      type: string
+      label:
+        en: "Component Inventory"
+        ko: "컴포넌트 목록"
+    - key: handoff_scope
+      type: string
+      label:
+        en: "Handoff Scope"
+        ko: "핸드오프 범위"
+
+phases:
+  - id: brief
+    department: direction
+    guidance: "guidance/brief.{lang}.md"
+    gate: user_approval
+    outputs:
+      - name: design_brief
+        type: markdown
+        path: design_output/design_brief.md
+      - name: requirements
+        type: json
+        path: design_output/requirements.json
+
+  - id: exploration
+    department: execution
+    guidance: "guidance/exploration.{lang}.md"
+    gate: user_approval
+    inputs:
+      - name: design_brief
+        from: brief.design_brief
+      - name: requirements
+        from: brief.requirements
+    outputs:
+      - name: concepts
+        type: markdown
+        path: design_output/concepts.md
+      - name: moodboard
+        type: markdown
+        path: design_output/moodboard.md
+
+  - id: execution
+    department: execution
+    guidance: "guidance/execution.{lang}.md"
+    inputs:
+      - name: concepts
+        from: exploration.concepts
+      - name: requirements
+        from: brief.requirements
+    outputs:
+      - name: mockup_summary
+        type: markdown
+        path: design_output/mockup_summary.md
+      - name: design_tokens
+        type: json
+        path: design_output/design_tokens.json
+      - name: components
+        type: json
+        path: design_output/components.json
+
+  - id: handoff
+    department: handoff
+    guidance: "guidance/handoff.{lang}.md"
+    inputs:
+      - name: mockup_summary
+        from: execution.mockup_summary
+      - name: design_tokens
+        from: execution.design_tokens
+      - name: components
+        from: execution.components
+      - name: requirements
+        from: brief.requirements
+    outputs:
+      - name: accessibility_audit
+        type: json
+        path: design_output/accessibility_audit.json
+      - name: design_to_code_handoff
+        type: json
+        path: design_output/design_to_code_handoff.json
+      - name: review_notes
+        type: markdown
+        path: design_output/review_notes.md
+
+cost_profile:
+  max_rounds: 3
+  max_input_tokens: 14000
+  default_reasoning: high
+
+qa_rules:
+  max_auto_fix_passes: 2
+
+ui:
+  slug: "DS"
+  label:
+    en: "Design Studio"
+    ko: "디자인 스튜디오"
+  summary:
+    en: "UI design workflow with exploration, execution, and developer handoff"
+    ko: "탐색, 실행, 개발자 핸드오프를 포함한 UI 디자인 워크플로우"
+  departments:
+    direction:
+      name:
+        en: "Design Direction"
+        ko: "디자인 디렉션"
+      icon: "🎯"
+      color: "#f59e0b"
+    execution:
+      name:
+        en: "Design Execution"
+        ko: "디자인 실행"
+      icon: "🎨"
+      color: "#8b5cf6"
+    handoff:
+      name:
+        en: "Handoff & Review"
+        ko: "핸드오프 & 리뷰"
+      icon: "🔄"
+      color: "#3b82f6"
+
+staff:
+  name_pool:
+    - name: "Design PM"
+      role: team_leader
+      department: direction
+      name_ko: "디자인 PM"
+      name_ja: "デザインPM"
+      name_zh: "Design PM"
+      personality: "Design direction lead. Translates business requirements into clear design briefs with brand constraints and success metrics."
+    - name: "UI Designer"
+      role: agent
+      department: execution
+      name_ko: "UI 디자이너"
+      name_ja: "UIデザイナー"
+      name_zh: "UI Designer"
+      personality: "UI designer. Explores visual variants, creates mockups, extracts design tokens, and ensures design-system consistency."
+    - name: "Design QA"
+      role: agent
+      department: handoff
+      name_ko: "디자인 QA"
+      name_ja: "デザインQA"
+      name_zh: "Design QA"
+      personality: "Design quality reviewer. Audits accessibility (contrast, keyboard, touch targets), validates component specs against design tokens."
+    - name: "Handoff Engineer"
+      role: agent
+      department: handoff
+      name_ko: "핸드오프 엔지니어"
+      name_ja: "ハンドオフエンジニア"
+      name_zh: "Handoff Engineer"
+      personality: "Frontend handoff specialist. Produces implementation-ready JSON specs with component structure, token bindings, and interaction states."
+  room_theme:
+    floor1: "#faece7"
+    floor2: "#f2dfd6"
+    wall: "#9a6f62"
+    accent: "#e08b67"
+  default_workspace: "design_output"

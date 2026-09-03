@@ -1,0 +1,73 @@
+/* Override React Flow default styles to match the app theme */
+
+.react-flow__controls {
+  background: var(--bg-surface-solid) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--text-secondary) !important;
+  fill: var(--text-secondary) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-surface-hover) !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button svg {
+  fill: var(--text-secondary) !important;
+}
+
+.react-flow__minimap {
+  background: var(--bg-surface-solid) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.react-flow__attribution {
+  background: transparent !important;
+}
+
+.react-flow__attribution a {
+  color: var(--text-dim) !important;
+  font-size: 9px !important;
+}
+
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+/* Make handles more visible on hover */
+.react-flow__handle:hover {
+  transform: scale(1.3);
+  transition: transform 0.15s ease;
+}
+
+/* Execution monitor animations */
+@keyframes pulse-opacity {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -9;
+  }
+}

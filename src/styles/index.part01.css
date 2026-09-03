@@ -1,0 +1,551 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Press+Start+2P&family=JetBrains+Mono:wght@400;700&display=swap");
+
+@font-face {
+  font-family: "Upheaval TT BRK";
+  src: url("/fonts/upheaval-tt-brk.ttf") format("truetype");
+  font-display: swap;
+}
+
+@import "tailwindcss";
+
+@theme {
+  --font-pixel: "Upheaval TT BRK", "Press Start 2P", system-ui;
+  --font-retro: "Upheaval TT BRK", "Press Start 2P", system-ui;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  --color-retro-dark: #0d0d0f;
+  --color-retro-border: rgba(255, 255, 255, 0.06);
+  --color-retro-green: #34d399;
+  --color-retro-yellow: #fbbf24;
+  --color-retro-red: #ef4444;
+  --color-retro-blue: #60a5fa;
+  --color-retro-text: #e4e4e7;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root,
+[data-theme="dark"] {
+  /* ── Layout ── */
+  --topbar-height: 54px;
+
+  /* ── Core Palette — near-black neutral ── */
+  --bg-base: #0d0d0f;
+  --bg-surface: rgba(255, 255, 255, 0.02);
+  --bg-surface-solid: #0f0f11;
+  --bg-surface-hover: rgba(255, 255, 255, 0.04);
+  --bg-active: rgba(255, 255, 255, 0.06);
+  --bg-glow: rgba(255, 255, 255, 0.08);
+  --bg-elevated: #111113;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.1);
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-dim: rgba(255, 255, 255, 0.18);
+  --accent: #34d399;
+  --accent-text: #34d399;
+  --accent-dim: rgba(52, 211, 153, 0.14);
+  --accent-glow: rgba(52, 211, 153, 0.22);
+  --accent-subtle: rgba(52, 211, 153, 0.08);
+  --accent-warning: #fbbf24;
+  --accent-alert: #f97316;
+  --accent-critical: #ef4444;
+  --accent-info: #60a5fa;
+  --accent-review: #a855f7;
+  --status-working: #34d399;
+  --status-working-glow: rgba(52, 211, 153, 0.25);
+  --status-working-bg: rgba(52, 211, 153, 0.08);
+  --status-idle: rgba(255, 255, 255, 0.12);
+
+  /* ── Border Radii ── */
+  --radius-asym-1: 8px;
+  --radius-asym-2: 8px;
+  --radius-asym-3: 8px;
+  --radius-asym-4: 8px;
+  --radius-asym-sm-1: 6px;
+  --radius-asym-sm-2: 6px;
+  --radius-asym-sm-3: 6px;
+
+  /* ── Shadows (refined offset) ── */
+  --shadow-hard-color: rgba(0, 0, 0, 0.25);
+  --shadow-hard-sm: 1px 1px 0px var(--shadow-hard-color);
+  --shadow-hard: 2px 2px 0px var(--shadow-hard-color);
+  --shadow-hard-lg: 3px 3px 0px var(--shadow-hard-color);
+  --shadow-hard-xl: 4px 4px 0px var(--shadow-hard-color);
+
+  /* ── Backward-compatible aliases ── */
+  --th-bg-primary: var(--bg-base);
+  --th-bg-secondary: var(--bg-base);
+  --th-bg-surface: var(--bg-surface-solid);
+  --th-bg-surface-hover: var(--bg-surface-hover);
+  --th-bg-header: var(--bg-surface-solid);
+  --th-bg-sidebar: var(--bg-surface-solid);
+  --th-border: var(--border);
+  --th-border-strong: var(--border-strong);
+  --th-text-primary: var(--text-primary);
+  --th-text-secondary: var(--text-secondary);
+  --th-text-muted: var(--text-muted);
+  --th-text-heading: var(--text-primary);
+  --th-card-bg: var(--bg-surface-solid);
+  --th-card-bg-hover: var(--bg-surface-hover);
+  --th-card-border: var(--border);
+  --th-panel-bg: var(--bg-surface-solid);
+  --th-input-bg: rgba(255, 255, 255, 0.03);
+  --th-input-border: var(--border);
+  --th-input-focus-border: var(--accent);
+  --th-label-color: var(--text-secondary);
+  --th-accent-glow: var(--accent-subtle);
+  --th-focus-ring: var(--accent);
+  --th-scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --th-scrollbar-thumb-hover: rgba(255, 255, 255, 0.18);
+  --th-danger-bg: #ef4444;
+  --th-danger-text: #ffffff;
+
+  /* ── Fonts ── */
+  --th-font-display: "Upheaval TT BRK", "Press Start 2P", system-ui;
+  --th-font-pixel: "Upheaval TT BRK", "Press Start 2P", system-ui;
+  --th-font-body: "Inter", system-ui, sans-serif;
+  --th-font-mono: "JetBrains Mono", monospace;
+
+  /* ── Radii ── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+
+  /* ── Soft shadows ── */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-panel: 0 2px 6px rgba(0, 0, 0, 0.2);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-retro: 2px 2px 0px rgba(0, 0, 0, 0.3);
+
+  image-rendering: pixelated;
+}
+
+/* Native <select> dropdown options follow theme (fix #6)
+ * color-scheme on the element itself is what actually drives the native popup
+ * on Chromium/Linux — without this, the popup ignores :root color-scheme and
+ * renders with the OS light palette even in dark mode. */
+select,
+input,
+textarea {
+  color-scheme: inherit;
+}
+select option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+select option:checked {
+  background: var(--accent);
+  color: var(--bg-base);
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 8px var(--status-working-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 14px var(--status-working-glow),
+      0 0 20px rgba(16, 185, 129, 0.1);
+  }
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* ── Light Palette ── */
+  --bg-base: #fafafa;
+  --bg-surface: rgba(0, 0, 0, 0.02);
+  --bg-surface-solid: #ffffff;
+  --bg-surface-hover: rgba(0, 0, 0, 0.03);
+  --bg-active: rgba(0, 0, 0, 0.05);
+  --bg-glow: rgba(0, 0, 0, 0.07);
+  --bg-elevated: #f4f4f5;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --text-primary: #18181b;
+  --text-secondary: #3f3f46;
+  --text-muted: #52525b;
+  --text-dim: rgba(0, 0, 0, 0.14);
+  --accent: #10b981;
+  --accent-text: #047857;
+  --accent-dim: rgba(16, 185, 129, 0.1);
+  --accent-glow: rgba(16, 185, 129, 0.15);
+  --accent-subtle: rgba(16, 185, 129, 0.05);
+  --accent-warning: #d97706;
+  --accent-alert: #ea580c;
+  --accent-critical: #dc2626;
+  --accent-info: #2563eb;
+  --accent-review: #7c3aed;
+  --status-working: #059669;
+  --status-working-glow: rgba(5, 150, 105, 0.2);
+  --status-working-bg: rgba(5, 150, 105, 0.08);
+  --status-idle: rgba(0, 0, 0, 0.1);
+
+  --shadow-hard-color: rgba(0, 0, 0, 0.06);
+
+  --th-bg-primary: var(--bg-base);
+  --th-bg-secondary: var(--bg-base);
+  --th-bg-surface: var(--bg-surface-solid);
+  --th-bg-surface-hover: var(--bg-surface-hover);
+  --th-bg-header: var(--bg-surface-solid);
+  --th-bg-surface-solid: var(--bg-surface-solid);
+  --th-border: var(--border);
+  --th-border-strong: var(--border-strong);
+  --th-text-primary: var(--text-primary);
+  --th-text-secondary: var(--text-secondary);
+  --th-text-muted: var(--text-muted);
+  --th-text-heading: var(--text-primary);
+  --th-card-bg: var(--bg-surface-solid);
+  --th-card-bg-hover: rgba(255, 255, 255, 0.6);
+  --th-card-border: var(--border);
+  --th-panel-bg: var(--bg-surface-solid);
+  --th-input-bg: rgba(255, 255, 255, 0.5);
+  --th-input-border: var(--border);
+  --th-input-focus-border: var(--accent);
+  --th-label-color: var(--text-secondary);
+  --th-accent-glow: var(--accent-subtle);
+  --th-focus-ring: var(--accent);
+  --th-scrollbar-thumb: rgba(0, 0, 0, 0.1);
+  --th-scrollbar-thumb-hover: rgba(0, 0, 0, 0.18);
+  --th-danger-bg: #dc2626;
+  --th-danger-text: #ffffff;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-panel: 0 2px 6px rgba(0, 0, 0, 0.04);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-retro: 2px 2px 0px rgba(0, 0, 0, 0.06);
+}
+
+/* Light-theme accent text override (WCAG AA, E-004): the Tailwind
+   `text-retro-green` utility maps to #34d399 which is only ~2.5:1 on a
+   white surface. In light theme, swap the rendered color to the AA-compliant
+   --accent-text token. Background swatches (`bg-retro-green/15` etc.) remain
+   unchanged because they are non-text. */
+[data-theme="light"] .text-retro-green {
+  color: var(--accent-text);
+}
+
+/* Pixel font class — unlayered + !important to override Tailwind preflight
+   button { font: inherit } shorthand which blocks inline font-family */
+.font-pixel,
+[data-font-pixel] {
+  font-family: "Upheaval TT BRK", "Press Start 2P", system-ui !important;
+  letter-spacing: 0.25em !important;
+  word-spacing: 0.35em !important;
+}
+
+/* Visually-hidden utility for accessibility (E-006).
+   Hides content from sighted users while keeping it in the accessibility
+   tree and tab order. Standard "clip" pattern used by Bootstrap, Tailwind,
+   and the W3C wai-aria-practices examples. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Visually-hidden until any descendant receives focus (E-006 review).
+   Same hiding technique as .sr-only, but :focus-within reveals the element
+   so sighted keyboard users get a visible focus target. WCAG 2.4.7. */
+.sr-only-focusable {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sr-only-focusable:focus-within {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 40;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background: var(--bg-surface, #18182f);
+  color: var(--text-primary, #f8fafc);
+  border: 2px solid var(--accent, #34d399);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: calc(100% - 1rem);
+}
+
+.sr-only-focusable:focus-within button {
+  background: transparent;
+  color: inherit;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.sr-only-focusable:focus-within button:focus-visible,
+.sr-only-focusable:focus-within button:focus {
+  outline: 2px solid var(--accent, #34d399);
+  outline-offset: 2px;
+  border-color: var(--accent, #34d399);
+}
+
+@layer base {
+  body {
+    font-family: var(--th-font-body);
+    background: var(--th-bg-primary);
+    color: var(--th-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    image-rendering: pixelated;
+  }
+
+  /* Force-load Upheaval + Press Start 2P so the browser fetches them eagerly */
+  body::before {
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    font-family: "Upheaval TT BRK", "Press Start 2P";
+  }
+}
+
+@layer components {
+  /* ── Unified Design System: ao-* classes ── */
+
+  .ao-card {
+    background: var(--th-card-bg);
+    border: 1px solid var(--th-card-border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: var(--shadow-hard);
+    transition:
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
+  }
+  .ao-card:hover {
+    box-shadow: var(--shadow-hard-lg);
+    border-color: var(--th-border-strong);
+  }
+  .ao-card--flat {
+    box-shadow: none;
+  }
+  .ao-card--flat:hover {
+    box-shadow: none;
+    transform: none;
+  }
+
+  .ao-panel {
+    background: var(--th-panel-bg);
+    border: 1px solid var(--th-card-border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: var(--shadow-hard);
+  }
+
+  .ao-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ao-modal {
+    background: var(--th-card-bg);
+    border: 1px solid var(--th-card-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-modal);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .ao-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-family: var(--th-font-pixel);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: var(--radius-sm);
+    border: 1px solid;
+  }
+
+  .ao-input {
+    background: var(--th-input-bg);
+    border: 1px solid var(--th-input-border);
+    border-radius: var(--radius-md);
+    padding: 0.5rem 0.75rem;
+    color: var(--th-text-primary);
+    font-size: 0.875rem;
+    font-family: var(--th-font-body);
+    transition: border-color 0.15s ease;
+    width: 100%;
+  }
+  .ao-input:focus {
+    border-color: var(--th-input-focus-border);
+    outline: none;
+  }
+  .ao-input::placeholder {
+    color: var(--th-text-muted);
+  }
+
+  .ao-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: var(--th-font-pixel);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .ao-btn--primary {
+    background: var(--th-focus-ring);
+    color: #1a1a2e;
+    border-color: var(--th-focus-ring);
+    box-shadow: var(--shadow-hard);
+  }
+  .ao-btn--primary:hover {
+    transform: translateY(-1.5px);
+    box-shadow: var(--shadow-hard-lg);
+  }
+  .ao-btn--primary:active {
+    transform: translateY(1px);
+    box-shadow: var(--shadow-hard-sm);
+  }
+  .ao-btn--secondary {
+    background: transparent;
+    border-color: var(--th-border);
+    color: var(--th-text-secondary);
+  }
+  .ao-btn--secondary:hover {
+    background: var(--th-bg-surface-hover);
+    border-color: var(--th-border-strong);
+    color: var(--th-text-primary);
+  }
+
+  /* ── Legacy aliases (backward compat during migration) ── */
+  .retro-panel {
+    background: var(--th-card-bg);
+    border: 1px solid var(--th-card-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-hard);
+  }
+
+  .retro-badge {
+    @apply px-2 py-1 text-[10px] font-bold uppercase tracking-wider;
+    font-family: var(--th-font-pixel);
+    border-radius: var(--radius-sm);
+  }
+
+  .retro-badge-working {
+    @apply px-2 py-1 text-[10px] font-bold uppercase tracking-wider;
+    background: var(--status-working-bg);
+    color: var(--status-working);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    font-family: var(--th-font-pixel);
+    border-radius: var(--radius-sm);
+  }
+
+  .retro-badge-idle {
+    @apply px-2 py-1 text-[10px] font-bold uppercase tracking-wider;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-family: var(--th-font-pixel);
+    border-radius: var(--radius-sm);
+  }
+
+  .retro-progress-bg {
+    @apply h-3 w-full relative overflow-hidden;
+    background: var(--th-card-border);
+    border: 1px solid rgba(45, 48, 71, 0.5);
+    border-radius: var(--radius-sm);
+  }
+
+  .retro-progress-fill {
+    @apply h-full bg-retro-green transition-all duration-500;
+    border-radius: var(--radius-sm);
+    box-shadow: inset -2px 0 0 rgba(0, 0, 0, 0.3);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--th-bg-primary) !important;
+}
+
+.app-shell {
+  background: var(--th-bg-primary) !important;
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 15px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--th-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--th-scrollbar-thumb);
+  border: 2px solid var(--th-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--th-scrollbar-thumb-hover);
+}

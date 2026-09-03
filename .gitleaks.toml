@@ -1,0 +1,17 @@
+# gitleaks configuration for OctoOffice
+# Uses the full default ruleset and allowlists known synthetic test fixtures.
+# Run: gitleaks detect --source . --redact
+
+title = "OctoOffice gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic, non-functional secrets used only in unit tests (verified false positives, not real credentials)."
+regexes = [
+  # server/test/oauth/encryption.test.ts — round-trip fixture, sequential alphabet
+  '''ghp_abcdefghijklmnopqrstuvwxyz0123456789''',
+  # server/test/lifecycle/ceo-orchestrator-google-key.test.ts — fake Google key (literal "Test")
+  '''AIzaSyTest1234567890''',
+]

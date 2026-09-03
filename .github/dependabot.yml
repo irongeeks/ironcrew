@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # sharp 0.35.x breaks the TS build: tsc can no longer resolve the module's
+      # type declarations for server/modules/routes/core/agents/sprites.ts
+      # ("Could not find a declaration file for module 'sharp'"). Stay on 0.34.x
+      # until the typing regression is resolved. See closed PR #152.
+      - dependency-name: "sharp"
+        versions: ["0.35.x"]

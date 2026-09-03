@@ -1,0 +1,132 @@
+.superpowers/
+node_modules/
+dist/
+*.tsbuildinfo
+/assets/
+!/public/assets/
+# Runtime artifacts
+logs/
+custom-skills/
+/tasks/
+*.log
+*.pid
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+.direnv/
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+id_rsa
+id_ed25519
+credentials.json
+secrets*.json
+
+# Local reports/worktrees
+docs/reports/*
+!docs/reports/Sample_Slides/
+!docs/reports/Sample_Slides/**
+!docs/reports/PPT_Sample.pptx
+docs/.bkit-*
+docs/.pdca-*
+.octooffice-worktrees/*
+.octooffice/
+START
+
+# IDE / Editor / AI
+.vscode/
+.idea/
+tasks.md
+*.swp
+*.swo
+*~
+
+# Coverage / test artifacts
+coverage/
+.nyc_output/
+
+# Runtime temp directories
+.tmp/
+
+# NPM auth
+.npmrc
+
+# Local AI assistant artifacts
+.agents/
+.claude/
+skills-lock.json
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Video pipeline output
+video_output/
+
+# Research pipeline output
+research_output/
+
+# Design pipeline output
+design_output/
+
+# Tiled map editor source files
+*.tmx
+
+# Auto-created task workspaces
+workspaces/
+
+# PRODUCTION project output
+PRODUCTION/
+sss/
+.pnpm-store/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+.playwright-mcp/
+.worktrees/
+test-screenshots/
+server/packs/community/nefesh_gtm/
+
+# Pack editor UI state
+server/packs/community/**/.positions.json
+
+# Internal working docs (not for public repo)
+CLAUDE.md
+docs/superpowers/plans/
+docs/superpowers/specs/
+
+# Removed/unused assets (kept locally, not for repo)
+office_map.json
+comfy_workflows/
+/workflows/
+public/agentsoffice.svg
+public/agentsoffice-alt.svg
+public/agentsoffice.png
+public/assets/octooffice-logo-text.png
+public/assets/Modern_Office_16x16.png
+public/assets/Room_Builder_Office_16x16.png
+public/assets/2D Top Down Pixel Art Characters/Reference.png
+scripts/convert-slides.mjs
+scripts/generate-doro-sprites.mjs
+scripts/generate-intro-ppt.mjs
+scripts/tmx-to-json.mjs
+docs/reviews/
+
+# Internal launch/marketing notes (not for public repo)
+docs/launch-kit.md
+
+# --- Iron Command OS ---
+.references/
+data/private-assets/
+config/private/
+vault/

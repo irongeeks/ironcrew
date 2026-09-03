@@ -1,0 +1,45 @@
+name: Feature Request
+description: Propose an enhancement for OctoOffice.
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for new capabilities or meaningful UX/API improvements.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What user/developer problem should this solve?
+      placeholder: Describe the pain point first.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe your preferred solution.
+      placeholder: UI/API behavior, expected flow, and constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      placeholder: Other approaches you considered and why they are less suitable.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / Impact
+      description: Affected area(s) such as frontend, backend routes, CI, docs, etc.
+      placeholder: e.g. src/app, server/modules/routes, docs/api.md
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Define clear success criteria.
+      placeholder: |
+        - [ ] Condition A
+        - [ ] Condition B

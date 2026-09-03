@@ -1,0 +1,3 @@
+[submodule "tools/playwright-mcp"]
+	path = tools/playwright-mcp
+	url = https://github.com/microsoft/playwright-mcp.git

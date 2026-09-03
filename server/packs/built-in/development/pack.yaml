@@ -1,0 +1,264 @@
+pack:
+  key: development
+  schema_version: 1
+  name:
+    en: "Software Development"
+    ko: "소프트웨어 개발"
+    ja: "ソフトウェア開発"
+    zh: "Software Development"
+    de: "Softwareentwicklung"
+  version: "3.0.0"
+  description:
+    en: "7-phase software development workflow — research, analysis, planning, architecture, implementation, testing, and review"
+    ko: "리서치, 분석, 계획, 아키텍처, 구현, 테스트, 리뷰의 7단계 소프트웨어 개발 워크플로우"
+  icon: "💻"
+  shared_guidance: "guidance/shared.{lang}.md"
+  agent_routing: department
+
+input:
+  required: []
+  optional:
+    - key: task_type
+      type: string
+      label:
+        en: "Task Type"
+        ko: "작업 유형"
+      enum:
+        - bug
+        - feature
+        - greenfield
+    - key: constraints
+      type: string
+      label:
+        en: "Constraints"
+        ko: "제약 조건"
+    - key: acceptance_criteria
+      type: string
+      label:
+        en: "Acceptance Criteria"
+        ko: "인수 조건"
+    - key: deadline
+      type: string
+      label:
+        en: "Deadline"
+        ko: "마감 기한"
+
+phases:
+  - id: research
+    department: research
+    guidance: "guidance/research.{lang}.md"
+    skip_when: "input.skip_research"
+    outputs:
+      - name: findings
+        type: markdown
+        path: dev_output/findings.md
+      - name: research_context
+        type: json
+        path: dev_output/research_context.json
+
+  - id: analysis
+    department: research
+    guidance: "guidance/analysis.{lang}.md"
+    skip_when: "input.skip_analysis"
+    inputs:
+      - name: findings
+        from: research.findings
+      - name: research_context
+        from: research.research_context
+    outputs:
+      - name: requirements
+        type: markdown
+        path: dev_output/requirements.md
+      - name: scope
+        type: json
+        path: dev_output/scope.json
+
+  - id: planning
+    department: planning
+    guidance: "guidance/planning.{lang}.md"
+    gate: user_approval
+    inputs:
+      - name: requirements
+        from: analysis.requirements
+      - name: scope
+        from: analysis.scope
+      - name: findings
+        from: research.findings
+    outputs:
+      - name: plan
+        type: markdown
+        path: dev_output/plan.md
+      - name: task_breakdown
+        type: json
+        path: dev_output/task_breakdown.json
+
+  - id: architecture
+    department: planning
+    guidance: "guidance/architecture.{lang}.md"
+    skip_when: "input.skip_architecture"
+    inputs:
+      - name: plan
+        from: planning.plan
+      - name: requirements
+        from: analysis.requirements
+    outputs:
+      - name: architecture
+        type: markdown
+        path: dev_output/architecture.md
+      - name: tech_decisions
+        type: json
+        path: dev_output/tech_decisions.json
+
+  - id: implementation
+    department: dev
+    guidance: "guidance/implementation.{lang}.md"
+    inputs:
+      - name: plan
+        from: planning.plan
+      - name: task_breakdown
+        from: planning.task_breakdown
+      - name: architecture
+        from: architecture.architecture
+      - name: findings
+        from: research.findings
+    outputs:
+      - name: summary
+        type: markdown
+        path: dev_output/summary.md
+      - name: changes
+        type: markdown
+        path: dev_output/changes.md
+
+  - id: testing
+    department: testing
+    guidance: "guidance/testing.{lang}.md"
+    skip_when: "input.skip_testing"
+    inputs:
+      - name: plan
+        from: planning.plan
+      - name: changes
+        from: implementation.changes
+      - name: summary
+        from: implementation.summary
+      - name: requirements
+        from: analysis.requirements
+    outputs:
+      - name: test_results
+        type: markdown
+        path: dev_output/test_results.md
+      - name: coverage
+        type: json
+        path: dev_output/coverage.json
+
+  - id: review
+    department: review
+    guidance: "guidance/review.{lang}.md"
+    on_review_fail:
+      rerun: implementation
+      max_passes: 2
+      flag_output: review_flags
+    inputs:
+      - name: plan
+        from: planning.plan
+      - name: changes
+        from: implementation.changes
+      - name: test_results
+        from: testing.test_results
+      - name: findings
+        from: research.findings
+      - name: requirements
+        from: analysis.requirements
+    outputs:
+      - name: review_result
+        type: markdown
+        path: dev_output/review_result.md
+      - name: review_flags
+        type: json
+        path: dev_output/review_flags.json
+
+cost_profile:
+  max_rounds: 3
+  default_reasoning: high
+
+qa_rules:
+  require_test_evidence: true
+  max_auto_fix_passes: 2
+
+staff:
+  default_workspace: "workspaces/dev"
+  name_pool:
+    - name: Tom
+      role: team_leader
+      department: research
+      name_ko: "톰"
+      name_ja: "トム"
+      name_zh: "Tom"
+      personality: "Methodical investigator. Traces every code path to its origin. Doesn't speculate — reads the code."
+    - name: Elsa
+      role: agent
+      department: research
+      name_ko: "엘사"
+      name_ja: "エルザ"
+      name_zh: "Elsa"
+      personality: "Patient analyst. Cross-references git history, docs, and runtime behavior to build complete context."
+    - name: Tim
+      role: team_leader
+      department: planning
+      name_ko: "팀"
+      name_ja: "ティム"
+      name_zh: "Tim"
+      personality: "Pragmatic architect. Breaks complex problems into small, safe steps. Favors proven patterns over clever solutions."
+    - name: Greta
+      role: agent
+      department: planning
+      name_ko: "그레타"
+      name_ja: "グレタ"
+      name_zh: "Greta"
+      personality: "Structured planner. Creates detailed task breakdowns with explicit dependencies and acceptance criteria."
+    - name: Doreen
+      role: team_leader
+      department: dev
+      name_ko: "도린"
+      name_ja: "ドリーン"
+      name_zh: "Doreen"
+      personality: "Senior engineer. Writes clean, minimal code. Tests alongside implementation. Follows the plan, flags deviations."
+    - name: Kurt
+      role: agent
+      department: dev
+      name_ko: "쿠르트"
+      name_ja: "クルト"
+      name_zh: "Kurt"
+      personality: "Fast, focused implementer. Efficient code with strong test coverage. Prefers small commits."
+    - name: Lena
+      role: agent
+      department: dev
+      name_ko: "레나"
+      name_ja: "レナ"
+      name_zh: "Lena"
+      personality: "Diligent junior. Follows established patterns carefully. Asks when unsure rather than guessing."
+    - name: Mona
+      role: team_leader
+      department: testing
+      name_ko: "모나"
+      name_ja: "モナ"
+      name_zh: "Mona"
+      personality: "Thorough test engineer. Writes deterministic tests. Covers happy paths, edge cases, and regressions."
+    - name: Dieter
+      role: agent
+      department: testing
+      name_ko: "디터"
+      name_ja: "ディーター"
+      name_zh: "Dieter"
+      personality: "Detail-oriented tester. Hunts for edge cases, race conditions, and boundary failures."
+    - name: Astrid
+      role: team_leader
+      department: review
+      name_ko: "아스트리드"
+      name_ja: "アストリッド"
+      name_zh: "Astrid"
+      personality: "Rigorous reviewer. Checks security, performance, and plan compliance. Doesn't rubber-stamp."
+  room_theme:
+    floor1: "#d8e8f5"
+    floor2: "#cce1f2"
+    wall: "#6c96b7"
+    accent: "#5a9fd4"

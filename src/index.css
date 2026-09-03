@@ -1,0 +1,8 @@
+@import "./styles/index.part01.css";
+@import "./styles/index.part02.css";
+@import "./styles/index.part03.css";
+@import "./styles/index.part04.css";
+@import "./styles/index.part05.css";
+/* index.part06.css removed — "Modern Dashboard Redesign" (2026-03-25)
+   conflicted with voxyz redesign: 646x !important overrides on
+   letter-spacing, font-family, colors, borders etc. */

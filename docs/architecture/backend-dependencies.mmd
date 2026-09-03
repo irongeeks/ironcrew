@@ -1,0 +1,24 @@
+flowchart TB
+  N1["pkg:cors"]
+  N2["pkg:express"]
+  N3["pkg:node:child_process"]
+  N4["pkg:node:crypto"]
+  N5["pkg:node:fs"]
+  N6["pkg:node:http"]
+  N7["pkg:node:os"]
+  N8["pkg:node:sqlite"]
+  N9["pkg:node:url"]
+  N10["pkg:path"]
+  N11["pkg:ws"]
+  N12["server/index.ts"]
+  N12 --> N1
+  N12 --> N2
+  N12 --> N3
+  N12 --> N4
+  N12 --> N5
+  N12 --> N6
+  N12 --> N7
+  N12 --> N8
+  N12 --> N9
+  N12 --> N10
+  N12 --> N11

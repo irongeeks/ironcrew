@@ -1,0 +1,726 @@
+/* ── Kanban column header overrides (TaskBoard -900 → light pastels) ── */
+[data-theme="light"] .bg-blue-900 {
+  background-color: #dbeafe !important;
+}
+[data-theme="light"] .bg-indigo-900 {
+  background-color: #e0e7ff !important;
+}
+[data-theme="light"] .bg-amber-900 {
+  background-color: #fef3c7 !important;
+}
+[data-theme="light"] .bg-purple-900 {
+  background-color: #ede9fe !important;
+}
+[data-theme="light"] .bg-green-900 {
+  background-color: #d1fae5 !important;
+}
+[data-theme="light"] .bg-orange-900 {
+  background-color: #ffedd5 !important;
+}
+[data-theme="light"] .bg-red-900 {
+  background-color: #fee2e2 !important;
+}
+[data-theme="light"] .bg-cyan-900 {
+  background-color: #cffafe !important;
+}
+
+/* Kanban header text: white → dark on pastel */
+[data-theme="light"] .bg-blue-900 .text-white,
+[data-theme="light"] .bg-indigo-900 .text-white,
+[data-theme="light"] .bg-amber-900 .text-white,
+[data-theme="light"] .bg-purple-900 .text-white,
+[data-theme="light"] .bg-green-900 .text-white,
+[data-theme="light"] .bg-orange-900 .text-white,
+[data-theme="light"] .bg-red-900 .text-white,
+[data-theme="light"] .bg-cyan-900 .text-white {
+  color: #374151 !important;
+}
+
+/* Kanban column border overrides (-700 accent borders → light) */
+[data-theme="light"] .border-blue-700 {
+  border-color: #93c5fd !important;
+}
+[data-theme="light"] .border-indigo-700 {
+  border-color: #a5b4fc !important;
+}
+[data-theme="light"] .border-amber-700 {
+  border-color: #fcd34d !important;
+}
+[data-theme="light"] .border-purple-700 {
+  border-color: #c4b5fd !important;
+}
+[data-theme="light"] .border-green-700 {
+  border-color: #6ee7b7 !important;
+}
+[data-theme="light"] .border-orange-700 {
+  border-color: #fdba74 !important;
+}
+[data-theme="light"] .border-red-700 {
+  border-color: #fca5a5 !important;
+}
+[data-theme="light"] .border-cyan-700 {
+  border-color: #67e8f9 !important;
+}
+
+/* Active/All filter button text for readability */
+[data-theme="light"] .text-emerald-200 {
+  color: #059669 !important;
+}
+[data-theme="light"] .text-orange-200 {
+  color: #c2410c !important;
+}
+[data-theme="light"] .text-cyan-100 {
+  color: #0891b2 !important;
+}
+[data-theme="light"] .text-cyan-200 {
+  color: #0891b2 !important;
+}
+
+/* ── Shadow adjustments ── */
+[data-theme="light"] .shadow-lg {
+  box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 0.12) !important;
+}
+[data-theme="light"] .shadow-xl {
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.15) !important;
+}
+[data-theme="light"] .shadow-2xl {
+  box-shadow: 5px 5px 0px 0px rgba(0, 0, 0, 0.18) !important;
+}
+[data-theme="light"] [class*="shadow-black"] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* ── bg-slate-950 (TaskBoard main, diff code blocks) ── */
+[data-theme="light"] .bg-slate-950,
+[data-theme="light"] [class*="bg-slate-950"] {
+  background-color: var(--th-bg-primary) !important;
+}
+
+/* ── Text: text-white/80 (Kanban column badge count) ── */
+[data-theme="light"] [class*="text-white\\/80"],
+[data-theme="light"] [class*="text-white/80"] {
+  color: var(--th-text-primary) !important;
+}
+
+/* ── Accent backgrounds: task action buttons ── */
+[data-theme="light"] .bg-green-700 {
+  background-color: #059669 !important;
+  color: #fff !important;
+}
+[data-theme="light"] [class*="hover\\:bg-green-600"]:hover {
+  background-color: #10b981 !important;
+}
+[data-theme="light"] .bg-red-800 {
+  background-color: #dc2626 !important;
+  color: #fff !important;
+}
+[data-theme="light"] [class*="hover\\:bg-red-700"]:hover {
+  background-color: #ef4444 !important;
+}
+[data-theme="light"] .bg-blue-700 {
+  background-color: #2563eb !important;
+  color: #fff !important;
+}
+[data-theme="light"] [class*="hover\\:bg-blue-600"]:hover {
+  background-color: #3b82f6 !important;
+}
+[data-theme="light"] .bg-orange-700 {
+  background-color: #c2410c !important;
+  color: #fff !important;
+}
+[data-theme="light"] [class*="hover\\:bg-orange-600"]:hover {
+  background-color: #ea580c !important;
+}
+[data-theme="light"] .bg-purple-800 {
+  background-color: #7c3aed !important;
+  color: #fff !important;
+}
+[data-theme="light"] [class*="hover\\:bg-purple-700"]:hover {
+  background-color: #8b5cf6 !important;
+}
+[data-theme="light"] [class*="bg-cyan-800"] {
+  background-color: #0891b2 !important;
+}
+[data-theme="light"] [class*="hover\\:bg-cyan-700"]:hover {
+  background-color: #06b6d4 !important;
+}
+
+/* ── Text on accent buttons should stay white ── */
+[data-theme="light"] .bg-green-700 .text-white,
+[data-theme="light"] .bg-red-800 .text-white,
+[data-theme="light"] .bg-blue-700 .text-white,
+[data-theme="light"] .bg-orange-700 .text-white,
+[data-theme="light"] .bg-purple-800 .text-white {
+  color: #fff !important;
+}
+
+/* ── TaskBoard action button text (already white via bg override) ── */
+/* text-purple-200 on purple button bg stays near-white; standalone → readable dark purple */
+[data-theme="light"] [class*="bg-purple-800"] [class*="text-purple-200"],
+[data-theme="light"] [class*="bg-violet-600"] [class*="text-purple-200"] {
+  color: #f5f3ff !important;
+}
+[data-theme="light"] [class*="text-purple-200"] {
+  color: #7c3aed !important;
+}
+[data-theme="light"] [class*="text-purple-300"] {
+  color: #7c3aed !important;
+}
+/* text-cyan-200 on cyan button bg stays near-white; standalone → readable teal */
+[data-theme="light"] [class*="bg-cyan-800"] [class*="text-cyan-200"],
+[data-theme="light"] [class*="bg-cyan-700"] [class*="text-cyan-200"] {
+  color: #f0fdfa !important;
+}
+[data-theme="light"] [class*="text-cyan-200"] {
+  color: #0891b2 !important;
+}
+[data-theme="light"] [class*="text-blue-200"] {
+  color: #1d4ed8 !important;
+}
+[data-theme="light"] [class*="text-red-300"] {
+  color: #dc2626 !important;
+}
+
+/* ── TaskBoard diff text colors for light mode readability ── */
+[data-theme="light"] [class*="text-green-400"] {
+  color: #16a34a !important;
+}
+[data-theme="light"] [class*="text-red-400"] {
+  color: #dc2626 !important;
+}
+[data-theme="light"] [class*="text-cyan-400"] {
+  color: #0891b2 !important;
+}
+
+/* ── TaskBoard type badge dark backgrounds → light tints ── */
+[data-theme="light"] [class*="bg-cyan-900"] {
+  background-color: #cffafe !important;
+}
+[data-theme="light"] [class*="bg-pink-900"] {
+  background-color: #fce7f3 !important;
+}
+[data-theme="light"] [class*="bg-indigo-900"] {
+  background-color: #e0e7ff !important;
+}
+[data-theme="light"] [class*="bg-orange-900"] {
+  background-color: #ffedd5 !important;
+}
+[data-theme="light"] [class*="bg-teal-900"] {
+  background-color: #ccfbf1 !important;
+}
+
+/* ── Type badge text: light-300 → darker for readability ── */
+[data-theme="light"] [class*="text-pink-300"] {
+  color: #db2777 !important;
+}
+[data-theme="light"] [class*="text-indigo-300"] {
+  color: #4f46e5 !important;
+}
+[data-theme="light"] [class*="text-teal-300"] {
+  color: #0d9488 !important;
+}
+[data-theme="light"] [class*="text-orange-300"] {
+  color: #c2410c !important;
+}
+
+/* ── Hover overrides for slate action buttons ── */
+[data-theme="light"] [class*="hover\\:bg-slate-600"]:hover {
+  background-color: rgba(195, 185, 165, 0.4) !important;
+}
+
+/* ── Delete button bg-red-900/60 ── */
+[data-theme="light"] [class*="bg-red-900\\/60"],
+[data-theme="light"] [class*="bg-red-900/60"] {
+  background-color: rgba(254, 226, 226, 0.7) !important;
+}
+[data-theme="light"] [class*="hover\\:bg-red-800"]:hover {
+  background-color: #fecaca !important;
+}
+
+/* ── Cyan toggle (show all tasks) ── */
+[data-theme="light"] [class*="bg-cyan-900\\/40"],
+[data-theme="light"] [class*="bg-cyan-900/40"] {
+  background-color: rgba(207, 250, 254, 0.5) !important;
+}
+[data-theme="light"] [class*="bg-cyan-900\\/60"],
+[data-theme="light"] [class*="bg-cyan-900/60"] {
+  background-color: rgba(207, 250, 254, 0.7) !important;
+}
+[data-theme="light"] .border-cyan-600 {
+  border-color: #06b6d4 !important;
+}
+[data-theme="light"] [class*="text-cyan-100"] {
+  color: #0891b2 !important;
+}
+
+/* ── Hidden task card border ── */
+[data-theme="light"] [class*="border-cyan-700"] {
+  border-color: #67e8f9 !important;
+}
+[data-theme="light"] [class*="hover\\:border-cyan-600"]:hover {
+  border-color: #22d3ee !important;
+}
+[data-theme="light"] [class*="bg-slate-800\\/80"],
+[data-theme="light"] [class*="bg-slate-800/80"] {
+  background-color: var(--th-bg-surface) !important;
+}
+
+/* ── Hover border overrides ── */
+[data-theme="light"] [class*="hover\\:border-slate-600"]:hover {
+  border-color: rgba(180, 170, 150, 0.5) !important;
+}
+
+/* ── Dashboard: XP bar, glass effects for light ── */
+[data-theme="light"] [class*="bg-white\\/\\[0.04\\]"],
+[data-theme="light"] [class*="bg-white/[0.04]"] {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+[data-theme="light"] [class*="border-white\\/\\[0.08\\]"],
+[data-theme="light"] [class*="border-white/[0.08]"] {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+[data-theme="light"] [class*="bg-slate-800\\/80"],
+[data-theme="light"] [class*="bg-slate-800/80"] {
+  background-color: rgba(200, 190, 170, 0.4) !important;
+}
+
+/* ── ReportHistory & AgentStatusPanel modal backgrounds ── */
+[data-theme="light"] [class*="shadow-emerald-500\\/10"],
+[data-theme="light"] [class*="shadow-emerald-500/10"] {
+  --tw-shadow-color: rgba(16, 185, 129, 0.05) !important;
+}
+[data-theme="light"] [class*="shadow-blue-500\\/10"],
+[data-theme="light"] [class*="shadow-blue-500/10"] {
+  --tw-shadow-color: rgba(59, 130, 246, 0.05) !important;
+}
+[data-theme="light"] [class*="border-emerald-500\\/30"],
+[data-theme="light"] [class*="border-emerald-500/30"] {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+[data-theme="light"] [class*="border-blue-500\\/30"],
+[data-theme="light"] [class*="border-blue-500/30"] {
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+[data-theme="light"] [class*="border-slate-700\\/50"],
+[data-theme="light"] [class*="border-slate-700/50"] {
+  border-color: var(--th-border) !important;
+}
+
+/* ── TerminalPanel: status badge tints for light mode ── */
+[data-theme="light"] [class*="bg-amber-500\\/20"],
+[data-theme="light"] [class*="bg-amber-500/20"] {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+[data-theme="light"] [class*="bg-purple-500\\/20"],
+[data-theme="light"] [class*="bg-purple-500/20"] {
+  background-color: rgba(139, 92, 246, 0.12) !important;
+}
+[data-theme="light"] [class*="bg-green-500\\/20"],
+[data-theme="light"] [class*="bg-green-500/20"] {
+  background-color: rgba(34, 197, 94, 0.12) !important;
+}
+[data-theme="light"] [class*="bg-slate-500\\/20"],
+[data-theme="light"] [class*="bg-slate-500/20"] {
+  background-color: rgba(100, 116, 139, 0.12) !important;
+}
+[data-theme="light"] [class*="bg-blue-500\\/20"],
+[data-theme="light"] [class*="bg-blue-500/20"] {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+[data-theme="light"] [class*="bg-red-500\\/20"],
+[data-theme="light"] [class*="bg-red-500/20"] {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+
+/* ── TerminalPanel: status badge text for light mode readability ── */
+[data-theme="light"] [class*="text-amber-400"] {
+  color: #b45309 !important;
+}
+[data-theme="light"] [class*="text-purple-400"] {
+  color: #7c3aed !important;
+}
+[data-theme="light"] [class*="text-green-400"] {
+  color: #16a34a !important;
+}
+[data-theme="light"] [class*="text-slate-400"] {
+  color: var(--th-text-secondary) !important;
+}
+[data-theme="light"] [class*="text-blue-400"] {
+  color: #2563eb !important;
+}
+[data-theme="light"] [class*="text-red-400"] {
+  color: #dc2626 !important;
+}
+
+/* ── TerminalPanel: status badge borders ── */
+[data-theme="light"] [class*="border-amber-500\\/40"],
+[data-theme="light"] [class*="border-amber-500/40"] {
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+[data-theme="light"] [class*="border-purple-500\\/40"],
+[data-theme="light"] [class*="border-purple-500/40"] {
+  border-color: rgba(139, 92, 246, 0.3) !important;
+}
+[data-theme="light"] [class*="border-green-500\\/40"],
+[data-theme="light"] [class*="border-green-500/40"] {
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+[data-theme="light"] [class*="border-slate-500\\/40"],
+[data-theme="light"] [class*="border-slate-500/40"] {
+  border-color: rgba(100, 116, 139, 0.3) !important;
+}
+[data-theme="light"] [class*="border-blue-500\\/40"],
+[data-theme="light"] [class*="border-blue-500/40"] {
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+[data-theme="light"] [class*="border-red-500\\/40"],
+[data-theme="light"] [class*="border-red-500/40"] {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+/* ── Amber banner tints for light mode ── */
+[data-theme="light"] [class*="bg-amber-500\\/10"],
+[data-theme="light"] [class*="bg-amber-500/10"] {
+  background-color: rgba(245, 158, 11, 0.08) !important;
+}
+[data-theme="light"] [class*="border-amber-500\\/30"],
+[data-theme="light"] [class*="border-amber-500/30"] {
+  border-color: rgba(217, 119, 6, 0.25) !important;
+}
+[data-theme="light"] [class*="border-amber-300\\/40"],
+[data-theme="light"] [class*="border-amber-300/40"] {
+  border-color: rgba(252, 211, 77, 0.35) !important;
+}
+[data-theme="light"] [class*="bg-amber-200\\/10"],
+[data-theme="light"] [class*="bg-amber-200/10"] {
+  background-color: rgba(253, 230, 138, 0.2) !important;
+}
+[data-theme="light"] [class*="bg-amber-200\\/20"],
+[data-theme="light"] [class*="bg-amber-200/20"] {
+  background-color: rgba(253, 230, 138, 0.3) !important;
+}
+[data-theme="light"] [class*="text-amber-300\\/90"],
+[data-theme="light"] [class*="text-amber-300/90"] {
+  color: #92400e !important;
+}
+[data-theme="light"] [class*="text-amber-200\\/90"],
+[data-theme="light"] [class*="text-amber-200/90"] {
+  color: #a16207 !important;
+}
+
+/* ── Blue-800 button for resume task ── */
+[data-theme="light"] .bg-blue-800 {
+  background-color: #1d4ed8 !important;
+  color: #fff !important;
+}
+
+/* ── Disabled button: disabled:bg-slate-700 ── */
+[data-theme="light"] [class*="disabled\\:bg-slate-700"]:disabled {
+  background-color: rgba(200, 190, 170, 0.3) !important;
+}
+[data-theme="light"] [class*="disabled\\:text-slate-400"]:disabled {
+  color: var(--th-text-muted) !important;
+}
+
+/* ── Violet border overrides (header buttons) ── */
+[data-theme="light"] [class*="border-violet-500\\/30"],
+[data-theme="light"] [class*="border-violet-500/30"] {
+  border-color: rgba(139, 92, 246, 0.3) !important;
+}
+[data-theme="light"] [class*="bg-violet-600\\/20"],
+[data-theme="light"] [class*="bg-violet-600/20"] {
+  background-color: rgba(139, 92, 246, 0.1) !important;
+}
+[data-theme="light"] [class*="bg-violet-600\\/30"],
+[data-theme="light"] [class*="bg-violet-600/30"] {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+}
+[data-theme="light"] [class*="text-violet-400"] {
+  color: #7c3aed !important;
+}
+
+/* ── TerminalPanel: hardcoded hex dark backgrounds ── */
+[data-theme="light"] .bg-\[\#0d1117\],
+[data-theme="light"] [style*="background-color: #0d1117"],
+[data-theme="light"] [style*="background: #0d1117"] {
+  background-color: var(--th-bg-primary) !important;
+}
+[data-theme="light"] .bg-\[\#161b22\],
+[data-theme="light"] [style*="background-color: #161b22"],
+[data-theme="light"] [style*="background: #161b22"] {
+  background-color: var(--th-bg-surface) !important;
+}
+
+/* ── TerminalPanel: cyan tab / tool-hint overrides ── */
+[data-theme="light"] [class*="bg-cyan-700\\/30"],
+[data-theme="light"] [class*="bg-cyan-700/30"] {
+  background-color: rgba(14, 116, 144, 0.12) !important;
+}
+[data-theme="light"] [class*="bg-cyan-900\\/50"],
+[data-theme="light"] [class*="bg-cyan-900/50"] {
+  background-color: rgba(207, 250, 254, 0.5) !important;
+}
+[data-theme="light"] [class*="text-green-300"] {
+  color: #16a34a !important;
+}
+[data-theme="light"] [class*="text-emerald-300"] {
+  color: #059669 !important;
+}
+[data-theme="light"] [class*="text-rose-300"] {
+  color: #e11d48 !important;
+}
+
+/* ── Skill learning modal / memory unlearn readability (light mode) ── */
+[data-theme="light"] .skills-learn-modal {
+  background-color: rgba(34, 27, 16, 0.42) !important;
+}
+
+[data-theme="light"] .skills-learn-modal-card {
+  background-color: rgba(255, 251, 244, 0.97) !important;
+  border-color: rgba(168, 146, 116, 0.48) !important;
+  box-shadow: 0 24px 52px rgba(28, 20, 10, 0.22) !important;
+}
+
+[data-theme="light"] .skills-learn-modal-card [class*="text-slate-500"] {
+  color: #5c5247 !important;
+}
+[data-theme="light"] .skills-learn-modal-card [class*="text-slate-400"] {
+  color: #4b433a !important;
+}
+[data-theme="light"] .skills-learn-modal-card [class*="text-slate-300"],
+[data-theme="light"] .skills-learn-modal-card .text-white {
+  color: #201b15 !important;
+}
+
+[data-theme="light"] .skill-history-panel {
+  background-color: rgba(255, 252, 246, 0.86) !important;
+  border-color: rgba(178, 159, 132, 0.44) !important;
+}
+
+[data-theme="light"] .skill-history-panel .skill-history-card {
+  background-color: rgba(255, 253, 248, 0.9) !important;
+  border-color: rgba(188, 168, 142, 0.46) !important;
+}
+
+[data-theme="light"] .skill-history-panel .skill-history-meta {
+  color: #4b433a !important;
+}
+[data-theme="light"] .skill-history-panel .skill-history-time {
+  color: #685f55 !important;
+}
+
+[data-theme="light"] .skills-learn-modal-card .skill-unlearn-btn:not(:disabled),
+[data-theme="light"] .skill-history-panel .skill-unlearn-btn:not(:disabled) {
+  color: #be123c !important;
+  border-color: rgba(190, 24, 93, 0.45) !important;
+  background-color: rgba(244, 63, 94, 0.16) !important;
+  font-weight: 700;
+}
+
+[data-theme="light"] .skills-learn-modal-card .skill-unlearn-btn:not(:disabled):hover,
+[data-theme="light"] .skill-history-panel .skill-unlearn-btn:not(:disabled):hover {
+  background-color: rgba(244, 63, 94, 0.24) !important;
+}
+
+[data-theme="light"] .skills-learn-modal-card .skill-unlearn-btn:disabled,
+[data-theme="light"] .skill-history-panel .skill-unlearn-btn:disabled {
+  border-color: rgba(191, 180, 160, 0.45) !important;
+  background-color: rgba(205, 196, 178, 0.22) !important;
+  color: #93897d !important;
+}
+
+[data-theme="light"] .skill-history-center-card {
+  background-color: rgba(255, 249, 243, 0.98) !important;
+  border-color: rgba(190, 24, 93, 0.36) !important;
+}
+
+[data-theme="light"] .skill-history-center-label {
+  color: #9f1239 !important;
+}
+
+[data-theme="light"] .skills-learn-modal-card .unlearn-hit-text,
+[data-theme="light"] .skill-history-panel .unlearn-hit-text-sm,
+[data-theme="light"] .skill-history-panel .unlearn-hit-text-center {
+  color: #b45309 !important;
+  text-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.7),
+    0 1px 3px rgba(68, 41, 5, 0.25);
+}
+
+/* ── Custom Skill buttons / modal (light mode) ── */
+[data-theme="light"] .custom-skill-add-btn {
+  background-color: rgba(109, 40, 217, 0.12) !important;
+  border-color: rgba(109, 40, 217, 0.35) !important;
+  color: #5b21b6 !important;
+  font-weight: 600;
+}
+[data-theme="light"] .custom-skill-add-btn:hover {
+  background-color: rgba(109, 40, 217, 0.2) !important;
+}
+
+[data-theme="light"] .custom-skill-modal {
+  background-color: rgba(34, 20, 50, 0.42) !important;
+}
+[data-theme="light"] .custom-skill-modal-card {
+  background-color: rgba(255, 251, 248, 0.97) !important;
+  border-color: rgba(139, 92, 246, 0.35) !important;
+  box-shadow: 0 24px 52px rgba(28, 16, 40, 0.22) !important;
+}
+[data-theme="light"] .custom-skill-modal-card [class*="text-violet-200"],
+[data-theme="light"] .custom-skill-modal-card [class*="text-violet-300"] {
+  color: #5b21b6 !important;
+}
+[data-theme="light"] .custom-skill-modal-card [class*="text-slate-300"],
+[data-theme="light"] .custom-skill-modal-card .text-white {
+  color: #1e1b2e !important;
+}
+[data-theme="light"] .custom-skill-modal-card [class*="text-slate-400"] {
+  color: #4a4260 !important;
+}
+[data-theme="light"] .custom-skill-modal-card [class*="text-slate-500"] {
+  color: #6b6280 !important;
+}
+[data-theme="light"] .custom-skill-modal-card input {
+  background-color: rgba(255, 251, 248, 0.9) !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
+  color: #1e1b2e !important;
+}
+[data-theme="light"] .custom-skill-modal-card .custom-skill-submit-btn {
+  background-color: rgba(109, 40, 217, 0.15) !important;
+  border-color: rgba(109, 40, 217, 0.45) !important;
+  color: #5b21b6 !important;
+  font-weight: 700;
+}
+[data-theme="light"] .custom-skill-modal-card .custom-skill-submit-btn:hover:not(:disabled) {
+  background-color: rgba(109, 40, 217, 0.25) !important;
+}
+[data-theme="light"] .custom-skill-modal-card .custom-skill-submit-btn:disabled {
+  background-color: rgba(180, 170, 195, 0.2) !important;
+  border-color: rgba(180, 170, 195, 0.35) !important;
+  color: #9f96b0 !important;
+}
+
+/* Custom Skill list cards (light mode) */
+[data-theme="light"] .custom-skill-list {
+  background-color: rgba(139, 92, 246, 0.06) !important;
+  border-color: rgba(139, 92, 246, 0.25) !important;
+}
+[data-theme="light"] .custom-skill-list [class*="text-violet-200"] {
+  color: #5b21b6 !important;
+}
+[data-theme="light"] .custom-skill-list .custom-skill-card {
+  background-color: rgba(255, 251, 248, 0.85) !important;
+  border-color: rgba(139, 92, 246, 0.2) !important;
+}
+[data-theme="light"] .custom-skill-list .custom-skill-card .text-white {
+  color: #1e1b2e !important;
+}
+
+/* Classroom animation overlay (light mode) */
+[data-theme="light"] .classroom-overlay {
+  background-color: rgba(40, 30, 55, 0.5) !important;
+}
+[data-theme="light"] .classroom-scene {
+  background: linear-gradient(180deg, #e8e0f0 0%, #d8d0e5 60%, #f0ecf5 100%) !important;
+}
+[data-theme="light"] .classroom-blackboard {
+  background: linear-gradient(145deg, #2d5a4e, #1e4a3e) !important;
+}
+[data-theme="light"] .classroom-provider-label {
+  color: #4a4260 !important;
+}
+
+/* ── Selection highlight override for terminal ── */
+[data-theme="light"] [class*="selection\\:bg-green-800\\/40"] ::selection {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+/* ── Terminal output text ── */
+.terminal-panel-shell {
+  background-color: var(--bg-base);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+.terminal-panel-header,
+.terminal-panel-strip,
+.terminal-panel-footer {
+  background-color: var(--bg-surface-solid);
+  border-color: var(--border);
+}
+.terminal-panel-body {
+  background: var(--bg-base);
+}
+[data-theme="light"] .terminal-panel-shell {
+  background-color: var(--bg-base);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+[data-theme="light"] .terminal-panel-header,
+[data-theme="light"] .terminal-panel-strip,
+[data-theme="light"] .terminal-panel-footer {
+  background-color: var(--bg-surface-solid);
+  border-color: var(--border);
+}
+.terminal-log-line {
+  font-size: 11px;
+  line-height: 1.45;
+}
+.terminal-output-text {
+  color: #bbf7d0;
+  font-size: 13px;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+}
+.terminal-output-text ::selection {
+  background-color: rgba(16, 185, 129, 0.15);
+}
+[data-theme="dark"] .terminal-output-text {
+  color: #dcfce7;
+}
+[data-theme="dark"] .terminal-output-text ::selection {
+  background-color: rgba(22, 101, 52, 0.4);
+}
+
+/* Scrollbar — handled via CSS variables in part01 */
+
+/* ─── Theme Toggle Button ─── */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--th-border);
+  background: var(--th-bg-surface);
+  color: var(--th-text-secondary);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.theme-toggle-btn:hover {
+  background: var(--th-bg-surface-hover);
+  border-color: var(--th-border-strong);
+  transform: scale(1.08);
+}
+[data-theme="dark"] .theme-toggle-btn {
+  color: #a5b4fc;
+}
+[data-theme="dark"] .theme-toggle-btn:hover {
+  color: #c7d2fe;
+  box-shadow: 0 0 12px rgba(165, 180, 252, 0.2);
+}
+[data-theme="light"] .theme-toggle-btn {
+  color: #d97706;
+}
+[data-theme="light"] .theme-toggle-btn:hover {
+  color: #b45309;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+}
+.theme-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: theme-icon-enter 0.3s ease;
+}

@@ -1,0 +1,16 @@
+[Phase: Screenplay — 剧本 & 故事板]
+- 基于已批准的概念，创建详细镜头列表。
+- 从 video_output/concept.md 读取Prompt-Ready Descriptions。
+- 首先创建 `character_descriptions` 对象: 角色名 → 从concept.md逐字复制的提示词就绪描述。
+- 每个镜头包含: 场景描述、ComfyUI正向提示词、负向提示词、motion_prompt、characters、duration_seconds。
+- 每个镜头的positive_prompt必须包含 `character_descriptions` 中的基本描述。可以省略与场景时代/背景矛盾的服装行（例：外交场景省略军装细节，军事场景省略西装细节）。其他外貌细节（面部、体型、肤色、姿势、比例）必须逐字保留。不得改写或转述保留的细节。
+- 关键: 每个positive_prompt必须以角色的真实姓名开头（例: 'Adolf Hitler, claymation figure, ...'）。姓名对于ComfyUI生成可识别的结果至关重要。
+- 时代/场景特定的服装或状态变化应替换省略的服装行和/或追加在基本描述之后（例：去除军装行 + `, dark gray diplomatic coat, trembling hands`）。
+- motion_prompt (LTX I2V 指南):
+  - 仅描述动作和运动 — 不要重复图像中已有的静态元素（背景、角色外形）。
+  - 包含: 角色动作（现在时态: "走动"、"转身"）、镜头运动（"镜头缓慢推进"）、环境动态（"烟雾升起"）、音效描述（"远处炮声隆隆"）
+  - 示例: "人物缓缓将颤抖的手伸向地图。镜头保持稳定并微微推进。桌上纸张轻轻沙沙作响。"
+  - 注意: 这些指南针对LTX-Video模型优化。
+- 每个视频片段最长约10秒（24fps下最多257帧）。请据此规划duration_seconds（3-10秒）和镜头数量。
+- 将镜头列表保存到 video_output/shot_list.json。
+- 格式: {"character_descriptions": {"名称": "基本外形..."}, "shots": [{"shot": 1, "description": "...", "positive_prompt": "...", "negative_prompt": "...", "motion_prompt": "...", "characters": ["名称"], "duration_seconds": 8}]}

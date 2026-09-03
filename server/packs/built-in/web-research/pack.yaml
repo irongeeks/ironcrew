@@ -1,0 +1,217 @@
+pack:
+  key: web_research_report
+  schema_version: 1
+  name:
+    en: "Web Research Report"
+    ko: "웹 리서치 보고서"
+    ja: "ウェブリサーチレポート"
+    zh: "网络研究报告"
+    de: "Web-Recherchebericht"
+  version: "2.0.0"
+  description:
+    en: "5-phase fan-out/fan-in research pipeline with parallel crawling, per-phase model routing, and citation verification"
+    ko: "병렬 크롤링, 단계별 모델 라우팅, 인용 검증을 포함한 5단계 팬아웃/팬인 리서치 파이프라인"
+  icon: "🔬"
+  agent_routing: department
+
+input:
+  required:
+    - key: topic
+      type: string
+      label:
+        en: "Research Topic"
+        ko: "리서치 주제"
+    - key: time_range
+      type: string
+      label:
+        en: "Time Range"
+        ko: "시간 범위"
+  optional:
+    - key: source_policy
+      type: string
+      label:
+        en: "Source Policy"
+        ko: "소스 정책"
+    - key: language
+      type: string
+      label:
+        en: "Output Language"
+        ko: "출력 언어"
+    - key: depth
+      type: string
+      label:
+        en: "Research Depth"
+        ko: "리서치 깊이"
+      default: "standard"
+      enum:
+        - none
+        - quick
+        - standard
+        - deep
+
+phases:
+  - id: planning
+    department: strategy
+    guidance: "guidance/planning.{lang}.md"
+    outputs:
+      - name: search_strategy
+        type: json
+        path: research_output/search_strategy.json
+        schema: schemas/search-strategy.schema.json
+
+  - id: crawl
+    department: fieldwork
+    guidance: "guidance/crawl.{lang}.md"
+    capability: web_search
+    capability_mode: agent
+    fan_out:
+      count_from: planning.search_strategy.sub_questions.length
+    skip_when: "input.depth == 'none'"
+    inputs:
+      - name: strategy
+        from: planning.search_strategy
+    outputs:
+      - name: findings
+        type: markdown
+        path: "research_output/findings/crawler_{n}.md"
+
+  - id: synthesis
+    department: strategy
+    guidance: "guidance/synthesis.{lang}.md"
+    inputs:
+      - name: findings
+        from: crawl.findings
+      - name: strategy
+        from: planning.search_strategy
+    outputs:
+      - name: draft_report
+        type: markdown
+        path: research_output/draft_report.md
+
+  - id: fact_check
+    department: verification
+    guidance: "guidance/fact-check.{lang}.md"
+    skip_when: "input.depth == 'quick'"
+    inputs:
+      - name: draft
+        from: synthesis.draft_report
+      - name: strategy
+        from: planning.search_strategy
+    outputs:
+      - name: fact_check_results
+        type: json
+        path: research_output/fact_check_results.json
+        schema: schemas/fact-check-results.schema.json
+
+  - id: final_report
+    department: verification
+    guidance: "guidance/final-report.{lang}.md"
+    inputs:
+      - name: draft
+        from: synthesis.draft_report
+      - name: fact_check
+        from: fact_check.fact_check_results
+    outputs:
+      - name: final_report
+        type: markdown
+        path: research_output/final_report.md
+
+cost_profile:
+  max_rounds: 5
+  default_reasoning: high
+
+qa_rules:
+  max_auto_fix_passes: 2
+
+ui:
+  slug: "WR"
+  label:
+    en: "Web Research"
+    ko: "웹 리서치"
+  summary:
+    en: "5-phase research pipeline with parallel crawling and fact-checking"
+    ko: "병렬 크롤링 및 팩트체크를 포함한 5단계 리서치 파이프라인"
+  departments:
+    strategy:
+      name:
+        en: "Research Strategy"
+        ko: "리서치 전략"
+      icon: "🧭"
+      color: "#f59e0b"
+    fieldwork:
+      name:
+        en: "Field Research"
+        ko: "현장 조사"
+      icon: "🔎"
+      color: "#3b82f6"
+    verification:
+      name:
+        en: "Verification"
+        ko: "검증"
+      icon: "✅"
+      color: "#ef4444"
+
+staff:
+  name_pool:
+    - name: Sage
+      role: team_leader
+      department: strategy
+      personality: "Research strategy lead. Defines research questions, evaluates source credibility, and synthesizes findings into coherent narratives."
+      name_ko: "세이지"
+      name_ja: "セージ"
+      name_zh: "Sage"
+    - name: Scout
+      role: agent
+      department: strategy
+      personality: "Research strategist. Decomposes topics into MECE sub-questions and designs search strategies."
+      name_ko: "스카우트"
+      name_ja: "スカウト"
+      name_zh: "Scout"
+    - name: Crawl
+      role: agent
+      department: fieldwork
+      personality: "Web crawler. Executes targeted searches, extracts key findings, and documents sources with citations."
+      name_ko: "크롤"
+      name_ja: "クロール"
+      name_zh: "Crawl"
+    - name: Archive
+      role: agent
+      department: fieldwork
+      personality: "Web crawler. Specializes in deep-dive research on academic and archival sources."
+      name_ko: "아카이브"
+      name_ja: "アーカイブ"
+      name_zh: "Archive"
+    - name: Spider
+      role: agent
+      department: fieldwork
+      personality: "Web crawler. Fast parallel search execution across news and media sources."
+      name_ko: "스파이더"
+      name_ja: "スパイダー"
+      name_zh: "Spider"
+    - name: Beacon
+      role: agent
+      department: fieldwork
+      personality: "Web crawler. Focuses on industry reports and expert opinion sources."
+      name_ko: "비콘"
+      name_ja: "ビーコン"
+      name_zh: "Beacon"
+    - name: Index
+      role: agent
+      department: fieldwork
+      personality: "Web crawler. Catalogs and cross-references findings across multiple search threads."
+      name_ko: "인덱스"
+      name_ja: "インデックス"
+      name_zh: "Index"
+    - name: Verify
+      role: agent
+      department: verification
+      personality: "Fact-checker. Validates claims against primary sources, checks citation accuracy, and flags unsupported assertions."
+      name_ko: "베리파이"
+      name_ja: "ベリファイ"
+      name_zh: "Verify"
+  room_theme:
+    floor1: "#e2eef6"
+    floor2: "#d8e7f1"
+    wall: "#55728d"
+    accent: "#5f95c6"
+  default_workspace: "research_output"

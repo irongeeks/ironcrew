@@ -1,0 +1,23 @@
+import fs from "node:fs";
+import path from "node:path";
+
+process.env.NODE_ENV = "test";
+
+// Force isolated SQLite/log paths for server-side Vitest runs.
+const workerSuffix = process.env.VITEST_WORKER_ID || String(process.pid);
+const runtimeDir = path.resolve(process.cwd(), ".tmp", "vitest-runtime");
+const dbPath = path.join(runtimeDir, `octooffice.vitest.${workerSuffix}.sqlite`);
+const logsDir = path.join(runtimeDir, `logs-${workerSuffix}`);
+
+try {
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  fs.mkdirSync(logsDir, { recursive: true });
+  for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+    fs.rmSync(`${dbPath}${suffix}`, { force: true });
+  }
+} catch {
+  // ignore setup filesystem errors; tests will surface runtime issues
+}
+
+process.env.DB_PATH = dbPath;
+process.env.LOGS_DIR = logsDir;

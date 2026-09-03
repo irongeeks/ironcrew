@@ -1,0 +1,40 @@
+name: Question
+description: Ask a question about OctoOffice usage, setup, or internals.
+title: "[Question] "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when you have a question that isn't a bug report or feature request.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to do? Provide relevant background.
+      placeholder: e.g. I'm setting up OpenClaw with Telegram and...
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What do you want to know?
+      placeholder: Your question here.
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What I've Tried
+      description: Anything you already looked into or attempted.
+      placeholder: |
+        - Checked README section on ...
+        - Ran `pnpm dev:local` and saw ...
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: App version/tag/commit hash (if relevant).
+      placeholder: v1.2.0 / main@abcdef1

@@ -1,0 +1,16 @@
+[Phase: Screenplay — 脚本 & ストーリーボード]
+- 承認されたコンセプトを基に詳細なショットリストを作成してください。
+- video_output/concept.md のPrompt-Ready Descriptionsを読み込んでください。
+- まず `character_descriptions` オブジェクトを作成: キャラクター名 → concept.mdのプロンプトレディ説明をそのままコピー。
+- 各ショット: シーン説明、ComfyUIポジティブプロンプト、ネガティブプロンプト、motion_prompt、characters、duration_seconds。
+- 各ショットのpositive_promptには `character_descriptions` の基本説明を含めてください。シーンの時代/文脈と矛盾する衣装ラインは省略可能です（例: 外交シーンでは軍服詳細を省略、軍事シーンではスーツ詳細を省略）。その他の外見詳細（顔、体格、肌色、姿勢、スケール）は必ずそのまま保持してください。保持された詳細を言い換えないでください。
+- 重要: 全てのpositive_promptはキャラクターの実名で始まる必要があります（例: 'Adolf Hitler, claymation figure, ...'）。名前はComfyUIが認識可能な結果を生成するために不可欠です。
+- 時代/シーン固有の衣装や状態変化は省略した衣装ラインを置換するか、基本説明の後に追加（例: 軍服ライン除外 + `, dark gray diplomatic coat, trembling hands`）。
+- motion_prompt (LTX I2V ガイドライン):
+  - 動作とアクションのみ記述 — 画像にすでに存在する静的要素（背景、キャラクター外見）を繰り返さない。
+  - 含める内容: キャラクターの動き（現在時制: 「歩く」「振り向く」）、カメラの動き（「カメラがゆっくり接近」）、環境の動き（「煙が立ち上る」）、音声描写（「遠くの砲声が響く」）
+  - 例: "人物がゆっくり地図に震える手を伸ばす。カメラは微かに前進。テーブルの紙がかすかに擦れる。"
+  - 注意: これらのガイドラインはLTX-Videoモデルに最適化されています。
+- 各ビデオクリップは最大約10秒（24fpsで最大257フレーム）です。duration_seconds（3-10秒）とショット数を計画してください。
+- ショットリストを video_output/shot_list.json に保存してください。
+- 形式: {"character_descriptions": {"名前": "基本外見..."}, "shots": [{"shot": 1, "description": "...", "positive_prompt": "...", "negative_prompt": "...", "motion_prompt": "...", "characters": ["名前"], "duration_seconds": 8}]}

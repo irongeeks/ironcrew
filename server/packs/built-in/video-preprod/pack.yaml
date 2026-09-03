@@ -1,0 +1,264 @@
+pack:
+  key: video_preprod
+  schema_version: 1
+  name:
+    en: "Video Pre-Production"
+    ko: "영상 사전제작"
+    ja: "映像プリプロダクション"
+    zh: "视频前期制作"
+    de: "Video-Vorproduktion"
+  version: "2.0.0"
+  description:
+    en: "7-phase autonomous video production pipeline using ComfyUI for image and video generation"
+    ko: "ComfyUI 기반 이미지/비디오 생성을 활용한 7단계 자율 영상 제작 파이프라인"
+  icon: "🎬"
+  agent_routing: department
+
+input:
+  required:
+    - key: topic
+      type: string
+      label:
+        en: "Topic"
+        ko: "주제"
+    - key: platform
+      type: string
+      label:
+        en: "Platform"
+        ko: "플랫폼"
+    - key: duration
+      type: string
+      label:
+        en: "Duration"
+        ko: "영상 길이"
+  optional:
+    - key: style
+      type: string
+      label:
+        en: "Visual Style"
+        ko: "비주얼 스타일"
+    - key: mood
+      type: string
+      label:
+        en: "Mood"
+        ko: "분위기"
+    - key: target_audience
+      type: string
+      label:
+        en: "Target Audience"
+        ko: "대상 시청자"
+    - key: cta
+      type: string
+      label:
+        en: "Call to Action"
+        ko: "행동 유도 문구"
+    - key: reference_description
+      type: string
+      label:
+        en: "Reference Description"
+        ko: "참고 영상 설명"
+    - key: max_regen_cycles
+      type: number
+      label:
+        en: "Max Regeneration Cycles"
+        ko: "최대 재생성 횟수"
+      default: "2"
+
+phases:
+  - id: concept
+    department: creative
+    guidance: "guidance/concept.{lang}.md"
+    gate: user_approval
+    outputs:
+      - name: concept_doc
+        type: markdown
+        path: video_output/concept.md
+      - name: character_sheet
+        type: json
+        path: video_output/characters.json
+
+  - id: screenplay
+    department: screenwriting
+    guidance: "guidance/screenplay.{lang}.md"
+    inputs:
+      - name: concept
+        from: concept.concept_doc
+      - name: characters
+        from: concept.character_sheet
+    outputs:
+      - name: shot_list
+        type: json
+        path: video_output/shot_list.json
+        schema: schemas/shot-list.schema.json
+
+  - id: image_generation
+    department: production
+    guidance: "guidance/image_generation.{lang}.md"
+    capability: text2img
+    capability_mode: hybrid
+    fan_out:
+      count_from: screenplay.shot_list.scenes.length
+    inputs:
+      - name: shot_list
+        from: screenplay.shot_list
+    outputs:
+      - name: image
+        type: image
+        path: "video_output/images/scene_{n}.png"
+
+  - id: image_review
+    department: quality
+    guidance: "guidance/image_review.{lang}.md"
+    on_review_fail:
+      rerun: image_generation
+      max_passes: 2
+      flag_output: regen_flags
+    inputs:
+      - name: all_images
+        from: image_generation.image
+      - name: shot_list
+        from: screenplay.shot_list
+    outputs:
+      - name: review_result
+        type: json
+        path: video_output/image_review.json
+      - name: regen_flags
+        type: json
+        path: video_output/regen_flags.json
+
+  - id: video_generation
+    department: production
+    guidance: "guidance/video_generation.{lang}.md"
+    capability: img2video
+    capability_mode: hybrid
+    fan_out:
+      count_from: screenplay.shot_list.scenes.length
+    inputs:
+      - name: image
+        from: image_generation.image
+      - name: shot_list
+        from: screenplay.shot_list
+    outputs:
+      - name: clip
+        type: video
+        path: "video_output/clips/scene_{n}.mp4"
+
+  - id: voice_prep
+    department: production
+    guidance: "guidance/voice_prep.{lang}.md"
+    capability: text2speech
+    capability_mode: hybrid
+    fan_out:
+      count_from: screenplay.shot_list.scenes.length
+    inputs:
+      - name: shot_list
+        from: screenplay.shot_list
+    outputs:
+      - name: voiceover_audio
+        type: audio
+        path: "video_output/audio/scene_{n}.flac"
+      - name: voiceover_script
+        type: json
+        path: video_output/voiceover.json
+
+  - id: assembly
+    department: production
+    guidance: "guidance/assembly.{lang}.md"
+    inputs:
+      - name: all_clips
+        from: video_generation.clip
+      - name: all_audio
+        from: voice_prep.voiceover_audio
+      - name: voiceover
+        from: voice_prep.voiceover_script
+      - name: shot_list
+        from: screenplay.shot_list
+    outputs:
+      - name: final_video
+        type: video
+        path: video_output/final.mp4
+
+cost_profile:
+  max_rounds: 5
+  default_reasoning: medium
+
+qa_rules:
+  max_auto_fix_passes: 2
+
+ui:
+  slug: "VP"
+  label:
+    en: "Video Pre-Production"
+    ko: "영상 사전제작"
+  summary:
+    en: "7-phase video production pipeline with ComfyUI integration"
+    ko: "ComfyUI 연동 7단계 영상 제작 파이프라인"
+  departments:
+    creative:
+      name:
+        en: "Creative Direction"
+        ko: "크리에이티브 디렉션"
+      icon: "🎬"
+      color: "#f59e0b"
+    screenwriting:
+      name:
+        en: "Screenwriting"
+        ko: "각본"
+      icon: "📝"
+      color: "#8b5cf6"
+    production:
+      name:
+        en: "Production"
+        ko: "프로덕션"
+      icon: "🎥"
+      color: "#3b82f6"
+    quality:
+      name:
+        en: "Quality Review"
+        ko: "품질 리뷰"
+      icon: "🔍"
+      color: "#ef4444"
+
+staff:
+  name_pool:
+    - name: Vision
+      role: team_leader
+      department: creative
+      personality: "Creative director. Develops concepts, visual style direction, and story structure for video productions."
+      name_ko: "비전"
+      name_ja: "ビジョン"
+      name_zh: "Vision"
+    - name: Script
+      role: agent
+      department: screenwriting
+      personality: "Screenwriter. Crafts shot lists, scene structure, and dialogue with attention to visual storytelling."
+      name_ko: "스크립트"
+      name_ja: "スクリプト"
+      name_zh: "Script"
+    - name: Pixel
+      role: agent
+      department: production
+      personality: "Production specialist. Generates images and videos using ComfyUI, manages prompt engineering for visual consistency."
+      name_ko: "픽셀"
+      name_ja: "ピクセル"
+      name_zh: "Pixel"
+    - name: Clip
+      role: agent
+      department: production
+      personality: "Video assembly specialist. Combines clips, audio, and effects into cohesive final video output."
+      name_ko: "클립"
+      name_ja: "クリップ"
+      name_zh: "Clip"
+    - name: Lens
+      role: agent
+      department: quality
+      personality: "Visual QA reviewer. Evaluates scene consistency, character accuracy, and production quality across all generated assets."
+      name_ko: "렌즈"
+      name_ja: "レンズ"
+      name_zh: "Lens"
+  room_theme:
+    floor1: "#25212b"
+    floor2: "#1c1923"
+    wall: "#44405b"
+    accent: "#bc7d47"
+  default_workspace: "video_output"

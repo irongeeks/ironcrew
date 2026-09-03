@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+test-results
+playwright-report
+pnpm-lock.yaml
+octooffice.sqlite
+octooffice.sqlite-shm
+octooffice.sqlite-wal
+logs
+.octooffice
+.octooffice-worktrees
+tools/playwright-mcp
+tools/ppt_team_agent
+docs/reports/Sample_Slides

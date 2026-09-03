@@ -1,0 +1,75 @@
+[data-theme="light"] .chat-header::after {
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.2), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Class-based fallback for the prefers-reduced-motion preference.
+ * Toggled by usePrefersReducedMotion (consumed in usePixiApp). Mirrors the
+ * media-query rule above so inline `animation: pulse-glow ...` shorthands
+ * (which beat plain animation-duration in the cascade) are also neutralized.
+ */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ─── Sidebar nav item active indicator ─── */
+.sidebar-nav-active {
+  position: relative;
+}
+.sidebar-nav-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 25%;
+  height: 50%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #3b82f6;
+}
+[data-theme="light"] .sidebar-nav-active::before {
+  background: #2563eb;
+}
+
+/* ─── Settings toggle switch improvements ─── */
+.toggle-switch {
+  transition: background-color 0.2s ease;
+}
+.toggle-switch-knob {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Sidebar: smoother transitions ─── */
+.sidebar-dept-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.375rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  transition: background-color 0.15s ease;
+  color: var(--th-text-secondary);
+}
+.sidebar-dept-row:hover {
+  background: var(--th-bg-surface-hover);
+}
+
+/* ─── Task card hover enhancement ─── */
+[data-theme="light"] .task-card-hover:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}

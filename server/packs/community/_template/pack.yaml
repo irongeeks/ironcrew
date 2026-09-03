@@ -1,0 +1,162 @@
+# ============================================================================
+# OctoOffice Community Pack Template
+# ============================================================================
+# Copy this directory to create your own pack:
+#   cp -r server/packs/community/_template server/packs/community/my_pack
+#
+# Then edit this file and the guidance/ files to define your workflow.
+# Restart the server to load your pack — zero code changes needed.
+#
+# Full guide: docs/creating-community-packs.md
+# Schema reference: server/packs/pack-schema.ts
+# ============================================================================
+
+pack:
+  key:
+    _template # CHANGE THIS — must start with a letter (a-z), not underscore
+    # The _template key is intentionally invalid so this pack
+    # is never loaded by accident. Rename it to your own key.
+  schema_version: 1
+  name:
+    en: "My Custom Workflow" # Add more languages: ko, ja, zh, de
+  version: "1.0.0"
+  description:
+    en: "A 3-phase workflow: plan, execute, review"
+  icon: "🚀"
+  agent_routing: department # "department" (one agent per dept) or "single"
+  # shared_guidance: "guidance/shared.{lang}.md"  # Optional: common content for all phases
+
+# ---------------------------------------------------------------------------
+# User Inputs — what the user fills in when creating a task with this pack
+# ---------------------------------------------------------------------------
+input:
+  required:
+    - key: goal
+      type: string
+      label:
+        en: "Goal"
+  optional:
+    - key: constraints
+      type: string
+      label:
+        en: "Constraints"
+
+# ---------------------------------------------------------------------------
+# Phases — the workflow steps (order is inferred from inputs.from references)
+# ---------------------------------------------------------------------------
+phases:
+  # Phase 1: Planning (root — no inputs, runs first)
+  - id: planning
+    department: planning
+    guidance: "guidance/planning.{lang}.md"
+    gate: user_approval # Pause for user review before continuing
+    outputs:
+      - name: plan
+        type: markdown
+        path: output/plan.md
+
+  # Phase 2: Execution (depends on planning via input reference)
+  - id: execution
+    department: dev
+    guidance: "guidance/execution.{lang}.md"
+    inputs:
+      - name: plan
+        from: planning.plan # <phase_id>.<output_name>
+    outputs:
+      - name: result
+        type: markdown
+        path: output/result.md
+      - name: changes
+        type: json
+        path: output/changes.json
+
+  # Phase 3: Review (depends on both planning and execution)
+  - id: review
+    department: review
+    guidance: "guidance/review.{lang}.md"
+    on_review_fail:
+      rerun: execution # Re-run execution if review fails
+      max_passes: 2
+      flag_output: issues
+    inputs:
+      - name: plan
+        from: planning.plan
+      - name: result
+        from: execution.result
+    outputs:
+      - name: review_result
+        type: markdown
+        path: output/review.md
+      - name: issues
+        type: json
+        path: output/review_issues.json
+
+# ---------------------------------------------------------------------------
+# Cost & QA (optional)
+# ---------------------------------------------------------------------------
+cost_profile:
+  max_rounds: 5
+  default_reasoning: medium
+
+qa_rules:
+  max_auto_fix_passes: 2
+
+# ---------------------------------------------------------------------------
+# Staff — agents that appear in the office for this pack (optional)
+# ---------------------------------------------------------------------------
+staff:
+  default_workspace: "workspaces/my-pack"
+  name_pool:
+    - name: Planner
+      role: team_leader
+      department: planning
+      personality: "Strategic thinker. Creates clear, actionable plans."
+    - name: Builder
+      role: agent
+      department: dev
+      personality: "Fast, focused implementer. Follows the plan precisely."
+    - name: Reviewer
+      role: agent
+      department: review
+      personality: "Rigorous reviewer. Checks quality and plan compliance."
+  room_theme:
+    floor1: "#e2eef6"
+    floor2: "#d8e7f1"
+    wall: "#55728d"
+    accent: "#5a9fd4"
+
+# ---------------------------------------------------------------------------
+# UI — how the pack appears in the dashboard (optional but recommended)
+# ---------------------------------------------------------------------------
+ui:
+  slug: "TPL"
+  label:
+    en: "My Workflow"
+  summary:
+    en: "3-phase workflow: plan, execute, review"
+  departments:
+    planning:
+      name:
+        en: "Planning"
+      icon: "📋"
+      color: "#f59e0b"
+    dev:
+      name:
+        en: "Development"
+      icon: "💻"
+      color: "#3b82f6"
+    review:
+      name:
+        en: "Review"
+      icon: "✅"
+      color: "#ef4444"
+  # staff_cycle:                         # Department rotation order (optional)
+  #   - planning
+  #   - dev
+  #   - review
+  # room_themes:                         # Named room color schemes (optional)
+  #   main_room:
+  #     floor1: 0xe2eef6
+  #     floor2: 0xd8e7f1
+  #     wall: 0x55728d
+  #     accent: 0x5a9fd4

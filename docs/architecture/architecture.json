@@ -1,0 +1,386 @@
+{
+  "generatedAt": "2026-02-18T03:50:20.460Z",
+  "files": {
+    "codeFiles": [
+      "server/index.ts",
+      "src/App.tsx",
+      "src/api.ts",
+      "src/components/AgentAvatar.tsx",
+      "src/components/AgentDetail.tsx",
+      "src/components/AgentSelect.tsx",
+      "src/components/ChatPanel.tsx",
+      "src/components/Dashboard.tsx",
+      "src/components/MessageContent.tsx",
+      "src/components/OfficeView.tsx",
+      "src/components/SettingsPanel.tsx",
+      "src/components/Sidebar.tsx",
+      "src/components/TaskBoard.tsx",
+      "src/components/TerminalPanel.tsx",
+      "src/hooks/usePolling.ts",
+      "src/hooks/useWebSocket.ts",
+      "src/main.tsx",
+      "src/types/index.ts"
+    ]
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "route": "/{*splat}"
+    },
+    {
+      "method": "GET",
+      "route": "/api/agents"
+    },
+    {
+      "method": "GET",
+      "route": "/api/agents/:id"
+    },
+    {
+      "method": "PATCH",
+      "route": "/api/agents/:id"
+    },
+    {
+      "method": "POST",
+      "route": "/api/agents/:id/spawn"
+    },
+    {
+      "method": "POST",
+      "route": "/api/announcements"
+    },
+    {
+      "method": "GET",
+      "route": "/api/cli-status"
+    },
+    {
+      "method": "GET",
+      "route": "/api/cli-usage"
+    },
+    {
+      "method": "POST",
+      "route": "/api/cli-usage/refresh"
+    },
+    {
+      "method": "GET",
+      "route": "/api/departments"
+    },
+    {
+      "method": "GET",
+      "route": "/api/departments/:id"
+    },
+    {
+      "method": "GET",
+      "route": "/api/health"
+    },
+    {
+      "method": "DELETE",
+      "route": "/api/messages"
+    },
+    {
+      "method": "GET",
+      "route": "/api/messages"
+    },
+    {
+      "method": "POST",
+      "route": "/api/messages"
+    },
+    {
+      "method": "GET",
+      "route": "/api/oauth/callback/antigravity"
+    },
+    {
+      "method": "GET",
+      "route": "/api/oauth/callback/github-copilot"
+    },
+    {
+      "method": "POST",
+      "route": "/api/oauth/disconnect"
+    },
+    {
+      "method": "POST",
+      "route": "/api/oauth/github-copilot/device-poll"
+    },
+    {
+      "method": "POST",
+      "route": "/api/oauth/github-copilot/device-start"
+    },
+    {
+      "method": "GET",
+      "route": "/api/oauth/models"
+    },
+    {
+      "method": "GET",
+      "route": "/api/oauth/start"
+    },
+    {
+      "method": "GET",
+      "route": "/api/oauth/status"
+    },
+    {
+      "method": "GET",
+      "route": "/api/settings"
+    },
+    {
+      "method": "PUT",
+      "route": "/api/settings"
+    },
+    {
+      "method": "GET",
+      "route": "/api/stats"
+    },
+    {
+      "method": "GET",
+      "route": "/api/subtasks"
+    },
+    {
+      "method": "PATCH",
+      "route": "/api/subtasks/:id"
+    },
+    {
+      "method": "GET",
+      "route": "/api/tasks"
+    },
+    {
+      "method": "POST",
+      "route": "/api/tasks"
+    },
+    {
+      "method": "DELETE",
+      "route": "/api/tasks/:id"
+    },
+    {
+      "method": "GET",
+      "route": "/api/tasks/:id"
+    },
+    {
+      "method": "PATCH",
+      "route": "/api/tasks/:id"
+    },
+    {
+      "method": "POST",
+      "route": "/api/tasks/:id/assign"
+    },
+    {
+      "method": "GET",
+      "route": "/api/tasks/:id/diff"
+    },
+    {
+      "method": "POST",
+      "route": "/api/tasks/:id/discard"
+    },
+    {
+      "method": "POST",
+      "route": "/api/tasks/:id/merge"
+    },
+    {
+      "method": "POST",
+      "route": "/api/tasks/:id/resume"
+    },
+    {
+      "method": "POST",
+      "route": "/api/tasks/:id/run"
+    },
+    {
+      "method": "POST",
+      "route": "/api/tasks/:id/stop"
+    },
+    {
+      "method": "POST",
+      "route": "/api/tasks/:id/subtasks"
+    },
+    {
+      "method": "GET",
+      "route": "/api/tasks/:id/terminal"
+    },
+    {
+      "method": "GET",
+      "route": "/api/worktrees"
+    },
+    {
+      "method": "GET",
+      "route": "/health"
+    },
+    {
+      "method": "GET",
+      "route": "/healthz"
+    }
+  ],
+  "frontendCalls": [
+    "/api/agents",
+    "/api/agents/:param",
+    "/api/announcements",
+    "/api/cli-status",
+    "/api/cli-usage",
+    "/api/cli-usage/refresh",
+    "/api/departments",
+    "/api/departments/:param",
+    "/api/messages",
+    "/api/oauth/disconnect",
+    "/api/oauth/github-copilot/device-poll",
+    "/api/oauth/github-copilot/device-start",
+    "/api/oauth/models",
+    "/api/oauth/start",
+    "/api/oauth/status",
+    "/api/settings",
+    "/api/stats",
+    "/api/subtasks",
+    "/api/subtasks/:param",
+    "/api/tasks",
+    "/api/tasks/:param",
+    "/api/tasks/:param/assign",
+    "/api/tasks/:param/diff",
+    "/api/tasks/:param/discard",
+    "/api/tasks/:param/merge",
+    "/api/tasks/:param/resume",
+    "/api/tasks/:param/run",
+    "/api/tasks/:param/stop",
+    "/api/tasks/:param/subtasks",
+    "/api/tasks/:param/terminal",
+    "/api/worktrees"
+  ],
+  "websocket": {
+    "serverBroadcasts": [
+      "agent_status",
+      "announcement",
+      "cli_output",
+      "cli_usage_update",
+      "cross_dept_delivery",
+      "messages_cleared",
+      "new_message",
+      "subtask_update",
+      "task_update"
+    ],
+    "frontendListeners": [
+      "agent_status",
+      "announcement",
+      "cli_output",
+      "cross_dept_delivery",
+      "new_message",
+      "pointerdown",
+      "subtask_update",
+      "task_update"
+    ]
+  },
+  "database": {
+    "tables": [
+      "agents",
+      "cli_usage_cache",
+      "departments",
+      "messages",
+      "oauth_credentials",
+      "oauth_states",
+      "settings",
+      "subtasks",
+      "task_logs",
+      "tasks"
+    ]
+  },
+  "organization": [
+    {
+      "id": "planning",
+      "name": "Planning",
+      "order": 1,
+      "agents": [
+        {
+          "name": "Sage",
+          "role": "team_leader",
+          "cliProvider": "codex"
+        },
+        {
+          "name": "Clio",
+          "role": "senior",
+          "cliProvider": "claude"
+        }
+      ]
+    },
+    {
+      "id": "dev",
+      "name": "Development",
+      "order": 2,
+      "agents": [
+        {
+          "name": "Aria",
+          "role": "team_leader",
+          "cliProvider": "claude"
+        },
+        {
+          "name": "Bolt",
+          "role": "senior",
+          "cliProvider": "codex"
+        },
+        {
+          "name": "Nova",
+          "role": "junior",
+          "cliProvider": "claude"
+        }
+      ]
+    },
+    {
+      "id": "design",
+      "name": "Design",
+      "order": 3,
+      "agents": [
+        {
+          "name": "Pixel",
+          "role": "team_leader",
+          "cliProvider": "claude"
+        },
+        {
+          "name": "Luna",
+          "role": "junior",
+          "cliProvider": "gemini"
+        }
+      ]
+    },
+    {
+      "id": "qa",
+      "name": "QA/QC",
+      "order": 4,
+      "agents": [
+        {
+          "name": "Hawk",
+          "role": "team_leader",
+          "cliProvider": "claude"
+        },
+        {
+          "name": "Lint",
+          "role": "senior",
+          "cliProvider": "codex"
+        }
+      ]
+    },
+    {
+      "id": "devsecops",
+      "name": "DevSecOps",
+      "order": 5,
+      "agents": [
+        {
+          "name": "Vault",
+          "role": "team_leader",
+          "cliProvider": "claude"
+        },
+        {
+          "name": "Pipe",
+          "role": "senior",
+          "cliProvider": "codex"
+        }
+      ]
+    },
+    {
+      "id": "operations",
+      "name": "Operations",
+      "order": 6,
+      "agents": [
+        {
+          "name": "Atlas",
+          "role": "team_leader",
+          "cliProvider": "claude"
+        },
+        {
+          "name": "Turbo",
+          "role": "senior",
+          "cliProvider": "codex"
+        }
+      ]
+    }
+  ]
+}

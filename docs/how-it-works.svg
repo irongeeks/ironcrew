@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 240" fill="none" role="img" aria-label="OctoOffice flow: six steps from directive to review">
+  <style>
+    :root {
+      --fg: #0f172a;
+      --muted: #64748b;
+      --accent: #10B981;
+      --accent-soft: rgba(16,185,129,0.10);
+      --line: #cbd5e1;
+      --card: #ffffff;
+      --card-b: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e5e7eb;
+        --muted: #8b98ac;
+        --accent: #34D399;
+        --accent-soft: rgba(52,211,153,0.12);
+        --line: #334155;
+        --card: #0f1419;
+        --card-b: #1f2937;
+      }
+    }
+    .mono { font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace; }
+    .hdr   { font-size: 12px; font-weight: 700; fill: var(--fg); letter-spacing: 3px; }
+    .hdr-a { fill: var(--accent); }
+    .num   { font-size: 10px; font-weight: 700; fill: var(--accent); letter-spacing: 1.5px; }
+    .title { font-size: 14px; font-weight: 700; fill: var(--fg); }
+    .sub   { font-size: 9.5px; fill: var(--muted); letter-spacing: .2px; }
+    .card  { fill: var(--card); stroke: var(--card-b); stroke-width: 1.2; }
+    .card-a{ fill: var(--card); stroke: var(--accent); stroke-width: 1.6; }
+    .arrow { stroke: var(--accent); stroke-width: 2; fill: none; marker-end: url(#ah);
+             stroke-dasharray: 6 6; animation: flow 1.1s linear infinite; }
+    @keyframes flow { to { stroke-dashoffset: -12; } }
+  </style>
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="8" refX="7.5" refY="4" orient="auto">
+      <path d="M0,0 L9,4 L0,8 Z" fill="var(--accent)"/>
+    </marker>
+  </defs>
+
+  <!-- header -->
+  <text x="30" y="34" class="mono hdr" text-anchor="start">FROM DIRECTIVE TO REVIEW <tspan class="hdr-a">// 6 STEPS</tspan></text>
+
+  <!-- ===== Step 1 — Directive ===== -->
+  <rect x="30" y="70" width="165" height="112" rx="12" class="card"/>
+  <text x="112" y="96"  class="mono num"   text-anchor="middle">01 · DIRECTIVE</text>
+  <text x="112" y="122" class="mono title" text-anchor="middle">You</text>
+  <text x="112" y="146" class="mono sub"   text-anchor="middle">Chat · Telegram</text>
+  <text x="112" y="161" class="mono sub"   text-anchor="middle">Discord · Slack</text>
+  <path d="M196,126 L216,126" class="arrow"/>
+
+  <!-- ===== Step 2 — Orchestrate (accent) ===== -->
+  <rect x="217" y="70" width="165" height="112" rx="12" class="card-a"/>
+  <rect x="217" y="70" width="165" height="112" rx="12" fill="var(--accent-soft)"/>
+  <text x="299" y="96"  class="mono num"   text-anchor="middle">02 · ORCHESTRATE</text>
+  <text x="299" y="122" class="mono title" text-anchor="middle">CEO</text>
+  <text x="299" y="146" class="mono sub"   text-anchor="middle">Parses request,</text>
+  <text x="299" y="161" class="mono sub"   text-anchor="middle">creates task</text>
+  <path d="M383,126 L403,126" class="arrow"/>
+
+  <!-- ===== Step 3 — Delegate ===== -->
+  <rect x="404" y="70" width="165" height="112" rx="12" class="card"/>
+  <text x="486" y="96"  class="mono num"   text-anchor="middle">03 · DELEGATE</text>
+  <text x="486" y="122" class="mono title" text-anchor="middle">Team Lead</text>
+  <text x="486" y="146" class="mono sub"   text-anchor="middle">Picks the</text>
+  <text x="486" y="161" class="mono sub"   text-anchor="middle">best-fit agent</text>
+  <path d="M570,126 L590,126" class="arrow"/>
+
+  <!-- ===== Step 4 — Execute ===== -->
+  <rect x="591" y="70" width="165" height="112" rx="12" class="card"/>
+  <text x="673" y="96"  class="mono num"   text-anchor="middle">04 · EXECUTE</text>
+  <text x="673" y="122" class="mono title" text-anchor="middle">Agent</text>
+  <text x="673" y="146" class="mono sub"   text-anchor="middle">Isolated</text>
+  <text x="673" y="161" class="mono sub"   text-anchor="middle">git worktree</text>
+  <path d="M757,126 L777,126" class="arrow"/>
+
+  <!-- ===== Step 5 — Pipeline ===== -->
+  <rect x="778" y="70" width="165" height="112" rx="12" class="card"/>
+  <text x="860" y="96"  class="mono num"   text-anchor="middle">05 · PIPELINE</text>
+  <text x="860" y="122" class="mono title" text-anchor="middle">Graph Runner</text>
+  <text x="860" y="146" class="mono sub"   text-anchor="middle">Phases advance</text>
+  <text x="860" y="161" class="mono sub"   text-anchor="middle">across the DAG</text>
+  <path d="M944,126 L964,126" class="arrow"/>
+
+  <!-- ===== Step 6 — Review (accent) ===== -->
+  <rect x="965" y="70" width="165" height="112" rx="12" class="card-a"/>
+  <rect x="965" y="70" width="165" height="112" rx="12" fill="var(--accent-soft)"/>
+  <text x="1047" y="96"  class="mono num"   text-anchor="middle">06 · REVIEW</text>
+  <text x="1047" y="122" class="mono title" text-anchor="middle">You decide</text>
+  <text x="1047" y="146" class="mono sub"   text-anchor="middle">Approve · reset</text>
+  <text x="1047" y="161" class="mono sub"   text-anchor="middle">supplement · route</text>
+
+  <!-- loop hint: review feeds back to CEO -->
+  <path d="M1047,182 L1047,206 L299,206 L299,184" stroke="var(--line)" stroke-width="1.4" fill="none" stroke-dasharray="3 4"/>
+  <text x="673" y="223" class="mono sub" text-anchor="middle">CEO follow-up routing loops decisions back into the pipeline</text>
+</svg>

@@ -1,0 +1,46 @@
+# OctoOffice Docker Compose
+# Usage:
+#   Production:  docker compose --profile prod up --build
+#   Development: docker compose --profile dev up --build
+
+services:
+  octooffice:
+    build:
+      context: .
+      target: production
+    profiles: [prod]
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:8790:8790"
+    volumes:
+      - octooffice-data:/data
+      - ./workspaces:/workspaces
+    env_file: .env
+    environment:
+      DB_PATH: /data/octooffice.sqlite
+      LOGS_DIR: /data/logs
+      HOST: "0.0.0.0"
+    restart: unless-stopped
+
+  octooffice-dev:
+    build:
+      context: .
+      target: dev
+    profiles: [dev]
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:8800:8800"
+      - "${BIND_HOST:-127.0.0.1}:8790:8790"
+    volumes:
+      - .:/app
+      - dev-node-modules:/app/node_modules
+      - octooffice-data:/data
+      - ./workspaces:/workspaces
+    env_file: .env
+    environment:
+      DB_PATH: /data/octooffice.sqlite
+      LOGS_DIR: /data/logs
+      VITE_DEV: "1"
+      HOST: "0.0.0.0"
+
+volumes:
+  octooffice-data:
+  dev-node-modules:
