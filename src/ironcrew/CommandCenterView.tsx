@@ -15,6 +15,7 @@ import { api } from "./api.ts";
 import {
   AGENT_STATUS_LABEL,
   BOARD_COLUMNS,
+  MEETING_STATUS_LABEL,
   MILESTONE_STATUS_LABEL,
   NOTIFICATION_SEVERITY_LABEL,
   PROJECT_STATUS_LABEL,
@@ -28,6 +29,10 @@ import {
   type Department,
   type Goal,
   type KnownHostsPolicy,
+  type Meeting,
+  type MeetingActionItem,
+  type MeetingParticipant,
+  type MeetingTurn,
   type Message,
   type Milestone,
   type Notification,
@@ -122,6 +127,22 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [newWorkerSshUser, setNewWorkerSshUser] = useState("");
   const [newWorkerPrivateKeyPath, setNewWorkerPrivateKeyPath] = useState("");
   const [newWorkerKnownHosts, setNewWorkerKnownHosts] = useState<KnownHostsPolicy>("strict");
+
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [showMeetings, setShowMeetings] = useState(false);
+  const [meetingDetail, setMeetingDetail] = useState<{
+    meeting: Meeting;
+    participants: MeetingParticipant[];
+    turns: MeetingTurn[];
+    actionItems: MeetingActionItem[];
+  } | null>(null);
+  const [newMeetingTopic, setNewMeetingTopic] = useState("");
+  const [newMeetingModeratorId, setNewMeetingModeratorId] = useState("");
+  const [newMeetingParticipantIds, setNewMeetingParticipantIds] = useState<string[]>([]);
+  const [newMeetingMaxRounds, setNewMeetingMaxRounds] = useState(6);
+  const [newActionItemDescription, setNewActionItemDescription] = useState("");
+  const [newActionItemAssigneeId, setNewActionItemAssigneeId] = useState("");
+  const [meetingMinutesDraft, setMeetingMinutesDraft] = useState("");
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -512,6 +533,160 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [actWith, client],
   );
 
+  // --- meetings (moderator, bounded rounds, budget) -----------------------
+  // One round is one participant's turn, so a meeting self-closes on its own
+  // once max_rounds (or its budget cap) is reached — "Nächste Wortmeldung"
+  // after that is a harmless no-op the backend reports with turn: null.
+
+  const refreshMeetings = useCallback(async () => {
+    const { meetings: m } = await client.meetings();
+    setMeetings(m);
+  }, [client]);
+
+  const openMeetings = useCallback(() => {
+    setShowMeetings(true);
+    void refreshMeetings();
+  }, [refreshMeetings]);
+
+  const openMeetingDetail = useCallback(
+    async (id: string) => {
+      const detail = await client.meeting(id);
+      setMeetingDetail(detail);
+      setMeetingMinutesDraft(detail.meeting.minutes);
+    },
+    [client],
+  );
+
+  const refreshMeetingDetail = useCallback(async () => {
+    if (!meetingDetail) return;
+    const detail = await client.meeting(meetingDetail.meeting.id);
+    setMeetingDetail(detail);
+  }, [client, meetingDetail]);
+
+  const closeMeetingDetail = useCallback(() => {
+    setMeetingDetail(null);
+    setNewActionItemDescription("");
+    setNewActionItemAssigneeId("");
+  }, []);
+
+  const toggleMeetingParticipant = useCallback((agentId: string) => {
+    setNewMeetingParticipantIds((prev) =>
+      prev.includes(agentId) ? prev.filter((id) => id !== agentId) : [...prev, agentId],
+    );
+  }, []);
+
+  const createMeeting = useCallback(() => {
+    const topic = newMeetingTopic.trim();
+    if (!topic || !newMeetingModeratorId || newMeetingParticipantIds.length === 0) return;
+    void actWith(
+      () =>
+        client.createMeeting({
+          topic,
+          moderatorAgentId: newMeetingModeratorId,
+          participantAgentIds: newMeetingParticipantIds,
+          maxRounds: newMeetingMaxRounds,
+        }),
+      async () => {
+        setNewMeetingTopic("");
+        setNewMeetingParticipantIds([]);
+        await refreshMeetings();
+      },
+    );
+  }, [
+    actWith,
+    client,
+    newMeetingTopic,
+    newMeetingModeratorId,
+    newMeetingParticipantIds,
+    newMeetingMaxRounds,
+    refreshMeetings,
+  ]);
+
+  const startMeeting = useCallback(
+    (id: string) => {
+      void actWith(
+        () => client.startMeeting(id),
+        async () => {
+          await refreshMeetings();
+          await refreshMeetingDetail();
+        },
+      );
+    },
+    [actWith, client, refreshMeetings, refreshMeetingDetail],
+  );
+
+  const nextMeetingTurn = useCallback(
+    (id: string, agentId?: string) => {
+      void actWith(
+        () => client.nextMeetingTurn(id, agentId),
+        async () => {
+          await refreshMeetings();
+          await refreshMeetingDetail();
+        },
+      );
+    },
+    [actWith, client, refreshMeetings, refreshMeetingDetail],
+  );
+
+  const endMeeting = useCallback(
+    (id: string, minutes: string) => {
+      void actWith(
+        () => client.endMeeting(id, minutes),
+        async () => {
+          await refreshMeetings();
+          await refreshMeetingDetail();
+        },
+      );
+    },
+    [actWith, client, refreshMeetings, refreshMeetingDetail],
+  );
+
+  const cancelMeeting = useCallback(
+    (id: string) => {
+      void actWith(
+        () => client.cancelMeeting(id),
+        async () => {
+          await refreshMeetings();
+          closeMeetingDetail();
+        },
+      );
+    },
+    [actWith, client, refreshMeetings, closeMeetingDetail],
+  );
+
+  const addMeetingActionItem = useCallback(
+    (id: string) => {
+      const description = newActionItemDescription.trim();
+      if (!description) return;
+      void actWith(
+        () =>
+          client.addMeetingActionItem(id, {
+            description,
+            assignedAgentId: newActionItemAssigneeId || undefined,
+          }),
+        async () => {
+          setNewActionItemDescription("");
+          setNewActionItemAssigneeId("");
+          await refreshMeetingDetail();
+        },
+      );
+    },
+    [actWith, client, newActionItemDescription, newActionItemAssigneeId, refreshMeetingDetail],
+  );
+
+  const convertActionItem = useCallback(
+    (actionItemId: string) => {
+      void actWith(
+        () => client.convertActionItemToTask(actionItemId),
+        async () => {
+          await refreshMeetingDetail();
+          await refresh();
+        },
+      );
+    },
+    [actWith, client, refreshMeetingDetail, refresh],
+  );
+
   // --- attachments (task/project-scoped + the general document store) ----
   // refreshTaskAttachments / refreshProjectAttachments are declared earlier,
   // alongside openTaskDetail / openProjectDetail, which call them on open.
@@ -633,6 +808,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-network" onClick={openNetwork}>
           Netzwerk
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-meetings" onClick={openMeetings}>
+          Meetings
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -1589,6 +1768,282 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                 !newWorkerPrivateKeyPath.trim()
               }
               onClick={createRemoteWorker}
+            >
+              Hinzufügen
+            </button>
+          </div>
+        </DetailDialog>
+      )}
+
+      {showMeetings && (
+        <DetailDialog title="Meetings" onClose={() => setShowMeetings(false)}>
+          <p className="ic-note">
+            Eine Runde ist eine Wortmeldung — die Gesamtzahl der Runden ist durch die max. Rundenzahl begrenzt, nicht
+            durch Teilnehmerzahl × Runden. Ein Meeting schließt sich selbst, sobald die Rundenzahl oder das Budget
+            erreicht ist.
+          </p>
+
+          {meetings.length === 0 && <p className="ic-empty">Noch keine Meetings.</p>}
+          <ul className="ic-milestone-list">
+            {meetings.map((m) => (
+              <li key={m.id} data-testid={`meeting-${m.id}`}>
+                <span className="ic-milestone-title">{m.topic}</span>
+                <span className="ic-tag" data-tone={m.status === "cancelled" ? "gate" : "policy"}>
+                  {MEETING_STATUS_LABEL[m.status]}
+                </span>
+                <span className="ic-note">
+                  Runde {m.current_round}/{m.max_rounds}
+                </span>
+                <button type="button" className="ic-btn" onClick={() => void openMeetingDetail(m.id)}>
+                  Öffnen
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Neues Meeting
+          </h3>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-new-meeting-topic">
+              Thema
+            </label>
+            <input
+              id="ic-new-meeting-topic"
+              data-testid="new-meeting-topic"
+              placeholder="Thema"
+              value={newMeetingTopic}
+              onChange={(e) => setNewMeetingTopic(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-meeting-moderator">
+              Moderator
+            </label>
+            <select
+              id="ic-new-meeting-moderator"
+              className="ic-select"
+              data-testid="new-meeting-moderator"
+              value={newMeetingModeratorId}
+              onChange={(e) => setNewMeetingModeratorId(e.target.value)}
+            >
+              <option value="">Moderator wählen…</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.displayName}
+                </option>
+              ))}
+            </select>
+            <label className="ic-sr-only" htmlFor="ic-new-meeting-max-rounds">
+              Max. Rundenzahl
+            </label>
+            <input
+              id="ic-new-meeting-max-rounds"
+              type="number"
+              min={1}
+              max={50}
+              data-testid="new-meeting-max-rounds"
+              value={newMeetingMaxRounds}
+              onChange={(e) => setNewMeetingMaxRounds(Number(e.target.value) || 1)}
+            />
+          </div>
+          <fieldset className="ic-milestone-list" style={{ border: "none", margin: 0, padding: "4px 0" }}>
+            <legend className="ic-note">Teilnehmer</legend>
+            {agents.map((a) => (
+              <label key={a.id} className="ic-note" style={{ display: "block" }}>
+                <input
+                  type="checkbox"
+                  data-testid={`new-meeting-participant-${a.id}`}
+                  checked={newMeetingParticipantIds.includes(a.id)}
+                  onChange={() => toggleMeetingParticipant(a.id)}
+                />{" "}
+                {a.displayName}
+              </label>
+            ))}
+          </fieldset>
+          <button
+            type="button"
+            className="ic-btn"
+            data-variant="primary"
+            data-testid="new-meeting-submit"
+            disabled={
+              busy || !newMeetingTopic.trim() || !newMeetingModeratorId || newMeetingParticipantIds.length === 0
+            }
+            onClick={createMeeting}
+          >
+            Anlegen
+          </button>
+        </DetailDialog>
+      )}
+
+      {meetingDetail && (
+        <DetailDialog title={meetingDetail.meeting.topic} onClose={closeMeetingDetail}>
+          <dl>
+            <dt>Status</dt>
+            <dd data-testid="meeting-detail-status">{MEETING_STATUS_LABEL[meetingDetail.meeting.status]}</dd>
+            <dt>Runde</dt>
+            <dd>
+              {meetingDetail.meeting.current_round}/{meetingDetail.meeting.max_rounds}
+            </dd>
+            {meetingDetail.meeting.budget_micros > 0 && (
+              <>
+                <dt>Budget</dt>
+                <dd>
+                  {(meetingDetail.meeting.spent_micros / 1_000_000).toFixed(2)} /{" "}
+                  {(meetingDetail.meeting.budget_micros / 1_000_000).toFixed(2)} USD
+                </dd>
+              </>
+            )}
+          </dl>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Teilnehmer
+          </h3>
+          <ul className="ic-milestone-list">
+            {meetingDetail.participants.map((p) => (
+              <li key={p.agent_id}>
+                <span className="ic-milestone-title">{p.display_name}</span>
+                {p.agent_id === meetingDetail.meeting.moderator_agent_id && (
+                  <span className="ic-tag" data-tone="policy">
+                    Moderator
+                  </span>
+                )}
+                <span className="ic-note">{p.professional_role}</span>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Verlauf
+          </h3>
+          {meetingDetail.turns.length === 0 && <p className="ic-empty">Noch keine Wortmeldungen.</p>}
+          <ul className="ic-milestone-list" data-testid="meeting-turns">
+            {meetingDetail.turns.map((t) => (
+              <li key={t.id}>
+                <span className="ic-milestone-title">
+                  {meetingDetail.participants.find((p) => p.agent_id === t.agent_id)?.display_name ?? t.agent_id}
+                </span>
+                <span className="ic-tag">Runde {t.round}</span>
+                <span className="ic-note">{t.contribution}</span>
+              </li>
+            ))}
+          </ul>
+
+          {meetingDetail.meeting.status === "scheduled" && (
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="meeting-start"
+              disabled={busy}
+              onClick={() => startMeeting(meetingDetail.meeting.id)}
+            >
+              Starten
+            </button>
+          )}
+
+          {meetingDetail.meeting.status === "in_progress" && (
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="meeting-next-turn"
+              disabled={busy}
+              onClick={() => nextMeetingTurn(meetingDetail.meeting.id)}
+            >
+              Nächste Wortmeldung
+            </button>
+          )}
+
+          {(meetingDetail.meeting.status === "scheduled" || meetingDetail.meeting.status === "in_progress") && (
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="danger"
+              data-testid="meeting-cancel"
+              disabled={busy}
+              onClick={() => cancelMeeting(meetingDetail.meeting.id)}
+            >
+              Abbrechen
+            </button>
+          )}
+
+          {meetingDetail.meeting.status === "in_progress" && (
+            <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+              <label className="ic-sr-only" htmlFor="ic-meeting-minutes">
+                Protokoll
+              </label>
+              <input
+                id="ic-meeting-minutes"
+                data-testid="meeting-minutes"
+                placeholder="Protokoll / Ergebnis"
+                value={meetingMinutesDraft}
+                onChange={(e) => setMeetingMinutesDraft(e.target.value)}
+              />
+              <button
+                type="button"
+                className="ic-btn"
+                data-testid="meeting-end"
+                disabled={busy}
+                onClick={() => endMeeting(meetingDetail.meeting.id, meetingMinutesDraft)}
+              >
+                Beenden
+              </button>
+            </div>
+          )}
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Aktionspunkte
+          </h3>
+          {meetingDetail.actionItems.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {meetingDetail.actionItems.map((item) => (
+              <li key={item.id} data-testid={`action-item-${item.id}`}>
+                <span className="ic-milestone-title">{item.description}</span>
+                {item.task_id ? (
+                  <span className="ic-tag" data-tone="policy">
+                    Aufgabe angelegt
+                  </span>
+                ) : (
+                  <button type="button" className="ic-btn" disabled={busy} onClick={() => convertActionItem(item.id)}>
+                    Als Aufgabe anlegen
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-new-action-item">
+              Neuer Aktionspunkt
+            </label>
+            <input
+              id="ic-new-action-item"
+              data-testid="new-action-item-description"
+              placeholder="Neuer Aktionspunkt"
+              value={newActionItemDescription}
+              onChange={(e) => setNewActionItemDescription(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-action-item-assignee">
+              Zuständig
+            </label>
+            <select
+              id="ic-new-action-item-assignee"
+              className="ic-select"
+              data-testid="new-action-item-assignee"
+              value={newActionItemAssigneeId}
+              onChange={(e) => setNewActionItemAssigneeId(e.target.value)}
+            >
+              <option value="">Niemand zugewiesen</option>
+              {meetingDetail.participants.map((p) => (
+                <option key={p.agent_id} value={p.agent_id}>
+                  {p.display_name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="ic-btn"
+              data-testid="new-action-item-submit"
+              disabled={busy || !newActionItemDescription.trim()}
+              onClick={() => addMeetingActionItem(meetingDetail.meeting.id)}
             >
               Hinzufügen
             </button>

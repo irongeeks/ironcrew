@@ -19,6 +19,11 @@ import type {
   Goal,
   GoalStatus,
   KnownHostsPolicy,
+  Meeting,
+  MeetingActionItem,
+  MeetingParticipant,
+  MeetingStatus,
+  MeetingTurn,
   Message,
   Milestone,
   Notification,
@@ -137,4 +142,30 @@ export const api = {
   }) => send<{ remoteWorker: RemoteWorker }>("/remote-workers", "POST", input),
   deleteRemoteWorker: (id: string) => send<{ ok: boolean }>(`/remote-workers/${id}`, "DELETE"),
   testRemoteWorker: (id: string) => send<{ ok: boolean; message: string }>(`/remote-workers/${id}/test`, "POST"),
+
+  meetings: (status?: MeetingStatus) => get<{ meetings: Meeting[] }>(`/meetings${status ? `?status=${status}` : ""}`),
+  meeting: (id: string) =>
+    get<{
+      meeting: Meeting;
+      participants: MeetingParticipant[];
+      turns: MeetingTurn[];
+      actionItems: MeetingActionItem[];
+    }>(`/meetings/${id}`),
+  createMeeting: (input: {
+    topic: string;
+    moderatorAgentId: string;
+    participantAgentIds: string[];
+    projectId?: string | null;
+    maxRounds?: number;
+    budgetMicros?: number;
+  }) => send<{ meeting: Meeting }>("/meetings", "POST", input),
+  startMeeting: (id: string) => send<{ meeting: Meeting }>(`/meetings/${id}/start`, "POST"),
+  nextMeetingTurn: (id: string, agentId?: string) =>
+    send<{ meeting: Meeting; turn: MeetingTurn | null }>(`/meetings/${id}/next-turn`, "POST", { agentId }),
+  endMeeting: (id: string, minutes?: string) => send<{ meeting: Meeting }>(`/meetings/${id}/end`, "POST", { minutes }),
+  cancelMeeting: (id: string) => send<{ meeting: Meeting }>(`/meetings/${id}/cancel`, "POST"),
+  addMeetingActionItem: (id: string, input: { description: string; assignedAgentId?: string | null }) =>
+    send<{ actionItem: MeetingActionItem }>(`/meetings/${id}/action-items`, "POST", input),
+  convertActionItemToTask: (actionItemId: string) =>
+    send<{ task: Task }>(`/meetings/action-items/${actionItemId}/convert`, "POST"),
 };

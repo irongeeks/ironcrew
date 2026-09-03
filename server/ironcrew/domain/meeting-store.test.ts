@@ -115,8 +115,20 @@ describe("turns", () => {
   it("records a turn, advances current_round and accumulates spent_micros", () => {
     const m = store.create(input());
     store.start(m.id);
-    store.recordTurn({ meetingId: m.id, round: 1, agentId: participantId, contribution: "Ich schlage vor...", costMicros: 500 });
-    store.recordTurn({ meetingId: m.id, round: 2, agentId: moderatorId, contribution: "Einverstanden.", costMicros: 300 });
+    store.recordTurn({
+      meetingId: m.id,
+      round: 1,
+      agentId: participantId,
+      contribution: "Ich schlage vor...",
+      costMicros: 500,
+    });
+    store.recordTurn({
+      meetingId: m.id,
+      round: 2,
+      agentId: moderatorId,
+      contribution: "Einverstanden.",
+      costMicros: 300,
+    });
 
     const updated = store.get(m.id)!;
     expect(updated.current_round).toBe(2);

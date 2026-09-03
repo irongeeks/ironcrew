@@ -10,6 +10,10 @@ import type {
   Dashboard,
   Decision,
   Department,
+  Meeting,
+  MeetingActionItem,
+  MeetingParticipant,
+  MeetingTurn,
   Message,
   Milestone,
   Notification,
@@ -138,6 +142,15 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     createRemoteWorker: vi.fn(),
     deleteRemoteWorker: vi.fn(),
     testRemoteWorker: vi.fn(),
+    meetings: vi.fn().mockResolvedValue({ meetings: [] }),
+    meeting: vi.fn(),
+    createMeeting: vi.fn(),
+    startMeeting: vi.fn(),
+    nextMeetingTurn: vi.fn(),
+    endMeeting: vi.fn(),
+    cancelMeeting: vi.fn(),
+    addMeetingActionItem: vi.fn(),
+    convertActionItemToTask: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -272,6 +285,45 @@ function remoteWorker(over: Partial<RemoteWorker> = {}): RemoteWorker {
     created_at: Date.now(),
     updated_at: Date.now(),
     ...over,
+  };
+}
+
+function meeting(over: Partial<Meeting> = {}): Meeting {
+  return {
+    id: "mtg_1",
+    company_id: "cmp_1",
+    project_id: null,
+    topic: "Sprint-Planung",
+    status: "scheduled",
+    moderator_agent_id: "agt_1",
+    max_rounds: 6,
+    budget_micros: 0,
+    spent_micros: 0,
+    current_round: 0,
+    minutes: "",
+    created_at: Date.now(),
+    started_at: null,
+    ended_at: null,
+    ...over,
+  };
+}
+
+function meetingDetail(
+  over: {
+    meeting?: Partial<Meeting>;
+    participants?: MeetingParticipant[];
+    turns?: MeetingTurn[];
+    actionItems?: MeetingActionItem[];
+  } = {},
+): { meeting: Meeting; participants: MeetingParticipant[]; turns: MeetingTurn[]; actionItems: MeetingActionItem[] } {
+  return {
+    meeting: meeting(over.meeting),
+    participants: over.participants ?? [
+      { agent_id: "agt_1", key: "cto", display_name: "Forge", professional_role: "chief_technology_officer" },
+      { agent_id: "agt_2", key: "coo", display_name: "Anchor", professional_role: "chief_operating_officer" },
+    ],
+    turns: over.turns ?? [],
+    actionItems: over.actionItems ?? [],
   };
 }
 
@@ -1235,5 +1287,219 @@ describe("network (Tailscale/Headscale status + remote workers)", () => {
 
     expect(deleteRemoteWorker).toHaveBeenCalledWith("worker_1");
     await waitFor(() => expect(within(dialog).queryByText("tier0-acme")).toBeNull());
+  });
+});
+
+describe("meetings (moderator, bounded rounds, budget)", () => {
+  function twoAgentsClient(over: Partial<Record<keyof Client, unknown>> = {}) {
+    return makeClient({
+      agents: vi.fn().mockResolvedValue({
+        agents: [agent({ id: "agt_1", displayName: "Forge" }), agent({ id: "agt_2", displayName: "Anchor" })],
+      }),
+      ...over,
+    });
+  }
+
+  it("lists meetings and their round progress", async () => {
+    const client = twoAgentsClient({
+      meetings: vi.fn().mockResolvedValue({ meetings: [meeting({ status: "in_progress", current_round: 2 })] }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-meetings"));
+    const dialog = await screen.findByRole("dialog", { name: "Meetings" });
+
+    expect(await within(dialog).findByText("Sprint-Planung")).toBeInTheDocument();
+    expect(within(dialog).getByText("Runde 2/6")).toBeInTheDocument();
+  });
+
+  it("creates a meeting via the form with selected moderator and participants", async () => {
+    const createMeeting = vi.fn().mockResolvedValue({ meeting: meeting() });
+    const client = twoAgentsClient({
+      meetings: vi
+        .fn()
+        .mockResolvedValueOnce({ meetings: [] })
+        .mockResolvedValue({ meetings: [meeting()] }),
+      createMeeting,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-meetings"));
+    const dialog = await screen.findByRole("dialog", { name: "Meetings" });
+
+    const user = userEvent.setup();
+    await user.type(within(dialog).getByTestId("new-meeting-topic"), "Sprint-Planung");
+    await user.selectOptions(within(dialog).getByTestId("new-meeting-moderator"), "agt_1");
+    await user.click(within(dialog).getByTestId("new-meeting-participant-agt_2"));
+    await user.click(within(dialog).getByTestId("new-meeting-submit"));
+
+    expect(createMeeting).toHaveBeenCalledWith({
+      topic: "Sprint-Planung",
+      moderatorAgentId: "agt_1",
+      participantAgentIds: ["agt_2"],
+      maxRounds: 6,
+    });
+    expect(await within(dialog).findByText("Sprint-Planung")).toBeInTheDocument();
+  });
+
+  it("opens a meeting, starts it, and runs the next turn", async () => {
+    const startMeeting = vi.fn().mockResolvedValue({ meeting: meeting({ status: "in_progress" }) });
+    const nextMeetingTurn = vi.fn().mockResolvedValue({
+      meeting: meeting({ status: "in_progress", current_round: 1 }),
+      turn: {
+        id: "turn_1",
+        meeting_id: "mtg_1",
+        round: 1,
+        agent_id: "agt_1",
+        contribution: "Ich schlage vor, mit dem Backend zu starten.",
+        cost_micros: 0,
+        created_at: Date.now(),
+      },
+    });
+    const client = twoAgentsClient({
+      meetings: vi.fn().mockResolvedValue({ meetings: [meeting()] }),
+      meeting: vi
+        .fn()
+        .mockResolvedValueOnce(meetingDetail())
+        .mockResolvedValueOnce(meetingDetail({ meeting: { status: "in_progress" } }))
+        .mockResolvedValue(
+          meetingDetail({
+            meeting: { status: "in_progress", current_round: 1 },
+            turns: [
+              {
+                id: "turn_1",
+                meeting_id: "mtg_1",
+                round: 1,
+                agent_id: "agt_1",
+                contribution: "Ich schlage vor, mit dem Backend zu starten.",
+                cost_micros: 0,
+                created_at: Date.now(),
+              },
+            ],
+          }),
+        ),
+      startMeeting,
+      nextMeetingTurn,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-meetings"));
+    const listDialog = await screen.findByRole("dialog", { name: "Meetings" });
+    await userEvent.setup().click(await within(listDialog).findByRole("button", { name: "Öffnen" }));
+
+    const detailDialog = await screen.findByRole("dialog", { name: "Sprint-Planung" });
+    await userEvent.setup().click(within(detailDialog).getByTestId("meeting-start"));
+    expect(startMeeting).toHaveBeenCalledWith("mtg_1");
+
+    await userEvent.setup().click(await within(detailDialog).findByTestId("meeting-next-turn"));
+    expect(nextMeetingTurn).toHaveBeenCalledWith("mtg_1", undefined);
+    expect(await within(detailDialog).findByText("Ich schlage vor, mit dem Backend zu starten.")).toBeInTheDocument();
+  });
+
+  it("ends a meeting with minutes typed into the form", async () => {
+    const endMeeting = vi.fn().mockResolvedValue({ meeting: meeting({ status: "completed" }) });
+    const client = twoAgentsClient({
+      meetings: vi.fn().mockResolvedValue({ meetings: [meeting({ status: "in_progress" })] }),
+      meeting: vi.fn().mockResolvedValue(meetingDetail({ meeting: { status: "in_progress" } })),
+      endMeeting,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-meetings"));
+    const listDialog = await screen.findByRole("dialog", { name: "Meetings" });
+    await userEvent.setup().click(await within(listDialog).findByRole("button", { name: "Öffnen" }));
+    const detailDialog = await screen.findByRole("dialog", { name: "Sprint-Planung" });
+
+    const user = userEvent.setup();
+    await user.type(within(detailDialog).getByTestId("meeting-minutes"), "Ergebnis: weiter wie geplant.");
+    await user.click(within(detailDialog).getByTestId("meeting-end"));
+
+    expect(endMeeting).toHaveBeenCalledWith("mtg_1", "Ergebnis: weiter wie geplant.");
+  });
+
+  it("cancels a meeting", async () => {
+    const cancelMeeting = vi.fn().mockResolvedValue({ meeting: meeting({ status: "cancelled" }) });
+    const client = twoAgentsClient({
+      meetings: vi.fn().mockResolvedValue({ meetings: [meeting()] }),
+      meeting: vi.fn().mockResolvedValue(meetingDetail()),
+      cancelMeeting,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-meetings"));
+    const listDialog = await screen.findByRole("dialog", { name: "Meetings" });
+    await userEvent.setup().click(await within(listDialog).findByRole("button", { name: "Öffnen" }));
+    const detailDialog = await screen.findByRole("dialog", { name: "Sprint-Planung" });
+
+    await userEvent.setup().click(within(detailDialog).getByTestId("meeting-cancel"));
+    expect(cancelMeeting).toHaveBeenCalledWith("mtg_1");
+  });
+
+  it("adds an action item and converts it into a real task", async () => {
+    const addMeetingActionItem = vi.fn().mockResolvedValue({
+      actionItem: {
+        id: "action_1",
+        meeting_id: "mtg_1",
+        description: "Angebot nachfassen",
+        assigned_agent_id: null,
+        task_id: null,
+        created_at: Date.now(),
+      },
+    });
+    const convertActionItemToTask = vi.fn().mockResolvedValue({ task: task({ id: "task_9" }) });
+    const client = twoAgentsClient({
+      meetings: vi.fn().mockResolvedValue({ meetings: [meeting()] }),
+      meeting: vi
+        .fn()
+        .mockResolvedValueOnce(meetingDetail())
+        .mockResolvedValueOnce(
+          meetingDetail({
+            actionItems: [
+              {
+                id: "action_1",
+                meeting_id: "mtg_1",
+                description: "Angebot nachfassen",
+                assigned_agent_id: null,
+                task_id: null,
+                created_at: Date.now(),
+              },
+            ],
+          }),
+        )
+        .mockResolvedValue(
+          meetingDetail({
+            actionItems: [
+              {
+                id: "action_1",
+                meeting_id: "mtg_1",
+                description: "Angebot nachfassen",
+                assigned_agent_id: null,
+                task_id: "task_9",
+                created_at: Date.now(),
+              },
+            ],
+          }),
+        ),
+      addMeetingActionItem,
+      convertActionItemToTask,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-meetings"));
+    const listDialog = await screen.findByRole("dialog", { name: "Meetings" });
+    await userEvent.setup().click(await within(listDialog).findByRole("button", { name: "Öffnen" }));
+    const detailDialog = await screen.findByRole("dialog", { name: "Sprint-Planung" });
+
+    const user = userEvent.setup();
+    await user.type(within(detailDialog).getByTestId("new-action-item-description"), "Angebot nachfassen");
+    await user.click(within(detailDialog).getByTestId("new-action-item-submit"));
+    expect(addMeetingActionItem).toHaveBeenCalledWith("mtg_1", {
+      description: "Angebot nachfassen",
+      assignedAgentId: undefined,
+    });
+
+    await userEvent.setup().click(await within(detailDialog).findByRole("button", { name: "Als Aufgabe anlegen" }));
+    expect(convertActionItemToTask).toHaveBeenCalledWith("action_1");
+    expect(await within(detailDialog).findByText("Aufgabe angelegt")).toBeInTheDocument();
   });
 });

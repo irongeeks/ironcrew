@@ -369,3 +369,55 @@ export interface RemoteWorker {
   created_at: number;
   updated_at: number;
 }
+
+export type MeetingStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
+
+export const MEETING_STATUS_LABEL: Record<MeetingStatus, string> = {
+  scheduled: "Geplant",
+  in_progress: "Läuft",
+  completed: "Abgeschlossen",
+  cancelled: "Abgebrochen",
+};
+
+export interface Meeting {
+  id: string;
+  company_id: string;
+  project_id: string | null;
+  topic: string;
+  status: MeetingStatus;
+  moderator_agent_id: string;
+  max_rounds: number;
+  budget_micros: number;
+  spent_micros: number;
+  current_round: number;
+  minutes: string;
+  created_at: number;
+  started_at: number | null;
+  ended_at: number | null;
+}
+
+export interface MeetingParticipant {
+  agent_id: string;
+  key: string;
+  display_name: string;
+  professional_role: string;
+}
+
+export interface MeetingTurn {
+  id: string;
+  meeting_id: string;
+  round: number;
+  agent_id: string;
+  contribution: string;
+  cost_micros: number;
+  created_at: number;
+}
+
+export interface MeetingActionItem {
+  id: string;
+  meeting_id: string;
+  description: string;
+  assigned_agent_id: string | null;
+  task_id: string | null;
+  created_at: number;
+}

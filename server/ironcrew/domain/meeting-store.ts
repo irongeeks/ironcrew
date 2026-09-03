@@ -150,7 +150,9 @@ export class MeetingStore {
       params.push(opts.projectId);
     }
     return allRows<MeetingRow>(
-      this.db.prepare(`SELECT * FROM crew_meetings WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC, rowid DESC`),
+      this.db.prepare(
+        `SELECT * FROM crew_meetings WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC, rowid DESC`,
+      ),
       ...params,
     );
   }
@@ -211,9 +213,7 @@ export class MeetingStore {
       .run(id, input.meetingId, input.round, input.agentId, input.contribution, costMicros);
 
     this.db
-      .prepare(
-        `UPDATE crew_meetings SET current_round = ?, spent_micros = spent_micros + ? WHERE id = ?`,
-      )
+      .prepare(`UPDATE crew_meetings SET current_round = ?, spent_micros = spent_micros + ? WHERE id = ?`)
       .run(input.round, costMicros, input.meetingId);
 
     appendAuditEvent(this.db, {
@@ -246,11 +246,7 @@ export class MeetingStore {
     return rows.reverse();
   }
 
-  end(
-    meetingId: string,
-    minutes: string,
-    opts: { actorType?: ActorType; actorId?: string } = {},
-  ): MeetingRow | null {
+  end(meetingId: string, minutes: string, opts: { actorType?: ActorType; actorId?: string } = {}): MeetingRow | null {
     const meeting = this.get(meetingId);
     if (!meeting) return null;
     assertMeetingTransition(meeting.status, "completed");
@@ -276,9 +272,9 @@ export class MeetingStore {
     if (!meeting) return null;
     assertMeetingTransition(meeting.status, "cancelled");
 
-    this.db.prepare("UPDATE crew_meetings SET status = 'cancelled', ended_at = unixepoch()*1000 WHERE id = ?").run(
-      meetingId,
-    );
+    this.db
+      .prepare("UPDATE crew_meetings SET status = 'cancelled', ended_at = unixepoch()*1000 WHERE id = ?")
+      .run(meetingId);
 
     appendAuditEvent(this.db, {
       companyId: meeting.company_id,

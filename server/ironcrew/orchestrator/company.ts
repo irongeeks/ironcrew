@@ -243,9 +243,7 @@ export class CompanyOrchestrator {
       speakerAgentId = participants[meeting.current_round % participants.length].agent_id;
     }
 
-    const agent = this.db.prepare("SELECT * FROM crew_agents WHERE id = ?").get(speakerAgentId) as
-      | AgentRow
-      | undefined;
+    const agent = this.db.prepare("SELECT * FROM crew_agents WHERE id = ?").get(speakerAgentId) as AgentRow | undefined;
     if (!agent) throw new MeetingMutationError(`Agent "${speakerAgentId}" does not exist.`);
 
     const runtimeType = agent.runtime_provider;
