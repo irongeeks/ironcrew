@@ -4,11 +4,14 @@ import { fileURLToPath } from "node:url";
 import type { Migration } from "./migration-types.ts";
 import { migration as baseline } from "./0000-baseline.ts";
 import { migration as m0001DropPresentationTaskType } from "./0001-drop-presentation-task-type.ts";
-import { migration as m0002IronCommandDomain } from "./0002-iron-command-domain.ts";
-import { migration as m0003IcMilestones } from "./0003-ic-milestones.ts";
+import { migration as m0002IronCrewDomain } from "./0002-iron-crew-domain.ts";
+import { migration as m0003CrewMilestones } from "./0003-crew-milestones.ts";
+import { migration as m0004CrewSecrets } from "./0004-crew-secrets.ts";
+import { migration as m0005CrewAttachments } from "./0005-crew-attachments.ts";
+import { migration as m0006RenameIcToCrew } from "./0006-rename-ic-prefix-to-crew.ts";
 
 // Import future migrations here:
-// import { migration as m0004 } from "./0004-example.ts";
+// import { migration as m0006 } from "./0006-example.ts";
 
 /**
  * Entry in the registry — pairs each Migration with the on-disk filename that
@@ -23,8 +26,11 @@ interface MigrationEntry {
 const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0000-baseline.ts", migration: baseline },
   { filename: "0001-drop-presentation-task-type.ts", migration: m0001DropPresentationTaskType },
-  { filename: "0002-iron-command-domain.ts", migration: m0002IronCommandDomain },
-  { filename: "0003-ic-milestones.ts", migration: m0003IcMilestones },
+  { filename: "0002-iron-crew-domain.ts", migration: m0002IronCrewDomain },
+  { filename: "0003-crew-milestones.ts", migration: m0003CrewMilestones },
+  { filename: "0004-crew-secrets.ts", migration: m0004CrewSecrets },
+  { filename: "0005-crew-attachments.ts", migration: m0005CrewAttachments },
+  { filename: "0006-rename-ic-prefix-to-crew.ts", migration: m0006RenameIcToCrew },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

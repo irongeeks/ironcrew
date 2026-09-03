@@ -1,6 +1,6 @@
 # Installation — Linux
 
-Iron Command OS is self-hosted and local-first. Everything runs on your own
+IronCrew is self-hosted and local-first. Everything runs on your own
 machine; nothing is sent to a third party unless you configure a provider.
 
 ## Requirements
@@ -18,7 +18,7 @@ Optional, only if you want that runtime:
 - OpenAI Codex CLI (`codex`) — a ChatGPT account
 - Google Antigravity CLI (`agy`)
 
-Iron Command ships **MockRuntime**, so the whole product works end to end with
+IronCrew ships **MockRuntime**, so the whole product works end to end with
 none of those installed. That is the recommended way to try it first.
 
 ## Install
@@ -50,7 +50,7 @@ Set at minimum:
 API_AUTH_TOKEN=$(openssl rand -hex 32)
 
 # Where the database and logs live.
-DB_PATH=./data/ironcommand.sqlite
+DB_PATH=./data/ironcrew.sqlite
 LOGS_DIR=./data/logs
 
 # Bind to localhost unless you know you want otherwise.
@@ -102,7 +102,7 @@ pnpm start
 ```
 
 On first start you will see the setup wizard. Complete it, then open the
-**COMMAND** tab for the Iron Command control plane.
+**COMMAND** tab for the IronCrew control plane.
 
 ## Verify the installation
 
@@ -116,7 +116,7 @@ Then check the control plane is alive:
 
 ```bash
 curl -s -H "Authorization: Bearer $API_AUTH_TOKEN" \
-     http://127.0.0.1:8800/api/ic/dashboard | head
+     http://127.0.0.1:8800/api/crew/dashboard | head
 ```
 
 Confirm the vendor policy is enforced server-side — this must return **403**:
@@ -126,7 +126,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
      -X POST -H "Authorization: Bearer $API_AUTH_TOKEN" \
      -H 'Content-Type: application/json' \
      -d '{"model":"deepseek/deepseek-chat"}' \
-     http://127.0.0.1:8800/api/ic/vendor-policy/check
+     http://127.0.0.1:8800/api/crew/vendor-policy/check
 ```
 
 ## Run as a service (systemd)
@@ -134,23 +134,23 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 Create a dedicated user so the service never runs as root:
 
 ```bash
-sudo useradd --system --create-home --shell /usr/sbin/nologin ironcommand
+sudo useradd --system --create-home --shell /usr/sbin/nologin ironcrew
 sudo cp -r . /opt/ironcrew
-sudo chown -R ironcommand:ironcommand /opt/ironcrew
+sudo chown -R ironcrew:ironcrew /opt/ironcrew
 ```
 
-`/etc/systemd/system/ironcommand.service`:
+`/etc/systemd/system/ironcrew.service`:
 
 ```ini
 [Unit]
-Description=Iron Command OS
+Description=IronCrew
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=ironcommand
-Group=ironcommand
+User=ironcrew
+Group=ironcrew
 WorkingDirectory=/opt/ironcrew
 EnvironmentFile=/opt/ironcrew/.env
 ExecStart=/usr/bin/node --experimental-strip-types server/index.ts
@@ -174,9 +174,9 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now ironcommand
-sudo systemctl status ironcommand
-journalctl -u ironcommand -f
+sudo systemctl enable --now ironcrew
+sudo systemctl status ironcrew
+journalctl -u ironcrew -f
 ```
 
 > **Note on CLI runtimes.** `ProtectHome=true` means the service cannot read a

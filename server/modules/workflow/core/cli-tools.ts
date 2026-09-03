@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { permissionArgsFor, type PermissionMode } from "../../../ironcommand/policy/runtime-permissions.ts";
+import { permissionArgsFor, type PermissionMode } from "../../../ironcrew/policy/runtime-permissions.ts";
 
 export type CliOutputStream = "stdout" | "stderr";
 

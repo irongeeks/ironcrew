@@ -1,6 +1,6 @@
 # Threat Model
 
-Scope: a self-hosted, local-first Iron Command OS run by a single owner (the
+Scope: a self-hosted, local-first IronCrew run by a single owner (the
 CEO) on Linux or macOS, orchestrating AI agents that hold real credentials and
 can touch real systems.
 
@@ -32,7 +32,7 @@ prompt injection, any confused agent, any mis-scoped task therefore ran with an
 unbounded capability surface. The upstream tests asserted these flags as
 required, so the behaviour was locked in.
 
-**Mitigation.** `server/ironcommand/policy/runtime-permissions.ts`. Three modes;
+**Mitigation.** `server/ironcrew/policy/runtime-permissions.ts`. Three modes;
 `restricted` is the default. `elevated` requires a `SandboxGrant` that names the
 `ApprovalRequest` it came from, is scoped to a company, runtime and optionally a
 single task, and is hard-capped at 4 hours regardless of its stated expiry.
@@ -84,7 +84,7 @@ Agent stdout, tool output, error messages and event payloads all flow into the
 database, the websocket and the UI. A single leaked key in a log line is a
 compromise.
 
-**Mitigation.** `server/ironcommand/security/redaction.ts`, applied on the way
+**Mitigation.** `server/ironcrew/security/redaction.ts`, applied on the way
 _into_ storage rather than on the way out, so a database dump cannot become a
 credential dump. Redaction is pattern-based rather than value-based, because
 matching only known values misses exactly the credentials the process never
@@ -114,7 +114,7 @@ process, so this boundary is a design commitment rather than an enforced one.
 A local-first product stores everything in one SQLite file the owner can edit.
 Perfect integrity is not achievable; _detection_ is.
 
-**Mitigation.** `ic_audit_events` is append-only (the module exposes no update
+**Mitigation.** `crew_audit_events` is append-only (the module exposes no update
 or delete) and hash-chained per company over canonical JSON. `verifyAuditChain()`
 locates the first broken link and distinguishes a tampered entry from a deleted
 one. Every governance decision — approvals, budget blocks, claims, transitions,
@@ -130,7 +130,7 @@ Company policy forbids Chinese-vendor models, SDKs and telemetry. A UI filter
 is not a control: the API, a config edit, or an OpenRouter fallback would
 bypass it.
 
-**Mitigation.** `server/ironcommand/policy/vendor-policy.ts` is enforced in the
+**Mitigation.** `server/ironcrew/policy/vendor-policy.ts` is enforced in the
 backend and is the only place that answers "may I use this model?". Deny by
 default; the blocklist always wins over the allowlist, so widening
 `allowed_families` cannot re-enable a blocked vendor. Matching normalises the

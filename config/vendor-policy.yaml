@@ -1,9 +1,9 @@
-# Iron Command OS — Vendor Policy
+# IronCrew — Vendor Policy
 #
 # This file is the single source of truth for which model vendors, families and
 # providers may be used by any runtime in this installation.
 #
-# It is enforced in the BACKEND (server/ironcommand/policy/vendor-policy.ts).
+# It is enforced in the BACKEND (server/ironcrew/policy/vendor-policy.ts).
 # Hiding an entry in the UI is explicitly NOT considered enforcement: every
 # model resolution path runs through assertModelAllowed() before a run starts.
 #
@@ -16,7 +16,7 @@
 version: 1
 
 # Human-readable reason surfaced in the UI and audit log when a model is denied.
-policy_name: "Iron Command default vendor policy"
+policy_name: "IronCrew default vendor policy"
 
 # ---------------------------------------------------------------------------
 # Allowlist. Patterns are matched against the normalised model id
@@ -123,7 +123,7 @@ blocked_endpoints:
     match: ["wechat", "weixin.qq.com", "wx.qq.com"]
 
 # ---------------------------------------------------------------------------
-# Telemetry. Iron Command sends no usage analytics anywhere.
+# Telemetry. IronCrew sends no usage analytics anywhere.
 # ---------------------------------------------------------------------------
 telemetry:
   enabled: false

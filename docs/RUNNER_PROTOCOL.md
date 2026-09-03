@@ -107,7 +107,7 @@ retried into the same wall.
 
 ### Sequencing
 
-Sequence numbers come from `UPDATE ic_runs SET next_event_seq = next_event_seq + 1
+Sequence numbers come from `UPDATE crew_runs SET next_event_seq = next_event_seq + 1
 … RETURNING`, so two concurrent emitters cannot receive the same number.
 `UNIQUE (run_id, seq)` is the backstop. Ordered replay is therefore exact.
 
@@ -155,7 +155,7 @@ same thing from the caller's side. Both paths are tested.
 
 ## Bridging the upstream adapters
 
-`CliAdapterRuntime` (`server/ironcommand/runtime/cli-adapter-runtime.ts`) is
+`CliAdapterRuntime` (`server/ironcrew/runtime/cli-adapter-runtime.ts`) is
 this bridge. It takes a `CliAdapter` — argv building and stream parsing stay
 the adapter's own job, since that's the part that actually knows each CLI's
 wire protocol — and supplies everything the normalised contract adds on top:
@@ -165,13 +165,13 @@ cancellation, and this mapping. The upstream adapters emit six event types
 `token_usage`); `mapAdapterEvent()` maps them onto the seventeen-type
 protocol:
 
-| Upstream          | Normalised                                                             |
-| ----------------- | ---------------------------------------------------------------------- |
-| `output`          | `message.delta`                                                        |
-| `tool_use`        | `tool.requested` + `tool.started`                                      |
-| `subtask_created` | `subagent.spawned`                                                     |
-| `subtask_done`    | `subagent.completed`                                                   |
-| `token_usage`     | `usage.updated`                                                        |
+| Upstream          | Normalised                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| `output`          | `message.delta`                                                                                 |
+| `tool_use`        | `tool.requested` + `tool.started`                                                               |
+| `subtask_created` | `subagent.spawned`                                                                              |
+| `subtask_done`    | `subagent.completed`                                                                            |
+| `token_usage`     | `usage.updated`                                                                                 |
 | `error`           | (no wrapped adapter emits this today) folded into the stderr tail that surfaces on `run.failed` |
 
 A rate limit is detected from raw stdout/stderr text via `detectRateLimit()`
@@ -184,6 +184,6 @@ code is non-zero, a hard/idle timeout fired, or output was truncated at
 
 `CliAdapterRuntime` is registered for every CLI-transport adapter
 (`server/server-main.ts`, alongside MockRuntime) so the orchestrator can
-select it per agent (`PATCH /api/ic/agents/:id/runtime`) and see its live
-capabilities/health/auth (`GET /api/ic/runtimes`, the Command Center's
+select it per agent (`PATCH /api/crew/agents/:id/runtime`) and see its live
+capabilities/health/auth (`GET /api/crew/runtimes`, the Command Center's
 Provider Health affordance in the agent-detail dialog).

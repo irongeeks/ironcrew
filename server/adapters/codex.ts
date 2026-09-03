@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { CliAdapter, InvocationContext, AdapterStreamEvent } from "./adapter-interface.ts";
-import { permissionArgsFor } from "../ironcommand/policy/runtime-permissions.ts";
+import { permissionArgsFor } from "../ironcrew/policy/runtime-permissions.ts";
 
 const execFileAsync = promisify(execFile);
 

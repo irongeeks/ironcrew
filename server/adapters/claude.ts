@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { CliAdapter, InvocationContext, AdapterStreamEvent } from "./adapter-interface.ts";
-import { permissionArgsFor } from "../ironcommand/policy/runtime-permissions.ts";
+import { permissionArgsFor } from "../ironcrew/policy/runtime-permissions.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -16,7 +16,7 @@ export const claudeAdapter: CliAdapter = {
     const args = [
       "claude",
       // Permission flags are policy-driven; see
-      // server/ironcommand/policy/runtime-permissions.ts. Restricted by default.
+      // server/ironcrew/policy/runtime-permissions.ts. Restricted by default.
       ...permissionArgsFor("claude", context.permissionMode ?? "restricted"),
       "--print",
       "--verbose",

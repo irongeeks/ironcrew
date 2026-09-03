@@ -1,8 +1,8 @@
 # Data Model
 
-All Iron Command tables are prefixed `ic_` and live alongside the upstream
+All IronCrew tables are prefixed `ic_` and live alongside the upstream
 OctoOffice tables. They are created by migration
-`server/modules/bootstrap/migrations/0002-iron-command-domain.ts`.
+`server/modules/bootstrap/migrations/0002-iron-crew-domain.ts`.
 
 Conventions:
 
@@ -17,13 +17,13 @@ Conventions:
 
 ## Tenancy and org
 
-| Table            | Purpose     | Notable columns                          |
-| ---------------- | ----------- | ---------------------------------------- |
-| `ic_companies`   | The company | `slug` (unique), `owner_name`, `locale`  |
-| `ic_departments` | Departments | unique `(company_id, key)`, `sort_order` |
-| `ic_agents`      | Agents      | see below                                |
+| Table              | Purpose     | Notable columns                          |
+| ------------------ | ----------- | ---------------------------------------- |
+| `crew_companies`   | The company | `slug` (unique), `owner_name`, `locale`  |
+| `crew_departments` | Departments | unique `(company_id, key)`, `sort_order` |
+| `crew_agents`      | Agents      | see below                                |
 
-### `ic_agents` — the three-layer separation
+### `crew_agents` — the three-layer separation
 
 The product's central invariant is expressed structurally, in three separate
 columns that are never merged:
@@ -43,14 +43,14 @@ UI figure cannot disagree with the control plane.
 
 ## Work
 
-| Table                  | Purpose                                                           |
-| ---------------------- | ----------------------------------------------------------------- |
-| `ic_goals`             | Company goals, self-referential via `parent_id` for goal ancestry |
-| `ic_projects`          | Projects, optionally linked to a goal and a workspace path        |
-| `ic_tasks`             | Tasks — the heart of the system                                   |
-| `ic_task_dependencies` | Blocker edges                                                     |
+| Table                    | Purpose                                                           |
+| ------------------------ | ----------------------------------------------------------------- |
+| `crew_goals`             | Company goals, self-referential via `parent_id` for goal ancestry |
+| `crew_projects`          | Projects, optionally linked to a goal and a workspace path        |
+| `crew_tasks`             | Tasks — the heart of the system                                   |
+| `crew_task_dependencies` | Blocker edges                                                     |
 
-### `ic_tasks`
+### `crew_tasks`
 
 ```text
 status              inbox | planned | ready | assigned | running | waiting |
@@ -78,23 +78,23 @@ writers cannot both succeed; the loser sees zero affected rows and returns
 always name the run they observed holding the lock. Without that, a reaper
 acting on stale information would clear a lock a fresh owner had already taken.
 
-`ic_task_dependencies` has `UNIQUE (company_id, task_id, depends_on_id, kind)`
+`crew_task_dependencies` has `UNIQUE (company_id, task_id, depends_on_id, kind)`
 and `CHECK (task_id <> depends_on_id)`; cycles are rejected in application code
 by walking existing edges before inserting.
 
 ## Execution
 
-| Table           | Purpose                         |
-| --------------- | ------------------------------- |
-| `ic_runs`       | One execution attempt of a task |
-| `ic_run_events` | The normalised event stream     |
+| Table             | Purpose                         |
+| ----------------- | ------------------------------- |
+| `crew_runs`       | One execution attempt of a task |
+| `crew_run_events` | The normalised event stream     |
 
-`ic_runs` carries `permission_mode` and `sandbox_grant_id`, so the capability
+`crew_runs` carries `permission_mode` and `sandbox_grant_id`, so the capability
 surface a run actually had is part of the permanent record. `next_event_seq`
 allocates event sequence numbers via `UPDATE … RETURNING`, with
 `UNIQUE (run_id, seq)` as the backstop.
 
-`ic_run_events` stores the payload **already redacted**, plus `redacted` and
+`crew_run_events` stores the payload **already redacted**, plus `redacted` and
 `redaction_rules`, so the fact that redaction occurred is itself recorded
 rather than silently applied.
 
@@ -106,35 +106,35 @@ Event types: `run.started`, `message.delta`, `message.completed`,
 
 ## Conversation
 
-| Table              | Purpose                                      |
-| ------------------ | -------------------------------------------- |
-| `ic_conversations` | CEO↔EA, CEO↔agent, agent↔agent, meeting      |
-| `ic_messages`      | Messages, with `triage_json` on CEO messages |
+| Table                | Purpose                                      |
+| -------------------- | -------------------------------------------- |
+| `crew_conversations` | CEO↔EA, CEO↔agent, agent↔agent, meeting      |
+| `crew_messages`      | Messages, with `triage_json` on CEO messages |
 
 `triage_json` preserves the classification decision, which is what powers the
 "why was this classified this way?" view.
 
 ## Governance
 
-| Table               | Purpose                                               |
-| ------------------- | ----------------------------------------------------- |
-| `ic_approvals`      | Approval requests and owner decisions                 |
-| `ic_decisions`      | Recorded company decisions with rationale             |
-| `ic_budgets`        | Budget policies per scope and window                  |
-| `ic_cost_events`    | The spend ledger                                      |
-| `ic_sandbox_grants` | CLI permission elevations, always tied to an approval |
-| `ic_audit_events`   | Append-only, hash-chained audit log                   |
+| Table                 | Purpose                                               |
+| --------------------- | ----------------------------------------------------- |
+| `crew_approvals`      | Approval requests and owner decisions                 |
+| `crew_decisions`      | Recorded company decisions with rationale             |
+| `crew_budgets`        | Budget policies per scope and window                  |
+| `crew_cost_events`    | The spend ledger                                      |
+| `crew_sandbox_grants` | CLI permission elevations, always tied to an approval |
+| `crew_audit_events`   | Append-only, hash-chained audit log                   |
 
-`ic_budgets` is unique on `(company_id, scope_type, scope_id, window_kind)`, so
+`crew_budgets` is unique on `(company_id, scope_type, scope_id, window_kind)`, so
 setting a budget updates rather than duplicating. Scopes: `company`, `agent`,
 `project`, `task`, `runtime`, `provider`.
 
-`ic_cost_events.kind` distinguishes `usage` from `quota`. A subscription runtime
+`crew_cost_events.kind` distinguishes `usage` from `quota`. A subscription runtime
 has no per-call price, so its consumption is recorded as a `quota` event with
 `cost_micros = 0` — token counts are still captured, but no monetary figure is
 invented for a dashboard to display.
 
-### `ic_audit_events`
+### `crew_audit_events`
 
 ```text
 seq          INTEGER   monotonic per company, UNIQUE (company_id, seq)
@@ -151,21 +151,21 @@ local-first deployment — see `docs/THREAT_MODEL.md` T-06.
 
 ## Memory and notifications
 
-| Table              | Purpose                                                                                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ic_memory_refs`   | Provenance for vault notes and Honcho entries: `kind` distinguishes fact / preference / hypothesis / summary, with `confidence` and `sensitivity` |
-| `ic_notifications` | Decision inbox and outbound channels                                                                                                              |
+| Table                | Purpose                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crew_memory_refs`   | Provenance for vault notes and Honcho entries: `kind` distinguishes fact / preference / hypothesis / summary, with `confidence` and `sensitivity` |
+| `crew_notifications` | Decision inbox and outbound channels                                                                                                              |
 
 ## Indexes
 
 Every hot path is indexed on `(company_id, …)`:
 
-- `idx_ic_tasks_company_status`, `idx_ic_tasks_project`, `idx_ic_tasks_agent`
-- `idx_ic_tasks_lock` on `(status, lock_expires_at)` for orphan sweeps
-- `idx_ic_runs_task`, `idx_ic_runs_heartbeat`
-- `idx_ic_run_events_run` on `(run_id, seq)` for ordered replay
-- `idx_ic_cost_company_month`, `idx_ic_cost_agent`, `idx_ic_cost_project`
-- `idx_ic_audit_company`, `idx_ic_audit_entity`
+- `idx_crew_tasks_company_status`, `idx_crew_tasks_project`, `idx_crew_tasks_agent`
+- `idx_crew_tasks_lock` on `(status, lock_expires_at)` for orphan sweeps
+- `idx_crew_runs_task`, `idx_crew_runs_heartbeat`
+- `idx_crew_run_events_run` on `(run_id, seq)` for ordered replay
+- `idx_crew_cost_company_month`, `idx_crew_cost_agent`, `idx_crew_cost_project`
+- `idx_crew_audit_company`, `idx_crew_audit_entity`
 
 ## Migration policy
 

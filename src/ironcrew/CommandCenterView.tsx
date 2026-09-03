@@ -1,0 +1,1032 @@
+/**
+ * IronCrew — Command Center.
+ *
+ * A cinematic HUD built from accessible DOM, not a canvas. Everything here is
+ * real backend state: agent status is derived server-side from the work an
+ * agent actually holds, so a figure can never disagree with the control plane.
+ *
+ * There are no placeholder KPIs. Every figure comes from /api/crew/dashboard,
+ * which reports its own source and read time.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import "./command-center.css";
+import { api } from "./api.ts";
+import {
+  AGENT_STATUS_LABEL,
+  BOARD_COLUMNS,
+  MILESTONE_STATUS_LABEL,
+  NOTIFICATION_SEVERITY_LABEL,
+  PROJECT_STATUS_LABEL,
+  TASK_STATUS_LABEL,
+  type Agent,
+  type Approval,
+  type Dashboard,
+  type Decision,
+  type Department,
+  type Goal,
+  type Message,
+  type Milestone,
+  type Notification,
+  type Project,
+  type RunEvent,
+  type RuntimeInfo,
+  type Task,
+  type TaskStatus,
+} from "./types.ts";
+
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function eventKind(type: string): "error" | "decision" | "normal" {
+  if (type === "run.failed" || type === "tool.failed" || type === "run.cancelled") return "error";
+  if (type === "approval.required" || type === "rate_limit.detected" || type === "run.waiting") return "decision";
+  return "normal";
+}
+
+export interface CommandCenterViewProps {
+  /** Injected in tests; defaults to the live REST client. */
+  client?: typeof api;
+}
+
+export function CommandCenterView({ client = api }: CommandCenterViewProps): React.JSX.Element {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [events, setEvents] = useState<RunEvent[]>([]);
+  const [companyName, setCompanyName] = useState("IronCrew");
+  const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [showOrgChart, setShowOrgChart] = useState(false);
+
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [showProjectList, setShowProjectList] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
+  const [projectDetail, setProjectDetail] = useState<{
+    project: Project;
+    milestones: Milestone[];
+    tasks: Task[];
+  } | null>(null);
+  const [projectGoalAncestry, setProjectGoalAncestry] = useState<Goal[] | null>(null);
+
+  const logRef = useRef<HTMLDivElement>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const [a, t, c, ap, d, p, n, dec] = await Promise.all([
+        client.agents(),
+        client.tasks(),
+        client.chat(),
+        client.approvals(),
+        client.dashboard(),
+        client.projects(),
+        client.notifications(),
+        client.decisions(),
+      ]);
+      setAgents(a.agents);
+      setTasks(t.tasks);
+      setMessages(c.messages);
+      setApprovals(ap.approvals);
+      setDashboard(d);
+      setProjects(p.projects);
+      setNotifications(n.notifications);
+      setUnreadCount(n.unreadCount);
+      setDecisions(dec.decisions);
+      setError(null);
+    } catch (err) {
+      // Never fail silently — an unreachable control plane is information.
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [client]);
+
+  const openProjectDetail = useCallback(
+    async (projectId: string) => {
+      setShowProjectList(false);
+      try {
+        const detail = await client.project(projectId);
+        setProjectDetail(detail);
+        setProjectGoalAncestry(null);
+        if (detail.project.goal_id) {
+          // Best-effort: the detail dialog still works without the goal
+          // breadcrumb if this second call fails.
+          client
+            .goal(detail.project.goal_id)
+            .then((g) => setProjectGoalAncestry(g.ancestry))
+            .catch(() => setProjectGoalAncestry(null));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [client],
+  );
+
+  const closeProjectDetail = useCallback(() => {
+    setProjectDetail(null);
+    setProjectGoalAncestry(null);
+  }, []);
+
+  const refreshProjectDetail = useCallback(async () => {
+    if (!projectDetail) return;
+    const detail = await client.project(projectDetail.project.id);
+    setProjectDetail(detail);
+  }, [client, projectDetail]);
+
+  // Blocking/blocked-by are not in the plain `tasks` list — they need their
+  // own fetch, same shape as the project-detail pattern above.
+  const [taskBlockers, setTaskBlockers] = useState<Task[]>([]);
+  const [taskBlocking, setTaskBlocking] = useState<Task[]>([]);
+  const [addBlockerId, setAddBlockerId] = useState("");
+
+  const refreshTaskDependencies = useCallback(
+    async (taskId: string) => {
+      try {
+        const detail = await client.task(taskId);
+        setTaskBlockers(detail.blockers);
+        setTaskBlocking(detail.blocking);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [client],
+  );
+
+  const openTaskDetail = useCallback(
+    (t: Task) => {
+      setSelectedTask(t);
+      setAddBlockerId("");
+      void refreshTaskDependencies(t.id);
+    },
+    [refreshTaskDependencies],
+  );
+
+  // Provider Health: kept separate from refresh() — each registered runtime
+  // probes its own CLI (e.g. `claude --version`), so this is refreshed on
+  // demand from the agent-detail dialog rather than on every poll.
+  const refreshRuntimes = useCallback(async () => {
+    try {
+      const { runtimes: r } = await client.runtimes();
+      setRuntimes(r);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [client]);
+
+  // Shared by the roster and the org chart — the same agent-detail dialog
+  // opens from either place.
+  const openAgentDetail = useCallback(
+    (agent: Agent) => {
+      setSelectedAgent(agent);
+      void refreshRuntimes();
+    },
+    [refreshRuntimes],
+  );
+
+  useEffect(() => {
+    void refresh();
+    client
+      .company()
+      .then((r) => {
+        setCompanyName(r.company.name);
+        setDepartments(r.departments);
+      })
+      .catch(() => {
+        /* header falls back to the default name; org chart stays empty */
+      });
+  }, [refresh, client]);
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (!log) return;
+    // Element.scrollTo is absent in jsdom and in some older embedded webviews;
+    // assigning scrollTop works everywhere and has the same effect here.
+    if (typeof log.scrollTo === "function") log.scrollTo({ top: log.scrollHeight });
+    else log.scrollTop = log.scrollHeight;
+  }, [messages.length]);
+
+  const send = useCallback(async () => {
+    const body = draft.trim();
+    if (!body || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await client.sendMessage(body);
+      setDraft("");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [draft, busy, client, refresh]);
+
+  const runNext = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await client.executeNext();
+      if (result.executed && result.runId) {
+        const { events: runEvents } = await client.runEvents(result.runId);
+        setEvents((prev) => [...prev, ...runEvents].slice(-200));
+      }
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [client, refresh]);
+
+  const act = useCallback(
+    async (fn: () => Promise<unknown>) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await fn();
+        await refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
+  const markNotificationRead = useCallback(
+    (id: string) => {
+      void act(() => client.markNotificationRead(id));
+    },
+    [act, client],
+  );
+
+  // Kanban drag & drop. There is no optimistic local mutation: a card only
+  // ever moves to the column its `status` field in `tasks` actually says,
+  // and that only changes once refresh() re-reads it after the server
+  // accepted the move. A rejected move (409, illegal transition) surfaces
+  // through the same `error` banner every other action uses, and the card
+  // stays exactly where the backend still has it — "state changes must
+  // never be frontend-only" (docs/ROADMAP.md Phase 2).
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+
+  const moveTask = useCallback(
+    (taskId: string, status: TaskStatus) => {
+      const current = tasks.find((t) => t.id === taskId);
+      if (!current || current.status === status || busy) return;
+      void act(() => client.setTaskStatus(taskId, status));
+    },
+    [tasks, busy, act, client],
+  );
+
+  const byStatus = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const t of tasks) {
+      const list = map.get(t.status) ?? [];
+      list.push(t);
+      map.set(t.status, list);
+    }
+    return map;
+  }, [tasks]);
+
+  const agentById = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
+  const reviewable = tasks.filter((t) => t.status === "review");
+  // Re-derived from the live agents list on every render, never a stale
+  // snapshot: a runtime change made in the dialog is reflected the moment
+  // refresh() lands, same as every other figure in this view.
+  const currentAgent = selectedAgent ? (agentById.get(selectedAgent.id) ?? selectedAgent) : null;
+  const currentRuntime = currentAgent ? runtimes.find((r) => r.type === currentAgent.runtimeProvider) : undefined;
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+  const currentTask = selectedTask ? (taskById.get(selectedTask.id) ?? selectedTask) : null;
+  const agentsByDepartment = useMemo(() => {
+    const map = new Map<string, Agent[]>();
+    for (const a of agents) {
+      const list = map.get(a.departmentId ?? "") ?? [];
+      list.push(a);
+      map.set(a.departmentId ?? "", list);
+    }
+    return map;
+  }, [agents]);
+
+  return (
+    <div className="ic-root" data-testid="command-center">
+      {/* ------------------------------------------------------- top bar */}
+      <header className="ic-topbar">
+        <div className="ic-brand">
+          <span className="ic-brand-mark">IRONCREW</span>
+          <span className="ic-brand-sub">{companyName}</span>
+        </div>
+
+        <button type="button" className="ic-btn" data-testid="open-projects" onClick={() => setShowProjectList(true)}>
+          Projekte ({projects.length})
+        </button>
+
+        <button
+          type="button"
+          className="ic-btn"
+          data-variant={unreadCount > 0 ? "decision" : undefined}
+          data-testid="open-inbox"
+          onClick={() => setShowInbox(true)}
+        >
+          Postfach ({unreadCount})
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-org-chart" onClick={() => setShowOrgChart(true)}>
+          Organigramm
+        </button>
+
+        <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
+          <Metric label="Läuft" value={dashboard?.tasks.running ?? 0} tone="accent" />
+          <Metric label="Review" value={dashboard?.tasks.review ?? 0} />
+          <Metric label="Freigaben" value={dashboard?.approvalsPending ?? 0} tone="decision" />
+          <Metric
+            label="Blockiert"
+            value={dashboard?.tasks.blocked ?? 0}
+            tone={dashboard?.tasks.blocked ? "critical" : undefined}
+          />
+          <Metric label="Agents aktiv" value={dashboard?.agents.working ?? 0} />
+          <Metric
+            label="Audit"
+            value={dashboard?.auditChainValid === false ? "BRUCH" : "OK"}
+            tone={dashboard?.auditChainValid === false ? "critical" : undefined}
+          />
+        </div>
+      </header>
+
+      <div className="ic-main">
+        {/* ------------------------------------------------- agent rail */}
+        <nav className="ic-rail" aria-label="Mannschaft">
+          <h2 className="ic-section-title">Mannschaft</h2>
+          <div className="ic-agent-list">
+            {agents.map((agent) => (
+              <button
+                key={agent.id}
+                type="button"
+                className="ic-agent"
+                aria-pressed={selectedAgent?.id === agent.id}
+                onClick={() => openAgentDetail(agent)}
+              >
+                <span
+                  className="ic-status-dot"
+                  data-status={agent.status}
+                  data-testid={`agent-status-${agent.key}`}
+                  aria-hidden="true"
+                />
+                <span>
+                  <span className="ic-agent-name">{agent.displayName}</span>
+                  <br />
+                  <span className="ic-agent-role">{agent.professionalRole}</span>
+                  {/* Status is announced in text, not only by colour. */}
+                  <span className="ic-sr-only">Status: {AGENT_STATUS_LABEL[agent.status]}</span>
+                </span>
+                {agent.isExecutiveAssistant ? <span className="ic-agent-ea">EA</span> : <span />}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {/* ----------------------------------------------------- board */}
+        <main className="ic-stage">
+          <h2 className="ic-section-title">
+            Aufgaben
+            <button type="button" className="ic-btn" onClick={runNext} disabled={busy} data-testid="run-next">
+              Nächste Aufgabe ausführen
+            </button>
+          </h2>
+
+          {error && (
+            <div className="ic-approval" role="alert" data-testid="error-banner">
+              <div className="ic-approval-type">Fehler</div>
+              <div className="ic-approval-summary">{error}</div>
+            </div>
+          )}
+
+          <div className="ic-board" data-testid="kanban">
+            {BOARD_COLUMNS.map(({ status, accent }) => {
+              const items = byStatus.get(status) ?? [];
+              return (
+                <section
+                  key={status}
+                  className="ic-column"
+                  data-accent={accent}
+                  data-testid={`column-${status}`}
+                  data-drag-over={dragOverColumn === status || undefined}
+                  onDragOver={(e) => {
+                    if (!draggedTaskId) return;
+                    e.preventDefault();
+                    setDragOverColumn(status);
+                  }}
+                  onDragLeave={() => setDragOverColumn((c) => (c === status ? null : c))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverColumn(null);
+                    const taskId = e.dataTransfer.getData("text/plain");
+                    if (taskId) moveTask(taskId, status);
+                  }}
+                >
+                  <h3 className="ic-column-head">
+                    <span>{TASK_STATUS_LABEL[status]}</span>
+                    <span className="ic-column-count">{items.length}</span>
+                  </h3>
+                  <div className="ic-column-body">
+                    {items.length === 0 && <p className="ic-empty">—</p>}
+                    {items.map((task) => (
+                      <button
+                        key={task.id}
+                        type="button"
+                        className="ic-card"
+                        draggable
+                        data-priority={task.priority}
+                        data-risk={task.risk_level}
+                        data-dragging={draggedTaskId === task.id || undefined}
+                        onClick={() => openTaskDetail(task)}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", task.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          setDraggedTaskId(task.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedTaskId(null);
+                          setDragOverColumn(null);
+                        }}
+                      >
+                        <span className="ic-card-title">{task.title}</span>
+                        <span className="ic-card-meta">
+                          <span>{agentById.get(task.assigned_agent_id ?? "")?.displayName ?? "—"}</span>
+                          {task.sensitive === 1 && <span className="ic-redacted">sensibel</span>}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </main>
+
+        {/* ------------------------------------------- CEO chat + inbox */}
+        <aside className="ic-side" aria-label="CEO-Kanal">
+          {approvals.length > 0 && (
+            <>
+              <h2 className="ic-section-title">Entscheidungen</h2>
+              {approvals.map((approval) => (
+                <div key={approval.id} className="ic-approval" data-testid={`approval-${approval.id}`}>
+                  <div className="ic-approval-type">{approval.approval_type}</div>
+                  <div className="ic-approval-summary">{approval.summary}</div>
+                  <div className="ic-approval-actions">
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="decision"
+                      disabled={busy}
+                      onClick={() => act(() => client.decide(approval.id, "approved"))}
+                    >
+                      Freigeben
+                    </button>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="danger"
+                      disabled={busy}
+                      onClick={() => act(() => client.decide(approval.id, "rejected"))}
+                    >
+                      Ablehnen
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {reviewable.length > 0 && (
+            <>
+              <h2 className="ic-section-title">Zur Abnahme</h2>
+              {reviewable.map((task) => (
+                <div key={task.id} className="ic-approval" data-testid={`review-${task.id}`}>
+                  <div className="ic-approval-type">Review</div>
+                  <div className="ic-approval-summary">{task.title}</div>
+                  <div className="ic-approval-actions">
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="decision"
+                      disabled={busy}
+                      onClick={() => act(() => client.accept(task.id))}
+                    >
+                      Abnehmen
+                    </button>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      disabled={busy}
+                      onClick={() => act(() => client.revise(task.id, "Bitte überarbeiten."))}
+                    >
+                      Revision
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          <h2 className="ic-section-title">CEO-Kanal</h2>
+          <div className="ic-chat-log" ref={logRef} data-testid="chat-log">
+            {messages.length === 0 && (
+              <p className="ic-note">
+                Ihr zentraler Ansprechpartner ist die Executive Assistant. Schreiben Sie, was zu tun ist — Triage,
+                Planung und Delegation übernimmt sie.
+              </p>
+            )}
+            {messages.map((msg) => {
+              const triage = msg.triage_json
+                ? (JSON.parse(msg.triage_json) as { category: string; confidence: number })
+                : null;
+              return (
+                <div key={msg.id} className="ic-msg" data-role={msg.role}>
+                  <div className="ic-msg-author">
+                    {msg.role === "ceo" ? "CEO" : (agentById.get(msg.author_agent_id ?? "")?.displayName ?? "System")}
+                    {" · "}
+                    {formatTime(msg.created_at)}
+                  </div>
+                  <div className="ic-msg-body">{msg.body}</div>
+                  {triage && msg.role === "ceo" && (
+                    <div className="ic-triage">
+                      Triage: {triage.category} · Konfidenz {(triage.confidence * 100).toFixed(0)}%
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="ic-composer">
+            <label className="ic-sr-only" htmlFor="ic-composer-input">
+              Nachricht an die Executive Assistant
+            </label>
+            <textarea
+              id="ic-composer-input"
+              data-testid="chat-input"
+              value={draft}
+              placeholder="Auftrag an die Executive Assistant …"
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
+              }}
+            />
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="chat-send"
+              onClick={send}
+              disabled={busy || draft.trim().length === 0}
+            >
+              Senden
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      {/* --------------------------------------------------- event drawer */}
+      <section className="ic-drawer" aria-label="Ereignisverlauf">
+        <div className="ic-drawer-head">
+          <h2 className="ic-section-title" style={{ padding: 0 }}>
+            Run-Ereignisse
+          </h2>
+        </div>
+        <div className="ic-event-log" data-testid="event-log">
+          {events.length === 0 && <p className="ic-empty">Noch keine Ereignisse.</p>}
+          {events.slice(-60).map((ev) => (
+            <div key={ev.eventId} className="ic-event" data-kind={eventKind(ev.type)}>
+              <span className="ic-event-time">{formatTime(ev.timestamp)}</span>
+              <span className="ic-event-type">{ev.type}</span>
+              <span className="ic-event-body">
+                {ev.redaction.redacted && <span className="ic-redacted">redigiert</span>}{" "}
+                {JSON.stringify(ev.payload).slice(0, 160)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {currentTask && (
+        <DetailDialog title={currentTask.title} onClose={() => setSelectedTask(null)}>
+          <dl>
+            <dt>Status</dt>
+            <dd>{TASK_STATUS_LABEL[currentTask.status]}</dd>
+            <dt>Priorität</dt>
+            <dd>{currentTask.priority}</dd>
+            <dt>Risiko</dt>
+            <dd>{currentTask.risk_level}</dd>
+            <dt>Verantwortlich</dt>
+            <dd>{agentById.get(currentTask.assigned_agent_id ?? "")?.displayName ?? "nicht zugewiesen"}</dd>
+            <dt>Correlation</dt>
+            <dd>
+              <code>{currentTask.correlation_id}</code>
+            </dd>
+          </dl>
+          {currentTask.result_summary && <p className="ic-note">{currentTask.result_summary}</p>}
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Blockiert durch
+          </h3>
+          {taskBlockers.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {taskBlockers.map((b) => (
+              <li key={b.id}>
+                <span className="ic-milestone-title">{b.title}</span>
+                <span className="ic-tag" data-tone={b.status === "done" ? "policy" : "gate"}>
+                  {TASK_STATUS_LABEL[b.status]}
+                </span>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  disabled={busy}
+                  onClick={() =>
+                    act(async () => {
+                      await client.removeDependency(currentTask.id, b.id);
+                      await refreshTaskDependencies(currentTask.id);
+                    })
+                  }
+                >
+                  Entfernen
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="ic-composer" style={{ padding: 0 }}>
+            <label className="ic-sr-only" htmlFor="ic-add-blocker-select">
+              Blocker für {currentTask.title} hinzufügen
+            </label>
+            <select
+              id="ic-add-blocker-select"
+              className="ic-select"
+              value={addBlockerId}
+              onChange={(e) => setAddBlockerId(e.target.value)}
+            >
+              <option value="">Blocker wählen…</option>
+              {tasks
+                .filter((t) => t.id !== currentTask.id && !taskBlockers.some((b) => b.id === t.id))
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+            </select>
+            <button
+              type="button"
+              className="ic-btn"
+              disabled={!addBlockerId || busy}
+              onClick={() =>
+                act(async () => {
+                  await client.addDependency(currentTask.id, addBlockerId);
+                  setAddBlockerId("");
+                  await refreshTaskDependencies(currentTask.id);
+                })
+              }
+            >
+              Hinzufügen
+            </button>
+          </div>
+
+          {taskBlocking.length > 0 && (
+            <>
+              <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+                Blockiert
+              </h3>
+              <ul className="ic-milestone-list">
+                {taskBlocking.map((b) => (
+                  <li key={b.id}>
+                    <span className="ic-milestone-title">{b.title}</span>
+                    <span className="ic-tag">{TASK_STATUS_LABEL[b.status]}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </DetailDialog>
+      )}
+
+      {currentAgent && (
+        <DetailDialog title={currentAgent.displayName} onClose={() => setSelectedAgent(null)}>
+          <dl>
+            <dt>Rolle</dt>
+            <dd>{currentAgent.professionalRole}</dd>
+            <dt>Status</dt>
+            <dd>{AGENT_STATUS_LABEL[currentAgent.status]}</dd>
+            <dt>Runtime</dt>
+            <dd>
+              <label className="ic-sr-only" htmlFor="ic-agent-runtime-select">
+                Runtime für {currentAgent.displayName}
+              </label>
+              <select
+                id="ic-agent-runtime-select"
+                className="ic-select"
+                data-testid="agent-runtime-select"
+                value={currentAgent.runtimeProvider}
+                disabled={busy}
+                onChange={(e) => act(() => client.setAgentRuntime(currentAgent.id, e.target.value))}
+              >
+                {/* An agent can be pointed at a provider this install no longer
+                    has registered (e.g. after a config change) — surface that
+                    honestly as its own option rather than silently showing a
+                    different one selected. */}
+                {!runtimes.some((r) => r.type === currentAgent.runtimeProvider) && (
+                  <option value={currentAgent.runtimeProvider}>
+                    {currentAgent.runtimeProvider} (nicht registriert)
+                  </option>
+                )}
+                {runtimes.map((r) => (
+                  <option key={r.type} value={r.type}>
+                    {r.type} {r.health.healthy ? "● bereit" : "○ nicht verfügbar"}
+                  </option>
+                ))}
+              </select>
+              {" · "}
+              {currentAgent.runtimeProfile}
+              {currentRuntime && (
+                <>
+                  <br />
+                  <span className="ic-note" data-testid="agent-runtime-detail">
+                    {currentRuntime.auth.authenticated ? "Angemeldet" : "Nicht angemeldet"} ·{" "}
+                    {currentRuntime.health.detail}
+                  </span>
+                </>
+              )}
+            </dd>
+            <dt>Max. Risiko</dt>
+            <dd>{currentAgent.policy.max_risk_level}</dd>
+            <dt>Werkzeuge</dt>
+            <dd>
+              {currentAgent.policy.allowed_tools.map((t) => (
+                <span key={t} className="ic-tag" data-tone="policy">
+                  {t}
+                </span>
+              ))}
+            </dd>
+            <dt>Freigabepflichtig</dt>
+            <dd>
+              {currentAgent.policy.requires_approval_for.length === 0
+                ? "—"
+                : currentAgent.policy.requires_approval_for.map((t) => (
+                    <span key={t} className="ic-tag" data-tone="gate">
+                      {t}
+                    </span>
+                  ))}
+            </dd>
+            <dt>Auftreten</dt>
+            <dd>{currentAgent.persona.traits.join(", ") || "—"}</dd>
+          </dl>
+          <p className="ic-note">
+            Das Auftreten ist rein stilistisch. Es kann Berechtigungen, Werkzeuge oder Freigabepflichten nicht verändern
+            — Policy hat immer Vorrang.
+          </p>
+        </DetailDialog>
+      )}
+
+      {showProjectList && !projectDetail && (
+        <DetailDialog title="Projekte" onClose={() => setShowProjectList(false)}>
+          {projects.length === 0 && <p className="ic-empty">Noch keine Projekte.</p>}
+          <div className="ic-project-list">
+            {projects.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="ic-project"
+                data-testid={`project-${p.key}`}
+                onClick={() => void openProjectDetail(p.id)}
+              >
+                <span className="ic-project-title">{p.title}</span>
+                <span className="ic-project-meta">
+                  {p.key} · {PROJECT_STATUS_LABEL[p.status]}
+                </span>
+              </button>
+            ))}
+          </div>
+        </DetailDialog>
+      )}
+
+      {projectDetail && (
+        <DetailDialog title={projectDetail.project.title} onClose={closeProjectDetail}>
+          <dl>
+            <dt>Schlüssel</dt>
+            <dd>
+              <code>{projectDetail.project.key}</code>
+            </dd>
+            <dt>Status</dt>
+            <dd>{PROJECT_STATUS_LABEL[projectDetail.project.status]}</dd>
+            {projectGoalAncestry && projectGoalAncestry.length > 0 && (
+              <>
+                <dt>Ziel</dt>
+                <dd data-testid="project-goal-ancestry">{projectGoalAncestry.map((g) => g.title).join(" -> ")}</dd>
+              </>
+            )}
+            {projectDetail.project.summary && (
+              <>
+                <dt>Zusammenfassung</dt>
+                <dd>{projectDetail.project.summary}</dd>
+              </>
+            )}
+          </dl>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Meilensteine
+          </h3>
+          {projectDetail.milestones.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {projectDetail.milestones.map((m) => (
+              <li key={m.id} className="ic-milestone" data-status={m.status}>
+                <span className="ic-milestone-title">{m.title}</span>
+                <span className="ic-tag" data-tone={m.status === "missed" ? "gate" : "policy"}>
+                  {MILESTONE_STATUS_LABEL[m.status]}
+                </span>
+                {m.status === "pending" && (
+                  <button
+                    type="button"
+                    className="ic-btn"
+                    disabled={busy}
+                    onClick={() =>
+                      act(async () => {
+                        await client.setMilestoneStatus(m.id, "done");
+                        await refreshProjectDetail();
+                      })
+                    }
+                  >
+                    Erledigt
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Aufgaben
+          </h3>
+          {projectDetail.tasks.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {projectDetail.tasks.map((t) => (
+              <li key={t.id}>
+                <span>{t.title}</span> <span className="ic-tag">{TASK_STATUS_LABEL[t.status]}</span>
+              </li>
+            ))}
+          </ul>
+        </DetailDialog>
+      )}
+
+      {showInbox && (
+        <DetailDialog title="Postfach" onClose={() => setShowInbox(false)}>
+          <h3 className="ic-section-title" style={{ padding: 0 }}>
+            Benachrichtigungen
+          </h3>
+          {notifications.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {notifications.map((n) => (
+              <li key={n.id} data-testid={`notification-${n.id}`}>
+                <span className="ic-milestone-title" style={n.read_at ? { opacity: 0.5 } : undefined}>
+                  {n.title}
+                </span>
+                <span
+                  className="ic-tag"
+                  data-tone={n.severity === "critical" ? "gate" : n.severity === "warning" ? "gate" : "policy"}
+                >
+                  {NOTIFICATION_SEVERITY_LABEL[n.severity]}
+                </span>
+                {!n.read_at && (
+                  <button type="button" className="ic-btn" disabled={busy} onClick={() => markNotificationRead(n.id)}>
+                    Gelesen
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "10px 0 4px" }}>
+            Entscheidungsprotokoll
+          </h3>
+          {decisions.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {decisions.map((d) => (
+              <li key={d.id}>
+                <span className="ic-milestone-title">{d.title}</span>
+                <span className="ic-tag" data-tone={d.decision === "approved" ? "policy" : "gate"}>
+                  {d.decision}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </DetailDialog>
+      )}
+
+      {showOrgChart && (
+        <DetailDialog title="Organigramm" onClose={() => setShowOrgChart(false)}>
+          {departments.length === 0 && <p className="ic-empty">—</p>}
+          {departments.map((dept) => {
+            const deptAgents = agentsByDepartment.get(dept.id) ?? [];
+            return (
+              <div key={dept.id} data-testid={`org-department-${dept.key}`}>
+                <h3 className="ic-section-title" style={{ padding: "6px 0 4px" }}>
+                  {dept.name} ({deptAgents.length})
+                </h3>
+                {deptAgents.length === 0 && <p className="ic-empty">—</p>}
+                <div className="ic-project-list">
+                  {deptAgents.map((a) => (
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="ic-project"
+                      data-testid={`org-agent-${a.key}`}
+                      onClick={() => openAgentDetail(a)}
+                    >
+                      <span className="ic-project-title">
+                        {a.displayName}
+                        {a.isExecutiveAssistant ? " · EA" : ""}
+                      </span>
+                      <span className="ic-project-meta">
+                        {a.professionalRole} · {AGENT_STATUS_LABEL[a.status]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {(agentsByDepartment.get("") ?? []).length > 0 && (
+            <>
+              <h3 className="ic-section-title" style={{ padding: "6px 0 4px" }}>
+                Ohne Abteilung
+              </h3>
+              <div className="ic-project-list">
+                {(agentsByDepartment.get("") ?? []).map((a) => (
+                  <button key={a.id} type="button" className="ic-project" onClick={() => openAgentDetail(a)}>
+                    <span className="ic-project-title">{a.displayName}</span>
+                    <span className="ic-project-meta">{a.professionalRole}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </DetailDialog>
+      )}
+    </div>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  tone?: "accent" | "decision" | "critical";
+}): React.JSX.Element {
+  return (
+    <div className="ic-metric" data-tone={tone}>
+      <span className="ic-metric-label">{label}</span>
+      <span className="ic-metric-value">{value}</span>
+    </div>
+  );
+}
+
+function DetailDialog({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="ic-detail-backdrop" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="ic-detail">
+        <h2>{title}</h2>
+        {children}
+        <button type="button" className="ic-btn" onClick={onClose}>
+          Schliessen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default CommandCenterView;

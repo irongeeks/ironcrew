@@ -1,4 +1,4 @@
-# Iron Command OS
+# IronCrew
 
 A self-hosted, local-first **multi-agent company OS**. You are the owner and
 CEO. You talk to one Executive Assistant, who triages, plans, delegates to a
@@ -71,7 +71,7 @@ These are enforced in code and covered by tests, not just documented.
 ## Vendor policy
 
 `config/vendor-policy.yaml` decides which model vendors may be used, and
-`server/ironcommand/policy/vendor-policy.ts` enforces it in the backend. A
+`server/ironcrew/policy/vendor-policy.ts` enforces it in the backend. A
 blocked model is refused with **403** by the same code path the executor uses,
 so the UI cannot offer something the backend would reject.
 
@@ -121,7 +121,7 @@ pnpm lint
 
 ## Licence and attribution
 
-Apache-2.0. Iron Command OS is a fork of OctoOffice, Copyright (c) Joshua
+Apache-2.0. IronCrew is a fork of OctoOffice, Copyright (c) Joshua
 Dormann, used under Apache-2.0 with the licence preserved.
 
 See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the full attribution,

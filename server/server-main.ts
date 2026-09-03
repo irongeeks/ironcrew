@@ -33,10 +33,10 @@ import { assertRuntimeFunctionsResolved, createDeferredRuntimeProxy } from "./mo
 import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
-import { registerIronCommandRoutes } from "./ironcommand/api/routes.ts";
-import { CompanyOrchestrator } from "./ironcommand/orchestrator/company.ts";
-import { MockRuntime } from "./ironcommand/runtime/mock-runtime.ts";
-import { CliAdapterRuntime } from "./ironcommand/runtime/cli-adapter-runtime.ts";
+import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
+import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
+import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
+import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
 import { createOAuthContext } from "./contexts/oauth-context.ts";
 import { createMessagingContext } from "./contexts/messaging-context.ts";
 import { createTaskExecutionContext } from "./contexts/task-execution-context.ts";
@@ -278,27 +278,27 @@ Object.assign(runtimeContext, initializeWorkflow(runtimeProxy as RuntimeContext)
 graphRunner.setBroadcast((runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast);
 Object.assign(runtimeContext, registerApiRoutes(runtimeContext as RuntimeContext, oauthCtx));
 
-// Iron Command control plane. Mounted under /api/ic and deliberately
+// IronCrew control plane. Mounted under /api/crew and deliberately
 // self-contained: it takes only the db handle and the broadcast function, so
 // it carries no dependency on the upstream runtime god-object.
 //
-// Runtimes are registered explicitly rather than left to registerIronCommandRoutes()'s
+// Runtimes are registered explicitly rather than left to registerIronCrewRoutes()'s
 // MockRuntime-only default: MockRuntime stays available for demos and tests,
 // and every CLI-transport adapter this install already knows about (claude,
 // codex, gemini, ...) is wrapped in a CliAdapterRuntime and registered too.
 // Wrapping is unconditional — capabilities()/healthCheck()/authStatus() (the
-// Provider Health panel, GET /api/ic/runtimes) are what tell an operator
+// Provider Health panel, GET /api/crew/runtimes) are what tell an operator
 // whether a given CLI is actually installed and logged in; a runtime that
 // isn't simply reports itself unhealthy rather than being hidden.
-const ironCommandOrchestrator = new CompanyOrchestrator(db);
-ironCommandOrchestrator.registerRuntime(new MockRuntime());
+const ironCrewOrchestrator = new CompanyOrchestrator(db);
+ironCrewOrchestrator.registerRuntime(new MockRuntime());
 for (const adapter of adapterRegistry.list()) {
-  if (isCliAdapter(adapter)) ironCommandOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
+  if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
 }
-registerIronCommandRoutes(app, {
+registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
-  orchestrator: ironCommandOrchestrator,
+  orchestrator: ironCrewOrchestrator,
 });
 
 app.use(globalErrorHandler);

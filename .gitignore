@@ -125,9 +125,10 @@ docs/reviews/
 # Internal launch/marketing notes (not for public repo)
 docs/launch-kit.md
 
-# --- Iron Command OS ---
+# --- IronCrew ---
 .references/
 data/private-assets/
+data/crew-attachments/
 config/private/*
 !config/private/*.example.yaml
 vault/

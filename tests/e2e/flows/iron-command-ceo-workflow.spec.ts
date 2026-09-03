@@ -1,5 +1,5 @@
 /**
- * Iron Command OS — end-to-end verification of the vertical CEO workflow.
+ * IronCrew — end-to-end verification of the vertical CEO workflow.
  *
  *   CEO -> Executive Assistant -> task -> delegation -> run -> review -> CEO
  *
@@ -9,23 +9,23 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { establishSession } from "../fixtures/test-helpers";
 
-const IC = "/api/ic";
+const IC = "/api/crew";
 
 async function session(request: APIRequestContext): Promise<Record<string, string>> {
   const csrf = await establishSession(request);
   return { "x-csrf-token": csrf };
 }
 
-test.describe("Iron Command control plane (API)", () => {
+test.describe("IronCrew control plane (API)", () => {
   test("seeds a company with exactly one executive assistant and no self-approving agent", async ({ request }) => {
     await session(request);
 
-    const company = await request.get(`${IC}/company`);
+    const company = await request.get(`${CREW}/company`);
     expect(company.ok()).toBeTruthy();
     const { departments } = await company.json();
     expect(departments.length).toBeGreaterThan(5);
 
-    const res = await request.get(`${IC}/agents`);
+    const res = await request.get(`${CREW}/agents`);
     const { agents } = await res.json();
     expect(agents.length).toBeGreaterThan(10);
 
@@ -41,7 +41,7 @@ test.describe("Iron Command control plane (API)", () => {
   test("drives a task from CEO message to accepted result", async ({ request }) => {
     const headers = await session(request);
 
-    const chat = await request.post(`${IC}/chat`, {
+    const chat = await request.post(`${CREW}/chat`, {
       headers,
       data: { body: "Bitte dokumentiere unser Backup-Verfahren fuer Proxmox." },
     });
@@ -53,7 +53,7 @@ test.describe("Iron Command control plane (API)", () => {
     expect(created.task.status).toBe("ready");
     expect(created.assignedAgent).not.toBeNull();
 
-    const exec = await request.post(`${IC}/tasks/execute-next`, { headers });
+    const exec = await request.post(`${CREW}/tasks/execute-next`, { headers });
     expect(exec.ok()).toBeTruthy();
     const executed = await exec.json();
     expect(executed.executed).toBe(true);
@@ -61,11 +61,11 @@ test.describe("Iron Command control plane (API)", () => {
     expect(executed.eventCount).toBeGreaterThan(3);
 
     // Run events are persisted and replayable in order.
-    const events = await (await request.get(`${IC}/runs/${executed.runId}/events`)).json();
+    const events = await (await request.get(`${CREW}/runs/${executed.runId}/events`)).json();
     expect(events.events[0].type).toBe("run.started");
     expect(events.events.at(-1).type).toBe("run.completed");
 
-    const accepted = await request.post(`${IC}/tasks/${executed.task.id}/accept`, {
+    const accepted = await request.post(`${CREW}/tasks/${executed.task.id}/accept`, {
       headers,
       data: { note: "Passt." },
     });
@@ -76,14 +76,14 @@ test.describe("Iron Command control plane (API)", () => {
   test("supports a revision round", async ({ request }) => {
     const headers = await session(request);
 
-    await request.post(`${IC}/chat`, {
+    await request.post(`${CREW}/chat`, {
       headers,
       data: { body: "Bitte erstelle eine Uebersicht der offenen Tickets." },
     });
-    const executed = await (await request.post(`${IC}/tasks/execute-next`, { headers })).json();
+    const executed = await (await request.post(`${CREW}/tasks/execute-next`, { headers })).json();
     expect(executed.task.status).toBe("review");
 
-    const revised = await request.post(`${IC}/tasks/${executed.task.id}/revise`, {
+    const revised = await request.post(`${CREW}/tasks/${executed.task.id}/revise`, {
       headers,
       data: { reason: "Zu knapp, bitte Details ergaenzen." },
     });
@@ -94,7 +94,7 @@ test.describe("Iron Command control plane (API)", () => {
   test("blocks a sensitive request behind an owner approval instead of executing it", async ({ request }) => {
     const headers = await session(request);
 
-    const chat = await request.post(`${IC}/chat`, {
+    const chat = await request.post(`${CREW}/chat`, {
       headers,
       data: { body: "Bitte ueberweise 4.500 EUR an den Lieferanten." },
     });
@@ -105,18 +105,18 @@ test.describe("Iron Command control plane (API)", () => {
     expect(created.assignedAgent).toBeNull();
     expect(created.reply).toContain("NICHT ausgeführt");
 
-    const { approvals } = await (await request.get(`${IC}/approvals`)).json();
+    const { approvals } = await (await request.get(`${CREW}/approvals`)).json();
     const pending = approvals.find((a: { task_id: string }) => a.task_id === created.task.id);
     expect(pending.approval_type).toBe("bank_transfer");
 
     // A decision may be recorded exactly once.
-    const decided = await request.post(`${IC}/approvals/${pending.id}/decide`, {
+    const decided = await request.post(`${CREW}/approvals/${pending.id}/decide`, {
       headers,
       data: { decision: "approved", reason: "Rechnung geprueft." },
     });
     expect(decided.ok()).toBeTruthy();
 
-    const again = await request.post(`${IC}/approvals/${pending.id}/decide`, {
+    const again = await request.post(`${CREW}/approvals/${pending.id}/decide`, {
       headers,
       data: { decision: "rejected" },
     });
@@ -126,7 +126,7 @@ test.describe("Iron Command control plane (API)", () => {
   test("enforces the vendor policy in the backend, not only in the UI", async ({ request }) => {
     const headers = await session(request);
 
-    const allowed = await request.post(`${IC}/vendor-policy/check`, {
+    const allowed = await request.post(`${CREW}/vendor-policy/check`, {
       headers,
       data: { model: "anthropic/claude-sonnet-4" },
     });
@@ -141,7 +141,7 @@ test.describe("Iron Command control plane (API)", () => {
       "bytedance/doubao-pro",
       "mystery/unknown-model",
     ]) {
-      const res = await request.post(`${IC}/vendor-policy/check`, { headers, data: { model } });
+      const res = await request.post(`${CREW}/vendor-policy/check`, { headers, data: { model } });
       expect(res.status(), `${model} must be refused`).toBe(403);
       expect((await res.json()).decision.allowed).toBe(false);
     }
@@ -150,13 +150,13 @@ test.describe("Iron Command control plane (API)", () => {
   test("keeps the audit chain valid across the whole flow", async ({ request }) => {
     const headers = await session(request);
 
-    await request.post(`${IC}/chat`, {
+    await request.post(`${CREW}/chat`, {
       headers,
       data: { body: "Bitte analysiere die Logdateien des Backup-Servers." },
     });
-    await request.post(`${IC}/tasks/execute-next`, { headers });
+    await request.post(`${CREW}/tasks/execute-next`, { headers });
 
-    const audit = await (await request.get(`${IC}/audit`)).json();
+    const audit = await (await request.get(`${CREW}/audit`)).json();
     expect(audit.chain.valid).toBe(true);
 
     const actions = new Set(audit.events.map((e: { action: string }) => e.action));
@@ -168,25 +168,25 @@ test.describe("Iron Command control plane (API)", () => {
   test("stops runs when a hard budget is exhausted", async ({ request }) => {
     const headers = await session(request);
 
-    await request.put(`${IC}/budgets`, {
+    await request.put(`${CREW}/budgets`, {
       headers,
       data: { scopeType: "company", limitMicros: 1, hardStop: true },
     });
 
     // Consume the budget, then confirm execution is refused with 402.
-    const chat = await request.post(`${IC}/chat`, {
+    const chat = await request.post(`${CREW}/chat`, {
       headers,
       data: { body: "Bitte erstelle die technische Dokumentation." },
     });
     const created = await chat.json();
 
     // Run once to generate cost, then the next attempt must be blocked.
-    await request.post(`${IC}/tasks/execute-next`, { headers });
-    const second = await request.post(`${IC}/tasks/execute-next`, { headers });
+    await request.post(`${CREW}/tasks/execute-next`, { headers });
+    const second = await request.post(`${CREW}/tasks/execute-next`, { headers });
     expect([200, 402]).toContain(second.status());
 
     // Reset so later tests in this file are unaffected.
-    await request.put(`${IC}/budgets`, {
+    await request.put(`${CREW}/budgets`, {
       headers,
       data: { scopeType: "company", limitMicros: 0, hardStop: false },
     });
@@ -201,7 +201,7 @@ test.describe("Command Center UI", () => {
 
   test("renders the command center with live backend state", async ({ page, request }) => {
     const headers = await session(request);
-    await request.post(`${IC}/chat`, {
+    await request.post(`${CREW}/chat`, {
       headers,
       data: { body: "Bitte pruefe die Firewall-Regeln auf Schwachstellen." },
     });
@@ -223,8 +223,8 @@ test.describe("Command Center UI", () => {
     expect(await dots.count()).toBeGreaterThan(10);
 
     // Explicitly NOT a retro/pixel office. Scoped to the brand mark, since the
-    // company name in the sub-label also reads "Iron Command".
-    await expect(page.locator(".ic-brand-mark")).toHaveText("IRON COMMAND");
+    // company name in the sub-label also reads "IronCrew".
+    await expect(page.locator(".ic-brand-mark")).toHaveText("IRONCREW");
   });
 
   test("lets the CEO send a message and see the EA reply", async ({ page }) => {

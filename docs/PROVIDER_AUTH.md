@@ -1,6 +1,6 @@
 # Provider Authentication
 
-Iron Command OS never stores, copies or exports a provider's OAuth token. It
+IronCrew never stores, copies or exports a provider's OAuth token. It
 uses the official CLI's own credential store, held by the operating system user
 that owns it, and reads only _status_.
 
@@ -15,7 +15,7 @@ The control plane must NOT:   read, copy, export or persist an OAuth token
                               mount the owner's home directory into a container
 ```
 
-`AuthStatus` in `server/ironcommand/runtime/run-events.ts` encodes this by
+`AuthStatus` in `server/ironcrew/runtime/run-events.ts` encodes this by
 contract: booleans, a method enum, and an optional `accountHint` that must never
 carry an email address or a token.
 
@@ -43,7 +43,7 @@ wrong-runtime or wrong-task grant degrades to `restricted`.
 carries a bypass flag the resolved mode does not authorise.
 
 **Status: wired end-to-end.** `SandboxGrantStore.mintFromApproval()` is the
-only path to a grant — reachable solely from an *approved* `sandbox_elevation`
+only path to a grant — reachable solely from an _approved_ `sandbox_elevation`
 `ApprovalRequest`. `CompanyOrchestrator.executeNextTask()` looks up a live
 grant (`SandboxGrantStore.findLive()`) for the task about to run and asks
 `resolvePermissionMode()` to resolve it; the resolver, not the lookup, stays
@@ -60,7 +60,7 @@ mint/revoke audit trail.
 ## Claude Code (subscription)
 
 - Uses the officially installed `claude` CLI and the login already stored by the
-  OS user. Iron Command never touches `~/.claude` credentials.
+  OS user. IronCrew never touches `~/.claude` credentials.
 - Version detection via `claude --version`.
 - Streaming JSON is used. Session resume is not — none of the wrapped
   adapters (claude, codex, gemini) currently expose a resume flag to
@@ -129,7 +129,7 @@ OpenRouter transport itself is not wired yet._
 ## Vendor policy
 
 `config/vendor-policy.yaml` is the single source of truth, enforced in
-`server/ironcommand/policy/vendor-policy.ts` and validated with Zod at load.
+`server/ironcrew/policy/vendor-policy.ts` and validated with Zod at load.
 
 - **Deny by default** — a model matching no allowed family is refused.
 - **The blocklist always wins**, so widening `allowed_families` cannot
@@ -137,7 +137,7 @@ OpenRouter transport itself is not wired yet._
 - Matching normalises the model id _and_ checks the resolved upstream provider,
   so a re-hosted alias or an allowed-looking model routed through a blocked host
   is still refused.
-- `POST /api/ic/vendor-policy/check` returns **403** for a denied model. This is
+- `POST /api/crew/vendor-policy/check` returns **403** for a denied model. This is
   the same call the execution path makes, so the UI cannot present a model as
   usable that the backend would refuse.
 

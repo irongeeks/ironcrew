@@ -25,7 +25,7 @@ valuable next step, because everything else is already built around it.
    `server/adapters/*`.
 2. Map the six upstream `AdapterStreamEvent` types onto the seventeen-type run
    protocol (table in `docs/RUNNER_PROTOCOL.md`).
-3. Thread the resolved `SandboxGrant` from `ic_sandbox_grants` through
+3. Thread the resolved `SandboxGrant` from `crew_sandbox_grants` through
    `spawnCliAgent`, so `elevated` becomes reachable — currently the upstream
    path always resolves to `restricted`, which is safe but means an approved
    elevation has no effect.
