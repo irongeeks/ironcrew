@@ -34,6 +34,7 @@ import {
 import { SecretMutationError } from "../domain/secret-store.ts";
 import { SecretResolutionError } from "../secrets/secret-provider.ts";
 import { AttachmentMutationError } from "../domain/attachment-store.ts";
+import { RemoteWorkerMutationError } from "../domain/remote-worker-store.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -128,6 +129,16 @@ const uploadAttachmentSchema = z
   .refine((v) => !(v.taskId && v.projectId), {
     message: "An attachment may be scoped to a task or a project, not both.",
   });
+const createRemoteWorkerSchema = z.object({
+  label: z.string().min(1).max(200),
+  environment: z.string().max(200).optional(),
+  host: z.string().min(1).max(500),
+  port: z.number().int().min(1).max(65535).optional(),
+  sshUser: z.string().min(1).max(200),
+  privateKeyPath: z.string().min(1).max(1000),
+  knownHostsPolicy: z.enum(["strict", "accept"]).optional(),
+  notes: z.string().max(2000).optional(),
+});
 
 /** Translate domain errors into honest HTTP statuses rather than a blanket 500. */
 function sendDomainError(res: Response, err: unknown): boolean {
@@ -188,6 +199,10 @@ function sendDomainError(res: Response, err: unknown): boolean {
   // request error.
   if (err instanceof AttachmentMutationError) {
     res.status(400).json({ error: "invalid_attachment_mutation", message: err.message });
+    return true;
+  }
+  if (err instanceof RemoteWorkerMutationError) {
+    res.status(400).json({ error: "invalid_remote_worker_mutation", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -957,6 +972,69 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       broadcast("crew_attachment_changed", { attachmentId: param(req, "id"), deleted: true });
       res.json({ ok: true });
+    }),
+  );
+
+  // --- network (Tailscale/Headscale status + remote workers over the tailnet) ---
+
+  app.get(
+    `${base}/tailscale`,
+    wrap(async (_req, res) => {
+      try {
+        const [status, connection] = await Promise.all([orchestrator.tailscaleStatus(), orchestrator.testTailscale()]);
+        res.json({ ...status, ok: connection.ok, message: connection.message });
+      } catch (err) {
+        res.json({
+          backendState: "Unknown",
+          self: null,
+          peers: [],
+          ok: false,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }),
+  );
+
+  app.get(
+    `${base}/remote-workers`,
+    wrap((_req, res) => {
+      res.json({ remoteWorkers: orchestrator.remoteWorkers.list(companyId) });
+    }),
+  );
+
+  app.post(
+    `${base}/remote-workers`,
+    wrap((req, res) => {
+      const input = createRemoteWorkerSchema.parse(req.body ?? {});
+      const worker = orchestrator.remoteWorkers.create({ companyId, ...input, actorType: "owner", actorId: "ceo" });
+      broadcast("crew_remote_worker_changed", { remoteWorkerId: worker.id });
+      res.status(201).json({ remoteWorker: worker });
+    }),
+  );
+
+  app.delete(
+    `${base}/remote-workers/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.remoteWorkers.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.remoteWorkers.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_remote_worker_changed", { remoteWorkerId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.post(
+    `${base}/remote-workers/:id/test`,
+    wrap(async (req, res) => {
+      const existing = orchestrator.remoteWorkers.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json(await orchestrator.testRemoteWorker(companyId, existing.id));
     }),
   );
 

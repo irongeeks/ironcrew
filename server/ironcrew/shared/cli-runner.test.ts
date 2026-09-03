@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { spawnCliRunner, CliTimeoutError } from "./run-cli.ts";
+import { spawnCliRunner, CliTimeoutError } from "./cli-runner.ts";
 
 describe("spawnCliRunner", () => {
   it("captures stdout, stderr and exit code separately", async () => {

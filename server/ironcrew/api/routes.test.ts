@@ -910,3 +910,85 @@ describe("attachments over HTTP", () => {
     await request(attApp).delete("/api/crew/attachments/att_nope").expect(404);
   });
 });
+
+describe("tailscale + remote workers over HTTP", () => {
+  it("reports tailscale status even when the CLI is unreachable", async () => {
+    const res = await request(app).get("/api/crew/tailscale").expect(200);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.backendState).toBeDefined();
+    expect(res.body.peers).toEqual([]);
+  });
+
+  it("reports tailscale status via a registered fake provider", async () => {
+    orchestrator.registerTailscaleProvider({
+      status: async () => ({
+        backendState: "Running",
+        self: {
+          id: "1",
+          hostName: "crew-server",
+          dnsName: "crew-server.ts.net.",
+          tailscaleIPs: ["100.1.1.1"],
+          online: true,
+          os: "linux",
+        },
+        peers: [],
+      }),
+      testConnection: async () => ({ ok: true, message: "verbunden als crew-server (100.1.1.1)" }),
+    } as unknown as Parameters<typeof orchestrator.registerTailscaleProvider>[0]);
+
+    const res = await request(app).get("/api/crew/tailscale").expect(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.backendState).toBe("Running");
+    expect(res.body.self.hostName).toBe("crew-server");
+  });
+
+  it("creates, lists, tests and deletes a remote worker", async () => {
+    const created = await request(app)
+      .post("/api/crew/remote-workers")
+      .send({
+        label: "tier0-acme",
+        environment: "customer:acme",
+        host: "100.64.1.2",
+        sshUser: "deploy",
+        privateKeyPath: "/etc/ironcrew/keys/acme.pem",
+      })
+      .expect(201);
+    expect(created.body.remoteWorker.label).toBe("tier0-acme");
+    expect(created.body.remoteWorker.port).toBe(22);
+    expect(broadcasts.some((b) => b.type === "crew_remote_worker_changed")).toBe(true);
+
+    const list = await request(app).get("/api/crew/remote-workers").expect(200);
+    expect(list.body.remoteWorkers).toHaveLength(1);
+
+    // No real ssh binary in the test environment, so this genuinely reports unreachable — proving
+    // the endpoint doesn't fake success rather than that the host is actually reachable.
+    const tested = await request(app).post(`/api/crew/remote-workers/${created.body.remoteWorker.id}/test`).expect(200);
+    expect(tested.body.ok).toBe(false);
+
+    await request(app).delete(`/api/crew/remote-workers/${created.body.remoteWorker.id}`).expect(200);
+    const afterDelete = await request(app).get("/api/crew/remote-workers").expect(200);
+    expect(afterDelete.body.remoteWorkers).toHaveLength(0);
+  });
+
+  it("rejects a remote worker missing required fields with 400", async () => {
+    const res = await request(app).post("/api/crew/remote-workers").send({ label: "x" }).expect(400);
+    expect(res.body.error).toBe("invalid_request");
+  });
+
+  it("rejects a duplicate label with 400", async () => {
+    await request(app)
+      .post("/api/crew/remote-workers")
+      .send({ label: "dup", host: "100.1.1.1", sshUser: "u", privateKeyPath: "/k" })
+      .expect(201);
+    const res = await request(app)
+      .post("/api/crew/remote-workers")
+      .send({ label: "dup", host: "100.1.1.2", sshUser: "u", privateKeyPath: "/k" })
+      .expect(400);
+    expect(res.body.error).toBe("invalid_remote_worker_mutation");
+  });
+
+  it("404s testing or deleting a remote worker that doesn't exist", async () => {
+    await request(app).post("/api/crew/remote-workers/worker_nope/test").expect(404);
+    await request(app).delete("/api/crew/remote-workers/worker_nope").expect(404);
+  });
+});

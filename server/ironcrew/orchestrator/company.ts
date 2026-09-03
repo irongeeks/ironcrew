@@ -29,6 +29,14 @@ import { AttachmentStorage } from "../domain/attachment-storage.ts";
 import type { ApprovalRow } from "../policy/approval-policy.ts";
 import { SecretResolutionError, type SecretProvider } from "../secrets/secret-provider.ts";
 import type { SecretProviderKind } from "../secrets/secret-ref.ts";
+import { RemoteWorkerStore } from "../domain/remote-worker-store.ts";
+import {
+  TailscaleProvider,
+  type TailscaleConnectionStatus,
+  type TailscaleStatus,
+} from "../network/tailscale-provider.ts";
+import { createSshConnector, type SshConnectorInterface } from "../../modules/workflow/ssh/ssh-connector.ts";
+import type { SshConfig } from "../../modules/workflow/ssh/types.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -84,8 +92,10 @@ export class CompanyOrchestrator {
   readonly decisions: DecisionStore;
   readonly secrets: SecretStore;
   readonly attachments: AttachmentStore;
+  readonly remoteWorkers: RemoteWorkerStore;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private attachmentStorageInstance: AttachmentStorage | null = null;
+  private tailscaleProviderInstance: TailscaleProvider | null = null;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -95,6 +105,9 @@ export class CompanyOrchestrator {
     // attachments never creates this directory, and each attachment test
     // that does can still override it with an isolated temp dir.
     private readonly attachmentStorageRoot: string = path.resolve(process.cwd(), "data", "crew-attachments"),
+    // Injectable so tests never spawn a real `ssh` process — see
+    // testRemoteWorker() below.
+    private readonly sshConnectorFactory: (config: SshConfig) => SshConnectorInterface = createSshConnector,
   ) {
     this.tasks = new TaskStore(db);
     this.runs = new RunStore(db);
@@ -107,6 +120,7 @@ export class CompanyOrchestrator {
     this.decisions = new DecisionStore(db);
     this.secrets = new SecretStore(db);
     this.attachments = new AttachmentStore(db);
+    this.remoteWorkers = new RemoteWorkerStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -114,6 +128,52 @@ export class CompanyOrchestrator {
       this.attachmentStorageInstance = new AttachmentStorage(this.attachmentStorageRoot);
     }
     return this.attachmentStorageInstance;
+  }
+
+  /** Mirrors registerSecretProvider(): unregistered defaults to a real TailscaleProvider only once actually used. */
+  registerTailscaleProvider(provider: TailscaleProvider): void {
+    this.tailscaleProviderInstance = provider;
+  }
+
+  private get tailscaleProvider(): TailscaleProvider {
+    if (!this.tailscaleProviderInstance) this.tailscaleProviderInstance = new TailscaleProvider();
+    return this.tailscaleProviderInstance;
+  }
+
+  tailscaleStatus(): Promise<TailscaleStatus> {
+    return this.tailscaleProvider.status();
+  }
+
+  testTailscale(): Promise<TailscaleConnectionStatus> {
+    return this.tailscaleProvider.testConnection();
+  }
+
+  /**
+   * SSH-over-tailnet reachability check for a registered remote worker.
+   * Builds the same SshConfig shape server/modules/workflow/ssh/ssh-connector.ts
+   * already expects, so a remote worker is exactly as safe (argv-array SSH,
+   * ControlMaster reuse, allowlisted exec) as any other SSH target this
+   * codebase talks to — nothing new was invented for this feature.
+   */
+  async testRemoteWorker(companyId: string, workerId: string): Promise<{ ok: boolean; message: string }> {
+    const worker = this.remoteWorkers.get(workerId);
+    if (!worker || worker.company_id !== companyId) {
+      return { ok: false, message: `Remote worker "${workerId}" existiert nicht.` };
+    }
+    const config: SshConfig = {
+      host: worker.host,
+      port: worker.port,
+      user: worker.ssh_user,
+      private_key_path: worker.private_key_path,
+      known_hosts_policy: worker.known_hosts_policy,
+    };
+    const reachable = await this.sshConnectorFactory(config).testConnection();
+    return {
+      ok: reachable,
+      message: reachable
+        ? `Erreichbar über ${worker.host}:${worker.port}`
+        : `Nicht erreichbar über ${worker.host}:${worker.port}`,
+    };
   }
 
   /**

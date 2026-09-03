@@ -28,6 +28,7 @@ export type IdPrefix =
   | "ntf"
   | "secret"
   | "att"
+  | "worker"
   | "corr";
 
 export function newId(prefix: IdPrefix): string {

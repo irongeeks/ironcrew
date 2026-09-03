@@ -8,6 +8,7 @@ import { migration as crewMilestones } from "../../modules/bootstrap/migrations/
 import { migration as crewSecrets } from "../../modules/bootstrap/migrations/0004-crew-secrets.ts";
 import { migration as crewAttachments } from "../../modules/bootstrap/migrations/0005-crew-attachments.ts";
 import { migration as renameIcToCrew } from "../../modules/bootstrap/migrations/0006-rename-ic-prefix-to-crew.ts";
+import { migration as crewRemoteWorkers } from "../../modules/bootstrap/migrations/0007-crew-remote-workers.ts";
 import { newId } from "./ids.ts";
 
 export function createTestDb(): DatabaseSync {
@@ -18,6 +19,7 @@ export function createTestDb(): DatabaseSync {
   crewSecrets.up(db);
   crewAttachments.up(db);
   renameIcToCrew.up(db);
+  crewRemoteWorkers.up(db);
   return db;
 }
 

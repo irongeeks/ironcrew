@@ -18,16 +18,19 @@ import type {
   Department,
   Goal,
   GoalStatus,
+  KnownHostsPolicy,
   Message,
   Milestone,
   Notification,
   Project,
   ProjectStatus,
+  RemoteWorker,
   RunEvent,
   RuntimeInfo,
   Secret,
   SecretProviderKind,
   SecretProviderStatus,
+  TailscaleInfo,
   Task,
 } from "./types.ts";
 
@@ -119,4 +122,19 @@ export const api = {
   }) => send<{ attachment: Attachment }>("/attachments", "POST", input),
   deleteAttachment: (id: string) => send<{ ok: boolean }>(`/attachments/${id}`, "DELETE"),
   attachmentDownloadUrl: (id: string) => `${BASE}/attachments/${id}/download`,
+
+  tailscale: () => get<TailscaleInfo>("/tailscale"),
+  remoteWorkers: () => get<{ remoteWorkers: RemoteWorker[] }>("/remote-workers"),
+  createRemoteWorker: (input: {
+    label: string;
+    environment?: string;
+    host: string;
+    port?: number;
+    sshUser: string;
+    privateKeyPath: string;
+    knownHostsPolicy?: KnownHostsPolicy;
+    notes?: string;
+  }) => send<{ remoteWorker: RemoteWorker }>("/remote-workers", "POST", input),
+  deleteRemoteWorker: (id: string) => send<{ ok: boolean }>(`/remote-workers/${id}`, "DELETE"),
+  testRemoteWorker: (id: string) => send<{ ok: boolean; message: string }>(`/remote-workers/${id}/test`, "POST"),
 };

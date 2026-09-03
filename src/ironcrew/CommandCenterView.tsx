@@ -27,15 +27,18 @@ import {
   type Decision,
   type Department,
   type Goal,
+  type KnownHostsPolicy,
   type Message,
   type Milestone,
   type Notification,
   type Project,
+  type RemoteWorker,
   type RunEvent,
   type RuntimeInfo,
   type Secret,
   type SecretProviderKind,
   type SecretProviderStatus,
+  type TailscaleInfo,
   type Task,
   type TaskStatus,
 } from "./types.ts";
@@ -106,6 +109,19 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
   const [generalAttachments, setGeneralAttachments] = useState<Attachment[]>([]);
   const [showDocuments, setShowDocuments] = useState(false);
+
+  const [tailscaleInfo, setTailscaleInfo] = useState<TailscaleInfo | null>(null);
+  const [remoteWorkers, setRemoteWorkers] = useState<RemoteWorker[]>([]);
+  const [showNetwork, setShowNetwork] = useState(false);
+  const [remoteWorkerTestResults, setRemoteWorkerTestResults] = useState<
+    Record<string, { ok: boolean; message: string }>
+  >({});
+  const [newWorkerLabel, setNewWorkerLabel] = useState("");
+  const [newWorkerEnvironment, setNewWorkerEnvironment] = useState("");
+  const [newWorkerHost, setNewWorkerHost] = useState("");
+  const [newWorkerSshUser, setNewWorkerSshUser] = useState("");
+  const [newWorkerPrivateKeyPath, setNewWorkerPrivateKeyPath] = useState("");
+  const [newWorkerKnownHosts, setNewWorkerKnownHosts] = useState<KnownHostsPolicy>("strict");
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -410,6 +426,92 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [actWith, client],
   );
 
+  // --- network (Tailscale/Headscale status + remote workers over the tailnet) ---
+
+  const refreshRemoteWorkers = useCallback(async () => {
+    const { remoteWorkers: w } = await client.remoteWorkers();
+    setRemoteWorkers(w);
+  }, [client]);
+
+  const openNetwork = useCallback(() => {
+    setShowNetwork(true);
+    setRemoteWorkerTestResults({});
+    void refreshRemoteWorkers();
+    client
+      .tailscale()
+      .then(setTailscaleInfo)
+      .catch((err) =>
+        setTailscaleInfo({ backendState: "Unknown", self: null, peers: [], ok: false, message: String(err) }),
+      );
+  }, [client, refreshRemoteWorkers]);
+
+  const createRemoteWorker = useCallback(() => {
+    const label = newWorkerLabel.trim();
+    const host = newWorkerHost.trim();
+    const sshUser = newWorkerSshUser.trim();
+    const privateKeyPath = newWorkerPrivateKeyPath.trim();
+    if (!label || !host || !sshUser || !privateKeyPath) return;
+    void actWith(
+      () =>
+        client.createRemoteWorker({
+          label,
+          environment: newWorkerEnvironment.trim() || undefined,
+          host,
+          sshUser,
+          privateKeyPath,
+          knownHostsPolicy: newWorkerKnownHosts,
+        }),
+      async () => {
+        setNewWorkerLabel("");
+        setNewWorkerEnvironment("");
+        setNewWorkerHost("");
+        setNewWorkerSshUser("");
+        setNewWorkerPrivateKeyPath("");
+        await refreshRemoteWorkers();
+      },
+    );
+  }, [
+    actWith,
+    client,
+    newWorkerLabel,
+    newWorkerEnvironment,
+    newWorkerHost,
+    newWorkerSshUser,
+    newWorkerPrivateKeyPath,
+    newWorkerKnownHosts,
+    refreshRemoteWorkers,
+  ]);
+
+  const deleteRemoteWorker = useCallback(
+    (id: string) => {
+      void actWith(
+        () => client.deleteRemoteWorker(id),
+        async () => {
+          setRemoteWorkerTestResults((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          await refreshRemoteWorkers();
+        },
+      );
+    },
+    [actWith, client, refreshRemoteWorkers],
+  );
+
+  const testRemoteWorker = useCallback(
+    (id: string) => {
+      void actWith(
+        async () => {
+          const result = await client.testRemoteWorker(id);
+          setRemoteWorkerTestResults((prev) => ({ ...prev, [id]: result }));
+        },
+        async () => {},
+      );
+    },
+    [actWith, client],
+  );
+
   // --- attachments (task/project-scoped + the general document store) ----
   // refreshTaskAttachments / refreshProjectAttachments are declared earlier,
   // alongside openTaskDetail / openProjectDetail, which call them on open.
@@ -527,6 +629,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-secrets" onClick={openSecrets}>
           Zugangsdaten
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-network" onClick={openNetwork}>
+          Netzwerk
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -1318,6 +1424,171 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               data-testid="new-secret-submit"
               disabled={busy || !newSecretName.trim() || !newSecretItemRef.trim()}
               onClick={createSecret}
+            >
+              Hinzufügen
+            </button>
+          </div>
+        </DetailDialog>
+      )}
+
+      {showNetwork && (
+        <DetailDialog title="Netzwerk" onClose={() => setShowNetwork(false)}>
+          <p className="ic-note">
+            Tailscale (oder ein selbstgehosteter, protokollkompatibler Kontrollserver wie Headscale) verbindet diesen
+            Server mit entfernten Workern — Tier0-Umgebungen oder Kundennetzen — über SSH im Tailnet.
+          </p>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Dieser Knoten
+          </h3>
+          {tailscaleInfo && (
+            <ul className="ic-milestone-list">
+              <li data-testid="tailscale-self-status">
+                <span className="ic-milestone-title">{tailscaleInfo.self?.hostName ?? "—"}</span>
+                <span className="ic-tag" data-tone={tailscaleInfo.ok ? "policy" : "gate"}>
+                  {tailscaleInfo.backendState}
+                </span>
+                <span className="ic-note">{tailscaleInfo.message}</span>
+              </li>
+            </ul>
+          )}
+
+          {tailscaleInfo && tailscaleInfo.peers.length > 0 && (
+            <>
+              <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+                Tailnet-Peers
+              </h3>
+              <ul className="ic-milestone-list">
+                {tailscaleInfo.peers.map((p) => (
+                  <li key={p.id}>
+                    <span className="ic-milestone-title">{p.hostName}</span>
+                    <span className="ic-tag" data-tone={p.online ? "policy" : "gate"}>
+                      {p.online ? "online" : "offline"}
+                    </span>
+                    <span className="ic-note">{p.tailscaleIPs[0] ?? p.dnsName}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Remote Worker
+          </h3>
+          {remoteWorkers.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {remoteWorkers.map((w) => (
+              <li key={w.id} data-testid={`remote-worker-${w.id}`}>
+                <span className="ic-milestone-title">{w.label}</span>
+                <span className="ic-tag">{w.environment || "—"}</span>
+                <span className="ic-note">
+                  {w.ssh_user}@{w.host}:{w.port}
+                </span>
+                <button type="button" className="ic-btn" disabled={busy} onClick={() => testRemoteWorker(w.id)}>
+                  Testen
+                </button>
+                {remoteWorkerTestResults[w.id] && (
+                  <span
+                    className="ic-tag"
+                    data-testid={`remote-worker-test-${w.id}`}
+                    data-tone={remoteWorkerTestResults[w.id].ok ? "policy" : "gate"}
+                  >
+                    {remoteWorkerTestResults[w.id].message}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="danger"
+                  disabled={busy}
+                  onClick={() => deleteRemoteWorker(w.id)}
+                >
+                  Entfernen
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Neuer Remote Worker
+          </h3>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-new-worker-label">
+              Label
+            </label>
+            <input
+              id="ic-new-worker-label"
+              data-testid="new-worker-label"
+              placeholder="Label (z. B. tier0-acme)"
+              value={newWorkerLabel}
+              onChange={(e) => setNewWorkerLabel(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-worker-environment">
+              Umgebung
+            </label>
+            <input
+              id="ic-new-worker-environment"
+              data-testid="new-worker-environment"
+              placeholder="Umgebung (z. B. customer:acme)"
+              value={newWorkerEnvironment}
+              onChange={(e) => setNewWorkerEnvironment(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-worker-host">
+              Tailnet-Host
+            </label>
+            <input
+              id="ic-new-worker-host"
+              data-testid="new-worker-host"
+              placeholder="Tailnet-IP oder Hostname"
+              value={newWorkerHost}
+              onChange={(e) => setNewWorkerHost(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-worker-ssh-user">
+              SSH-Benutzer
+            </label>
+            <input
+              id="ic-new-worker-ssh-user"
+              data-testid="new-worker-ssh-user"
+              placeholder="SSH-Benutzer"
+              value={newWorkerSshUser}
+              onChange={(e) => setNewWorkerSshUser(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-worker-key-path">
+              Pfad zum privaten Schlüssel
+            </label>
+            <input
+              id="ic-new-worker-key-path"
+              data-testid="new-worker-key-path"
+              placeholder="Pfad zum privaten SSH-Schlüssel"
+              value={newWorkerPrivateKeyPath}
+              onChange={(e) => setNewWorkerPrivateKeyPath(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-worker-known-hosts">
+              Known-Hosts-Richtlinie
+            </label>
+            <select
+              id="ic-new-worker-known-hosts"
+              className="ic-select"
+              data-testid="new-worker-known-hosts"
+              value={newWorkerKnownHosts}
+              onChange={(e) => setNewWorkerKnownHosts(e.target.value as KnownHostsPolicy)}
+            >
+              <option value="strict">strict</option>
+              <option value="accept">accept</option>
+            </select>
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="new-worker-submit"
+              disabled={
+                busy ||
+                !newWorkerLabel.trim() ||
+                !newWorkerHost.trim() ||
+                !newWorkerSshUser.trim() ||
+                !newWorkerPrivateKeyPath.trim()
+              }
+              onClick={createRemoteWorker}
             >
               Hinzufügen
             </button>

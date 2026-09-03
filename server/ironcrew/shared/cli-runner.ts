@@ -1,19 +1,21 @@
 /**
- * IronCrew — minimal argv-array CLI runner for secret providers.
+ * IronCrew — minimal argv-array CLI runner, shared by every module that
+ * wraps a third-party CLI for a single request/response call (the secret
+ * providers' `bw`/`pass-cli`, the Tailscale status wrapper's `tailscale`).
  *
  * Same non-negotiables as CliAdapterRuntime (runtime/cli-adapter-runtime.ts),
- * scaled down for a request/response CLI call rather than a long streaming
- * run: argv array only (never shell string concatenation), a hard timeout,
- * and separate stdout/stderr capture. Unlike CliAdapterRuntime this never
- * touches StreamRedactor itself — a secret provider's whole job is to
- * *produce* a secret value, so there is nothing to redact from its own
- * output; the caller (secret-store.ts / orchestrator) is responsible for
- * keeping that returned value out of logs, the database and audit events.
+ * scaled down for one call rather than a long streaming run: argv array only
+ * (never shell string concatenation), a hard timeout, and separate
+ * stdout/stderr capture. Unlike CliAdapterRuntime this never touches
+ * StreamRedactor itself — that is a concern specific to what a caller does
+ * with the output (a secret provider's raw resolved value; a network
+ * status wrapper's peer list) that this generic runner has no visibility
+ * into, so it stays the caller's responsibility.
  *
  * `CliRunner` is a plain function type, not a class, so tests can inject a
- * fake instead of spawning a real `bw` / `pass-cli` binary — neither is
- * installed in this environment (or CI), and a fake keeps the provider
- * tests fast and deterministic.
+ * fake instead of spawning a real `bw` / `pass-cli` / `tailscale` binary —
+ * none is installed in this environment (or CI), and a fake keeps every
+ * wrapper's tests fast and deterministic.
  */
 
 import { spawn } from "node:child_process";

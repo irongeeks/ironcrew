@@ -336,3 +336,36 @@ export interface Attachment {
   uploaded_by: string;
   created_at: number;
 }
+
+export interface TailscalePeer {
+  id: string;
+  hostName: string;
+  dnsName: string;
+  tailscaleIPs: string[];
+  online: boolean;
+  os: string;
+}
+
+export interface TailscaleInfo {
+  backendState: string;
+  self: TailscalePeer | null;
+  peers: TailscalePeer[];
+  ok: boolean;
+  message: string;
+}
+
+export type KnownHostsPolicy = "strict" | "accept";
+
+export interface RemoteWorker {
+  id: string;
+  label: string;
+  environment: string;
+  host: string;
+  port: number;
+  ssh_user: string;
+  private_key_path: string;
+  known_hosts_policy: KnownHostsPolicy;
+  notes: string;
+  created_at: number;
+  updated_at: number;
+}

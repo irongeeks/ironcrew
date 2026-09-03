@@ -22,7 +22,7 @@
  * pattern (argv-array spawning, timeouts, dependency-injected runner).
  */
 
-import { type CliRunner, spawnCliRunner } from "./run-cli.ts";
+import { type CliRunner, spawnCliRunner } from "../shared/cli-runner.ts";
 import { SecretResolutionError, type SecretConnectionStatus, type SecretProvider } from "./secret-provider.ts";
 import type { SecretRef } from "./secret-ref.ts";
 

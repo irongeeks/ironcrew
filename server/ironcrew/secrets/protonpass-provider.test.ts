@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ProtonPassSecretProvider, extractFieldValue } from "./protonpass-provider.ts";
 import { SecretResolutionError } from "./secret-provider.ts";
-import type { CliRunner, CliRunResult } from "./run-cli.ts";
+import type { CliRunner, CliRunResult } from "../shared/cli-runner.ts";
 
 function fakeRunner(byArgv: (argv: readonly string[]) => CliRunResult): CliRunner {
   return async (argv) => byArgv(argv);

@@ -14,9 +14,11 @@ import type {
   Milestone,
   Notification,
   Project,
+  RemoteWorker,
   RuntimeInfo,
   Secret,
   SecretProviderStatus,
+  TailscaleInfo,
   Task,
 } from "./types.ts";
 
@@ -131,6 +133,11 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     uploadAttachment: vi.fn(),
     deleteAttachment: vi.fn(),
     attachmentDownloadUrl: vi.fn((id: string) => `/api/crew/attachments/${id}/download`),
+    tailscale: vi.fn().mockResolvedValue({ backendState: "Unknown", self: null, peers: [], ok: false, message: "" }),
+    remoteWorkers: vi.fn().mockResolvedValue({ remoteWorkers: [] }),
+    createRemoteWorker: vi.fn(),
+    deleteRemoteWorker: vi.fn(),
+    testRemoteWorker: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -247,6 +254,41 @@ function attachment(over: Partial<Attachment> = {}): Attachment {
     sha256: "deadbeef",
     uploaded_by: "ceo",
     created_at: Date.now(),
+    ...over,
+  };
+}
+
+function remoteWorker(over: Partial<RemoteWorker> = {}): RemoteWorker {
+  return {
+    id: "worker_1",
+    label: "tier0-acme",
+    environment: "customer:acme",
+    host: "100.64.1.2",
+    port: 22,
+    ssh_user: "deploy",
+    private_key_path: "/etc/ironcrew/keys/acme.pem",
+    known_hosts_policy: "strict",
+    notes: "",
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    ...over,
+  };
+}
+
+function tailscaleInfo(over: Partial<TailscaleInfo> = {}): TailscaleInfo {
+  return {
+    backendState: "Running",
+    self: {
+      id: "1",
+      hostName: "crew-server",
+      dnsName: "crew-server.tailnet.ts.net.",
+      tailscaleIPs: ["100.1.1.1"],
+      online: true,
+      os: "linux",
+    },
+    peers: [],
+    ok: true,
+    message: "verbunden als crew-server (100.1.1.1)",
     ...over,
   };
 }
@@ -1083,5 +1125,115 @@ describe("attachments (task/project-scoped + the general document store)", () =>
     const dialog = await screen.findByRole("dialog", { name: "Dokumente" });
     const link = await within(dialog).findByText("notes.txt");
     expect(link.closest("a")).toHaveAttribute("href", "/api/crew/attachments/att_1/download");
+  });
+});
+
+describe("network (Tailscale/Headscale status + remote workers)", () => {
+  it("shows this node's tailnet status and reachable peers", async () => {
+    const client = makeClient({
+      tailscale: vi.fn().mockResolvedValue(
+        tailscaleInfo({
+          peers: [
+            {
+              id: "2",
+              hostName: "tier0-worker",
+              dnsName: "tier0-worker.ts.net.",
+              tailscaleIPs: ["100.1.1.2"],
+              online: true,
+              os: "linux",
+            },
+          ],
+        }),
+      ),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-network"));
+    const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
+
+    expect(await within(dialog).findByTestId("tailscale-self-status")).toHaveTextContent("crew-server");
+    expect(within(dialog).getByTestId("tailscale-self-status")).toHaveTextContent("Running");
+    expect(within(dialog).getByText("tier0-worker")).toBeInTheDocument();
+  });
+
+  it("lists registered remote workers, without ever rendering a private key", async () => {
+    const client = makeClient({ remoteWorkers: vi.fn().mockResolvedValue({ remoteWorkers: [remoteWorker()] }) });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-network"));
+    const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
+
+    expect(await within(dialog).findByText("tier0-acme")).toBeInTheDocument();
+    expect(within(dialog).getByText("deploy@100.64.1.2:22")).toBeInTheDocument();
+    expect(dialog.textContent).not.toMatch(/acme\.pem/);
+  });
+
+  it("registers a remote worker via the form and refreshes the list", async () => {
+    const createRemoteWorker = vi.fn().mockResolvedValue({ remoteWorker: remoteWorker() });
+    const client = makeClient({
+      remoteWorkers: vi
+        .fn()
+        .mockResolvedValueOnce({ remoteWorkers: [] })
+        .mockResolvedValue({ remoteWorkers: [remoteWorker()] }),
+      createRemoteWorker,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-network"));
+    const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
+
+    const user = userEvent.setup();
+    await user.type(within(dialog).getByTestId("new-worker-label"), "tier0-acme");
+    await user.type(within(dialog).getByTestId("new-worker-host"), "100.64.1.2");
+    await user.type(within(dialog).getByTestId("new-worker-ssh-user"), "deploy");
+    await user.type(within(dialog).getByTestId("new-worker-key-path"), "/etc/ironcrew/keys/acme.pem");
+    await user.click(within(dialog).getByTestId("new-worker-submit"));
+
+    expect(createRemoteWorker).toHaveBeenCalledWith({
+      label: "tier0-acme",
+      environment: undefined,
+      host: "100.64.1.2",
+      sshUser: "deploy",
+      privateKeyPath: "/etc/ironcrew/keys/acme.pem",
+      knownHostsPolicy: "strict",
+    });
+    expect(await within(dialog).findByText("tier0-acme")).toBeInTheDocument();
+  });
+
+  it("tests a remote worker's reachability and shows the result", async () => {
+    const testRemoteWorker = vi.fn().mockResolvedValue({ ok: false, message: "Nicht erreichbar über 100.64.1.2:22" });
+    const client = makeClient({
+      remoteWorkers: vi.fn().mockResolvedValue({ remoteWorkers: [remoteWorker()] }),
+      testRemoteWorker,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-network"));
+    const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
+    await userEvent.setup().click(await within(dialog).findByRole("button", { name: "Testen" }));
+
+    expect(testRemoteWorker).toHaveBeenCalledWith("worker_1");
+    expect(await within(dialog).findByTestId("remote-worker-test-worker_1")).toHaveTextContent(
+      "Nicht erreichbar über 100.64.1.2:22",
+    );
+  });
+
+  it("deletes a remote worker", async () => {
+    const deleteRemoteWorker = vi.fn().mockResolvedValue({ ok: true });
+    const client = makeClient({
+      remoteWorkers: vi
+        .fn()
+        .mockResolvedValueOnce({ remoteWorkers: [remoteWorker()] })
+        .mockResolvedValue({ remoteWorkers: [] }),
+      deleteRemoteWorker,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-network"));
+    const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
+    await userEvent.setup().click(await within(dialog).findByRole("button", { name: "Entfernen" }));
+
+    expect(deleteRemoteWorker).toHaveBeenCalledWith("worker_1");
+    await waitFor(() => expect(within(dialog).queryByText("tier0-acme")).toBeNull());
   });
 });

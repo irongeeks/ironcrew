@@ -811,3 +811,86 @@ describe("attachments", () => {
     expect(attOrc.attachments.listForTask(attCompanyId, task.id).map((a) => a.id)).toEqual([row.id]);
   });
 });
+
+describe("Tailscale status", () => {
+  it("tailscaleStatus/testTailscale dispatch to the registered provider", async () => {
+    orc.registerTailscaleProvider({
+      status: async () => ({ backendState: "Running", self: null, peers: [] }),
+      testConnection: async () => ({ ok: true, message: "verbunden als crew-server" }),
+    } as unknown as import("../network/tailscale-provider.ts").TailscaleProvider);
+
+    const status = await orc.tailscaleStatus();
+    expect(status.backendState).toBe("Running");
+    const conn = await orc.testTailscale();
+    expect(conn).toEqual({ ok: true, message: "verbunden als crew-server" });
+  });
+
+  it("without registration, lazily falls back to a real TailscaleProvider (reports not-ok when the CLI is absent)", async () => {
+    const fresh = new CompanyOrchestrator(db);
+    const status = await fresh.testTailscale();
+    expect(status.ok).toBe(false);
+  });
+});
+
+describe("remote workers over SSH-over-tailnet", () => {
+  it("testRemoteWorker builds an SshConfig from the stored row and reports reachability", async () => {
+    const captured: unknown[] = [];
+    const fakeFactory = (config: unknown) => {
+      captured.push(config);
+      return { testConnection: async () => true } as unknown as ReturnType<
+        typeof import("../../modules/workflow/ssh/ssh-connector.ts").createSshConnector
+      >;
+    };
+    const workerOrc = new CompanyOrchestrator(db, new Map(), undefined, fakeFactory);
+    const worker = workerOrc.remoteWorkers.create({
+      companyId,
+      label: "tier0-acme",
+      environment: "customer:acme",
+      host: "100.64.1.2",
+      sshUser: "deploy",
+      privateKeyPath: "/etc/ironcrew/keys/acme.pem",
+    });
+
+    const result = await workerOrc.testRemoteWorker(companyId, worker.id);
+    expect(result).toEqual({ ok: true, message: "Erreichbar über 100.64.1.2:22" });
+    expect(captured[0]).toEqual({
+      host: "100.64.1.2",
+      port: 22,
+      user: "deploy",
+      private_key_path: "/etc/ironcrew/keys/acme.pem",
+      known_hosts_policy: "strict",
+    });
+  });
+
+  it("testRemoteWorker reports not-ok when the SSH connector can't reach the host", async () => {
+    const fakeFactory = () =>
+      ({ testConnection: async () => false }) as unknown as ReturnType<
+        typeof import("../../modules/workflow/ssh/ssh-connector.ts").createSshConnector
+      >;
+    const workerOrc = new CompanyOrchestrator(db, new Map(), undefined, fakeFactory);
+    const worker = workerOrc.remoteWorkers.create({
+      companyId,
+      label: "tier0-acme",
+      host: "100.64.1.2",
+      sshUser: "deploy",
+      privateKeyPath: "/etc/ironcrew/keys/acme.pem",
+    });
+
+    const result = await workerOrc.testRemoteWorker(companyId, worker.id);
+    expect(result.ok).toBe(false);
+  });
+
+  it("testRemoteWorker reports not-ok for an unknown or cross-company worker id", async () => {
+    const other = orc.seedCompany({ name: "Other", slug: "other-worker", crew, departments });
+    const foreignWorker = orc.remoteWorkers.create({
+      companyId: other,
+      label: "w",
+      host: "100.1.1.1",
+      sshUser: "u",
+      privateKeyPath: "/k",
+    });
+
+    expect((await orc.testRemoteWorker(companyId, "worker_nope")).ok).toBe(false);
+    expect((await orc.testRemoteWorker(companyId, foreignWorker.id)).ok).toBe(false);
+  });
+});

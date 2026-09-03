@@ -39,6 +39,7 @@ import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
 import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
 import { ProtonPassSecretProvider } from "./ironcrew/secrets/protonpass-provider.ts";
+import { TailscaleProvider } from "./ironcrew/network/tailscale-provider.ts";
 import { createOAuthContext } from "./contexts/oauth-context.ts";
 import { createMessagingContext } from "./contexts/messaging-context.ts";
 import { createTaskExecutionContext } from "./contexts/task-execution-context.ts";
@@ -305,6 +306,9 @@ ironCrewOrchestrator.registerSecretProvider(
   new VaultwardenSecretProvider({ serverUrl: process.env.VAULTWARDEN_SERVER_URL }),
 );
 ironCrewOrchestrator.registerSecretProvider(new ProtonPassSecretProvider());
+// Same posture again: GET /api/crew/tailscale (the Netzwerk panel) reports
+// whether this node is actually on a tailnet rather than assuming it is.
+ironCrewOrchestrator.registerTailscaleProvider(new TailscaleProvider({ tailscalePath: process.env.TAILSCALE_BIN }));
 registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
