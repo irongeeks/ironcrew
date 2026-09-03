@@ -943,31 +943,64 @@ describe("tailscale + remote workers over HTTP", () => {
   });
 
   it("creates, lists, tests and deletes a remote worker", async () => {
-    const created = await request(app)
-      .post("/api/crew/remote-workers")
-      .send({
-        label: "tier0-acme",
-        environment: "customer:acme",
-        host: "100.64.1.2",
-        sshUser: "deploy",
-        privateKeyPath: "/etc/ironcrew/keys/acme.pem",
-      })
-      .expect(201);
-    expect(created.body.remoteWorker.label).toBe("tier0-acme");
-    expect(created.body.remoteWorker.port).toBe(22);
-    expect(broadcasts.some((b) => b.type === "crew_remote_worker_changed")).toBe(true);
+    // A real `ssh` connect attempt here is exactly what testRemoteWorker()
+    // should be proven to drive — but with a genuinely unreachable host, its
+    // ConnectTimeout=5 (ssh-connector.ts) races vitest's own default 5000ms
+    // test timeout, and behaves very differently by environment (this
+    // sandbox fails fast; a CI runner's network stack waited out the full
+    // 5s and timed the test out). A fake connector proves the same wiring —
+    // the route reaches orchestrator.testRemoteWorker() and returns its
+    // {ok, message} — without a real spawn or that race; the fake itself is
+    // exercised for real in company.test.ts, and the real spawn path in
+    // ssh-connector's own tests.
+    const workerDb = createTestDb();
+    const workerApp = express();
+    workerApp.use(express.json());
+    const workerBroadcasts: Array<{ type: string; payload: unknown }> = [];
+    const workerOrchestrator = new CompanyOrchestrator(
+      workerDb,
+      new Map(),
+      undefined,
+      () =>
+        ({
+          testConnection: async () => false,
+        }) as unknown as ReturnType<typeof import("../../modules/workflow/ssh/ssh-connector.ts").createSshConnector>,
+    );
+    registerIronCrewRoutes(workerApp, {
+      db: workerDb,
+      orchestrator: workerOrchestrator,
+      broadcast: (type, payload) => workerBroadcasts.push({ type, payload }),
+    });
 
-    const list = await request(app).get("/api/crew/remote-workers").expect(200);
-    expect(list.body.remoteWorkers).toHaveLength(1);
+    try {
+      const created = await request(workerApp)
+        .post("/api/crew/remote-workers")
+        .send({
+          label: "tier0-acme",
+          environment: "customer:acme",
+          host: "100.64.1.2",
+          sshUser: "deploy",
+          privateKeyPath: "/etc/ironcrew/keys/acme.pem",
+        })
+        .expect(201);
+      expect(created.body.remoteWorker.label).toBe("tier0-acme");
+      expect(created.body.remoteWorker.port).toBe(22);
+      expect(workerBroadcasts.some((b) => b.type === "crew_remote_worker_changed")).toBe(true);
 
-    // No real ssh binary in the test environment, so this genuinely reports unreachable — proving
-    // the endpoint doesn't fake success rather than that the host is actually reachable.
-    const tested = await request(app).post(`/api/crew/remote-workers/${created.body.remoteWorker.id}/test`).expect(200);
-    expect(tested.body.ok).toBe(false);
+      const list = await request(workerApp).get("/api/crew/remote-workers").expect(200);
+      expect(list.body.remoteWorkers).toHaveLength(1);
 
-    await request(app).delete(`/api/crew/remote-workers/${created.body.remoteWorker.id}`).expect(200);
-    const afterDelete = await request(app).get("/api/crew/remote-workers").expect(200);
-    expect(afterDelete.body.remoteWorkers).toHaveLength(0);
+      const tested = await request(workerApp)
+        .post(`/api/crew/remote-workers/${created.body.remoteWorker.id}/test`)
+        .expect(200);
+      expect(tested.body.ok).toBe(false);
+
+      await request(workerApp).delete(`/api/crew/remote-workers/${created.body.remoteWorker.id}`).expect(200);
+      const afterDelete = await request(workerApp).get("/api/crew/remote-workers").expect(200);
+      expect(afterDelete.body.remoteWorkers).toHaveLength(0);
+    } finally {
+      workerDb.close();
+    }
   });
 
   it("rejects a remote worker missing required fields with 400", async () => {
