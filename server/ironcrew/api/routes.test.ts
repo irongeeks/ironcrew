@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import express, { type Express } from "express";
 import request from "supertest";
 import type { DatabaseSync } from "node:sqlite";
@@ -1246,5 +1246,55 @@ describe("memory over HTTP (Obsidian vault, the first MemoryProvider)", () => {
   it("400s search without provider or q", async () => {
     await request(app).get("/api/crew/memory/search?provider=obsidian").expect(400);
     await request(app).get("/api/crew/memory/search?q=nightly").expect(400);
+  });
+});
+
+describe("notification channels over HTTP (Discord, Telegram, email fan-out)", () => {
+  function fakeChannel(kind: string) {
+    return {
+      kind,
+      send: async () => {},
+      testConnection: async () => ({ ok: true, message: `${kind} erreichbar` }),
+    };
+  }
+
+  it("lists registered channels with their connection status", async () => {
+    orchestrator.registerNotificationChannel(fakeChannel("discord") as never);
+    const res = await request(app).get("/api/crew/notification-channels").expect(200);
+    expect(res.body.channels).toEqual([{ kind: "discord", registered: true, ok: true, message: "discord erreichbar" }]);
+  });
+
+  it("returns an empty list when nothing is registered", async () => {
+    const res = await request(app).get("/api/crew/notification-channels").expect(200);
+    expect(res.body.channels).toEqual([]);
+  });
+
+  it("tests a channel's reachability without sending a real message", async () => {
+    const testConnection = vi.fn().mockResolvedValue({ ok: true, message: "ok" });
+    const send = vi.fn();
+    orchestrator.registerNotificationChannel({ kind: "telegram", send, testConnection } as never);
+
+    const res = await request(app).post("/api/crew/notification-channels/telegram/test").expect(200);
+    expect(res.body).toEqual({ ok: true, message: "ok" });
+    expect(testConnection).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("send-test actually sends a real message through the channel", async () => {
+    const send = vi.fn().mockResolvedValue(undefined);
+    orchestrator.registerNotificationChannel({
+      kind: "discord",
+      send,
+      testConnection: async () => ({ ok: true, message: "" }),
+    } as never);
+
+    const res = await request(app).post("/api/crew/notification-channels/discord/send-test").expect(200);
+    expect(res.body.ok).toBe(true);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports not-ok for an unregistered channel kind, not a 404", async () => {
+    const res = await request(app).post("/api/crew/notification-channels/discord/test").expect(200);
+    expect(res.body.ok).toBe(false);
   });
 });

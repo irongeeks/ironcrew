@@ -1326,6 +1326,43 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     }),
   );
 
+  // --- notification channels (Discord, Telegram, email) -------------------
+  //
+  // Fan-out targets for the decision inbox — see company.ts#fanOutNotification.
+  // Registering a channel happens at server startup (server-main.ts), from
+  // env vars; this surface only ever reports status and lets an operator
+  // prove a channel actually works, the same "testConnection() vs. really
+  // send" split /secrets/:id/test uses.
+
+  app.get(
+    `${base}/notification-channels`,
+    wrap(async (_req, res) => {
+      const kinds = orchestrator.listNotificationChannelKinds();
+      const channels = await Promise.all(
+        kinds.map(async (kind) => ({
+          kind,
+          registered: true,
+          ...(await orchestrator.testNotificationChannel(kind)),
+        })),
+      );
+      res.json({ channels });
+    }),
+  );
+
+  app.post(
+    `${base}/notification-channels/:kind/test`,
+    wrap(async (req, res) => {
+      res.json(await orchestrator.testNotificationChannel(param(req, "kind")));
+    }),
+  );
+
+  app.post(
+    `${base}/notification-channels/:kind/send-test`,
+    wrap(async (req, res) => {
+      res.json(await orchestrator.sendTestNotification(param(req, "kind")));
+    }),
+  );
+
   // --- budgets and costs --------------------------------------------------
 
   app.get(

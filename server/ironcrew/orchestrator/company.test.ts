@@ -1211,3 +1211,98 @@ describe("memory (Obsidian and other MemoryProviders)", () => {
     expect(orc.listMemoryProviderKinds()).toEqual(["obsidian"]);
   });
 });
+
+describe("notification channels (Discord, Telegram, email) — best-effort fan-out", () => {
+  function fakeChannel(kind: string, over: Partial<Record<string, unknown>> = {}) {
+    return {
+      kind,
+      send: vi.fn().mockResolvedValue(undefined),
+      testConnection: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
+      ...over,
+    };
+  }
+
+  it("fans an approval-required notification out to every registered channel", async () => {
+    const discord = fakeChannel("discord");
+    const telegram = fakeChannel("telegram");
+    orc.registerNotificationChannel(discord as never);
+    orc.registerNotificationChannel(telegram as never);
+
+    orc.handleCeoMessage(companyId, "Bitte überweise 4.500 EUR an den Lieferanten.");
+
+    await vi.waitFor(() => {
+      expect(discord.send).toHaveBeenCalledTimes(1);
+      expect(telegram.send).toHaveBeenCalledTimes(1);
+    });
+    const [message] = discord.send.mock.calls[0];
+    expect(message.severity).toBe("critical");
+    expect(message.title).toBeTruthy();
+  });
+
+  it("a channel that fails never affects the approval flow, and is audited", async () => {
+    const broken = fakeChannel("discord", { send: vi.fn().mockRejectedValue(new Error("webhook 401")) });
+    orc.registerNotificationChannel(broken as never);
+
+    const r = orc.handleCeoMessage(companyId, "Bitte überweise 100 EUR.");
+    expect(r.task!.status).toBe("approval_required");
+
+    await vi.waitFor(() => {
+      const rows = db
+        .prepare("SELECT outcome, details_json FROM crew_audit_events WHERE company_id = ? AND action = ?")
+        .all(companyId, "notification.sent") as Array<{ outcome: string; details_json: string }>;
+      expect(rows).toHaveLength(1);
+      expect(rows[0].outcome).toBe("failed");
+      expect(rows[0].details_json).toContain("webhook 401");
+    });
+  });
+
+  it("audits a successful send with outcome 'ok'", async () => {
+    orc.registerNotificationChannel(fakeChannel("discord") as never);
+    orc.handleCeoMessage(companyId, "Bitte überweise 100 EUR.");
+
+    await vi.waitFor(() => {
+      const rows = db
+        .prepare("SELECT outcome FROM crew_audit_events WHERE company_id = ? AND action = ?")
+        .all(companyId, "notification.sent") as Array<{ outcome: string }>;
+      expect(rows).toHaveLength(1);
+      expect(rows[0].outcome).toBe("ok");
+    });
+  });
+
+  it("testNotificationChannel reports not-ok when nothing is registered for that kind", async () => {
+    const status = await orc.testNotificationChannel("discord");
+    expect(status.ok).toBe(false);
+  });
+
+  it("sendTestNotification actually calls send(), not just testConnection()", async () => {
+    const discord = fakeChannel("discord");
+    orc.registerNotificationChannel(discord as never);
+    const result = await orc.sendTestNotification("discord");
+    expect(result.ok).toBe(true);
+    expect(discord.send).toHaveBeenCalledTimes(1);
+    expect(discord.testConnection).not.toHaveBeenCalled();
+  });
+
+  it("sendTestNotification reports the failure when the channel's send() rejects", async () => {
+    const broken = fakeChannel("discord", { send: vi.fn().mockRejectedValue(new Error("webhook 401")) });
+    orc.registerNotificationChannel(broken as never);
+    const result = await orc.sendTestNotification("discord");
+    expect(result.ok).toBe(false);
+    expect(result.message).toBe("webhook 401");
+  });
+
+  it("listNotificationChannelKinds reflects registrations", () => {
+    expect(orc.listNotificationChannelKinds()).toEqual([]);
+    orc.registerNotificationChannel(fakeChannel("telegram") as never);
+    expect(orc.listNotificationChannelKinds()).toEqual(["telegram"]);
+  });
+
+  it("with no channels registered, an approval is still created and nothing is audited as a fan-out", () => {
+    const r = orc.handleCeoMessage(companyId, "Bitte überweise 100 EUR.");
+    expect(r.task!.status).toBe("approval_required");
+    const rows = db
+      .prepare("SELECT COUNT(*) AS n FROM crew_audit_events WHERE company_id = ? AND action = ?")
+      .get(companyId, "notification.sent") as { n: number };
+    expect(rows.n).toBe(0);
+  });
+});

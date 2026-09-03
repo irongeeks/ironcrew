@@ -40,6 +40,7 @@ import type { SshConfig } from "../../modules/workflow/ssh/types.ts";
 import { MeetingStore, MeetingMutationError, type MeetingRow, type MeetingTurnRow } from "../domain/meeting-store.ts";
 import { MemoryStore, type MemoryRefRow } from "../domain/memory-store.ts";
 import type { MemoryKind, MemoryProvider, MemorySearchHit } from "../memory/memory-provider.ts";
+import type { ChannelSeverity, NotificationChannel } from "../notify/notification-channel.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -100,6 +101,7 @@ export class CompanyOrchestrator {
   readonly memories: MemoryStore;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
+  private readonly notificationChannels = new Map<string, NotificationChannel>();
   private attachmentStorageInstance: AttachmentStorage | null = null;
   private tailscaleProviderInstance: TailscaleProvider | null = null;
 
@@ -386,7 +388,7 @@ export class CompanyOrchestrator {
    * exist for an approval this didn't also mint the approval for.
    */
   private notifyApprovalRequested(companyId: string, approval: ApprovalRow): void {
-    this.notifications.create({
+    const notification = this.notifications.create({
       companyId,
       kind: "approval_required",
       severity: approval.risk_level === "critical" || approval.risk_level === "high" ? "critical" : "warning",
@@ -395,6 +397,89 @@ export class CompanyOrchestrator {
       taskId: approval.task_id,
       approvalId: approval.id,
     });
+    this.fanOutNotification(companyId, {
+      title: notification.title,
+      body: notification.body,
+      severity: notification.severity,
+    });
+  }
+
+  /** Mirrors registerSecretProvider()/registerMemoryProvider(). */
+  registerNotificationChannel(channel: NotificationChannel): void {
+    this.notificationChannels.set(channel.kind, channel);
+  }
+
+  listNotificationChannelKinds(): string[] {
+    return [...this.notificationChannels.keys()];
+  }
+
+  async testNotificationChannel(kind: string): Promise<{ ok: boolean; message: string }> {
+    const channel = this.notificationChannels.get(kind);
+    if (!channel) return { ok: false, message: `No "${kind}" channel is registered on this server.` };
+    return channel.testConnection();
+  }
+
+  /** Unlike testNotificationChannel(), this actually sends a real message — proof the whole path works, not just reachability. */
+  async sendTestNotification(kind: string): Promise<{ ok: boolean; message: string }> {
+    const channel = this.notificationChannels.get(kind);
+    if (!channel) return { ok: false, message: `No "${kind}" channel is registered on this server.` };
+    try {
+      await channel.send({
+        title: "IronCrew Testbenachrichtigung",
+        body: "Dies ist eine Testbenachrichtigung von IronCrew.",
+        severity: "info",
+      });
+      return { ok: true, message: "Testbenachrichtigung gesendet." };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /**
+   * Best-effort fan-out to every registered channel (Discord, Telegram,
+   * email, …) — fire-and-forget, deliberately not awaited: a broken webhook
+   * or SMTP server must never delay or fail the approval/notification flow
+   * that triggered it. Each channel's outcome is still audited, the same
+   * "never silent" discipline resolveSecret() applies to a failed
+   * resolution — an operator can see exactly which channel failed and why,
+   * without send() being able to throw back into the caller.
+   */
+  private fanOutNotification(
+    companyId: string,
+    message: { title: string; body: string; severity: ChannelSeverity },
+  ): void {
+    for (const channel of this.notificationChannels.values()) {
+      channel
+        .send(message)
+        .then(() => {
+          appendAuditEvent(this.db, {
+            companyId,
+            actorType: "system",
+            actorId: "notification-fanout",
+            action: "notification.sent",
+            entityType: "notification_channel",
+            entityId: channel.kind,
+            outcome: "ok",
+            details: { channel: channel.kind, title: message.title },
+          });
+        })
+        .catch((err: unknown) => {
+          appendAuditEvent(this.db, {
+            companyId,
+            actorType: "system",
+            actorId: "notification-fanout",
+            action: "notification.sent",
+            entityType: "notification_channel",
+            entityId: channel.kind,
+            outcome: "failed",
+            details: {
+              channel: channel.kind,
+              title: message.title,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          });
+        });
+    }
   }
 
   /**
