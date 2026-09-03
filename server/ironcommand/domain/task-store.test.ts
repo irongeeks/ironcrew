@@ -43,9 +43,7 @@ describe("create / read", () => {
 
   it("writes an audit entry on creation", () => {
     const t = readyTask();
-    const rows = db
-      .prepare("SELECT * FROM ic_audit_events WHERE task_id = ? AND action = 'task.created'")
-      .all(t.id);
+    const rows = db.prepare("SELECT * FROM ic_audit_events WHERE task_id = ? AND action = 'task.created'").all(t.id);
     expect(rows).toHaveLength(1);
   });
 
@@ -128,9 +126,7 @@ describe("atomic claiming (the double-work guarantee)", () => {
 
   it("refuses to claim a task that is not in the expected status", () => {
     const t = store.create({ companyId, title: "not ready", status: "inbox" });
-    expect(
-      store.claim({ taskId: t.id, runId: newId("run"), agentId: agentA, expectedVersion: 0 }),
-    ).toBeNull();
+    expect(store.claim({ taskId: t.id, runId: newId("run"), agentId: agentA, expectedVersion: 0 })).toBeNull();
   });
 
   it("refuses a second claim while the lock is still live", () => {
@@ -337,9 +333,7 @@ describe("audit chain integrity", () => {
     store.transition(t.id, "assigned");
     store.transition(t.id, "running");
 
-    db.prepare("UPDATE ic_audit_events SET action = 'task.forged' WHERE seq = 2 AND company_id = ?").run(
-      companyId,
-    );
+    db.prepare("UPDATE ic_audit_events SET action = 'task.forged' WHERE seq = 2 AND company_id = ?").run(companyId);
 
     const result = verifyAuditChain(db, companyId);
     expect(result.valid).toBe(false);

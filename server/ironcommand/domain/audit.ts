@@ -245,9 +245,7 @@ export function listAuditEvents(
   const limit = Math.min(Math.max(opts.limit ?? 100, 1), 1000);
   if (opts.taskId) {
     return db
-      .prepare(
-        "SELECT * FROM ic_audit_events WHERE company_id = ? AND task_id = ? ORDER BY seq DESC LIMIT ?",
-      )
+      .prepare("SELECT * FROM ic_audit_events WHERE company_id = ? AND task_id = ? ORDER BY seq DESC LIMIT ?")
       .all(companyId, opts.taskId, limit) as Array<Record<string, unknown>>;
   }
   return db

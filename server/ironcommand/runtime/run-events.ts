@@ -35,11 +35,7 @@ export const RUN_EVENT_TYPES = [
 export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
 
 /** Events after which no further event may be emitted for a run. */
-export const TERMINAL_RUN_EVENTS: readonly RunEventType[] = [
-  "run.completed",
-  "run.failed",
-  "run.cancelled",
-];
+export const TERMINAL_RUN_EVENTS: readonly RunEventType[] = ["run.completed", "run.failed", "run.cancelled"];
 
 export const redactionMetaSchema = z.object({
   redacted: z.boolean(),

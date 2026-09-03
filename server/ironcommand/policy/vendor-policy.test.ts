@@ -16,9 +16,7 @@ import {
   type VendorPolicy,
 } from "./vendor-policy.ts";
 
-const policy = loadVendorPolicyFromFile(
-  path.resolve(process.cwd(), "config", "vendor-policy.yaml"),
-);
+const policy = loadVendorPolicyFromFile(path.resolve(process.cwd(), "config", "vendor-policy.yaml"));
 
 describe("vendor policy config", () => {
   it("the shipped config validates against the schema", () => {
@@ -169,11 +167,7 @@ describe("catalogue filtering", () => {
     ];
     const { allowed, denied } = filterModelCatalogue(policy, catalogue);
     expect(allowed.map((m) => m.id)).toEqual(["openai/gpt-4o", "anthropic/claude-sonnet-4"]);
-    expect(denied.map((d) => d.model.id)).toEqual([
-      "deepseek/deepseek-chat",
-      "qwen/qwen-max",
-      "unknown/mystery",
-    ]);
+    expect(denied.map((d) => d.model.id)).toEqual(["deepseek/deepseek-chat", "qwen/qwen-max", "unknown/mystery"]);
     expect(denied[0].decision.matchedRule).toBe("deepseek");
   });
 });

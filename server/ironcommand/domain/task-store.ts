@@ -18,11 +18,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import { newId } from "./ids.ts";
-import {
-  assertTransition,
-  isTaskStatus,
-  type TaskStatus,
-} from "./task-state.ts";
+import { assertTransition, isTaskStatus, type TaskStatus } from "./task-state.ts";
 import { appendAuditEvent, type ActorType } from "./audit.ts";
 
 /** How long a claim stays valid without a heartbeat. */
@@ -258,17 +254,7 @@ export class TaskStore {
             AND status_version = ?
             AND (execution_run_id IS NULL OR lock_expires_at IS NULL OR lock_expires_at <= ?)`,
       )
-      .run(
-        input.agentId,
-        input.runId,
-        now,
-        now + ttl,
-        now,
-        input.taskId,
-        from,
-        input.expectedVersion,
-        now,
-      );
+      .run(input.agentId, input.runId, now, now + ttl, now, input.taskId, from, input.expectedVersion, now);
 
     if (result.changes !== 1) return null;
 

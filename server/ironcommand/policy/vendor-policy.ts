@@ -86,11 +86,7 @@ function matchesFamily(normalisedId: string, pattern: string): boolean {
  * against the blocklist too, so routing a permitted-looking model through a
  * blocked host is still denied.
  */
-export function evaluateModel(
-  policy: VendorPolicy,
-  modelId: string,
-  provider?: string,
-): PolicyDecision {
+export function evaluateModel(policy: VendorPolicy, modelId: string, provider?: string): PolicyDecision {
   const normalised = normaliseModelId(modelId ?? "");
   if (!normalised) {
     return {
@@ -125,8 +121,7 @@ export function evaluateModel(
       allowed: false,
       code: "not_in_allowlist",
       reason:
-        `Model "${modelId}" matches no allowed vendor family. ` +
-        `Allowed: ${policy.allowed_families.join(", ")}.`,
+        `Model "${modelId}" matches no allowed vendor family. ` + `Allowed: ${policy.allowed_families.join(", ")}.`,
     };
   }
 
@@ -146,11 +141,7 @@ export class VendorPolicyError extends Error {
 }
 
 /** Throwing variant used at execution boundaries. */
-export function assertModelAllowed(
-  policy: VendorPolicy,
-  modelId: string,
-  provider?: string,
-): void {
+export function assertModelAllowed(policy: VendorPolicy, modelId: string, provider?: string): void {
   const decision = evaluateModel(policy, modelId, provider);
   if (!decision.allowed) throw new VendorPolicyError(modelId, decision);
 }

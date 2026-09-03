@@ -169,9 +169,7 @@ describe("adapters no longer hardcode bypass flags (regression for T-01)", () =>
   });
 
   it("elevated mode restores the flags for each adapter", () => {
-    expect(claudeAdapter.buildArgs({ ...ctx, permissionMode: "elevated" })).toContain(
-      "--dangerously-skip-permissions",
-    );
+    expect(claudeAdapter.buildArgs({ ...ctx, permissionMode: "elevated" })).toContain("--dangerously-skip-permissions");
     expect(codexAdapter.buildArgs({ ...ctx, permissionMode: "elevated" })).toContain("--yolo");
     expect(geminiAdapter.buildArgs({ ...ctx, permissionMode: "elevated" })).toContain("yolo");
   });
@@ -182,18 +180,14 @@ describe("spawn guard", () => {
     expect(() => assertArgsMatchMode(["claude", "--dangerously-skip-permissions"], "restricted")).toThrow(
       PermissionPolicyError,
     );
-    expect(() => assertArgsMatchMode(["codex", "--yolo"], "workspace_write")).toThrow(
+    expect(() => assertArgsMatchMode(["codex", "--yolo"], "workspace_write")).toThrow(PermissionPolicyError);
+    expect(() => assertArgsMatchMode(["codex", "--dangerously-bypass-approvals-and-sandbox"], "restricted")).toThrow(
       PermissionPolicyError,
     );
-    expect(() =>
-      assertArgsMatchMode(["codex", "--dangerously-bypass-approvals-and-sandbox"], "restricted"),
-    ).toThrow(PermissionPolicyError);
   });
 
   it("permits the flag when policy resolved to elevated", () => {
-    expect(() =>
-      assertArgsMatchMode(["claude", "--dangerously-skip-permissions"], "elevated"),
-    ).not.toThrow();
+    expect(() => assertArgsMatchMode(["claude", "--dangerously-skip-permissions"], "elevated")).not.toThrow();
   });
 
   it("permits ordinary argv", () => {

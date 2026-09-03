@@ -4,13 +4,7 @@ import { createTestDb, seedAgent, seedCompany } from "../domain/test-db.ts";
 import { TaskStore } from "../domain/task-store.ts";
 import { RunStore } from "./run-store.ts";
 import { MockRuntime } from "./mock-runtime.ts";
-import {
-  isTerminalRunEvent,
-  runEventSchema,
-  runStatusForEvent,
-  RUN_EVENT_TYPES,
-  type RunEvent,
-} from "./run-events.ts";
+import { isTerminalRunEvent, runEventSchema, runStatusForEvent, RUN_EVENT_TYPES, type RunEvent } from "./run-events.ts";
 
 let db: DatabaseSync;
 let runs: RunStore;
@@ -37,10 +31,23 @@ function newRun() {
 describe("run event model", () => {
   it("covers every event type the master spec requires", () => {
     for (const t of [
-      "run.started", "message.delta", "message.completed", "tool.requested",
-      "tool.started", "tool.completed", "tool.failed", "subagent.spawned",
-      "subagent.completed", "approval.required", "usage.updated", "artifact.created",
-      "rate_limit.detected", "run.waiting", "run.completed", "run.failed", "run.cancelled",
+      "run.started",
+      "message.delta",
+      "message.completed",
+      "tool.requested",
+      "tool.started",
+      "tool.completed",
+      "tool.failed",
+      "subagent.spawned",
+      "subagent.completed",
+      "approval.required",
+      "usage.updated",
+      "artifact.created",
+      "rate_limit.detected",
+      "run.waiting",
+      "run.completed",
+      "run.failed",
+      "run.cancelled",
     ]) {
       expect(RUN_EVENT_TYPES).toContain(t);
     }
@@ -77,9 +84,9 @@ describe("run persistence", () => {
   });
 
   it("rejects events for an unknown run", () => {
-    expect(() =>
-      runs.appendEvent({ companyId, runId: "run_nope", taskId, type: "run.started" }),
-    ).toThrow(/unknown run/);
+    expect(() => runs.appendEvent({ companyId, runId: "run_nope", taskId, type: "run.started" })).toThrow(
+      /unknown run/,
+    );
   });
 
   it("derives run status from terminal events", () => {
@@ -97,7 +104,10 @@ describe("run persistence", () => {
   it("records the failure message on run.failed", () => {
     const run = newRun();
     runs.appendEvent({
-      companyId, runId: run.id, taskId, type: "run.failed",
+      companyId,
+      runId: run.id,
+      taskId,
+      type: "run.failed",
       payload: { message: "boom" },
     });
     expect(runs.get(run.id)!.error_message).toBe("boom");
@@ -139,7 +149,10 @@ describe("event redaction", () => {
   it("redacts secrets in payloads and flags the event", () => {
     const run = newRun();
     const ev = runs.appendEvent({
-      companyId, runId: run.id, taskId, type: "tool.completed",
+      companyId,
+      runId: run.id,
+      taskId,
+      type: "tool.completed",
       payload: { output: "export ANTHROPIC_API_KEY=sk-ant-api03-AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH" },
     });
     expect(JSON.stringify(ev.payload)).not.toContain("sk-ant-api03");
@@ -150,7 +163,10 @@ describe("event redaction", () => {
   it("persists the redacted form, not the original", () => {
     const run = newRun();
     runs.appendEvent({
-      companyId, runId: run.id, taskId, type: "tool.completed",
+      companyId,
+      runId: run.id,
+      taskId,
+      type: "tool.completed",
       payload: { output: "token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" },
     });
     const stored = db.prepare("SELECT payload_json FROM ic_run_events").get() as { payload_json: string };
@@ -160,7 +176,11 @@ describe("event redaction", () => {
   it("does not flag ordinary payloads as redacted", () => {
     const run = newRun();
     const ev = runs.appendEvent({
-      companyId, runId: run.id, taskId, type: "message.delta", payload: { text: "hallo welt" },
+      companyId,
+      runId: run.id,
+      taskId,
+      type: "message.delta",
+      payload: { text: "hallo welt" },
     });
     expect(ev.redaction.redacted).toBe(false);
   });
@@ -168,7 +188,10 @@ describe("event redaction", () => {
   it("redacts caller-supplied literal secret values", () => {
     const run = newRun();
     const ev = runs.appendEvent({
-      companyId, runId: run.id, taskId, type: "tool.completed",
+      companyId,
+      runId: run.id,
+      taskId,
+      type: "tool.completed",
       payload: { output: "connecting with correct-horse-battery-staple" },
       redactValues: ["correct-horse-battery-staple"],
     });

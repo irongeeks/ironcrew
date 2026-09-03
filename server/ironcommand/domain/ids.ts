@@ -6,9 +6,26 @@ import { randomUUID } from "node:crypto";
  * a lot when tracing a correlation id across tasks, runs and events.
  */
 export type IdPrefix =
-  | "cmp" | "dept" | "agt" | "goal" | "prj" | "task" | "dep"
-  | "run" | "evt" | "conv" | "msg" | "apr" | "dec" | "bud"
-  | "cost" | "grant" | "aud" | "mem" | "ntf" | "corr";
+  | "cmp"
+  | "dept"
+  | "agt"
+  | "goal"
+  | "prj"
+  | "task"
+  | "dep"
+  | "run"
+  | "evt"
+  | "conv"
+  | "msg"
+  | "apr"
+  | "dec"
+  | "bud"
+  | "cost"
+  | "grant"
+  | "aud"
+  | "mem"
+  | "ntf"
+  | "corr";
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 24)}`;

@@ -46,7 +46,11 @@ const RULES: Rule[] = [
   { id: "github_pat", pattern: /\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, replace: REDACTED },
   { id: "slack_token", pattern: /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g, replace: REDACTED },
   { id: "aws_access_key", pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, replace: REDACTED },
-  { id: "discord_bot_token", pattern: /\b[MNO][A-Za-z0-9_-]{23,}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,}\b/g, replace: REDACTED },
+  {
+    id: "discord_bot_token",
+    pattern: /\b[MNO][A-Za-z0-9_-]{23,}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,}\b/g,
+    replace: REDACTED,
+  },
   { id: "stripe_key", pattern: /\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}\b/g, replace: REDACTED },
 
   // --- Generic transport shapes -------------------------------------------
@@ -127,7 +131,8 @@ export function redactText(input: string, knownValues: readonly string[] = []): 
 }
 
 /** Keys whose values are replaced wholesale during object redaction. */
-const SENSITIVE_KEY = /(api[_-]?key|secret|password|passwd|token|credential|private[_-]?key|access[_-]?key|authorization|cookie|session[_-]?id)/i;
+const SENSITIVE_KEY =
+  /(api[_-]?key|secret|password|passwd|token|credential|private[_-]?key|access[_-]?key|authorization|cookie|session[_-]?id)/i;
 
 /**
  * Deep-redact a structured value (log context, event payload, tool arguments).

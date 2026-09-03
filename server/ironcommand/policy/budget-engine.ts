@@ -140,12 +140,28 @@ export class BudgetEngine {
     const params: unknown[] = [budget.company_id];
 
     switch (budget.scope_type) {
-      case "company": break;
-      case "agent": clauses.push("agent_id = ?"); params.push(budget.scope_id); break;
-      case "project": clauses.push("project_id = ?"); params.push(budget.scope_id); break;
-      case "task": clauses.push("task_id = ?"); params.push(budget.scope_id); break;
-      case "runtime": clauses.push("runtime_type = ?"); params.push(budget.scope_id); break;
-      case "provider": clauses.push("provider = ?"); params.push(budget.scope_id); break;
+      case "company":
+        break;
+      case "agent":
+        clauses.push("agent_id = ?");
+        params.push(budget.scope_id);
+        break;
+      case "project":
+        clauses.push("project_id = ?");
+        params.push(budget.scope_id);
+        break;
+      case "task":
+        clauses.push("task_id = ?");
+        params.push(budget.scope_id);
+        break;
+      case "runtime":
+        clauses.push("runtime_type = ?");
+        params.push(budget.scope_id);
+        break;
+      case "provider":
+        clauses.push("provider = ?");
+        params.push(budget.scope_id);
+        break;
     }
 
     if (budget.window_kind === "calendar_month_utc") {
@@ -165,7 +181,13 @@ export class BudgetEngine {
   /** All active budgets that cover the given dimensions. */
   budgetsCovering(
     companyId: string,
-    dims: { agentId?: string | null; projectId?: string | null; taskId?: string | null; runtimeType?: string; provider?: string },
+    dims: {
+      agentId?: string | null;
+      projectId?: string | null;
+      taskId?: string | null;
+      runtimeType?: string;
+      provider?: string;
+    },
   ): BudgetRow[] {
     const all = this.db
       .prepare("SELECT * FROM ic_budgets WHERE company_id = ? AND active = 1")
@@ -173,18 +195,29 @@ export class BudgetEngine {
 
     return all.filter((b) => {
       switch (b.scope_type) {
-        case "company": return true;
-        case "agent": return !!dims.agentId && b.scope_id === dims.agentId;
-        case "project": return !!dims.projectId && b.scope_id === dims.projectId;
-        case "task": return !!dims.taskId && b.scope_id === dims.taskId;
-        case "runtime": return !!dims.runtimeType && b.scope_id === dims.runtimeType;
-        case "provider": return !!dims.provider && b.scope_id === dims.provider;
-        default: return false;
+        case "company":
+          return true;
+        case "agent":
+          return !!dims.agentId && b.scope_id === dims.agentId;
+        case "project":
+          return !!dims.projectId && b.scope_id === dims.projectId;
+        case "task":
+          return !!dims.taskId && b.scope_id === dims.taskId;
+        case "runtime":
+          return !!dims.runtimeType && b.scope_id === dims.runtimeType;
+        case "provider":
+          return !!dims.provider && b.scope_id === dims.provider;
+        default:
+          return false;
       }
     });
   }
 
-  status(companyId: string, dims: Parameters<BudgetEngine["budgetsCovering"]>[1] = {}, now = Date.now()): BudgetStatus[] {
+  status(
+    companyId: string,
+    dims: Parameters<BudgetEngine["budgetsCovering"]>[1] = {},
+    now = Date.now(),
+  ): BudgetStatus[] {
     return this.budgetsCovering(companyId, dims).map((budget) => {
       const spentMicros = this.spentFor(budget, now);
       return {

@@ -22,16 +22,10 @@ import type {
   RunInput,
   RuntimeCapabilities,
   RuntimeHealth,
+  RunEventType,
 } from "./run-events.ts";
-import type { RunEventType } from "./run-events.ts";
 
-export type MockScenario =
-  | "success"
-  | "failure"
-  | "rate_limit"
-  | "approval_required"
-  | "slow"
-  | "cancelled";
+export type MockScenario = "success" | "failure" | "rate_limit" | "approval_required" | "slow" | "cancelled";
 
 export interface MockRuntimeOptions {
   scenario?: MockScenario;

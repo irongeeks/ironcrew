@@ -62,8 +62,14 @@ describe("task state machine shape", () => {
       let reachedTerminal = isTerminal(start);
       while (queue.length && !reachedTerminal) {
         for (const next of TRANSITIONS[queue.shift()!]) {
-          if (isTerminal(next)) { reachedTerminal = true; break; }
-          if (!seen.has(next)) { seen.add(next); queue.push(next); }
+          if (isTerminal(next)) {
+            reachedTerminal = true;
+            break;
+          }
+          if (!seen.has(next)) {
+            seen.add(next);
+            queue.push(next);
+          }
         }
       }
       expect(reachedTerminal).toBe(true);
@@ -117,15 +123,13 @@ describe("deriveAgentStatus", () => {
   });
 
   it("prioritises rate limiting over working", () => {
-    expect(deriveAgentStatus({ online: true, rateLimited: true, taskStatuses: ["running"] })).toBe(
-      "rate_limited",
-    );
+    expect(deriveAgentStatus({ online: true, rateLimited: true, taskStatuses: ["running"] })).toBe("rate_limited");
   });
 
   it("surfaces waiting_for_approval above working", () => {
-    expect(
-      deriveAgentStatus({ online: true, taskStatuses: ["running", "approval_required"] }),
-    ).toBe("waiting_for_approval");
+    expect(deriveAgentStatus({ online: true, taskStatuses: ["running", "approval_required"] })).toBe(
+      "waiting_for_approval",
+    );
   });
 
   it.each([
@@ -139,14 +143,10 @@ describe("deriveAgentStatus", () => {
 
   it("reports error only when idle after a failed run", () => {
     expect(deriveAgentStatus({ online: true, taskStatuses: [], lastRunFailed: true })).toBe("error");
-    expect(deriveAgentStatus({ online: true, taskStatuses: ["running"], lastRunFailed: true })).toBe(
-      "working",
-    );
+    expect(deriveAgentStatus({ online: true, taskStatuses: ["running"], lastRunFailed: true })).toBe("working");
   });
 
   it("reports in_meeting above task-derived states", () => {
-    expect(deriveAgentStatus({ online: true, inMeeting: true, taskStatuses: ["running"] })).toBe(
-      "in_meeting",
-    );
+    expect(deriveAgentStatus({ online: true, inMeeting: true, taskStatuses: ["running"] })).toBe("in_meeting");
   });
 });

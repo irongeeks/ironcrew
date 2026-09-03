@@ -52,7 +52,8 @@ describe("transport shapes", () => {
   });
 
   it("redacts a private key block", () => {
-    const pem = "-----BEGIN OPENSSH PRIVATE KEY-----\nAAAAB3NzaC1yc2E\nMOREKEYMATERIAL\n-----END OPENSSH PRIVATE KEY-----";
+    const pem =
+      "-----BEGIN OPENSSH PRIVATE KEY-----\nAAAAB3NzaC1yc2E\nMOREKEYMATERIAL\n-----END OPENSSH PRIVATE KEY-----";
     const out = redactText(`writing key:\n${pem}\ndone`);
     expect(out).not.toContain("MOREKEYMATERIAL");
     expect(out).toContain("done");
@@ -61,7 +62,7 @@ describe("transport shapes", () => {
 
 describe("key=value assignments", () => {
   it.each([
-    'API_KEY=supersecretvalue123',
+    "API_KEY=supersecretvalue123",
     'apiKey: "supersecretvalue123"',
     "password = supersecretvalue123",
     '"access_token": "supersecretvalue123"',

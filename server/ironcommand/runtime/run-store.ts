@@ -10,11 +10,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { newId } from "../domain/ids.ts";
 import { redact, redactValue } from "../security/redaction.ts";
-import {
-  runStatusForEvent,
-  type RunEvent,
-  type RunEventType,
-} from "./run-events.ts";
+import { runStatusForEvent, type RunEvent, type RunEventType } from "./run-events.ts";
 
 export interface RunRow {
   id: string;
@@ -87,9 +83,7 @@ export class RunStore {
   }
 
   listForTask(taskId: string): RunRow[] {
-    return this.db
-      .prepare("SELECT * FROM ic_runs WHERE task_id = ? ORDER BY created_at ASC")
-      .all(taskId) as RunRow[];
+    return this.db.prepare("SELECT * FROM ic_runs WHERE task_id = ? ORDER BY created_at ASC").all(taskId) as RunRow[];
   }
 
   setStatus(runId: string, status: string, opts: { errorMessage?: string } = {}): void {
@@ -217,9 +211,7 @@ export class RunStore {
   listEvents(runId: string, opts: { afterSeq?: number; limit?: number } = {}): RunEvent[] {
     const limit = Math.min(Math.max(opts.limit ?? 500, 1), 5000);
     const rows = this.db
-      .prepare(
-        `SELECT * FROM ic_run_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?`,
-      )
+      .prepare(`SELECT * FROM ic_run_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?`)
       .all(runId, opts.afterSeq ?? -1, limit) as Array<Record<string, unknown>>;
 
     return rows.map((r) => ({

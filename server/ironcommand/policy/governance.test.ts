@@ -9,13 +9,7 @@ import {
   ApprovalRequiredError,
   requiresApproval,
 } from "./approval-policy.ts";
-import {
-  BudgetEngine,
-  BudgetExceededError,
-  dayKey,
-  monthKey,
-  stateFor,
-} from "./budget-engine.ts";
+import { BudgetEngine, BudgetExceededError, dayKey, monthKey, stateFor } from "./budget-engine.ts";
 
 let db: DatabaseSync;
 let companyId: string;
@@ -44,9 +38,15 @@ describe("approval policy surface", () => {
 
   it("covers the actions the company policy names explicitly", () => {
     for (const t of [
-      "bank_transfer", "tax_filing", "contract_execution", "production_deployment",
-      "tier0_change", "irreversible_data_change", "secret_disclosure",
-      "permission_change", "agent_lifecycle_change",
+      "bank_transfer",
+      "tax_filing",
+      "contract_execution",
+      "production_deployment",
+      "tier0_change",
+      "irreversible_data_change",
+      "secret_disclosure",
+      "permission_change",
+      "agent_lifecycle_change",
     ]) {
       expect(ALWAYS_APPROVAL_REQUIRED).toContain(t);
     }
@@ -60,43 +60,61 @@ describe("approval policy surface", () => {
 
 describe("approval enforcement", () => {
   it("blocks a high-risk action when no approval exists", () => {
-    expect(() => approvals.assertActionPermitted(companyId, "bank_transfer", taskId)).toThrow(
-      ApprovalRequiredError,
-    );
+    expect(() => approvals.assertActionPermitted(companyId, "bank_transfer", taskId)).toThrow(ApprovalRequiredError);
   });
 
   it("still blocks while the approval is only pending", () => {
-    approvals.request(companyId, {
-      approvalType: "bank_transfer", requestedBy: agentId, summary: "pay invoice 42",
-    }, { taskId });
-    expect(() => approvals.assertActionPermitted(companyId, "bank_transfer", taskId)).toThrow(
-      ApprovalRequiredError,
+    approvals.request(
+      companyId,
+      {
+        approvalType: "bank_transfer",
+        requestedBy: agentId,
+        summary: "pay invoice 42",
+      },
+      { taskId },
     );
+    expect(() => approvals.assertActionPermitted(companyId, "bank_transfer", taskId)).toThrow(ApprovalRequiredError);
   });
 
   it("permits the action once the owner approves", () => {
-    const a = approvals.request(companyId, {
-      approvalType: "bank_transfer", requestedBy: agentId, summary: "pay invoice 42",
-    }, { taskId });
+    const a = approvals.request(
+      companyId,
+      {
+        approvalType: "bank_transfer",
+        requestedBy: agentId,
+        summary: "pay invoice 42",
+      },
+      { taskId },
+    );
     approvals.decide(a.id, "approved", "owner-1", "verified against the invoice");
     expect(() => approvals.assertActionPermitted(companyId, "bank_transfer", taskId)).not.toThrow();
   });
 
   it("keeps blocking after a rejection", () => {
-    const a = approvals.request(companyId, {
-      approvalType: "tax_filing", requestedBy: agentId, summary: "submit UStVA",
-    }, { taskId });
-    approvals.decide(a.id, "rejected", "owner-1", "figures not reconciled");
-    expect(() => approvals.assertActionPermitted(companyId, "tax_filing", taskId)).toThrow(
-      ApprovalRequiredError,
+    const a = approvals.request(
+      companyId,
+      {
+        approvalType: "tax_filing",
+        requestedBy: agentId,
+        summary: "submit UStVA",
+      },
+      { taskId },
     );
+    approvals.decide(a.id, "rejected", "owner-1", "figures not reconciled");
+    expect(() => approvals.assertActionPermitted(companyId, "tax_filing", taskId)).toThrow(ApprovalRequiredError);
   });
 
   it("does not let an approval for one task authorise another", () => {
     const other = new TaskStore(db).create({ companyId, title: "other", status: "ready" }).id;
-    const a = approvals.request(companyId, {
-      approvalType: "production_deployment", requestedBy: agentId, summary: "deploy",
-    }, { taskId });
+    const a = approvals.request(
+      companyId,
+      {
+        approvalType: "production_deployment",
+        requestedBy: agentId,
+        summary: "deploy",
+      },
+      { taskId },
+    );
     approvals.decide(a.id, "approved", "owner-1");
     expect(() => approvals.assertActionPermitted(companyId, "production_deployment", other)).toThrow(
       ApprovalRequiredError,
@@ -104,53 +122,87 @@ describe("approval enforcement", () => {
   });
 
   it("does not let an approval for one action type authorise another", () => {
-    const a = approvals.request(companyId, {
-      approvalType: "production_deployment", requestedBy: agentId, summary: "deploy",
-    }, { taskId });
-    approvals.decide(a.id, "approved", "owner-1");
-    expect(() => approvals.assertActionPermitted(companyId, "bank_transfer", taskId)).toThrow(
-      ApprovalRequiredError,
+    const a = approvals.request(
+      companyId,
+      {
+        approvalType: "production_deployment",
+        requestedBy: agentId,
+        summary: "deploy",
+      },
+      { taskId },
     );
+    approvals.decide(a.id, "approved", "owner-1");
+    expect(() => approvals.assertActionPermitted(companyId, "bank_transfer", taskId)).toThrow(ApprovalRequiredError);
   });
 
   it("expires an overdue approval and resumes blocking", () => {
     const past = Date.now() - 1000;
-    const a = approvals.request(companyId, {
-      approvalType: "tier0_change", requestedBy: agentId, summary: "dc change", expiresAt: past,
-    }, { taskId });
+    const a = approvals.request(
+      companyId,
+      {
+        approvalType: "tier0_change",
+        requestedBy: agentId,
+        summary: "dc change",
+        expiresAt: past,
+      },
+      { taskId },
+    );
     expect(approvals.listPending(companyId)).toHaveLength(0);
     expect(approvals.get(a.id)!.status).toBe("expired");
     expect(() => approvals.assertActionPermitted(companyId, "tier0_change", taskId)).toThrow();
   });
 
   it("stops honouring an approved decision once it has expired", () => {
-    const a = approvals.request(companyId, {
-      approvalType: "secret_disclosure", requestedBy: agentId, summary: "reveal ref",
-      expiresAt: Date.now() + 10_000,
-    }, { taskId });
+    const a = approvals.request(
+      companyId,
+      {
+        approvalType: "secret_disclosure",
+        requestedBy: agentId,
+        summary: "reveal ref",
+        expiresAt: Date.now() + 10_000,
+      },
+      { taskId },
+    );
     approvals.decide(a.id, "approved", "owner-1");
     expect(approvals.isApproved(companyId, "secret_disclosure", taskId)).toBe(true);
     expect(approvals.isApproved(companyId, "secret_disclosure", taskId, Date.now() + 20_000)).toBe(false);
   });
 
   it("resolves a double decision to a single winner", () => {
-    const a = approvals.request(companyId, {
-      approvalType: "contract_execution", requestedBy: agentId, summary: "sign",
-    }, { taskId });
+    const a = approvals.request(
+      companyId,
+      {
+        approvalType: "contract_execution",
+        requestedBy: agentId,
+        summary: "sign",
+      },
+      { taskId },
+    );
     expect(approvals.decide(a.id, "approved", "owner-1")).not.toBeNull();
     expect(approvals.decide(a.id, "rejected", "owner-2")).toBeNull();
     expect(approvals.get(a.id)!.status).toBe("approved");
   });
 
   it("audits request, decision and each block", () => {
-    const a = approvals.request(companyId, {
-      approvalType: "bank_transfer", requestedBy: agentId, summary: "pay",
-    }, { taskId });
-    try { approvals.assertActionPermitted(companyId, "bank_transfer", taskId); } catch { /* expected */ }
+    const a = approvals.request(
+      companyId,
+      {
+        approvalType: "bank_transfer",
+        requestedBy: agentId,
+        summary: "pay",
+      },
+      { taskId },
+    );
+    try {
+      approvals.assertActionPermitted(companyId, "bank_transfer", taskId);
+    } catch {
+      /* expected */
+    }
     approvals.decide(a.id, "approved", "owner-1");
 
-    const actions = (db.prepare("SELECT action FROM ic_audit_events ORDER BY seq").all() as Array<{ action: string }>)
-      .map((r) => r.action);
+    const actions = (
+      db.prepare("SELECT action FROM ic_audit_events ORDER BY seq").all() as Array<{ action: string }>
+    ).map((r) => r.action);
     expect(actions).toContain("approval.requested");
     expect(actions).toContain("approval.blocked");
     expect(actions).toContain("approval.approved");
@@ -225,8 +277,13 @@ describe("budget enforcement", () => {
   it("does not count subscription quota events as money", () => {
     budgets.setBudget({ companyId, scopeType: "company", limitMicros: 1_000_000 });
     budgets.recordCost({
-      companyId, agentId, kind: "quota", runtimeType: "claude-code",
-      inputTokens: 500_000, outputTokens: 100_000, costMicros: 999_999_999,
+      companyId,
+      agentId,
+      kind: "quota",
+      runtimeType: "claude-code",
+      inputTokens: 500_000,
+      outputTokens: 100_000,
+      costMicros: 999_999_999,
     });
     const [status] = budgets.status(companyId, { agentId });
     expect(status.spentMicros).toBe(0);
@@ -235,11 +292,16 @@ describe("budget enforcement", () => {
 
   it("still records token consumption for a quota event", () => {
     budgets.recordCost({
-      companyId, agentId, kind: "quota", runtimeType: "claude-code",
-      inputTokens: 1234, outputTokens: 56,
+      companyId,
+      agentId,
+      kind: "quota",
+      runtimeType: "claude-code",
+      inputTokens: 1234,
+      outputTokens: 56,
     });
     const row = db.prepare("SELECT input_tokens, output_tokens FROM ic_cost_events").get() as {
-      input_tokens: number; output_tokens: number;
+      input_tokens: number;
+      output_tokens: number;
     };
     expect(row.input_tokens).toBe(1234);
     expect(row.output_tokens).toBe(56);
@@ -273,9 +335,14 @@ describe("budget enforcement", () => {
   it("audits a blocked run and keeps the chain valid", () => {
     budgets.setBudget({ companyId, scopeType: "company", limitMicros: 1_000 });
     budgets.recordCost({ companyId, agentId, costMicros: 5_000 });
-    try { budgets.assertRunPermitted(companyId, { agentId }); } catch { /* expected */ }
-    const actions = (db.prepare("SELECT action FROM ic_audit_events").all() as Array<{ action: string }>)
-      .map((r) => r.action);
+    try {
+      budgets.assertRunPermitted(companyId, { agentId });
+    } catch {
+      /* expected */
+    }
+    const actions = (db.prepare("SELECT action FROM ic_audit_events").all() as Array<{ action: string }>).map(
+      (r) => r.action,
+    );
     expect(actions).toContain("budget.hard_stop_reached");
     expect(actions).toContain("budget.run_blocked");
     expect(verifyAuditChain(db, companyId).valid).toBe(true);

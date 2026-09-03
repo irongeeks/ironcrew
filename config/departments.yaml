@@ -1,0 +1,54 @@
+version: 1
+departments:
+  - key: executive
+    name: Vorstand
+    description: CEO-Büro, Executive Assistant und Orchestrierung
+    sort_order: 0
+  - key: engineering
+    name: Technik
+    description: Architektur, Softwareentwicklung, technische Innovation
+    sort_order: 10
+  - key: infrastructure
+    name: Infrastruktur
+    description: Proxmox, Windows, Linux, Netzwerk, M365, Betrieb
+    sort_order: 20
+  - key: security
+    name: Sicherheit
+    description: Threat Modeling, Least Privilege, Incident Response
+    sort_order: 30
+  - key: finance
+    name: Finanzen
+    description: Buchhaltung, Belege, Zahlungen, Steuervorbereitung
+    sort_order: 40
+  - key: legal
+    name: Recht
+    description: Verträge, Klauseln, Risiken, Fristen
+    sort_order: 50
+  - key: research
+    name: Recherche
+    description: Quellenbasierte Recherche und Intelligence
+    sort_order: 60
+  - key: quality
+    name: Qualität
+    description: QA, Root-Cause-Analyse, Red Team
+    sort_order: 70
+  - key: design
+    name: Design
+    description: UI/UX und Markenführung
+    sort_order: 80
+  - key: marketing
+    name: Marketing
+    description: Positionierung, Kampagnen, Texte
+    sort_order: 90
+  - key: sales
+    name: Vertrieb
+    description: Pipeline, Angebote, Verhandlungen
+    sort_order: 100
+  - key: knowledge
+    name: Wissen
+    description: Dokumentation, SOPs, Wissenspflege
+    sort_order: 110
+  - key: automation
+    name: Automatisierung
+    description: MCP, Workflows, Integrationen
+    sort_order: 120

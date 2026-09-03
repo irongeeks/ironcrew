@@ -143,9 +143,7 @@ export class ApprovalEngine {
   }
 
   get(id: string): ApprovalRow | null {
-    return (
-      (this.db.prepare("SELECT * FROM ic_approvals WHERE id = ?").get(id) as ApprovalRow | undefined) ?? null
-    );
+    return (this.db.prepare("SELECT * FROM ic_approvals WHERE id = ?").get(id) as ApprovalRow | undefined) ?? null;
   }
 
   listPending(companyId: string, now = Date.now()): ApprovalRow[] {
@@ -159,12 +157,7 @@ export class ApprovalEngine {
    * Record an owner decision. Guarded on status='pending' so a decision cannot
    * be overwritten and a race between two UI clicks resolves to one winner.
    */
-  decide(
-    approvalId: string,
-    decision: "approved" | "rejected",
-    decidedBy: string,
-    reason = "",
-  ): ApprovalRow | null {
+  decide(approvalId: string, decision: "approved" | "rejected", decidedBy: string, reason = ""): ApprovalRow | null {
     const existing = this.get(approvalId);
     if (!existing) return null;
 
@@ -230,12 +223,7 @@ export class ApprovalEngine {
    * The enforcement point. Throws unless the action is either low-risk or
    * covered by a live approval.
    */
-  assertActionPermitted(
-    companyId: string,
-    approvalType: string,
-    taskId: string | null,
-    now = Date.now(),
-  ): void {
+  assertActionPermitted(companyId: string, approvalType: string, taskId: string | null, now = Date.now()): void {
     if (!requiresApproval(approvalType)) return;
     if (this.isApproved(companyId, approvalType, taskId, now)) return;
 
