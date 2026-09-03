@@ -16,14 +16,17 @@ import {
   AGENT_STATUS_LABEL,
   BOARD_COLUMNS,
   MILESTONE_STATUS_LABEL,
+  NOTIFICATION_SEVERITY_LABEL,
   PROJECT_STATUS_LABEL,
   TASK_STATUS_LABEL,
   type Agent,
   type Approval,
   type Dashboard,
+  type Decision,
   type Goal,
   type Message,
   type Milestone,
+  type Notification,
   type Project,
   type RunEvent,
   type RuntimeInfo,
@@ -56,6 +59,9 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [companyName, setCompanyName] = useState("Iron Command");
   const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [decisions, setDecisions] = useState<Decision[]>([]);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -63,6 +69,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [showProjectList, setShowProjectList] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
   const [projectDetail, setProjectDetail] = useState<{
     project: Project;
     milestones: Milestone[];
@@ -74,13 +81,15 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
   const refresh = useCallback(async () => {
     try {
-      const [a, t, c, ap, d, p] = await Promise.all([
+      const [a, t, c, ap, d, p, n, dec] = await Promise.all([
         client.agents(),
         client.tasks(),
         client.chat(),
         client.approvals(),
         client.dashboard(),
         client.projects(),
+        client.notifications(),
+        client.decisions(),
       ]);
       setAgents(a.agents);
       setTasks(t.tasks);
@@ -88,6 +97,9 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
       setApprovals(ap.approvals);
       setDashboard(d);
       setProjects(p.projects);
+      setNotifications(n.notifications);
+      setUnreadCount(n.unreadCount);
+      setDecisions(dec.decisions);
       setError(null);
     } catch (err) {
       // Never fail silently — an unreachable control plane is information.
@@ -236,6 +248,13 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [refresh],
   );
 
+  const markNotificationRead = useCallback(
+    (id: string) => {
+      void act(() => client.markNotificationRead(id));
+    },
+    [act, client],
+  );
+
   // Kanban drag & drop. There is no optimistic local mutation: a card only
   // ever moves to the column its `status` field in `tasks` actually says,
   // and that only changes once refresh() re-reads it after the server
@@ -286,6 +305,16 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-projects" onClick={() => setShowProjectList(true)}>
           Projekte ({projects.length})
+        </button>
+
+        <button
+          type="button"
+          className="ic-btn"
+          data-variant={unreadCount > 0 ? "decision" : undefined}
+          data-testid="open-inbox"
+          onClick={() => setShowInbox(true)}
+        >
+          Postfach ({unreadCount})
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -823,6 +852,50 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
             {projectDetail.tasks.map((t) => (
               <li key={t.id}>
                 <span>{t.title}</span> <span className="ic-tag">{TASK_STATUS_LABEL[t.status]}</span>
+              </li>
+            ))}
+          </ul>
+        </DetailDialog>
+      )}
+
+      {showInbox && (
+        <DetailDialog title="Postfach" onClose={() => setShowInbox(false)}>
+          <h3 className="ic-section-title" style={{ padding: 0 }}>
+            Benachrichtigungen
+          </h3>
+          {notifications.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {notifications.map((n) => (
+              <li key={n.id} data-testid={`notification-${n.id}`}>
+                <span className="ic-milestone-title" style={n.read_at ? { opacity: 0.5 } : undefined}>
+                  {n.title}
+                </span>
+                <span
+                  className="ic-tag"
+                  data-tone={n.severity === "critical" ? "gate" : n.severity === "warning" ? "gate" : "policy"}
+                >
+                  {NOTIFICATION_SEVERITY_LABEL[n.severity]}
+                </span>
+                {!n.read_at && (
+                  <button type="button" className="ic-btn" disabled={busy} onClick={() => markNotificationRead(n.id)}>
+                    Gelesen
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "10px 0 4px" }}>
+            Entscheidungsprotokoll
+          </h3>
+          {decisions.length === 0 && <p className="ic-empty">—</p>}
+          <ul className="ic-milestone-list">
+            {decisions.map((d) => (
+              <li key={d.id}>
+                <span className="ic-milestone-title">{d.title}</span>
+                <span className="ic-tag" data-tone={d.decision === "approved" ? "policy" : "gate"}>
+                  {d.decision}
+                </span>
               </li>
             ))}
           </ul>

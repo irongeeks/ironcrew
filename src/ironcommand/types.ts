@@ -140,6 +140,38 @@ export interface Approval {
   created_at: number;
 }
 
+export type NotificationSeverity = "info" | "warning" | "critical";
+
+export interface Notification {
+  id: string;
+  kind: string;
+  severity: NotificationSeverity;
+  title: string;
+  body: string;
+  task_id: string | null;
+  approval_id: string | null;
+  read_at: number | null;
+  created_at: number;
+}
+
+export interface Decision {
+  id: string;
+  project_id: string | null;
+  task_id: string | null;
+  title: string;
+  context: string;
+  decision: string;
+  rationale: string;
+  decided_by: string;
+  created_at: number;
+}
+
+export const NOTIFICATION_SEVERITY_LABEL: Record<NotificationSeverity, string> = {
+  info: "Info",
+  warning: "Warnung",
+  critical: "Kritisch",
+};
+
 export interface RunEvent {
   eventId: string;
   type: string;

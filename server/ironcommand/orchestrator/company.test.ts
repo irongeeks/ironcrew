@@ -138,6 +138,52 @@ describe("sensitive requests are blocked, not executed", () => {
     orc.handleCeoMessage(companyId, "Bitte überweise 100 EUR.");
     expect(orc.tasks.findClaimable(companyId)).toHaveLength(0);
   });
+
+  it("puts a notification in the inbox for the pending approval", () => {
+    orc.handleCeoMessage(companyId, "Bitte überweise 100 EUR.");
+    const approval = orc.approvals.listPending(companyId)[0];
+    const notifications = orc.notifications.list(companyId);
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0].approval_id).toBe(approval.id);
+    expect(notifications[0].kind).toBe("approval_required");
+    expect(notifications[0].read_at).toBeNull();
+  });
+});
+
+describe("decideApproval — decision log and inbox clearing", () => {
+  it("records a decision and clears the notification when approved", () => {
+    orc.handleCeoMessage(companyId, "Bitte überweise 100 EUR.");
+    const approval = orc.approvals.listPending(companyId)[0];
+
+    const decided = orc.decideApproval(companyId, approval.id, "approved", "geprüft, in Ordnung");
+    expect(decided!.status).toBe("approved");
+
+    const decisions = orc.decisions.list(companyId);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].decision).toBe("approved");
+    expect(decisions[0].rationale).toBe("geprüft, in Ordnung");
+
+    const notification = orc.notifications.list(companyId)[0];
+    expect(notification.read_at).not.toBeNull();
+  });
+
+  it("records a rejected decision too", () => {
+    orc.handleCeoMessage(companyId, "Bitte überweise 100 EUR.");
+    const approval = orc.approvals.listPending(companyId)[0];
+    orc.decideApproval(companyId, approval.id, "rejected", "nicht autorisiert");
+    expect(orc.decisions.list(companyId)[0].decision).toBe("rejected");
+  });
+
+  it("returns null for an approval that does not exist or was already decided", () => {
+    expect(orc.decideApproval(companyId, "apr_nope", "approved")).toBeNull();
+
+    orc.handleCeoMessage(companyId, "Bitte überweise 100 EUR.");
+    const approval = orc.approvals.listPending(companyId)[0];
+    orc.decideApproval(companyId, approval.id, "approved");
+    expect(orc.decideApproval(companyId, approval.id, "approved")).toBeNull();
+    // Only the one decision from the first, successful call.
+    expect(orc.decisions.list(companyId)).toHaveLength(1);
+  });
 });
 
 describe("full vertical slice: CEO -> EA -> agent -> review -> CEO", () => {

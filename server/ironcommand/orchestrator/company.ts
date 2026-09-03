@@ -20,6 +20,9 @@ import { BudgetEngine } from "../policy/budget-engine.ts";
 import { SandboxGrantStore } from "../domain/sandbox-grant-store.ts";
 import { GoalStore } from "../domain/goal-store.ts";
 import { ProjectStore } from "../domain/project-store.ts";
+import { NotificationStore } from "../domain/notification-store.ts";
+import { DecisionStore } from "../domain/decision-store.ts";
+import type { ApprovalRow } from "../policy/approval-policy.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -71,6 +74,8 @@ export class CompanyOrchestrator {
   readonly sandboxGrants: SandboxGrantStore;
   readonly goals: GoalStore;
   readonly projects: ProjectStore;
+  readonly notifications: NotificationStore;
+  readonly decisions: DecisionStore;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -83,6 +88,56 @@ export class CompanyOrchestrator {
     this.budgets = new BudgetEngine(db);
     this.goals = new GoalStore(db);
     this.projects = new ProjectStore(db);
+    this.notifications = new NotificationStore(db);
+    this.decisions = new DecisionStore(db);
+  }
+
+  /**
+   * The one place an approval turns into an inbox item. Both call sites that
+   * create an approval (the sensitive-request path and a runtime's
+   * approval.required event) go through this, so a notification can never
+   * exist for an approval this didn't also mint the approval for.
+   */
+  private notifyApprovalRequested(companyId: string, approval: ApprovalRow): void {
+    this.notifications.create({
+      companyId,
+      kind: "approval_required",
+      severity: approval.risk_level === "critical" || approval.risk_level === "high" ? "critical" : "warning",
+      title: approval.summary,
+      body: approval.proposed_action,
+      taskId: approval.task_id,
+      approvalId: approval.id,
+    });
+  }
+
+  /**
+   * Decide a pending approval and, unlike calling `this.approvals.decide()`
+   * directly, also leave a durable business record of it: a decision-log
+   * entry (distinct from the audit chain — see decision-store.ts) and the
+   * matching notification cleared from the inbox. Returns null exactly when
+   * `approvals.decide()` would (already decided / does not exist).
+   */
+  decideApproval(
+    companyId: string,
+    approvalId: string,
+    decision: "approved" | "rejected",
+    reason = "",
+  ): ApprovalRow | null {
+    const approval = this.approvals.decide(approvalId, decision, "ceo", reason);
+    if (!approval) return null;
+
+    this.decisions.create({
+      companyId,
+      title: approval.summary,
+      decision,
+      context: approval.impact,
+      rationale: reason,
+      decidedBy: "ceo",
+      taskId: approval.task_id,
+    });
+    this.notifications.markReadByApproval(companyId, approval.id);
+
+    return approval;
   }
 
   registerRuntime(runtime: AgentRuntime): void {
@@ -403,6 +458,7 @@ export class CompanyOrchestrator {
         },
         { taskId: task.id, correlationId },
       );
+      this.notifyApprovalRequested(companyId, approval);
       this.tasks.transition(task.id, "approval_required", {
         reason: "sensitive request awaiting owner approval",
         actorType: "agent",
@@ -725,7 +781,7 @@ export class CompanyOrchestrator {
         if (ev.type === "run.waiting") waiting = true;
         if (ev.type === "approval.required") {
           const p = ev.payload as { approvalType?: string; summary?: string; riskLevel?: string };
-          this.approvals.request(
+          const approval = this.approvals.request(
             companyId,
             {
               approvalType: p.approvalType ?? "irreversible_data_change",
@@ -735,6 +791,7 @@ export class CompanyOrchestrator {
             },
             { taskId: candidate.id, runId: run.id, correlationId: candidate.correlation_id },
           );
+          this.notifyApprovalRequested(companyId, approval);
         }
       }
     } catch (err) {

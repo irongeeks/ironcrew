@@ -287,6 +287,59 @@ describe("approvals over HTTP", () => {
       .send({ decision: "maybe" })
       .expect(400);
   });
+
+  it("records a decision and clears the inbox notification when decided over HTTP", async () => {
+    await request(app).post("/api/ic/chat").send({ body: "Bitte überweise 1.000 EUR." });
+    const approvals = await request(app).get("/api/ic/approvals").expect(200);
+    const approvalId = approvals.body.approvals[0].id;
+
+    const before = await request(app).get("/api/ic/notifications?unread=true").expect(200);
+    expect(before.body.notifications).toHaveLength(1);
+
+    await request(app)
+      .post(`/api/ic/approvals/${approvalId}/decide`)
+      .send({ decision: "approved", reason: "geprüft" })
+      .expect(200);
+
+    const decisions = await request(app).get("/api/ic/decisions").expect(200);
+    expect(decisions.body.decisions).toHaveLength(1);
+    expect(decisions.body.decisions[0].decision).toBe("approved");
+
+    const after = await request(app).get("/api/ic/notifications?unread=true").expect(200);
+    expect(after.body.notifications).toHaveLength(0);
+  });
+});
+
+describe("decision inbox over HTTP", () => {
+  it("lists notifications newest first with an unread count", async () => {
+    await request(app).post("/api/ic/chat").send({ body: "Bitte überweise 1.000 EUR." });
+    const res = await request(app).get("/api/ic/notifications").expect(200);
+    expect(res.body.notifications).toHaveLength(1);
+    expect(res.body.notifications[0].kind).toBe("approval_required");
+    expect(res.body.unreadCount).toBe(1);
+  });
+
+  it("marks a notification read", async () => {
+    await request(app).post("/api/ic/chat").send({ body: "Bitte überweise 1.000 EUR." });
+    const list = await request(app).get("/api/ic/notifications").expect(200);
+    const id = list.body.notifications[0].id;
+
+    const res = await request(app).post(`/api/ic/notifications/${id}/read`).expect(200);
+    expect(res.body.notification.read_at).not.toBeNull();
+    expect(broadcasts.some((b) => b.type === "ic_notification_read")).toBe(true);
+
+    const unread = await request(app).get("/api/ic/notifications?unread=true").expect(200);
+    expect(unread.body.notifications).toHaveLength(0);
+  });
+
+  it("404s marking a notification that doesn't exist", async () => {
+    await request(app).post("/api/ic/notifications/ntf_nope/read").expect(404);
+  });
+
+  it("lists decisions, empty until one is recorded", async () => {
+    const res = await request(app).get("/api/ic/decisions").expect(200);
+    expect(res.body.decisions).toEqual([]);
+  });
 });
 
 describe("budgets over HTTP", () => {

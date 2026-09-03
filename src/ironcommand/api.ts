@@ -13,11 +13,13 @@ import type {
   Agent,
   Approval,
   Dashboard,
+  Decision,
   Department,
   Goal,
   GoalStatus,
   Message,
   Milestone,
+  Notification,
   Project,
   ProjectStatus,
   RunEvent,
@@ -82,4 +84,9 @@ export const api = {
     send<{ milestone: Milestone }>(`/projects/${projectId}/milestones`, "POST", input),
   setMilestoneStatus: (id: string, status: Milestone["status"]) =>
     send<{ milestone: Milestone }>(`/milestones/${id}/status`, "POST", { status }),
+
+  notifications: (unreadOnly = false) =>
+    get<{ notifications: Notification[]; unreadCount: number }>(`/notifications${unreadOnly ? "?unread=true" : ""}`),
+  markNotificationRead: (id: string) => send<{ notification: Notification }>(`/notifications/${id}/read`, "POST"),
+  decisions: () => get<{ decisions: Decision[] }>("/decisions"),
 };

@@ -702,13 +702,49 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
     `${base}/approvals/:id/decide`,
     wrap((req, res) => {
       const { decision, reason } = decisionSchema.parse(req.body ?? {});
-      const approval = orchestrator.approvals.decide(param(req, "id"), decision, "ceo", reason ?? "");
+      const approval = orchestrator.decideApproval(companyId, param(req, "id"), decision, reason ?? "");
       if (!approval) {
         res.status(409).json({ error: "already_decided", message: "This approval is no longer pending." });
         return;
       }
       broadcast("ic_approval_decided", { approvalId: approval.id, status: approval.status });
       res.json({ approval });
+    }),
+  );
+
+  // --- decision inbox: notifications + decision log ------------------------
+
+  app.get(
+    `${base}/notifications`,
+    wrap((req, res) => {
+      const unreadOnly = req.query.unread === "true";
+      res.json({
+        notifications: orchestrator.notifications.list(companyId, { unreadOnly }),
+        unreadCount: orchestrator.notifications.countUnread(companyId),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/notifications/:id/read`,
+    wrap((req, res) => {
+      const notification = orchestrator.notifications.get(param(req, "id"));
+      if (!notification || notification.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const updated = orchestrator.notifications.markRead(notification.id);
+      broadcast("ic_notification_read", { notificationId: notification.id });
+      res.json({ notification: updated });
+    }),
+  );
+
+  app.get(
+    `${base}/decisions`,
+    wrap((req, res) => {
+      const taskId = typeof req.query.taskId === "string" ? req.query.taskId : undefined;
+      const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;
+      res.json({ decisions: orchestrator.decisions.list(companyId, { taskId, projectId }) });
     }),
   );
 

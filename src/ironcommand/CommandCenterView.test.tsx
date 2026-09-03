@@ -3,7 +3,18 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { CommandCenterView } from "./CommandCenterView.tsx";
 import type { api } from "./api.ts";
-import type { Agent, Approval, Dashboard, Message, Milestone, Project, RuntimeInfo, Task } from "./types.ts";
+import type {
+  Agent,
+  Approval,
+  Dashboard,
+  Decision,
+  Message,
+  Milestone,
+  Notification,
+  Project,
+  RuntimeInfo,
+  Task,
+} from "./types.ts";
 
 function agent(over: Partial<Agent> = {}): Agent {
   return {
@@ -102,6 +113,9 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     setMilestoneStatus: vi.fn(),
     addDependency: vi.fn(),
     removeDependency: vi.fn(),
+    notifications: vi.fn().mockResolvedValue({ notifications: [], unreadCount: 0 }),
+    markNotificationRead: vi.fn(),
+    decisions: vi.fn().mockResolvedValue({ decisions: [] }),
     ...over,
   } as unknown as Client;
 }
@@ -151,6 +165,36 @@ function milestone(over: Partial<Milestone> = {}): Milestone {
     sort_order: 0,
     created_at: Date.now(),
     completed_at: null,
+    ...over,
+  };
+}
+
+function notification(over: Partial<Notification> = {}): Notification {
+  return {
+    id: "ntf_1",
+    kind: "approval_required",
+    severity: "warning",
+    title: "Freigabe nötig",
+    body: "",
+    task_id: null,
+    approval_id: "apr_1",
+    read_at: null,
+    created_at: Date.now(),
+    ...over,
+  };
+}
+
+function decisionRecord(over: Partial<Decision> = {}): Decision {
+  return {
+    id: "dec_1",
+    project_id: null,
+    task_id: null,
+    title: "Zahlung freigegeben",
+    context: "",
+    decision: "approved",
+    rationale: "",
+    decided_by: "ceo",
+    created_at: Date.now(),
     ...over,
   };
 }
@@ -753,5 +797,37 @@ describe("projects", () => {
 
     expect(setMilestoneStatus).toHaveBeenCalledWith("mile_1", "done");
     await waitFor(() => expect(within(detail).queryByRole("button", { name: "Erledigt" })).toBeNull());
+  });
+});
+
+describe("decision inbox", () => {
+  it("shows the unread count on the topbar button", async () => {
+    const client = makeClient({
+      notifications: vi.fn().mockResolvedValue({ notifications: [notification()], unreadCount: 1 }),
+    });
+    render(<CommandCenterView client={client} />);
+    expect(await screen.findByTestId("open-inbox")).toHaveTextContent("Postfach (1)");
+  });
+
+  it("lists notifications and the decision log, and marks a notification read", async () => {
+    const markNotificationRead = vi.fn().mockResolvedValue({ notification: notification({ read_at: Date.now() }) });
+    const client = makeClient({
+      notifications: vi
+        .fn()
+        .mockResolvedValueOnce({ notifications: [notification()], unreadCount: 1 })
+        .mockResolvedValue({ notifications: [notification({ read_at: Date.now() })], unreadCount: 0 }),
+      decisions: vi.fn().mockResolvedValue({ decisions: [decisionRecord()] }),
+      markNotificationRead,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-inbox"));
+    const dialog = await screen.findByRole("dialog", { name: "Postfach" });
+    expect(within(dialog).getByText("Freigabe nötig")).toBeInTheDocument();
+    expect(within(dialog).getByText("Zahlung freigegeben")).toBeInTheDocument();
+
+    await userEvent.setup().click(within(dialog).getByRole("button", { name: "Gelesen" }));
+    expect(markNotificationRead).toHaveBeenCalledWith("ntf_1");
+    await waitFor(() => expect(screen.getByTestId("open-inbox")).toHaveTextContent("Postfach (0)"));
   });
 });
