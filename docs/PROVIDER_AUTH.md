@@ -96,6 +96,35 @@ instructions when not authenticated. No token, ever.
 _Status: the upstream Antigravity adapter is HTTP-based. The `agy` CLI adapter
 is not implemented yet — see `IMPLEMENTATION_STATUS.md`._
 
+## Password managers (SecretRef resolution)
+
+Registering a secret in IronCrew (Settings → Zugangsdaten) never stores its
+value — only a `SecretRef` (provider + item locator, `server/ironcrew/secrets/secret-ref.ts`).
+Resolving that ref to its live value happens on demand, in memory, and is
+never persisted. Both providers wrap the vendor's own CLI (argv array only,
+timeouts — the same posture as the CLI runtime adapters above) and are
+registered unconditionally at startup; `GET /api/crew/secret-providers`
+(the Settings UI's provider panel) reports honestly whether each is actually
+reachable, rather than hiding one that isn't configured.
+
+- **Vaultwarden** (self-hosted, Bitwarden-protocol-compatible) — via the
+  official `bw` CLI. Set `VAULTWARDEN_SERVER_URL` to your instance, then
+  authenticate the server process non-interactively: `bw login --apikey`
+  using the `BW_CLIENTID`/`BW_CLIENTSECRET` env vars `bw` itself reads, and
+  either keep an already-unlocked `BW_SESSION` in the environment or set
+  `BW_PASSWORD` so IronCrew can unlock on first use.
+- **Proton Pass** — via the official `pass-cli`
+  (<https://protonpass.github.io/pass-cli/>). Authenticate headlessly with
+  `PROTON_PASS_PERSONAL_ACCESS_TOKEN` + `pass-cli login`; a container
+  deployment should also set `PROTON_PASS_KEY_PROVIDER=fs` (or `=env` with
+  `PROTON_PASS_ENCRYPTION_KEY`). A stored ref's `itemRef` is
+  `"<shareId>:<itemId>"` — IDs, not names, so a later rename in the vault
+  can't silently break it.
+
+Neither provider has been exercised against a real `bw`/`pass-cli` install in
+this project's CI — verify against your actual deployment before relying on
+it in production.
+
 ## OpenRouter
 
 - The API key is referenced as a `SecretRef`, never stored in plaintext or in an

@@ -37,6 +37,8 @@ import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
 import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
 import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
+import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
+import { ProtonPassSecretProvider } from "./ironcrew/secrets/protonpass-provider.ts";
 import { createOAuthContext } from "./contexts/oauth-context.ts";
 import { createMessagingContext } from "./contexts/messaging-context.ts";
 import { createTaskExecutionContext } from "./contexts/task-execution-context.ts";
@@ -295,6 +297,14 @@ ironCrewOrchestrator.registerRuntime(new MockRuntime());
 for (const adapter of adapterRegistry.list()) {
   if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
 }
+// Secret providers: same unconditional-wrapping posture as runtimes above —
+// GET /api/crew/secret-providers (the Settings UI's provider status panel)
+// is what tells an operator whether `bw`/`pass-cli` are actually installed
+// and authenticated; wrapping them here never assumes they are.
+ironCrewOrchestrator.registerSecretProvider(
+  new VaultwardenSecretProvider({ serverUrl: process.env.VAULTWARDEN_SERVER_URL }),
+);
+ironCrewOrchestrator.registerSecretProvider(new ProtonPassSecretProvider());
 registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
