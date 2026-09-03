@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Migration } from "./migration-types.ts";
 import { migration as baseline } from "./0000-baseline.ts";
 import { migration as m0001DropPresentationTaskType } from "./0001-drop-presentation-task-type.ts";
+import { migration as m0002IronCommandDomain } from "./0002-iron-command-domain.ts";
 
 // Import future migrations here:
 // import { migration as m0002 } from "./0002-example.ts";
@@ -21,6 +22,7 @@ interface MigrationEntry {
 const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0000-baseline.ts", migration: baseline },
   { filename: "0001-drop-presentation-task-type.ts", migration: m0001DropPresentationTaskType },
+  { filename: "0002-iron-command-domain.ts", migration: m0002IronCommandDomain },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {
