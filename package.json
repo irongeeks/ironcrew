@@ -87,7 +87,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^5.4.1",
     "node-pty": "^1.1.0",
     "pino": "^10.3.1",
     "pixi.js": "^8.19.0",
