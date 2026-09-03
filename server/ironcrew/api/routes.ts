@@ -35,6 +35,8 @@ import { SecretMutationError } from "../domain/secret-store.ts";
 import { SecretResolutionError } from "../secrets/secret-provider.ts";
 import { AttachmentMutationError } from "../domain/attachment-store.ts";
 import { RemoteWorkerMutationError } from "../domain/remote-worker-store.ts";
+import { MeetingMutationError } from "../domain/meeting-store.ts";
+import { InvalidMeetingTransitionError, MEETING_STATUSES } from "../domain/meeting-state.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -139,6 +141,20 @@ const createRemoteWorkerSchema = z.object({
   knownHostsPolicy: z.enum(["strict", "accept"]).optional(),
   notes: z.string().max(2000).optional(),
 });
+const createMeetingSchema = z.object({
+  topic: z.string().min(1).max(500),
+  moderatorAgentId: z.string().min(1).max(200),
+  participantAgentIds: z.array(z.string().min(1).max(200)).min(1),
+  projectId: z.string().max(200).nullable().optional(),
+  maxRounds: z.number().int().min(1).max(50).optional(),
+  budgetMicros: z.number().int().nonnegative().optional(),
+});
+const meetingTurnSchema = z.object({ agentId: z.string().min(1).max(200).optional() });
+const meetingEndSchema = z.object({ minutes: z.string().max(20000).optional() });
+const createActionItemSchema = z.object({
+  description: z.string().min(1).max(2000),
+  assignedAgentId: z.string().max(200).nullable().optional(),
+});
 
 /** Translate domain errors into honest HTTP statuses rather than a blanket 500. */
 function sendDomainError(res: Response, err: unknown): boolean {
@@ -203,6 +219,14 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof RemoteWorkerMutationError) {
     res.status(400).json({ error: "invalid_remote_worker_mutation", message: err.message });
+    return true;
+  }
+  if (err instanceof InvalidMeetingTransitionError) {
+    res.status(409).json({ error: "invalid_meeting_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof MeetingMutationError) {
+    res.status(400).json({ error: "invalid_meeting_mutation", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -1035,6 +1059,159 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       res.json(await orchestrator.testRemoteWorker(companyId, existing.id));
+    }),
+  );
+
+  // --- meetings -------------------------------------------------------------
+  //
+  // One round is one participant's turn (round-robin by default, or the
+  // moderator can pick an explicit speaker) — total turns are bounded by
+  // max_rounds alone, never multiplied by participant count. A meeting
+  // self-closes the moment max_rounds or its own budget cap is reached;
+  // POST .../next-turn after that is a safe no-op ({turn: null}), so the
+  // UI can keep calling it without special-casing "is this meeting over".
+
+  app.get(
+    `${base}/meetings`,
+    wrap((req, res) => {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      if (status && !(MEETING_STATUSES as readonly string[]).includes(status)) {
+        res.status(400).json({ error: "invalid_status", allowed: MEETING_STATUSES });
+        return;
+      }
+      const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;
+      res.json({ meetings: orchestrator.meetings.list(companyId, { status: status as never, projectId }) });
+    }),
+  );
+
+  app.post(
+    `${base}/meetings`,
+    wrap((req, res) => {
+      const input = createMeetingSchema.parse(req.body ?? {});
+      const meeting = orchestrator.meetings.create({
+        companyId,
+        ...input,
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("crew_meeting_changed", { meetingId: meeting.id });
+      res.status(201).json({ meeting });
+    }),
+  );
+
+  app.get(
+    `${base}/meetings/:id`,
+    wrap((req, res) => {
+      const meeting = orchestrator.meetings.get(param(req, "id"));
+      if (!meeting || meeting.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({
+        meeting,
+        participants: orchestrator.meetings.participants(meeting.id),
+        turns: orchestrator.meetings.turns(meeting.id),
+        actionItems: orchestrator.meetings.actionItems(meeting.id),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/meetings/:id/start`,
+    wrap((req, res) => {
+      const meeting = orchestrator.meetings.get(param(req, "id"));
+      if (!meeting || meeting.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const started = orchestrator.meetings.start(meeting.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_meeting_changed", { meetingId: meeting.id });
+      res.json({ meeting: started });
+    }),
+  );
+
+  app.post(
+    `${base}/meetings/:id/next-turn`,
+    wrap(async (req, res) => {
+      const meeting = orchestrator.meetings.get(param(req, "id"));
+      if (!meeting || meeting.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { agentId } = meetingTurnSchema.parse(req.body ?? {});
+      const result = await orchestrator.runMeetingTurn(companyId, meeting.id, { agentId });
+      broadcast("crew_meeting_changed", { meetingId: meeting.id });
+      res.json({ meeting: result?.meeting ?? orchestrator.meetings.get(meeting.id), turn: result?.turn ?? null });
+    }),
+  );
+
+  app.post(
+    `${base}/meetings/:id/end`,
+    wrap((req, res) => {
+      const meeting = orchestrator.meetings.get(param(req, "id"));
+      if (!meeting || meeting.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { minutes } = meetingEndSchema.parse(req.body ?? {});
+      const ended = orchestrator.meetings.end(meeting.id, minutes ?? meeting.minutes, {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("crew_meeting_changed", { meetingId: meeting.id });
+      res.json({ meeting: ended });
+    }),
+  );
+
+  app.post(
+    `${base}/meetings/:id/cancel`,
+    wrap((req, res) => {
+      const meeting = orchestrator.meetings.get(param(req, "id"));
+      if (!meeting || meeting.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const cancelled = orchestrator.meetings.cancel(meeting.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_meeting_changed", { meetingId: meeting.id });
+      res.json({ meeting: cancelled });
+    }),
+  );
+
+  app.post(
+    `${base}/meetings/:id/action-items`,
+    wrap((req, res) => {
+      const meeting = orchestrator.meetings.get(param(req, "id"));
+      if (!meeting || meeting.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const input = createActionItemSchema.parse(req.body ?? {});
+      const item = orchestrator.meetings.addActionItem({
+        meetingId: meeting.id,
+        ...input,
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("crew_meeting_changed", { meetingId: meeting.id });
+      res.status(201).json({ actionItem: item });
+    }),
+  );
+
+  app.post(
+    `${base}/meetings/action-items/:id/convert`,
+    wrap((req, res) => {
+      const item = orchestrator.meetings.getActionItem(param(req, "id"));
+      if (!item) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const task = orchestrator.convertActionItemToTask(companyId, item.id, { actorType: "owner", actorId: "ceo" });
+      if (!task) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_task_changed", { taskId: task.id, status: task.status });
+      res.status(201).json({ task });
     }),
   );
 

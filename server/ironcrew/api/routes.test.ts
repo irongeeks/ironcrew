@@ -1025,3 +1025,126 @@ describe("tailscale + remote workers over HTTP", () => {
     await request(app).delete("/api/crew/remote-workers/worker_nope").expect(404);
   });
 });
+
+describe("meetings over HTTP", () => {
+  function twoAgents(): [string, string] {
+    const agents = orchestrator.listAgents(companyId);
+    return [agents[0].id, agents[1].id];
+  }
+
+  it("creates, starts, runs a turn, and ends a meeting", async () => {
+    const [moderatorAgentId, participantAgentId] = twoAgents();
+    const created = await request(app)
+      .post("/api/crew/meetings")
+      .send({ topic: "Sprint-Planung", moderatorAgentId, participantAgentIds: [participantAgentId], maxRounds: 3 })
+      .expect(201);
+    expect(created.body.meeting.status).toBe("scheduled");
+    expect(created.body.meeting.max_rounds).toBe(3);
+    expect(broadcasts.some((b) => b.type === "crew_meeting_changed")).toBe(true);
+
+    const meetingId = created.body.meeting.id;
+
+    const listed = await request(app).get("/api/crew/meetings").expect(200);
+    expect(listed.body.meetings.some((m: { id: string }) => m.id === meetingId)).toBe(true);
+
+    const started = await request(app).post(`/api/crew/meetings/${meetingId}/start`).expect(200);
+    expect(started.body.meeting.status).toBe("in_progress");
+
+    const turn = await request(app).post(`/api/crew/meetings/${meetingId}/next-turn`).send({}).expect(200);
+    expect(turn.body.turn).not.toBeNull();
+    expect(turn.body.meeting.current_round).toBe(1);
+
+    const detail = await request(app).get(`/api/crew/meetings/${meetingId}`).expect(200);
+    expect(detail.body.participants).toHaveLength(2);
+    expect(detail.body.turns).toHaveLength(1);
+
+    const ended = await request(app)
+      .post(`/api/crew/meetings/${meetingId}/end`)
+      .send({ minutes: "Ergebnis: weiter wie geplant." })
+      .expect(200);
+    expect(ended.body.meeting.status).toBe("completed");
+    expect(ended.body.meeting.minutes).toBe("Ergebnis: weiter wie geplant.");
+  });
+
+  it("lets the moderator pick an explicit speaker for the next turn", async () => {
+    const [moderatorAgentId, participantAgentId] = twoAgents();
+    const created = await request(app)
+      .post("/api/crew/meetings")
+      .send({ topic: "x", moderatorAgentId, participantAgentIds: [participantAgentId] })
+      .expect(201);
+    await request(app).post(`/api/crew/meetings/${created.body.meeting.id}/start`).expect(200);
+
+    const turn = await request(app)
+      .post(`/api/crew/meetings/${created.body.meeting.id}/next-turn`)
+      .send({ agentId: participantAgentId })
+      .expect(200);
+    expect(turn.body.turn.agent_id).toBe(participantAgentId);
+  });
+
+  it("self-closes at max_rounds — a next-turn call after that returns a null turn, not an error", async () => {
+    const [moderatorAgentId, participantAgentId] = twoAgents();
+    const created = await request(app)
+      .post("/api/crew/meetings")
+      .send({ topic: "x", moderatorAgentId, participantAgentIds: [participantAgentId], maxRounds: 1 })
+      .expect(201);
+    const meetingId = created.body.meeting.id;
+    await request(app).post(`/api/crew/meetings/${meetingId}/start`).expect(200);
+
+    const first = await request(app).post(`/api/crew/meetings/${meetingId}/next-turn`).send({}).expect(200);
+    expect(first.body.meeting.status).toBe("completed");
+
+    const second = await request(app).post(`/api/crew/meetings/${meetingId}/next-turn`).send({}).expect(200);
+    expect(second.body.turn).toBeNull();
+  });
+
+  it("cancels a meeting", async () => {
+    const [moderatorAgentId, participantAgentId] = twoAgents();
+    const created = await request(app)
+      .post("/api/crew/meetings")
+      .send({ topic: "x", moderatorAgentId, participantAgentIds: [participantAgentId] })
+      .expect(201);
+    const cancelled = await request(app).post(`/api/crew/meetings/${created.body.meeting.id}/cancel`).expect(200);
+    expect(cancelled.body.meeting.status).toBe("cancelled");
+  });
+
+  it("rejects a meeting missing required fields with 400", async () => {
+    const res = await request(app).post("/api/crew/meetings").send({ topic: "x" }).expect(400);
+    expect(res.body.error).toBe("invalid_request");
+  });
+
+  it("404s a meeting that doesn't exist", async () => {
+    await request(app).get("/api/crew/meetings/mtg_nope").expect(404);
+    await request(app).post("/api/crew/meetings/mtg_nope/start").expect(404);
+    await request(app).post("/api/crew/meetings/mtg_nope/next-turn").send({}).expect(404);
+    await request(app).post("/api/crew/meetings/mtg_nope/cancel").expect(404);
+  });
+
+  it("adds an action item and converts it into a real, visible task", async () => {
+    const [moderatorAgentId, participantAgentId] = twoAgents();
+    const created = await request(app)
+      .post("/api/crew/meetings")
+      .send({ topic: "x", moderatorAgentId, participantAgentIds: [participantAgentId] })
+      .expect(201);
+    const meetingId = created.body.meeting.id;
+
+    const item = await request(app)
+      .post(`/api/crew/meetings/${meetingId}/action-items`)
+      .send({ description: "Angebot nachfassen", assignedAgentId: participantAgentId })
+      .expect(201);
+    expect(item.body.actionItem.description).toBe("Angebot nachfassen");
+    expect(item.body.actionItem.task_id).toBeNull();
+
+    const converted = await request(app)
+      .post(`/api/crew/meetings/action-items/${item.body.actionItem.id}/convert`)
+      .expect(201);
+    expect(converted.body.task.assigned_agent_id).toBe(participantAgentId);
+    expect(broadcasts.some((b) => b.type === "crew_task_changed")).toBe(true);
+
+    const detail = await request(app).get(`/api/crew/meetings/${meetingId}`).expect(200);
+    expect(detail.body.actionItems[0].task_id).toBe(converted.body.task.id);
+  });
+
+  it("404s converting an action item that doesn't exist", async () => {
+    await request(app).post("/api/crew/meetings/action-items/action_nope/convert").expect(404);
+  });
+});
