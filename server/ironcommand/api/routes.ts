@@ -21,6 +21,8 @@ import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/
 import { ApprovalRequiredError } from "../policy/approval-policy.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
 import { InvalidTransitionError, TASK_STATUSES } from "../domain/task-state.ts";
+import { GoalMutationError } from "../domain/goal-store.ts";
+import { GOAL_STATUSES, InvalidGoalTransitionError } from "../domain/goal-state.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -44,6 +46,17 @@ const modelCheckSchema = z.object({
   provider: z.string().max(200).optional(),
 });
 const setAgentRuntimeSchema = z.object({ runtimeProvider: z.string().min(1).max(100) });
+const createGoalSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().max(20000).optional(),
+  parentId: z.string().max(200).nullable().optional(),
+});
+const updateGoalSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  description: z.string().max(20000).optional(),
+});
+const goalStatusSchema = z.object({ status: z.enum(GOAL_STATUSES) });
+const goalReparentSchema = z.object({ parentId: z.string().max(200).nullable() });
 
 /** Translate domain errors into honest HTTP statuses rather than a blanket 500. */
 function sendDomainError(res: Response, err: unknown): boolean {
@@ -67,6 +80,14 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof InvalidTransitionError) {
     res.status(409).json({ error: "invalid_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof InvalidGoalTransitionError) {
+    res.status(409).json({ error: "invalid_goal_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof GoalMutationError) {
+    res.status(400).json({ error: "invalid_goal_mutation", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -305,6 +326,105 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
       }
       broadcast("ic_task_changed", { taskId: task.id, status: task.status });
       res.json({ task });
+    }),
+  );
+
+  // --- goals ----------------------------------------------------------------
+
+  app.get(
+    `${base}/goals`,
+    wrap((req, res) => {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      if (status && !(GOAL_STATUSES as readonly string[]).includes(status)) {
+        res.status(400).json({ error: "invalid_status", allowed: GOAL_STATUSES });
+        return;
+      }
+      const topLevel = req.query.topLevel === "true";
+      const parentId = typeof req.query.parentId === "string" ? req.query.parentId : undefined;
+      res.json({
+        goals: orchestrator.goals.list(companyId, {
+          status: status as never,
+          parentId: topLevel ? null : parentId,
+        }),
+      });
+    }),
+  );
+
+  app.get(
+    `${base}/goals/:id`,
+    wrap((req, res) => {
+      const goal = orchestrator.goals.get(param(req, "id"));
+      if (!goal || goal.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({
+        goal,
+        ancestry: orchestrator.goals.ancestry(goal.id),
+        children: orchestrator.goals.children(goal.id),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/goals`,
+    wrap((req, res) => {
+      const input = createGoalSchema.parse(req.body ?? {});
+      const goal = orchestrator.goals.create({ companyId, ...input });
+      broadcast("ic_goal_changed", { goalId: goal.id });
+      res.status(201).json({ goal });
+    }),
+  );
+
+  app.patch(
+    `${base}/goals/:id`,
+    wrap((req, res) => {
+      const patch = updateGoalSchema.parse(req.body ?? {});
+      const existing = orchestrator.goals.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const goal = orchestrator.goals.update(existing.id, patch);
+      broadcast("ic_goal_changed", { goalId: existing.id });
+      res.json({ goal });
+    }),
+  );
+
+  app.post(
+    `${base}/goals/:id/status`,
+    wrap((req, res) => {
+      const { status } = goalStatusSchema.parse(req.body ?? {});
+      const existing = orchestrator.goals.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const goal = orchestrator.goals.setStatus(existing.id, status, { actorType: "owner", actorId: "ceo" });
+      broadcast("ic_goal_changed", { goalId: existing.id, status });
+      res.json({ goal });
+    }),
+  );
+
+  app.post(
+    `${base}/goals/:id/reparent`,
+    wrap((req, res) => {
+      const { parentId } = goalReparentSchema.parse(req.body ?? {});
+      const existing = orchestrator.goals.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      if (parentId) {
+        const parent = orchestrator.goals.get(parentId);
+        if (!parent || parent.company_id !== companyId) {
+          res.status(404).json({ error: "parent_not_found" });
+          return;
+        }
+      }
+      const goal = orchestrator.goals.reparent(existing.id, parentId, { actorType: "owner", actorId: "ceo" });
+      broadcast("ic_goal_changed", { goalId: existing.id });
+      res.json({ goal });
     }),
   );
 

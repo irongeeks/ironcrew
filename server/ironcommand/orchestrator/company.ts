@@ -18,6 +18,7 @@ import { canTransition, deriveAgentStatus, type TaskStatus } from "../domain/tas
 import { ApprovalEngine } from "../policy/approval-policy.ts";
 import { BudgetEngine } from "../policy/budget-engine.ts";
 import { SandboxGrantStore } from "../domain/sandbox-grant-store.ts";
+import { GoalStore } from "../domain/goal-store.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -67,6 +68,7 @@ export class CompanyOrchestrator {
   readonly approvals: ApprovalEngine;
   readonly budgets: BudgetEngine;
   readonly sandboxGrants: SandboxGrantStore;
+  readonly goals: GoalStore;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -77,6 +79,7 @@ export class CompanyOrchestrator {
     this.approvals = new ApprovalEngine(db);
     this.sandboxGrants = new SandboxGrantStore(db);
     this.budgets = new BudgetEngine(db);
+    this.goals = new GoalStore(db);
   }
 
   registerRuntime(runtime: AgentRuntime): void {

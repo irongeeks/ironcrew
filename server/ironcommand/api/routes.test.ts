@@ -352,3 +352,101 @@ describe("runtime providers", () => {
     await request(app).patch("/api/ic/agents/agt_nope/runtime").send({ runtimeProvider: "mock" }).expect(404);
   });
 });
+
+describe("goals over HTTP", () => {
+  it("creates a goal and reads it back with its ancestry and children", async () => {
+    const root = await request(app).post("/api/ic/goals").send({ title: "Grow the company" }).expect(201);
+    const child = await request(app)
+      .post("/api/ic/goals")
+      .send({ title: "Grow revenue 20%", parentId: root.body.goal.id })
+      .expect(201);
+
+    const res = await request(app).get(`/api/ic/goals/${child.body.goal.id}`).expect(200);
+    expect(res.body.goal.title).toBe("Grow revenue 20%");
+    expect(res.body.ancestry.map((g: { title: string }) => g.title)).toEqual(["Grow the company", "Grow revenue 20%"]);
+    expect(res.body.children).toEqual([]);
+
+    const rootRes = await request(app).get(`/api/ic/goals/${root.body.goal.id}`).expect(200);
+    expect(rootRes.body.children.map((g: { id: string }) => g.id)).toEqual([child.body.goal.id]);
+  });
+
+  it("lists top-level goals only when topLevel=true", async () => {
+    const root = await request(app).post("/api/ic/goals").send({ title: "root" }).expect(201);
+    await request(app).post("/api/ic/goals").send({ title: "child", parentId: root.body.goal.id }).expect(201);
+
+    const res = await request(app).get("/api/ic/goals?topLevel=true").expect(200);
+    expect(res.body.goals.map((g: { id: string }) => g.id)).toEqual([root.body.goal.id]);
+  });
+
+  it("filters goals by status", async () => {
+    const a = await request(app).post("/api/ic/goals").send({ title: "A" }).expect(201);
+    await request(app).post(`/api/ic/goals/${a.body.goal.id}/status`).send({ status: "on_hold" }).expect(200);
+    await request(app).post("/api/ic/goals").send({ title: "B" }).expect(201);
+
+    const res = await request(app).get("/api/ic/goals?status=on_hold").expect(200);
+    expect(res.body.goals.map((g: { id: string }) => g.id)).toEqual([a.body.goal.id]);
+  });
+
+  it("updates title and description", async () => {
+    const g = await request(app).post("/api/ic/goals").send({ title: "old" }).expect(201);
+    const res = await request(app)
+      .patch(`/api/ic/goals/${g.body.goal.id}`)
+      .send({ title: "new", description: "why" })
+      .expect(200);
+    expect(res.body.goal.title).toBe("new");
+    expect(res.body.goal.description).toBe("why");
+    expect(broadcasts.some((b) => b.type === "ic_goal_changed")).toBe(true);
+  });
+
+  it("moves a goal through its status transitions", async () => {
+    const g = await request(app).post("/api/ic/goals").send({ title: "A" }).expect(201);
+    const res = await request(app)
+      .post(`/api/ic/goals/${g.body.goal.id}/status`)
+      .send({ status: "achieved" })
+      .expect(200);
+    expect(res.body.goal.status).toBe("achieved");
+  });
+
+  it("rejects an illegal status transition with 409", async () => {
+    const g = await request(app).post("/api/ic/goals").send({ title: "A" }).expect(201);
+    await request(app).post(`/api/ic/goals/${g.body.goal.id}/status`).send({ status: "achieved" }).expect(200);
+    const res = await request(app)
+      .post(`/api/ic/goals/${g.body.goal.id}/status`)
+      .send({ status: "active" })
+      .expect(409);
+    expect(res.body.error).toBe("invalid_goal_transition");
+  });
+
+  it("reparents a goal", async () => {
+    const a = await request(app).post("/api/ic/goals").send({ title: "A" }).expect(201);
+    const b = await request(app).post("/api/ic/goals").send({ title: "B" }).expect(201);
+    const res = await request(app)
+      .post(`/api/ic/goals/${b.body.goal.id}/reparent`)
+      .send({ parentId: a.body.goal.id })
+      .expect(200);
+    expect(res.body.goal.parent_id).toBe(a.body.goal.id);
+  });
+
+  it("rejects a reparent that would create a cycle with 400", async () => {
+    const root = await request(app).post("/api/ic/goals").send({ title: "root" }).expect(201);
+    const child = await request(app)
+      .post("/api/ic/goals")
+      .send({ title: "child", parentId: root.body.goal.id })
+      .expect(201);
+    const res = await request(app)
+      .post(`/api/ic/goals/${root.body.goal.id}/reparent`)
+      .send({ parentId: child.body.goal.id })
+      .expect(400);
+    expect(res.body.error).toBe("invalid_goal_mutation");
+  });
+
+  it("404s for a goal that doesn't exist", async () => {
+    await request(app).get("/api/ic/goals/goal_nope").expect(404);
+    await request(app).patch("/api/ic/goals/goal_nope").send({ title: "x" }).expect(404);
+    await request(app).post("/api/ic/goals/goal_nope/status").send({ status: "achieved" }).expect(404);
+  });
+
+  it("400s an unknown status filter", async () => {
+    await request(app).get("/api/ic/goals?status=nonsense").expect(400);
+  });
+});
