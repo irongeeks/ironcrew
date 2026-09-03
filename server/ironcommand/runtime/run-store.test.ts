@@ -4,7 +4,14 @@ import { createTestDb, seedAgent, seedCompany } from "../domain/test-db.ts";
 import { TaskStore } from "../domain/task-store.ts";
 import { RunStore } from "./run-store.ts";
 import { MockRuntime } from "./mock-runtime.ts";
-import { isTerminalRunEvent, runEventSchema, runStatusForEvent, RUN_EVENT_TYPES, type RunEvent } from "./run-events.ts";
+import {
+  isTerminalRunEvent,
+  runEventSchema,
+  runStatusForEvent,
+  RUN_EVENT_TYPES,
+  type RunContext,
+  type RunEvent,
+} from "./run-events.ts";
 
 let db: DatabaseSync;
 let runs: RunStore;
@@ -220,7 +227,7 @@ describe("stale run detection", () => {
 // --------------------------------------------------------------------------
 
 describe("MockRuntime", () => {
-  const context = () => ({
+  const context = (): RunContext => ({
     companyId,
     projectId: null,
     taskId,

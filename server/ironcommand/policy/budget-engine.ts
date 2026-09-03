@@ -18,6 +18,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import { newId } from "../domain/ids.ts";
+import { allRows } from "../domain/sql.ts";
 import { appendAuditEvent } from "../domain/audit.ts";
 
 export type BudgetScopeType = "company" | "agent" | "project" | "task" | "runtime" | "provider";
@@ -131,7 +132,7 @@ export class BudgetEngine {
         `SELECT * FROM ic_budgets
           WHERE company_id = ? AND scope_type = ? AND scope_id = ? AND window_kind = ?`,
       )
-      .get(input.companyId, input.scopeType, scopeId, windowKind) as BudgetRow;
+      .get(input.companyId, input.scopeType, scopeId, windowKind) as unknown as BudgetRow;
   }
 
   /** Spend observed for one budget's scope and window. */
@@ -189,9 +190,10 @@ export class BudgetEngine {
       provider?: string;
     },
   ): BudgetRow[] {
-    const all = this.db
-      .prepare("SELECT * FROM ic_budgets WHERE company_id = ? AND active = 1")
-      .all(companyId) as BudgetRow[];
+    const all = allRows<BudgetRow>(
+      this.db.prepare("SELECT * FROM ic_budgets WHERE company_id = ? AND active = 1"),
+      companyId,
+    );
 
     return all.filter((b) => {
       switch (b.scope_type) {

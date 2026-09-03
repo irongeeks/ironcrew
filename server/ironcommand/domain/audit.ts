@@ -175,7 +175,7 @@ export function verifyAuditChain(db: DatabaseSync, companyId: string): ChainVeri
               details_json, created_at, prev_hash, entry_hash
          FROM ic_audit_events WHERE company_id = ? ORDER BY seq ASC`,
     )
-    .all(companyId) as Array<{
+    .all(companyId) as unknown as Array<{
     seq: number;
     actor_type: string;
     actor_id: string;
@@ -246,9 +246,9 @@ export function listAuditEvents(
   if (opts.taskId) {
     return db
       .prepare("SELECT * FROM ic_audit_events WHERE company_id = ? AND task_id = ? ORDER BY seq DESC LIMIT ?")
-      .all(companyId, opts.taskId, limit) as Array<Record<string, unknown>>;
+      .all(companyId, opts.taskId, limit) as unknown as Array<Record<string, unknown>>;
   }
   return db
     .prepare("SELECT * FROM ic_audit_events WHERE company_id = ? ORDER BY seq DESC LIMIT ?")
-    .all(companyId, limit) as Array<Record<string, unknown>>;
+    .all(companyId, limit) as unknown as Array<Record<string, unknown>>;
 }

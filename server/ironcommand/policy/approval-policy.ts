@@ -150,7 +150,7 @@ export class ApprovalEngine {
     this.expireOverdue(companyId, now);
     return this.db
       .prepare("SELECT * FROM ic_approvals WHERE company_id = ? AND status = 'pending' ORDER BY created_at ASC")
-      .all(companyId) as ApprovalRow[];
+      .all(companyId) as unknown as ApprovalRow[];
   }
 
   /**
@@ -198,7 +198,7 @@ export class ApprovalEngine {
             AND expires_at IS NOT NULL AND expires_at <= ?`,
       )
       .run(companyId, now);
-    return res.changes;
+    return Number(res.changes);
   }
 
   /**

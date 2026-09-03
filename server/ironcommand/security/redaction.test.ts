@@ -150,7 +150,7 @@ describe("redactValue (structured payloads)", () => {
     const out = redactValue({
       err: new Error("failed with sk-ant-api03-AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH"),
       at: new Date("2026-01-01T00:00:00Z"),
-    }) as { err: { message: string }; at: string };
+    }) as unknown as { err: { message: string }; at: string };
     expect(out.err.message).not.toContain("sk-ant-api03");
     expect(out.at).toBe("2026-01-01T00:00:00.000Z");
   });

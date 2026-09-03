@@ -9,6 +9,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import { newId } from "../domain/ids.ts";
+import { allRows } from "../domain/sql.ts";
 import { redact, redactValue } from "../security/redaction.ts";
 import { runStatusForEvent, type RunEvent, type RunEventType } from "./run-events.ts";
 
@@ -83,7 +84,9 @@ export class RunStore {
   }
 
   listForTask(taskId: string): RunRow[] {
-    return this.db.prepare("SELECT * FROM ic_runs WHERE task_id = ? ORDER BY created_at ASC").all(taskId) as RunRow[];
+    return this.db
+      .prepare("SELECT * FROM ic_runs WHERE task_id = ? ORDER BY created_at ASC")
+      .all(taskId) as unknown as RunRow[];
   }
 
   setStatus(runId: string, status: string, opts: { errorMessage?: string } = {}): void {
@@ -212,7 +215,7 @@ export class RunStore {
     const limit = Math.min(Math.max(opts.limit ?? 500, 1), 5000);
     const rows = this.db
       .prepare(`SELECT * FROM ic_run_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?`)
-      .all(runId, opts.afterSeq ?? -1, limit) as Array<Record<string, unknown>>;
+      .all(runId, opts.afterSeq ?? -1, limit) as unknown as Array<Record<string, unknown>>;
 
     return rows.map((r) => ({
       eventId: r.id as string,
@@ -235,13 +238,15 @@ export class RunStore {
 
   /** Runs that are active but whose heartbeat has gone stale. */
   findStale(companyId: string, staleAfterMs: number, now = Date.now()): RunRow[] {
-    return this.db
-      .prepare(
+    return allRows<RunRow>(
+      this.db.prepare(
         `SELECT * FROM ic_runs
           WHERE company_id = ?
             AND status IN ('queued','running','waiting')
             AND COALESCE(heartbeat_at, created_at) <= ?`,
-      )
-      .all(companyId, now - staleAfterMs) as RunRow[];
+      ),
+      companyId,
+      now - staleAfterMs,
+    );
   }
 }

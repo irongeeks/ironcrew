@@ -1,0 +1,401 @@
+/**
+ * Iron Command OS — REST surface.
+ *
+ * Deliberately self-contained: it takes an Express app, a database handle and
+ * a broadcast function, and nothing else. It does not reach into the upstream
+ * runtime god-object, so it can be tested headlessly and mounted independently.
+ *
+ * Every request body is Zod-validated at the boundary. Every write goes
+ * through the domain layer, so state-machine validation, atomic claiming,
+ * budget gates and audit logging cannot be bypassed by calling the API
+ * directly — the same guarantees the UI gets.
+ */
+
+import type { Express, Request, Response, NextFunction } from "express";
+import type { DatabaseSync } from "node:sqlite";
+import { z } from "zod";
+import { CompanyOrchestrator } from "../orchestrator/company.ts";
+import { MockRuntime } from "../runtime/mock-runtime.ts";
+import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
+import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
+import { ApprovalRequiredError } from "../policy/approval-policy.ts";
+import { BudgetExceededError } from "../policy/budget-engine.ts";
+import { InvalidTransitionError, TASK_STATUSES } from "../domain/task-state.ts";
+import type { RunEvent } from "../runtime/run-events.ts";
+
+export type Broadcast = (type: string, payload: unknown) => void;
+
+const ceoMessageSchema = z.object({ body: z.string().min(1).max(20000) });
+const reviewSchema = z.object({ note: z.string().max(5000).optional() });
+const revisionSchema = z.object({ reason: z.string().min(1).max(5000) });
+const decisionSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  reason: z.string().max(5000).optional(),
+});
+const budgetSchema = z.object({
+  scopeType: z.enum(["company", "agent", "project", "task", "runtime", "provider"]),
+  scopeId: z.string().max(200).optional(),
+  limitMicros: z.number().int().nonnegative(),
+  warnPercent: z.number().int().min(1).max(100).optional(),
+  hardStop: z.boolean().optional(),
+});
+const modelCheckSchema = z.object({
+  model: z.string().min(1).max(200),
+  provider: z.string().max(200).optional(),
+});
+
+/** Translate domain errors into honest HTTP statuses rather than a blanket 500. */
+function sendDomainError(res: Response, err: unknown): boolean {
+  if (err instanceof ApprovalRequiredError) {
+    res.status(403).json({
+      error: "approval_required",
+      message: err.message,
+      approvalId: err.approvalId,
+      approvalType: err.approvalType,
+    });
+    return true;
+  }
+  if (err instanceof BudgetExceededError) {
+    res.status(402).json({
+      error: "budget_exceeded",
+      message: err.message,
+      scopeType: err.scopeType,
+      scopeId: err.scopeId,
+    });
+    return true;
+  }
+  if (err instanceof InvalidTransitionError) {
+    res.status(409).json({ error: "invalid_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof z.ZodError) {
+    res.status(400).json({ error: "invalid_request", issues: err.issues });
+    return true;
+  }
+  return false;
+}
+
+/** Express 5 types params as `string | string[]`; routes here take one value. */
+function param(req: Request, name: string): string {
+  const value = (req.params as Record<string, string | string[]>)[name];
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+function wrap(handler: (req: Request, res: Response) => Promise<void> | void) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await handler(req, res);
+    } catch (err) {
+      if (!sendDomainError(res, err)) next(err);
+    }
+  };
+}
+
+export interface IronCommandApiOptions {
+  db: DatabaseSync;
+  broadcast?: Broadcast;
+  /** Company slug this installation operates. */
+  companySlug?: string;
+  companyName?: string;
+  orchestrator?: CompanyOrchestrator;
+}
+
+export interface IronCommandApi {
+  orchestrator: CompanyOrchestrator;
+  companyId: string;
+}
+
+export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOptions): IronCommandApi {
+  const { db } = opts;
+  const broadcast: Broadcast = opts.broadcast ?? (() => {});
+
+  const orchestrator = opts.orchestrator ?? new CompanyOrchestrator(db);
+  if (!opts.orchestrator) orchestrator.registerRuntime(new MockRuntime());
+
+  const companyId = orchestrator.seedCompany({
+    name: opts.companyName ?? "Iron Command",
+    slug: opts.companySlug ?? "iron-command",
+  });
+
+  const base = "/api/ic";
+
+  // --- company / org ------------------------------------------------------
+
+  app.get(
+    `${base}/company`,
+    wrap((_req, res) => {
+      const company = db.prepare("SELECT * FROM ic_companies WHERE id = ?").get(companyId);
+      const departments = db
+        .prepare("SELECT * FROM ic_departments WHERE company_id = ? ORDER BY sort_order")
+        .all(companyId);
+      res.json({ company, departments });
+    }),
+  );
+
+  app.get(
+    `${base}/agents`,
+    wrap((_req, res) => {
+      const agents = orchestrator.listAgents(companyId).map((a) => ({
+        id: a.id,
+        key: a.key,
+        displayName: a.display_name,
+        professionalRole: a.professional_role,
+        roleSummary: a.role_summary,
+        seniority: a.seniority,
+        departmentId: a.department_id,
+        runtimeProfile: a.runtime_profile,
+        runtimeProvider: a.runtime_provider,
+        isExecutiveAssistant: a.is_executive_assistant === 1,
+        // Persona is cosmetic; policy is authoritative. Both are exposed so the
+        // UI can show that they are separate, but they are never merged.
+        persona: JSON.parse(a.persona_json),
+        policy: JSON.parse(a.policy_json),
+        status: orchestrator.agentStatus(companyId, a.id),
+      }));
+      res.json({ agents });
+    }),
+  );
+
+  // --- CEO chat -----------------------------------------------------------
+
+  app.get(
+    `${base}/chat`,
+    wrap((_req, res) => {
+      const conversationId = orchestrator.ensureCeoConversation(companyId);
+      res.json({ conversationId, messages: orchestrator.listMessages(conversationId) });
+    }),
+  );
+
+  app.post(
+    `${base}/chat`,
+    wrap((req, res) => {
+      const { body } = ceoMessageSchema.parse(req.body);
+      const result = orchestrator.handleCeoMessage(companyId, body);
+      broadcast("ic_chat_message", { conversationId: result.conversationId, reply: result.reply });
+      if (result.task) broadcast("ic_task_changed", { taskId: result.task.id, status: result.task.status });
+      res.status(201).json(result);
+    }),
+  );
+
+  // --- tasks --------------------------------------------------------------
+
+  app.get(
+    `${base}/tasks`,
+    wrap((req, res) => {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      if (status && !(TASK_STATUSES as readonly string[]).includes(status)) {
+        res.status(400).json({ error: "invalid_status", allowed: TASK_STATUSES });
+        return;
+      }
+      res.json({ tasks: orchestrator.tasks.list(companyId, { status: status as never }) });
+    }),
+  );
+
+  app.get(
+    `${base}/tasks/:id`,
+    wrap((req, res) => {
+      const task = orchestrator.tasks.get(param(req, "id"));
+      if (!task || task.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({
+        task,
+        runs: orchestrator.runs.listForTask(task.id),
+        blockers: orchestrator.tasks.blockers(task.id),
+        audit: listAuditEvents(db, companyId, { taskId: task.id, limit: 200 }),
+      });
+    }),
+  );
+
+  /** Execute the next claimable task. Streams events over the websocket. */
+  app.post(
+    `${base}/tasks/execute-next`,
+    wrap(async (_req, res) => {
+      const result = await orchestrator.executeNextTask(companyId, {
+        onEvent: (e: RunEvent) => broadcast("ic_run_event", e),
+      });
+      if (!result) {
+        res.json({ executed: false, reason: "nothing claimable" });
+        return;
+      }
+      broadcast("ic_task_changed", { taskId: result.task.id, status: result.task.status });
+      res.json({ executed: true, task: result.task, runId: result.runId, eventCount: result.events.length });
+    }),
+  );
+
+  app.post(
+    `${base}/tasks/:id/accept`,
+    wrap((req, res) => {
+      const { note } = reviewSchema.parse(req.body ?? {});
+      const task = orchestrator.acceptReview(companyId, param(req, "id"), note ?? "");
+      if (!task) {
+        res.status(409).json({ error: "cannot_accept", message: "Task is not in a reviewable state." });
+        return;
+      }
+      broadcast("ic_task_changed", { taskId: task.id, status: task.status });
+      res.json({ task });
+    }),
+  );
+
+  app.post(
+    `${base}/tasks/:id/revise`,
+    wrap((req, res) => {
+      const { reason } = revisionSchema.parse(req.body ?? {});
+      const task = orchestrator.requestRevision(companyId, param(req, "id"), reason);
+      if (!task) {
+        res.status(409).json({ error: "cannot_revise", message: "Task is not in a reviewable state." });
+        return;
+      }
+      broadcast("ic_task_changed", { taskId: task.id, status: task.status });
+      res.json({ task });
+    }),
+  );
+
+  // --- runs ---------------------------------------------------------------
+
+  app.get(
+    `${base}/runs/:id/events`,
+    wrap((req, res) => {
+      const run = orchestrator.runs.get(param(req, "id"));
+      if (!run || run.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const afterSeq = Number(req.query.afterSeq ?? -1);
+      res.json({ run, events: orchestrator.runs.listEvents(run.id, { afterSeq }) });
+    }),
+  );
+
+  // --- approvals ----------------------------------------------------------
+
+  app.get(
+    `${base}/approvals`,
+    wrap((_req, res) => {
+      res.json({ approvals: orchestrator.approvals.listPending(companyId) });
+    }),
+  );
+
+  app.post(
+    `${base}/approvals/:id/decide`,
+    wrap((req, res) => {
+      const { decision, reason } = decisionSchema.parse(req.body ?? {});
+      const approval = orchestrator.approvals.decide(param(req, "id"), decision, "ceo", reason ?? "");
+      if (!approval) {
+        res.status(409).json({ error: "already_decided", message: "This approval is no longer pending." });
+        return;
+      }
+      broadcast("ic_approval_decided", { approvalId: approval.id, status: approval.status });
+      res.json({ approval });
+    }),
+  );
+
+  // --- budgets and costs --------------------------------------------------
+
+  app.get(
+    `${base}/budgets`,
+    wrap((_req, res) => {
+      res.json({ budgets: orchestrator.budgets.status(companyId) });
+    }),
+  );
+
+  app.put(
+    `${base}/budgets`,
+    wrap((req, res) => {
+      const parsed = budgetSchema.parse(req.body ?? {});
+      res.json({ budget: orchestrator.budgets.setBudget({ companyId, ...parsed }) });
+    }),
+  );
+
+  // --- governance surfaces ------------------------------------------------
+
+  app.get(
+    `${base}/audit`,
+    wrap((req, res) => {
+      const limit = Math.min(Number(req.query.limit ?? 100), 1000);
+      res.json({
+        events: listAuditEvents(db, companyId, { limit }),
+        chain: verifyAuditChain(db, companyId),
+      });
+    }),
+  );
+
+  app.get(
+    `${base}/vendor-policy`,
+    wrap((_req, res) => {
+      const policy = getVendorPolicy();
+      res.json({
+        version: policy.version,
+        policyName: policy.policy_name,
+        allowedFamilies: policy.allowed_families,
+        blockedFamilies: policy.blocked_families.map((f) => ({ id: f.id, reason: f.reason })),
+        openrouter: policy.openrouter,
+        telemetry: policy.telemetry,
+      });
+    }),
+  );
+
+  /**
+   * Model admission check. This is the same call the execution path makes, so
+   * the UI cannot show a model as usable that the backend would refuse.
+   */
+  app.post(
+    `${base}/vendor-policy/check`,
+    wrap((req, res) => {
+      const { model, provider } = modelCheckSchema.parse(req.body ?? {});
+      const decision = evaluateModel(getVendorPolicy(), model, provider);
+      res.status(decision.allowed ? 200 : 403).json({ model, provider: provider ?? null, decision });
+    }),
+  );
+
+  app.post(
+    `${base}/vendor-policy/filter`,
+    wrap((req, res) => {
+      const models = z
+        .array(z.object({ id: z.string(), provider: z.string().optional() }))
+        .parse((req.body ?? {}).models ?? []);
+      res.json(filterModelCatalogue(getVendorPolicy(), models));
+    }),
+  );
+
+  // --- dashboard ----------------------------------------------------------
+
+  app.get(
+    `${base}/dashboard`,
+    wrap((_req, res) => {
+      const counts = db
+        .prepare("SELECT status, COUNT(*) AS n FROM ic_tasks WHERE company_id = ? GROUP BY status")
+        .all(companyId) as unknown as Array<{ status: string; n: number }>;
+      const byStatus = Object.fromEntries(counts.map((c) => [c.status, c.n]));
+      const agents = orchestrator.listAgents(companyId);
+      const agentStates = agents.map((a) => orchestrator.agentStatus(companyId, a.id));
+
+      res.json({
+        // Every figure names its source and the moment it was read, so the UI
+        // never shows a number without provenance.
+        generatedAt: Date.now(),
+        source: "ic_tasks / ic_agents / ic_approvals / ic_cost_events (live)",
+        tasks: {
+          running: byStatus.running ?? 0,
+          blocked: byStatus.blocked ?? 0,
+          review: byStatus.review ?? 0,
+          approvalRequired: byStatus.approval_required ?? 0,
+          done: byStatus.done ?? 0,
+          failed: byStatus.failed ?? 0,
+          total: counts.reduce((sum, c) => sum + c.n, 0),
+        },
+        agents: {
+          total: agents.length,
+          working: agentStates.filter((s) => s === "working").length,
+          rateLimited: agentStates.filter((s) => s === "rate_limited").length,
+          waitingForApproval: agentStates.filter((s) => s === "waiting_for_approval").length,
+        },
+        approvalsPending: orchestrator.approvals.listPending(companyId).length,
+        budgets: orchestrator.budgets.status(companyId),
+        auditChainValid: verifyAuditChain(db, companyId).valid,
+      });
+    }),
+  );
+
+  return { orchestrator, companyId };
+}

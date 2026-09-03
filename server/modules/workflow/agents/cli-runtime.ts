@@ -9,6 +9,7 @@ import type { MetricsCollector } from "../../../observability/metrics.ts";
 import { logger } from "../../../observability/logger.ts";
 import { TokenAccumulator } from "./token-accumulator.ts";
 import { assertArgsMatchMode } from "../../../ironcommand/policy/runtime-permissions.ts";
+import type { InvocationContext } from "../../../adapters/adapter-interface.ts";
 
 const log = logger.child({ module: "cli-runtime" });
 
@@ -230,7 +231,17 @@ export function createCliRuntimeTools(deps: CliRuntimeDeps) {
       throw new Error(`Provider "${provider}" is an HTTP adapter and cannot be spawned as a CLI process`);
     }
 
-    const context = { prompt, workdir: projectPath, model, reasoningLevel, profile };
+    // Restricted unless an owner-approved sandbox grant resolved otherwise.
+    // Threading the resolved grant through this call site is Phase 3 work; the
+    // safe default and the pre-spawn guard below hold in the meantime.
+    const context: InvocationContext = {
+      prompt,
+      workdir: projectPath,
+      model,
+      reasoningLevel,
+      profile,
+      permissionMode: "restricted",
+    };
     const args = adapter.buildArgs(context);
 
     // Last line of defence before we hand argv to the OS: a permission-bypass

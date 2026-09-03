@@ -1,6 +1,7 @@
 import type { RoomTheme } from "../types";
 
 export type View =
+  | "command"
   | "office"
   | "operations"
   | "agents"

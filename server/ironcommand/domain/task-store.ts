@@ -18,6 +18,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import { newId } from "./ids.ts";
+import { allRows } from "./sql.ts";
 import { assertTransition, isTaskStatus, type TaskStatus } from "./task-state.ts";
 import { appendAuditEvent, type ActorType } from "./audit.ts";
 
@@ -135,9 +136,10 @@ export class TaskStore {
       params.push(opts.projectId);
     }
     params.push(limit);
-    return this.db
-      .prepare(`SELECT * FROM ic_tasks WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC LIMIT ?`)
-      .all(...(params as never[])) as TaskRow[];
+    return allRows<TaskRow>(
+      this.db.prepare(`SELECT * FROM ic_tasks WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC LIMIT ?`),
+      ...params,
+    );
   }
 
   /**
@@ -316,7 +318,7 @@ export class TaskStore {
             AND lock_expires_at IS NOT NULL
             AND lock_expires_at <= ?`,
       )
-      .all(companyId, now) as TaskRow[];
+      .all(companyId, now) as unknown as TaskRow[];
   }
 
   /**
@@ -384,7 +386,7 @@ export class TaskStore {
       seen.add(current);
       const rows = this.db
         .prepare("SELECT depends_on_id FROM ic_task_dependencies WHERE task_id = ?")
-        .all(current) as Array<{ depends_on_id: string }>;
+        .all(current) as unknown as Array<{ depends_on_id: string }>;
       for (const row of rows) stack.push(row.depends_on_id);
     }
     return false;
@@ -397,7 +399,7 @@ export class TaskStore {
            JOIN ic_task_dependencies d ON d.depends_on_id = t.id
           WHERE d.task_id = ?`,
       )
-      .all(taskId) as TaskRow[];
+      .all(taskId) as unknown as TaskRow[];
   }
 
   /** A task is ready when every blocker is done. */
@@ -421,7 +423,7 @@ export class TaskStore {
             created_at ASC
           LIMIT ?`,
       )
-      .all(companyId, now, limit) as TaskRow[];
+      .all(companyId, now, limit) as unknown as TaskRow[];
     return candidates.filter((t) => this.isDependencyReady(t.id));
   }
 }

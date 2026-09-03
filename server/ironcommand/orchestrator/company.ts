@@ -14,7 +14,7 @@ import { newCorrelationId, newId } from "../domain/ids.ts";
 import { TaskStore, type TaskRow } from "../domain/task-store.ts";
 import { RunStore } from "../runtime/run-store.ts";
 import { appendAuditEvent } from "../domain/audit.ts";
-import { deriveAgentStatus, type TaskStatus } from "../domain/task-state.ts";
+import { canTransition, deriveAgentStatus, type TaskStatus } from "../domain/task-state.ts";
 import { ApprovalEngine } from "../policy/approval-policy.ts";
 import { BudgetEngine } from "../policy/budget-engine.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
@@ -158,7 +158,9 @@ export class CompanyOrchestrator {
   // --- reads --------------------------------------------------------------
 
   listAgents(companyId: string): AgentRow[] {
-    return this.db.prepare("SELECT * FROM ic_agents WHERE company_id = ? ORDER BY key").all(companyId) as AgentRow[];
+    return this.db
+      .prepare("SELECT * FROM ic_agents WHERE company_id = ? ORDER BY key")
+      .all(companyId) as unknown as AgentRow[];
   }
 
   getAgent(companyId: string, key: string): AgentRow | null {
@@ -184,7 +186,7 @@ export class CompanyOrchestrator {
   agentStatus(companyId: string, agentId: string): string {
     const rows = this.db
       .prepare("SELECT status FROM ic_tasks WHERE company_id = ? AND assigned_agent_id = ?")
-      .all(companyId, agentId) as Array<{ status: TaskStatus }>;
+      .all(companyId, agentId) as unknown as Array<{ status: TaskStatus }>;
     const agent = this.db.prepare("SELECT status FROM ic_agents WHERE id = ?").get(agentId) as
       | { status: string }
       | undefined;
@@ -261,7 +263,7 @@ export class CompanyOrchestrator {
   listMessages(conversationId: string, limit = 200): Array<Record<string, unknown>> {
     return this.db
       .prepare("SELECT * FROM ic_messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ?")
-      .all(conversationId, limit) as Array<Record<string, unknown>>;
+      .all(conversationId, limit) as unknown as Array<Record<string, unknown>>;
   }
 
   // --- the main flow ------------------------------------------------------
@@ -489,7 +491,7 @@ export class CompanyOrchestrator {
   buildStatusSummary(companyId: string): string {
     const counts = this.db
       .prepare("SELECT status, COUNT(*) AS n FROM ic_tasks WHERE company_id = ? GROUP BY status")
-      .all(companyId) as Array<{ status: string; n: number }>;
+      .all(companyId) as unknown as Array<{ status: string; n: number }>;
     const pending = this.approvals.listPending(companyId).length;
 
     const parts = counts.length ? counts.map((c) => `${c.n}× ${c.status}`).join(", ") : "keine Aufgaben erfasst";
@@ -679,6 +681,9 @@ export class CompanyOrchestrator {
     const ea = this.executiveAssistant(companyId);
     const task = this.tasks.get(taskId);
     if (!task) return null;
+    // A CEO action that does not apply right now is a "no", not a crash:
+    // return null so the API answers 409 rather than surfacing a store error.
+    if (!canTransition(task.status, "done")) return null;
 
     const done = this.tasks.transition(taskId, "done", {
       reason: "accepted by CEO",
@@ -707,6 +712,7 @@ export class CompanyOrchestrator {
     const ea = this.executiveAssistant(companyId);
     const task = this.tasks.get(taskId);
     if (!task) return null;
+    if (!canTransition(task.status, "ready")) return null;
 
     const revised = this.tasks.transition(taskId, "ready", {
       reason: `revision requested: ${reason}`,
