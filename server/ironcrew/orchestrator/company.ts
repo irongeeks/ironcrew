@@ -38,6 +38,8 @@ import {
 import { createSshConnector, type SshConnectorInterface } from "../../modules/workflow/ssh/ssh-connector.ts";
 import type { SshConfig } from "../../modules/workflow/ssh/types.ts";
 import { MeetingStore, MeetingMutationError, type MeetingRow, type MeetingTurnRow } from "../domain/meeting-store.ts";
+import { MemoryStore, type MemoryRefRow } from "../domain/memory-store.ts";
+import type { MemoryKind, MemoryProvider, MemorySearchHit } from "../memory/memory-provider.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -95,7 +97,9 @@ export class CompanyOrchestrator {
   readonly attachments: AttachmentStore;
   readonly remoteWorkers: RemoteWorkerStore;
   readonly meetings: MeetingStore;
+  readonly memories: MemoryStore;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
+  private readonly memoryProviders = new Map<string, MemoryProvider>();
   private attachmentStorageInstance: AttachmentStorage | null = null;
   private tailscaleProviderInstance: TailscaleProvider | null = null;
 
@@ -124,6 +128,7 @@ export class CompanyOrchestrator {
     this.attachments = new AttachmentStore(db);
     this.remoteWorkers = new RemoteWorkerStore(db);
     this.meetings = new MeetingStore(db);
+    this.memories = new MemoryStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -498,6 +503,105 @@ export class CompanyOrchestrator {
       });
       throw err;
     }
+  }
+
+  /** Mirrors registerSecretProvider(). */
+  registerMemoryProvider(provider: MemoryProvider): void {
+    this.memoryProviders.set(provider.kind, provider);
+  }
+
+  listMemoryProviderKinds(): string[] {
+    return [...this.memoryProviders.keys()];
+  }
+
+  async testMemoryProvider(kind: string): Promise<{ ok: boolean; message: string }> {
+    const provider = this.memoryProviders.get(kind);
+    if (!provider) return { ok: false, message: `No "${kind}" provider is registered on this server.` };
+    return provider.testConnection();
+  }
+
+  /**
+   * Write a memory entry through its provider (real content, e.g. an
+   * Obsidian markdown file), then record the resulting reference —
+   * provider + externalId + IronCrew provenance — in crew_memory_refs. The
+   * provider never sees task/project/agent ids or confidence/sensitivity;
+   * this store never sees the entry's actual content. Same split as
+   * SecretRef/SecretProvider, see domain/memory-store.ts's own doc-comment.
+   */
+  async recordMemory(
+    companyId: string,
+    provider: string,
+    input: {
+      kind: MemoryKind;
+      title: string;
+      content: string;
+      tags?: string[];
+      taskId?: string | null;
+      projectId?: string | null;
+      agentId?: string | null;
+      source?: string;
+      confidence?: number;
+      sensitivity?: string;
+    },
+    opts: { actorType?: ActorType; actorId?: string } = {},
+  ): Promise<MemoryRefRow> {
+    const memoryProvider = this.memoryProviders.get(provider);
+    if (!memoryProvider) throw new Error(`No "${provider}" memory provider is registered on this server.`);
+
+    const written = await memoryProvider.write({
+      kind: input.kind,
+      title: input.title,
+      content: input.content,
+      tags: input.tags,
+    });
+
+    return this.memories.create({
+      companyId,
+      provider,
+      externalId: written.externalId,
+      path: written.path,
+      kind: input.kind,
+      title: input.title,
+      taskId: input.taskId,
+      projectId: input.projectId,
+      agentId: input.agentId,
+      source: input.source,
+      confidence: input.confidence,
+      sensitivity: input.sensitivity,
+      actorType: opts.actorType,
+      actorId: opts.actorId,
+    });
+  }
+
+  /** Reads a memory entry's actual content back through its provider. Null if the ref or the underlying entry is gone. */
+  async readMemoryContent(companyId: string, memoryId: string): Promise<{ ref: MemoryRefRow; content: string } | null> {
+    const ref = this.memories.get(memoryId);
+    if (!ref || ref.company_id !== companyId) return null;
+    const provider = this.memoryProviders.get(ref.provider);
+    if (!provider) return null;
+    const content = await provider.read(ref.external_id);
+    if (content === null) return null;
+    return { ref, content };
+  }
+
+  /** Deletes both the provider's underlying entry (best-effort) and the crew_memory_refs row. */
+  async deleteMemory(
+    companyId: string,
+    memoryId: string,
+    opts: { actorType?: ActorType; actorId?: string } = {},
+  ): Promise<boolean> {
+    const ref = this.memories.get(memoryId);
+    if (!ref || ref.company_id !== companyId) return false;
+    const provider = this.memoryProviders.get(ref.provider);
+    if (provider) await provider.delete(ref.external_id);
+    return this.memories.delete(memoryId, opts);
+  }
+
+  /** Full-text search over a provider's own written content — see MemoryProvider#search. */
+  async searchMemory(provider: string, query: string): Promise<MemorySearchHit[]> {
+    const memoryProvider = this.memoryProviders.get(provider);
+    if (!memoryProvider) throw new Error(`No "${provider}" memory provider is registered on this server.`);
+    return memoryProvider.search(query);
   }
 
   /**

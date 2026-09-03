@@ -1148,3 +1148,103 @@ describe("meetings over HTTP", () => {
     await request(app).post("/api/crew/meetings/action-items/action_nope/convert").expect(404);
   });
 });
+
+describe("memory over HTTP (Obsidian vault, the first MemoryProvider)", () => {
+  function fakeMemoryProvider() {
+    return {
+      kind: "obsidian",
+      write: async (entry: { kind: string; title: string; content: string }) => ({
+        externalId: `${entry.kind}/mem_fake`,
+        path: `IronCrew/${entry.kind}/mem_fake.md`,
+      }),
+      read: async () => '---\ntitle: "x"\n---\n\nNightly backups run at 02:00 UTC.',
+      delete: async () => {},
+      search: async (query: string) =>
+        query.toLowerCase().includes("nightly")
+          ? [
+              {
+                externalId: "note/mem_fake",
+                title: "Backup policy",
+                snippet: "…nightly…",
+                path: "IronCrew/note/mem_fake.md",
+              },
+            ]
+          : [],
+      testConnection: async () => ({ ok: true, message: "Vault erreichbar." }),
+    };
+  }
+
+  it("lists providers with their registration + connection status", async () => {
+    orchestrator.registerMemoryProvider(fakeMemoryProvider() as never);
+    const res = await request(app).get("/api/crew/memory-providers").expect(200);
+    expect(res.body.providers).toEqual([
+      { kind: "obsidian", registered: true, ok: true, message: "Vault erreichbar." },
+    ]);
+  });
+
+  it("records a memory entry through its provider and lists it", async () => {
+    orchestrator.registerMemoryProvider(fakeMemoryProvider() as never);
+    const created = await request(app)
+      .post("/api/crew/memory")
+      .send({
+        provider: "obsidian",
+        kind: "note",
+        title: "Backup policy",
+        content: "Nightly backups run at 02:00 UTC.",
+      })
+      .expect(201);
+    expect(created.body.memory.provider).toBe("obsidian");
+    expect(created.body.memory.external_id).toBe("note/mem_fake");
+    expect(broadcasts.some((b) => b.type === "crew_memory_changed")).toBe(true);
+
+    const list = await request(app).get("/api/crew/memory").expect(200);
+    expect(list.body.memories).toHaveLength(1);
+    expect(list.body.memories[0].title).toBe("Backup policy");
+  });
+
+  it("reads a memory entry's live content back through its provider", async () => {
+    orchestrator.registerMemoryProvider(fakeMemoryProvider() as never);
+    const created = await request(app)
+      .post("/api/crew/memory")
+      .send({ provider: "obsidian", kind: "note", title: "x", content: "y" })
+      .expect(201);
+
+    const res = await request(app).get(`/api/crew/memory/${created.body.memory.id}`).expect(200);
+    expect(res.body.content).toContain("Nightly backups");
+  });
+
+  it("deletes a memory entry", async () => {
+    orchestrator.registerMemoryProvider(fakeMemoryProvider() as never);
+    const created = await request(app)
+      .post("/api/crew/memory")
+      .send({ provider: "obsidian", kind: "note", title: "x", content: "y" })
+      .expect(201);
+
+    await request(app).delete(`/api/crew/memory/${created.body.memory.id}`).expect(200);
+    const list = await request(app).get("/api/crew/memory").expect(200);
+    expect(list.body.memories).toHaveLength(0);
+  });
+
+  it("searches a provider's content", async () => {
+    orchestrator.registerMemoryProvider(fakeMemoryProvider() as never);
+    const res = await request(app).get("/api/crew/memory/search?provider=obsidian&q=nightly").expect(200);
+    expect(res.body.hits).toHaveLength(1);
+    expect(res.body.hits[0].title).toBe("Backup policy");
+  });
+
+  it("rejects recording without a required field with 400", async () => {
+    orchestrator.registerMemoryProvider(fakeMemoryProvider() as never);
+    const res = await request(app).post("/api/crew/memory").send({ provider: "obsidian", kind: "note" }).expect(400);
+    expect(res.body.error).toBe("invalid_request");
+  });
+
+  it("404s reading or deleting a memory entry that doesn't exist", async () => {
+    await request(app).get("/api/crew/memory/mem_nope").expect(404);
+    await request(app).delete("/api/crew/memory/mem_nope").expect(404);
+  });
+
+  it("400s search without provider or q", async () => {
+    await request(app).get("/api/crew/memory/search?provider=obsidian").expect(400);
+    await request(app).get("/api/crew/memory/search?q=nightly").expect(400);
+  });
+});

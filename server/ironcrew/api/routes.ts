@@ -37,6 +37,8 @@ import { AttachmentMutationError } from "../domain/attachment-store.ts";
 import { RemoteWorkerMutationError } from "../domain/remote-worker-store.ts";
 import { MeetingMutationError } from "../domain/meeting-store.ts";
 import { InvalidMeetingTransitionError, MEETING_STATUSES } from "../domain/meeting-state.ts";
+import { MemoryMutationError } from "../domain/memory-store.ts";
+import { MEMORY_KINDS } from "../memory/memory-provider.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -155,6 +157,19 @@ const createActionItemSchema = z.object({
   description: z.string().min(1).max(2000),
   assignedAgentId: z.string().max(200).nullable().optional(),
 });
+const createMemorySchema = z.object({
+  provider: z.string().min(1).max(100),
+  kind: z.enum(MEMORY_KINDS),
+  title: z.string().min(1).max(500),
+  content: z.string().min(1).max(200_000),
+  tags: z.array(z.string().min(1).max(100)).max(50).optional(),
+  taskId: z.string().max(200).nullable().optional(),
+  projectId: z.string().max(200).nullable().optional(),
+  agentId: z.string().max(200).nullable().optional(),
+  source: z.string().max(500).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  sensitivity: z.enum(["internal", "confidential", "public"]).optional(),
+});
 
 /** Translate domain errors into honest HTTP statuses rather than a blanket 500. */
 function sendDomainError(res: Response, err: unknown): boolean {
@@ -227,6 +242,10 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof MeetingMutationError) {
     res.status(400).json({ error: "invalid_meeting_mutation", message: err.message });
+    return true;
+  }
+  if (err instanceof MemoryMutationError) {
+    res.status(400).json({ error: "invalid_memory_mutation", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -1212,6 +1231,98 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       broadcast("crew_task_changed", { taskId: task.id, status: task.status });
       res.status(201).json({ task });
+    }),
+  );
+
+  // --- memory (Obsidian vault, the first MemoryProvider) ------------------
+  //
+  // A memory entry's real content is written and read through its
+  // provider (a markdown file in an Obsidian vault, for the "obsidian"
+  // kind) — this API only ever persists/returns the reference
+  // (crew_memory_refs): provider, external locator, title, provenance.
+  // GET /memory/:id is the one exception, mirroring how POST /secrets/:id/test
+  // resolves a secret value in memory without ever storing it here — content
+  // is read live from the provider and returned, never cached in the DB.
+
+  app.get(
+    `${base}/memory-providers`,
+    wrap(async (_req, res) => {
+      const kinds = orchestrator.listMemoryProviderKinds();
+      const providers = await Promise.all(
+        kinds.map(async (kind) => ({ kind, registered: true, ...(await orchestrator.testMemoryProvider(kind)) })),
+      );
+      res.json({ providers });
+    }),
+  );
+
+  app.get(
+    `${base}/memory`,
+    wrap((req, res) => {
+      const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
+      if (kind && !(MEMORY_KINDS as readonly string[]).includes(kind)) {
+        res.status(400).json({ error: "invalid_kind", allowed: MEMORY_KINDS });
+        return;
+      }
+      const taskId = typeof req.query.taskId === "string" ? req.query.taskId : undefined;
+      const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;
+      const agentId = typeof req.query.agentId === "string" ? req.query.agentId : undefined;
+      res.json({
+        memories: orchestrator.memories.list(companyId, { kind: kind as never, taskId, projectId, agentId }),
+      });
+    }),
+  );
+
+  app.get(
+    `${base}/memory/search`,
+    wrap(async (req, res) => {
+      const provider = typeof req.query.provider === "string" ? req.query.provider : "";
+      const query = typeof req.query.q === "string" ? req.query.q : "";
+      if (!provider || !query) {
+        res.status(400).json({ error: "invalid_request", message: "provider and q query params are required." });
+        return;
+      }
+      res.json({ hits: await orchestrator.searchMemory(provider, query) });
+    }),
+  );
+
+  app.post(
+    `${base}/memory`,
+    wrap(async (req, res) => {
+      const input = createMemorySchema.parse(req.body ?? {});
+      const ref = await orchestrator.recordMemory(companyId, input.provider, input, {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("crew_memory_changed", { memoryId: ref.id });
+      res.status(201).json({ memory: ref });
+    }),
+  );
+
+  app.get(
+    `${base}/memory/:id`,
+    wrap(async (req, res) => {
+      const result = await orchestrator.readMemoryContent(companyId, param(req, "id"));
+      if (!result) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({ memory: result.ref, content: result.content });
+    }),
+  );
+
+  app.delete(
+    `${base}/memory/:id`,
+    wrap(async (req, res) => {
+      const deleted = await orchestrator.deleteMemory(companyId, param(req, "id"), {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      if (!deleted) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_memory_changed", { memoryId: param(req, "id"), deleted: true });
+      res.json({ ok: true });
     }),
   );
 

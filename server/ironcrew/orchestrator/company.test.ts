@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { createTestDb } from "../domain/test-db.ts";
@@ -1113,5 +1113,101 @@ describe("meeting action items become real tasks", () => {
     });
     const foreignItem = orc.meetings.addActionItem({ meetingId: foreignMeeting.id, description: "z" });
     expect(orc.convertActionItemToTask(companyId, foreignItem.id)).toBeNull();
+  });
+});
+
+describe("memory (Obsidian and other MemoryProviders)", () => {
+  function fakeProvider(over: Partial<Record<string, unknown>> = {}) {
+    return {
+      kind: "obsidian",
+      write: vi.fn().mockResolvedValue({ externalId: "note/mem_fake", path: "IronCrew/note/mem_fake.md" }),
+      read: vi.fn().mockResolvedValue('---\ntitle: "x"\n---\n\nbody'),
+      delete: vi.fn().mockResolvedValue(undefined),
+      search: vi
+        .fn()
+        .mockResolvedValue([
+          { externalId: "note/mem_fake", title: "x", snippet: "…body…", path: "IronCrew/note/mem_fake.md" },
+        ]),
+      testConnection: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
+      ...over,
+    };
+  }
+
+  it("recordMemory writes through the provider, then stores the resulting reference", async () => {
+    const provider = fakeProvider();
+    orc.registerMemoryProvider(provider as never);
+
+    const ref = await orc.recordMemory(companyId, "obsidian", {
+      kind: "note",
+      title: "Backup policy",
+      content: "Nightly at 02:00.",
+    });
+    expect(provider.write).toHaveBeenCalledWith({
+      kind: "note",
+      title: "Backup policy",
+      content: "Nightly at 02:00.",
+      tags: undefined,
+    });
+    expect(ref.external_id).toBe("note/mem_fake");
+    expect(ref.path).toBe("IronCrew/note/mem_fake.md");
+    expect(ref.provider).toBe("obsidian");
+    expect(orc.memories.get(ref.id)?.title).toBe("Backup policy");
+  });
+
+  it("recordMemory throws when no provider is registered for that kind", async () => {
+    await expect(orc.recordMemory(companyId, "obsidian", { kind: "note", title: "x", content: "y" })).rejects.toThrow(
+      /No "obsidian" memory provider/,
+    );
+  });
+
+  it("readMemoryContent reads a stored ref's content back through its provider", async () => {
+    const provider = fakeProvider();
+    orc.registerMemoryProvider(provider as never);
+    const ref = await orc.recordMemory(companyId, "obsidian", { kind: "note", title: "x", content: "y" });
+
+    const result = await orc.readMemoryContent(companyId, ref.id);
+    expect(provider.read).toHaveBeenCalledWith("note/mem_fake");
+    expect(result?.content).toContain("body");
+  });
+
+  it("readMemoryContent returns null for a missing or cross-company id", async () => {
+    expect(await orc.readMemoryContent(companyId, "mem_nope")).toBeNull();
+  });
+
+  it("deleteMemory deletes through the provider and removes the reference", async () => {
+    const provider = fakeProvider();
+    orc.registerMemoryProvider(provider as never);
+    const ref = await orc.recordMemory(companyId, "obsidian", { kind: "note", title: "x", content: "y" });
+
+    expect(await orc.deleteMemory(companyId, ref.id)).toBe(true);
+    expect(provider.delete).toHaveBeenCalledWith("note/mem_fake");
+    expect(orc.memories.get(ref.id)).toBeNull();
+  });
+
+  it("deleteMemory returns false for a missing id", async () => {
+    expect(await orc.deleteMemory(companyId, "mem_nope")).toBe(false);
+  });
+
+  it("searchMemory dispatches to the registered provider", async () => {
+    const provider = fakeProvider();
+    orc.registerMemoryProvider(provider as never);
+    const hits = await orc.searchMemory("obsidian", "nightly");
+    expect(provider.search).toHaveBeenCalledWith("nightly");
+    expect(hits).toHaveLength(1);
+  });
+
+  it("searchMemory throws when no provider is registered", async () => {
+    await expect(orc.searchMemory("obsidian", "x")).rejects.toThrow(/No "obsidian" memory provider/);
+  });
+
+  it("testMemoryProvider reports not-ok when nothing is registered for that kind", async () => {
+    const status = await orc.testMemoryProvider("obsidian");
+    expect(status.ok).toBe(false);
+  });
+
+  it("listMemoryProviderKinds reflects registrations", async () => {
+    expect(orc.listMemoryProviderKinds()).toEqual([]);
+    orc.registerMemoryProvider(fakeProvider() as never);
+    expect(orc.listMemoryProviderKinds()).toEqual(["obsidian"]);
   });
 });
