@@ -52,6 +52,36 @@ CEO ◄── summary ◄── review ◄────────────�
 - **Everything is on the record.** One correlation id spans your message, the
   task, every run, every event and every audit entry.
 
+## Screenshots
+
+The Command Center — a live Kanban board, decision inbox and CEO chat, all
+backed by the same REST API this README describes elsewhere:
+
+![Command Center board](docs/screenshots/command-center-board.png)
+
+<details>
+<summary>More views (decision inbox, projects, org chart, secrets)</summary>
+
+Decision inbox — notifications and the append-only decision log:
+
+![Decision inbox](docs/screenshots/command-center-inbox.png)
+
+Projects, traced back to the goal they serve:
+
+![Projects](docs/screenshots/command-center-projects.png)
+
+Org chart, grouped by department:
+
+![Org chart](docs/screenshots/command-center-orgchart.png)
+
+Password-manager integration — only ever a reference (provider + item), never
+a value; the "nicht erreichbar" badges here are honest, since neither `bw`
+nor `pass-cli` is installed on this particular machine:
+
+![Secrets](docs/screenshots/command-center-secrets.png)
+
+</details>
+
 ## Design commitments
 
 These are enforced in code and covered by tests, not just documented.
