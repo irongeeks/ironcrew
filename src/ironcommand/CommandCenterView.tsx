@@ -28,6 +28,7 @@ import {
   type RunEvent,
   type RuntimeInfo,
   type Task,
+  type TaskStatus,
 } from "./types.ts";
 
 function formatTime(ts: number): string {
@@ -207,6 +208,25 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [refresh],
   );
 
+  // Kanban drag & drop. There is no optimistic local mutation: a card only
+  // ever moves to the column its `status` field in `tasks` actually says,
+  // and that only changes once refresh() re-reads it after the server
+  // accepted the move. A rejected move (409, illegal transition) surfaces
+  // through the same `error` banner every other action uses, and the card
+  // stays exactly where the backend still has it — "state changes must
+  // never be frontend-only" (docs/ROADMAP.md Phase 2).
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+
+  const moveTask = useCallback(
+    (taskId: string, status: TaskStatus) => {
+      const current = tasks.find((t) => t.id === taskId);
+      if (!current || current.status === status || busy) return;
+      void act(() => client.setTaskStatus(taskId, status));
+    },
+    [tasks, busy, act, client],
+  );
+
   const byStatus = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const t of tasks) {
@@ -311,7 +331,25 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
             {BOARD_COLUMNS.map(({ status, accent }) => {
               const items = byStatus.get(status) ?? [];
               return (
-                <section key={status} className="ic-column" data-accent={accent} data-testid={`column-${status}`}>
+                <section
+                  key={status}
+                  className="ic-column"
+                  data-accent={accent}
+                  data-testid={`column-${status}`}
+                  data-drag-over={dragOverColumn === status || undefined}
+                  onDragOver={(e) => {
+                    if (!draggedTaskId) return;
+                    e.preventDefault();
+                    setDragOverColumn(status);
+                  }}
+                  onDragLeave={() => setDragOverColumn((c) => (c === status ? null : c))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverColumn(null);
+                    const taskId = e.dataTransfer.getData("text/plain");
+                    if (taskId) moveTask(taskId, status);
+                  }}
+                >
                   <h3 className="ic-column-head">
                     <span>{TASK_STATUS_LABEL[status]}</span>
                     <span className="ic-column-count">{items.length}</span>
@@ -323,9 +361,20 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                         key={task.id}
                         type="button"
                         className="ic-card"
+                        draggable
                         data-priority={task.priority}
                         data-risk={task.risk_level}
+                        data-dragging={draggedTaskId === task.id || undefined}
                         onClick={() => setSelectedTask(task)}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", task.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          setDraggedTaskId(task.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedTaskId(null);
+                          setDragOverColumn(null);
+                        }}
                       >
                         <span className="ic-card-title">{task.title}</span>
                         <span className="ic-card-meta">

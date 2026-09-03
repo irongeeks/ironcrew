@@ -37,6 +37,7 @@ export type Broadcast = (type: string, payload: unknown) => void;
 const ceoMessageSchema = z.object({ body: z.string().min(1).max(20000) });
 const reviewSchema = z.object({ note: z.string().max(5000).optional() });
 const revisionSchema = z.object({ reason: z.string().min(1).max(5000) });
+const taskStatusSchema = z.object({ status: z.enum(TASK_STATUSES), reason: z.string().max(2000).optional() });
 const decisionSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
   reason: z.string().max(5000).optional(),
@@ -370,6 +371,39 @@ export function registerIronCommandRoutes(app: Express, opts: IronCommandApiOpti
       const task = orchestrator.requestRevision(companyId, param(req, "id"), reason);
       if (!task) {
         res.status(409).json({ error: "cannot_revise", message: "Task is not in a reviewable state." });
+        return;
+      }
+      broadcast("ic_task_changed", { taskId: task.id, status: task.status });
+      res.json({ task });
+    }),
+  );
+
+  /**
+   * Generic status move — the Kanban board's server-side validation. Every
+   * drag from one column to another lands here, and `TaskStore.transition()`
+   * is the only thing that decides whether the move is legal (the same state
+   * machine `executeNextTask`/`acceptReview`/`requestRevision` already go
+   * through); an illegal move throws `InvalidTransitionError`, mapped to 409
+   * by `sendDomainError`, and the frontend never applies it locally — the
+   * board only ever reflects what this endpoint actually returns.
+   */
+  app.post(
+    `${base}/tasks/:id/status`,
+    wrap((req, res) => {
+      const { status, reason } = taskStatusSchema.parse(req.body ?? {});
+      const existing = orchestrator.tasks.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const task = orchestrator.tasks.transition(existing.id, status, {
+        reason: reason ?? "moved on the board",
+        actorType: "owner",
+        actorId: "ceo",
+        correlationId: existing.correlation_id,
+      });
+      if (!task) {
+        res.status(409).json({ error: "cannot_transition", message: "Task status changed concurrently." });
         return;
       }
       broadcast("ic_task_changed", { taskId: task.id, status: task.status });

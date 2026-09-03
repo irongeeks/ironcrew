@@ -174,6 +174,33 @@ describe("task lifecycle over HTTP", () => {
     expect(res.body.events.length).toBe(exec.body.eventCount);
     expect(res.body.events[0].type).toBe("run.started");
   });
+
+  describe("generic status move (Kanban drag & drop)", () => {
+    it("moves a task along a legal transition", async () => {
+      const taskId = await seedTask();
+      const res = await request(app).post(`/api/ic/tasks/${taskId}/status`).send({ status: "blocked" }).expect(200);
+      expect(res.body.task.status).toBe("blocked");
+      expect(broadcasts.some((b) => b.type === "ic_task_changed")).toBe(true);
+    });
+
+    it("rejects an illegal transition with 409, never applying it", async () => {
+      const taskId = await seedTask();
+      const res = await request(app).post(`/api/ic/tasks/${taskId}/status`).send({ status: "done" }).expect(409);
+      expect(res.body.error).toBe("invalid_transition");
+
+      const after = await request(app).get(`/api/ic/tasks/${taskId}`).expect(200);
+      expect(after.body.task.status).toBe("ready");
+    });
+
+    it("404s for a task that doesn't exist", async () => {
+      await request(app).post("/api/ic/tasks/task_missing/status").send({ status: "blocked" }).expect(404);
+    });
+
+    it("400s an invalid status value", async () => {
+      const taskId = await seedTask();
+      await request(app).post(`/api/ic/tasks/${taskId}/status`).send({ status: "nonsense" }).expect(400);
+    });
+  });
 });
 
 describe("approvals over HTTP", () => {

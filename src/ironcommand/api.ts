@@ -50,6 +50,8 @@ export const api = {
   executeNext: () => send<{ executed: boolean; task?: Task; runId?: string }>("/tasks/execute-next", "POST"),
   accept: (id: string, note?: string) => send<{ task: Task }>(`/tasks/${id}/accept`, "POST", { note }),
   revise: (id: string, reason: string) => send<{ task: Task }>(`/tasks/${id}/revise`, "POST", { reason }),
+  setTaskStatus: (id: string, status: Task["status"], reason?: string) =>
+    send<{ task: Task }>(`/tasks/${id}/status`, "POST", { status, reason }),
   approvals: () => get<{ approvals: Approval[] }>("/approvals"),
   decide: (id: string, decision: "approved" | "rejected", reason?: string) =>
     send<{ approval: Approval }>(`/approvals/${id}/decide`, "POST", { decision, reason }),

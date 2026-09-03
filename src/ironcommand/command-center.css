@@ -428,6 +428,14 @@
   overflow-y: auto;
 }
 
+/* A column being dragged over — purely a drop-target hint. The move itself
+   only ever happens once the server accepts it (see moveTask()); this
+   never implies the drop will succeed. */
+.ic-column[data-drag-over="true"] .ic-column-body {
+  background: var(--ic-cyan-glow);
+  border-color: var(--ic-cyan-dim);
+}
+
 .ic-card {
   display: block;
   width: 100%;
@@ -458,6 +466,9 @@
 .ic-card[data-risk="high"],
 .ic-card[data-risk="critical"] {
   border-left-color: var(--ic-red);
+}
+.ic-card[data-dragging="true"] {
+  opacity: 0.45;
 }
 
 .ic-card-title {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CommandCenterView } from "./CommandCenterView.tsx";
 import type { api } from "./api.ts";
@@ -153,6 +153,18 @@ function milestone(over: Partial<Milestone> = {}): Milestone {
   };
 }
 
+/** jsdom has no real HTML5 drag-and-drop; this is the standard RTL stand-in. */
+function fakeDataTransfer() {
+  const store: Record<string, string> = {};
+  return {
+    setData: (type: string, val: string) => {
+      store[type] = val;
+    },
+    getData: (type: string) => store[type] ?? "",
+    effectAllowed: "",
+  };
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("shell", () => {
@@ -187,6 +199,75 @@ describe("shell", () => {
     const column = await screen.findByTestId("column-review");
     expect(within(column).getByText("Backup dokumentieren")).toBeInTheDocument();
     expect(within(await screen.findByTestId("column-ready")).queryByText("Backup dokumentieren")).toBeNull();
+  });
+});
+
+describe("Kanban drag & drop", () => {
+  it("moves a card to a new column once the server accepts the transition", async () => {
+    const setTaskStatus = vi.fn().mockResolvedValue({ task: task({ status: "blocked" }) });
+    const client = makeClient({
+      tasks: vi
+        .fn()
+        .mockResolvedValueOnce({ tasks: [task({ status: "ready" })] })
+        .mockResolvedValue({ tasks: [task({ status: "blocked" })] }),
+      setTaskStatus,
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = (await screen.findByText("Backup dokumentieren")).closest("button")!;
+    const dt = fakeDataTransfer();
+    fireEvent.dragStart(card, { dataTransfer: dt });
+    const target = await screen.findByTestId("column-blocked");
+    fireEvent.dragOver(target, { dataTransfer: dt });
+    fireEvent.drop(target, { dataTransfer: dt });
+
+    expect(setTaskStatus).toHaveBeenCalledWith("task_1", "blocked");
+    await waitFor(() => {
+      expect(within(screen.getByTestId("column-blocked")).getByText("Backup dokumentieren")).toBeInTheDocument();
+    });
+    expect(within(screen.getByTestId("column-ready")).queryByText("Backup dokumentieren")).toBeNull();
+  });
+
+  it("leaves the card in place when the server rejects the move", async () => {
+    const setTaskStatus = vi.fn().mockRejectedValue(new Error("409: invalid_transition"));
+    const client = makeClient({
+      tasks: vi.fn().mockResolvedValue({ tasks: [task({ status: "ready" })] }),
+      setTaskStatus,
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = (await screen.findByText("Backup dokumentieren")).closest("button")!;
+    const dt = fakeDataTransfer();
+    fireEvent.dragStart(card, { dataTransfer: dt });
+    const target = await screen.findByTestId("column-done");
+    fireEvent.dragOver(target, { dataTransfer: dt });
+    fireEvent.drop(target, { dataTransfer: dt });
+
+    await waitFor(() => expect(setTaskStatus).toHaveBeenCalled());
+    // The board only ever reflects what the backend returned — never a
+    // locally-applied move — so the card is still in "ready" and the
+    // rejection surfaces as an error, exactly like any other action.
+    expect(within(screen.getByTestId("column-ready")).getByText("Backup dokumentieren")).toBeInTheDocument();
+    expect(within(screen.getByTestId("column-done")).queryByText("Backup dokumentieren")).toBeNull();
+    expect(await screen.findByTestId("error-banner")).toBeInTheDocument();
+  });
+
+  it("does not call the API when a card is dropped back on its own column", async () => {
+    const setTaskStatus = vi.fn();
+    const client = makeClient({
+      tasks: vi.fn().mockResolvedValue({ tasks: [task({ status: "ready" })] }),
+      setTaskStatus,
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = (await screen.findByText("Backup dokumentieren")).closest("button")!;
+    const dt = fakeDataTransfer();
+    fireEvent.dragStart(card, { dataTransfer: dt });
+    const target = await screen.findByTestId("column-ready");
+    fireEvent.dragOver(target, { dataTransfer: dt });
+    fireEvent.drop(target, { dataTransfer: dt });
+
+    expect(setTaskStatus).not.toHaveBeenCalled();
   });
 });
 
