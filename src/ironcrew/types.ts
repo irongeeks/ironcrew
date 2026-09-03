@@ -421,3 +421,44 @@ export interface MeetingActionItem {
   task_id: string | null;
   created_at: number;
 }
+
+export type MemoryKind = "note" | "fact" | "preference" | "hypothesis" | "summary";
+
+export const MEMORY_KIND_LABEL: Record<MemoryKind, string> = {
+  note: "Notiz",
+  fact: "Fakt",
+  preference: "Präferenz",
+  hypothesis: "Hypothese",
+  summary: "Zusammenfassung",
+};
+
+export interface MemoryProviderStatus {
+  kind: string;
+  registered: boolean;
+  ok: boolean;
+  message: string;
+}
+
+export interface MemoryRef {
+  id: string;
+  company_id: string;
+  provider: string;
+  external_id: string;
+  kind: MemoryKind;
+  title: string;
+  path: string | null;
+  task_id: string | null;
+  project_id: string | null;
+  agent_id: string | null;
+  source: string;
+  confidence: number;
+  sensitivity: string;
+  created_at: number;
+}
+
+export interface MemorySearchHit {
+  externalId: string;
+  title: string;
+  snippet: string;
+  path: string | null;
+}

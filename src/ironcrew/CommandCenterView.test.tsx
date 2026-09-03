@@ -14,6 +14,8 @@ import type {
   MeetingActionItem,
   MeetingParticipant,
   MeetingTurn,
+  MemoryProviderStatus,
+  MemoryRef,
   Message,
   Milestone,
   Notification,
@@ -151,6 +153,12 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     cancelMeeting: vi.fn(),
     addMeetingActionItem: vi.fn(),
     convertActionItemToTask: vi.fn(),
+    memoryProviders: vi.fn().mockResolvedValue({ providers: [] }),
+    memories: vi.fn().mockResolvedValue({ memories: [] }),
+    recordMemory: vi.fn(),
+    memoryContent: vi.fn(),
+    deleteMemory: vi.fn(),
+    searchMemory: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -324,6 +332,30 @@ function meetingDetail(
     ],
     turns: over.turns ?? [],
     actionItems: over.actionItems ?? [],
+  };
+}
+
+function memoryProviderStatus(over: Partial<MemoryProviderStatus> = {}): MemoryProviderStatus {
+  return { kind: "obsidian", registered: true, ok: true, message: "Vault erreichbar.", ...over };
+}
+
+function memoryRef(over: Partial<MemoryRef> = {}): MemoryRef {
+  return {
+    id: "mem_1",
+    company_id: "cmp_1",
+    provider: "obsidian",
+    external_id: "note/mem_1",
+    kind: "note",
+    title: "Backup policy",
+    path: "IronCrew/note/mem_1.md",
+    task_id: null,
+    project_id: null,
+    agent_id: null,
+    source: "",
+    confidence: 1,
+    sensitivity: "internal",
+    created_at: Date.now(),
+    ...over,
   };
 }
 
@@ -1501,5 +1533,116 @@ describe("meetings (moderator, bounded rounds, budget)", () => {
     await userEvent.setup().click(await within(detailDialog).findByRole("button", { name: "Als Aufgabe anlegen" }));
     expect(convertActionItemToTask).toHaveBeenCalledWith("action_1");
     expect(await within(detailDialog).findByText("Aufgabe angelegt")).toBeInTheDocument();
+  });
+});
+
+describe("memory (Obsidian vault, the first MemoryProvider)", () => {
+  it("shows provider status and recorded entries", async () => {
+    const client = makeClient({
+      memoryProviders: vi.fn().mockResolvedValue({ providers: [memoryProviderStatus()] }),
+      memories: vi.fn().mockResolvedValue({ memories: [memoryRef()] }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-memory"));
+    const dialog = await screen.findByRole("dialog", { name: "Wissen" });
+
+    expect(await within(dialog).findByTestId("memory-provider-obsidian")).toHaveTextContent("verbunden");
+    expect(within(dialog).getByText("Backup policy")).toBeInTheDocument();
+  });
+
+  it("records a new note via the form", async () => {
+    const recordMemory = vi.fn().mockResolvedValue({ memory: memoryRef() });
+    const client = makeClient({
+      memoryProviders: vi.fn().mockResolvedValue({ providers: [memoryProviderStatus()] }),
+      memories: vi
+        .fn()
+        .mockResolvedValueOnce({ memories: [] })
+        .mockResolvedValue({ memories: [memoryRef()] }),
+      recordMemory,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-memory"));
+    const dialog = await screen.findByRole("dialog", { name: "Wissen" });
+
+    const user = userEvent.setup();
+    await user.type(within(dialog).getByTestId("new-memory-title"), "Backup policy");
+    await user.type(within(dialog).getByTestId("new-memory-content"), "Nightly backups run at 02:00 UTC.");
+    await user.click(within(dialog).getByTestId("new-memory-submit"));
+
+    expect(recordMemory).toHaveBeenCalledWith({
+      provider: "obsidian",
+      kind: "note",
+      title: "Backup policy",
+      content: "Nightly backups run at 02:00 UTC.",
+    });
+    expect(await within(dialog).findByText("Backup policy")).toBeInTheDocument();
+  });
+
+  it("opens an entry's live content and closes it again", async () => {
+    const memoryContent = vi
+      .fn()
+      .mockResolvedValue({ memory: memoryRef(), content: "Nightly backups run at 02:00 UTC." });
+    const client = makeClient({
+      memoryProviders: vi.fn().mockResolvedValue({ providers: [memoryProviderStatus()] }),
+      memories: vi.fn().mockResolvedValue({ memories: [memoryRef()] }),
+      memoryContent,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-memory"));
+    const dialog = await screen.findByRole("dialog", { name: "Wissen" });
+    await userEvent.setup().click(within(dialog).getByRole("button", { name: "Öffnen" }));
+
+    expect(memoryContent).toHaveBeenCalledWith("mem_1");
+    const detail = await within(dialog).findByTestId("memory-detail");
+    expect(detail).toHaveTextContent("Nightly backups run at 02:00 UTC.");
+
+    await userEvent.setup().click(within(detail).getByRole("button", { name: "Schließen" }));
+    expect(within(dialog).queryByTestId("memory-detail")).toBeNull();
+  });
+
+  it("deletes an entry", async () => {
+    const deleteMemory = vi.fn().mockResolvedValue({ ok: true });
+    const client = makeClient({
+      memoryProviders: vi.fn().mockResolvedValue({ providers: [memoryProviderStatus()] }),
+      memories: vi
+        .fn()
+        .mockResolvedValueOnce({ memories: [memoryRef()] })
+        .mockResolvedValue({ memories: [] }),
+      deleteMemory,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-memory"));
+    const dialog = await screen.findByRole("dialog", { name: "Wissen" });
+    await userEvent.setup().click(within(dialog).getByRole("button", { name: "Löschen" }));
+
+    expect(deleteMemory).toHaveBeenCalledWith("mem_1");
+    await waitFor(() => expect(within(dialog).queryByText("Backup policy")).toBeNull());
+  });
+
+  it("searches the vault and shows results", async () => {
+    const searchMemory = vi.fn().mockResolvedValue({
+      hits: [
+        { externalId: "note/mem_1", title: "Backup policy", snippet: "…nightly…", path: "IronCrew/note/mem_1.md" },
+      ],
+    });
+    const client = makeClient({
+      memoryProviders: vi.fn().mockResolvedValue({ providers: [memoryProviderStatus()] }),
+      searchMemory,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-memory"));
+    const dialog = await screen.findByRole("dialog", { name: "Wissen" });
+
+    const user = userEvent.setup();
+    await user.type(within(dialog).getByTestId("memory-search-input"), "nightly");
+    await user.click(within(dialog).getByTestId("memory-search-submit"));
+
+    expect(searchMemory).toHaveBeenCalledWith("obsidian", "nightly");
+    expect(await within(dialog).findByTestId("memory-search-results")).toHaveTextContent("Backup policy");
   });
 });

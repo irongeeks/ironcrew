@@ -16,6 +16,7 @@ import {
   AGENT_STATUS_LABEL,
   BOARD_COLUMNS,
   MEETING_STATUS_LABEL,
+  MEMORY_KIND_LABEL,
   MILESTONE_STATUS_LABEL,
   NOTIFICATION_SEVERITY_LABEL,
   PROJECT_STATUS_LABEL,
@@ -33,6 +34,10 @@ import {
   type MeetingActionItem,
   type MeetingParticipant,
   type MeetingTurn,
+  type MemoryKind,
+  type MemoryProviderStatus,
+  type MemoryRef,
+  type MemorySearchHit,
   type Message,
   type Milestone,
   type Notification,
@@ -143,6 +148,16 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [newActionItemDescription, setNewActionItemDescription] = useState("");
   const [newActionItemAssigneeId, setNewActionItemAssigneeId] = useState("");
   const [meetingMinutesDraft, setMeetingMinutesDraft] = useState("");
+
+  const [memoryProviders, setMemoryProviders] = useState<MemoryProviderStatus[]>([]);
+  const [memories, setMemories] = useState<MemoryRef[]>([]);
+  const [showMemory, setShowMemory] = useState(false);
+  const [memoryQuery, setMemoryQuery] = useState("");
+  const [memorySearchHits, setMemorySearchHits] = useState<MemorySearchHit[] | null>(null);
+  const [memoryDetail, setMemoryDetail] = useState<{ memory: MemoryRef; content: string } | null>(null);
+  const [newMemoryKind, setNewMemoryKind] = useState<MemoryKind>("note");
+  const [newMemoryTitle, setNewMemoryTitle] = useState("");
+  const [newMemoryContent, setNewMemoryContent] = useState("");
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -687,6 +702,75 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [actWith, client, refreshMeetingDetail, refresh],
   );
 
+  // --- memory (the Obsidian vault, the first MemoryProvider) --------------
+
+  const refreshMemory = useCallback(async () => {
+    const [{ providers }, { memories: m }] = await Promise.all([client.memoryProviders(), client.memories()]);
+    setMemoryProviders(providers);
+    setMemories(m);
+  }, [client]);
+
+  const openMemory = useCallback(() => {
+    setShowMemory(true);
+    setMemorySearchHits(null);
+    setMemoryQuery("");
+    void refreshMemory();
+  }, [refreshMemory]);
+
+  const recordMemory = useCallback(() => {
+    const title = newMemoryTitle.trim();
+    const content = newMemoryContent.trim();
+    const provider = memoryProviders[0]?.kind;
+    if (!title || !content || !provider) return;
+    void actWith(
+      () => client.recordMemory({ provider, kind: newMemoryKind, title, content }),
+      async () => {
+        setNewMemoryTitle("");
+        setNewMemoryContent("");
+        await refreshMemory();
+      },
+    );
+  }, [actWith, client, newMemoryKind, newMemoryTitle, newMemoryContent, memoryProviders, refreshMemory]);
+
+  const openMemoryDetail = useCallback(
+    (id: string) => {
+      void actWith(
+        async () => {
+          const result = await client.memoryContent(id);
+          setMemoryDetail(result);
+        },
+        async () => {},
+      );
+    },
+    [actWith, client],
+  );
+
+  const deleteMemoryEntry = useCallback(
+    (id: string) => {
+      void actWith(
+        () => client.deleteMemory(id),
+        async () => {
+          setMemoryDetail(null);
+          await refreshMemory();
+        },
+      );
+    },
+    [actWith, client, refreshMemory],
+  );
+
+  const searchMemory = useCallback(() => {
+    const query = memoryQuery.trim();
+    const provider = memoryProviders[0]?.kind;
+    if (!query || !provider) return;
+    void actWith(
+      async () => {
+        const { hits } = await client.searchMemory(provider, query);
+        setMemorySearchHits(hits);
+      },
+      async () => {},
+    );
+  }, [actWith, client, memoryQuery, memoryProviders]);
+
   // --- attachments (task/project-scoped + the general document store) ----
   // refreshTaskAttachments / refreshProjectAttachments are declared earlier,
   // alongside openTaskDetail / openProjectDetail, which call them on open.
@@ -812,6 +896,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-meetings" onClick={openMeetings}>
           Meetings
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-memory" onClick={openMemory}>
+          Wissen
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -2046,6 +2134,163 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               onClick={() => addMeetingActionItem(meetingDetail.meeting.id)}
             >
               Hinzufügen
+            </button>
+          </div>
+        </DetailDialog>
+      )}
+
+      {showMemory && (
+        <DetailDialog title="Wissen" onClose={() => setShowMemory(false)}>
+          <p className="ic-note">
+            Ein Obsidian-Vault ist ein Ordner voller Markdown-Dateien — jede Notiz hier ist eine echte .md-Datei mit
+            YAML-Frontmatter, direkt in Obsidian zu öffnen.
+          </p>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Anbieter
+          </h3>
+          {memoryProviders.length === 0 && <p className="ic-empty">Kein MemoryProvider registriert.</p>}
+          <ul className="ic-milestone-list">
+            {memoryProviders.map((p) => (
+              <li key={p.kind} data-testid={`memory-provider-${p.kind}`}>
+                <span className="ic-milestone-title">{p.kind}</span>
+                <span className="ic-tag" data-tone={p.ok ? "policy" : "gate"}>
+                  {p.ok ? "verbunden" : "nicht erreichbar"}
+                </span>
+                <span className="ic-note">{p.message}</span>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Suche
+          </h3>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-memory-search">
+              Suche
+            </label>
+            <input
+              id="ic-memory-search"
+              data-testid="memory-search-input"
+              placeholder="Volltextsuche im Vault"
+              value={memoryQuery}
+              onChange={(e) => setMemoryQuery(e.target.value)}
+            />
+            <button
+              type="button"
+              className="ic-btn"
+              data-testid="memory-search-submit"
+              disabled={busy || !memoryQuery.trim() || memoryProviders.length === 0}
+              onClick={searchMemory}
+            >
+              Suchen
+            </button>
+          </div>
+          {memorySearchHits && (
+            <ul className="ic-milestone-list" data-testid="memory-search-results">
+              {memorySearchHits.length === 0 && <p className="ic-empty">Keine Treffer.</p>}
+              {memorySearchHits.map((hit) => (
+                <li key={hit.externalId}>
+                  <span className="ic-milestone-title">{hit.title}</span>
+                  <span className="ic-note">{hit.snippet}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Einträge
+          </h3>
+          {memories.length === 0 && <p className="ic-empty">Noch keine Einträge.</p>}
+          <ul className="ic-milestone-list">
+            {memories.map((m) => (
+              <li key={m.id} data-testid={`memory-${m.id}`}>
+                <span className="ic-milestone-title">{m.title}</span>
+                <span className="ic-tag" data-tone="policy">
+                  {MEMORY_KIND_LABEL[m.kind]}
+                </span>
+                <button type="button" className="ic-btn" disabled={busy} onClick={() => openMemoryDetail(m.id)}>
+                  Öffnen
+                </button>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="danger"
+                  disabled={busy}
+                  onClick={() => deleteMemoryEntry(m.id)}
+                >
+                  Löschen
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {memoryDetail && (
+            <div data-testid="memory-detail">
+              <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+                {memoryDetail.memory.title}
+              </h3>
+              <pre className="ic-note" style={{ whiteSpace: "pre-wrap" }}>
+                {memoryDetail.content}
+              </pre>
+              <button type="button" className="ic-btn" onClick={() => setMemoryDetail(null)}>
+                Schließen
+              </button>
+            </div>
+          )}
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Neue Notiz
+          </h3>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-new-memory-kind">
+              Art
+            </label>
+            <select
+              id="ic-new-memory-kind"
+              className="ic-select"
+              data-testid="new-memory-kind"
+              value={newMemoryKind}
+              onChange={(e) => setNewMemoryKind(e.target.value as MemoryKind)}
+            >
+              {(Object.keys(MEMORY_KIND_LABEL) as MemoryKind[]).map((k) => (
+                <option key={k} value={k}>
+                  {MEMORY_KIND_LABEL[k]}
+                </option>
+              ))}
+            </select>
+            <label className="ic-sr-only" htmlFor="ic-new-memory-title">
+              Titel
+            </label>
+            <input
+              id="ic-new-memory-title"
+              data-testid="new-memory-title"
+              placeholder="Titel"
+              value={newMemoryTitle}
+              onChange={(e) => setNewMemoryTitle(e.target.value)}
+            />
+          </div>
+          <div className="ic-composer" style={{ padding: 0 }}>
+            <label className="ic-sr-only" htmlFor="ic-new-memory-content">
+              Inhalt
+            </label>
+            <textarea
+              id="ic-new-memory-content"
+              data-testid="new-memory-content"
+              placeholder="Inhalt (Markdown)"
+              rows={4}
+              value={newMemoryContent}
+              onChange={(e) => setNewMemoryContent(e.target.value)}
+            />
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="new-memory-submit"
+              disabled={busy || !newMemoryTitle.trim() || !newMemoryContent.trim() || memoryProviders.length === 0}
+              onClick={recordMemory}
+            >
+              Speichern
             </button>
           </div>
         </DetailDialog>

@@ -24,6 +24,10 @@ import type {
   MeetingParticipant,
   MeetingStatus,
   MeetingTurn,
+  MemoryKind,
+  MemoryProviderStatus,
+  MemoryRef,
+  MemorySearchHit,
   Message,
   Milestone,
   Notification,
@@ -168,4 +172,26 @@ export const api = {
     send<{ actionItem: MeetingActionItem }>(`/meetings/${id}/action-items`, "POST", input),
   convertActionItemToTask: (actionItemId: string) =>
     send<{ task: Task }>(`/meetings/action-items/${actionItemId}/convert`, "POST"),
+
+  memoryProviders: () => get<{ providers: MemoryProviderStatus[] }>("/memory-providers"),
+  memories: () => get<{ memories: MemoryRef[] }>("/memory"),
+  recordMemory: (input: {
+    provider: string;
+    kind: MemoryKind;
+    title: string;
+    content: string;
+    tags?: string[];
+    taskId?: string | null;
+    projectId?: string | null;
+    agentId?: string | null;
+    source?: string;
+    confidence?: number;
+    sensitivity?: string;
+  }) => send<{ memory: MemoryRef }>("/memory", "POST", input),
+  memoryContent: (id: string) => get<{ memory: MemoryRef; content: string }>(`/memory/${id}`),
+  deleteMemory: (id: string) => send<{ ok: boolean }>(`/memory/${id}`, "DELETE"),
+  searchMemory: (provider: string, query: string) =>
+    get<{ hits: MemorySearchHit[] }>(
+      `/memory/search?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(query)}`,
+    ),
 };
