@@ -158,6 +158,7 @@ pnpm lint
 | [`docs/MARKETPLACES.md`](docs/MARKETPLACES.md)                                                      | installing skills and MCP servers, and the trust boundary that gates it                    |
 | [`docs/NETWORKING.md`](docs/NETWORKING.md)                                                          | Tailscale/Headscale status + remote workers over the tailnet                               |
 | [`docs/RUNNER_PROTOCOL.md`](docs/RUNNER_PROTOCOL.md)                                                | the runtime interface and event model                                                      |
+| [`docs/BUSINESS_PACKS.md`](docs/BUSINESS_PACKS.md)                                                  | the five trades, their posts and tools, and the read-only adapters behind them             |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md)                                                                | what comes next                                                                            |
 | [`docs/LINUX_INSTALL.md`](docs/LINUX_INSTALL.md) · [`docs/MACOS_INSTALL.md`](docs/MACOS_INSTALL.md) | installation                                                                               |
 | [`docs/UPSTREAM_README.md`](docs/UPSTREAM_README.md)                                                | the original OctoOffice README, for inherited features                                     |

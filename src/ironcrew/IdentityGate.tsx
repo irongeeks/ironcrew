@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, serverMessage } from "./api";
 import { AccountPanel } from "./AccountPanel";
+import { PacksPanel } from "./PacksPanel";
 import type { AuthStatus, CrewUser } from "./types";
 
 interface IdentityGateProps {
@@ -42,6 +43,7 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [showAccounts, setShowAccounts] = useState(false);
+  const [showPacks, setShowPacks] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -196,6 +198,9 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
         <span>
           {user.displayName || user.email} · {ROLE_LABEL[user.role]}
         </span>
+        <button type="button" onClick={() => setShowPacks(true)}>
+          Gewerke
+        </button>
         <button type="button" onClick={() => setShowAccounts(true)}>
           Konto
         </button>
@@ -204,6 +209,7 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
         </button>
       </div>
       {showAccounts && <AccountPanel user={user} onClose={() => setShowAccounts(false)} />}
+      {showPacks && <PacksPanel onClose={() => setShowPacks(false)} />}
       {children}
     </>
   );

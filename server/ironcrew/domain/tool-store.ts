@@ -45,7 +45,7 @@ import { appendAuditEvent, type ActorType } from "./audit.ts";
 export const TOOL_RISK_CLASSES = ["read", "write", "external"] as const;
 export type ToolRiskClass = (typeof TOOL_RISK_CLASSES)[number];
 
-export const TOOL_ORIGINS = ["builtin", "mcp", "marketplace"] as const;
+export const TOOL_ORIGINS = ["builtin", "mcp", "marketplace", "pack"] as const;
 export type ToolOrigin = (typeof TOOL_ORIGINS)[number];
 
 export interface ToolRow {

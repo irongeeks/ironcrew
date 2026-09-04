@@ -145,17 +145,48 @@ their size:
 
 ## Phase 4 — Business packs
 
-- **MSP / IT Operations** — Proxmox, Windows/AD, Linux, M365/Entra, UniFi,
-  Tactical RMM, backup and monitoring, Tier-0 separation, jumphost and
-  outbound-only customer runners
-- **Web Agency** — leads, demo sites, proposals, SEO, hosting, conversion
-- **Finance** — Lexware Office, incoming/outgoing invoices, receipt matching,
-  payment approval queue, cash forecast, quarterly UStVA preparation
-- **Legal** — contract analysis, clause comparison, risk matrix, deadlines
-- **Knowledge** — Obsidian, Nextcloud, Paperless-ngx, Drive, M365
+Shipped (`docs/BUSINESS_PACKS.md`). Five packs, six read-only integrations,
+and a pack framework whose three rules are the interesting part: reuse never
+overwrites, registering is not granting, and a routine does not start itself.
 
-Every integration ships behind a feature flag as a real adapter. No fake
-buttons.
+- **MSP / IT Operations** — a service desk plus Linux/virtualisation,
+  Windows/AD/M365, network, and backup/monitoring posts; Proxmox VE, Tactical
+  RMM and UniFi as read-only adapters.
+- **Web Agency** — leads, proposals, SEO, delivery. No new tools and no
+  integrations, and the pack says so: `web.search` and the browser tools are
+  already built in.
+- **Finance (DE)** — incoming invoices, receivables, receipt matching, cash
+  forecast, UStVA preparation; Lexware Office read-only.
+- **Legal (DE)** — contract analysis, clause comparison, deadlines. No tools,
+  no integrations: contracts already arrive through attachments.
+- **Knowledge** — archivist and researcher; Paperless-ngx and Nextcloud
+  read-only, with Obsidian already present as a MemoryProvider.
+
+"Every integration ships behind a feature flag as a real adapter. No fake
+buttons." That is now a test, not a promise: `catalog.test.ts` asserts that
+every integration a pack declares has an adapter module and names at least one
+required environment variable, and `GET /api/crew/packs` reports an
+integration as configured only when the composition root actually built its
+adapter.
+
+What Phase 4 deliberately does **not** contain, and why:
+
+- **No write path anywhere.** No VM restart, no password reset, no patch push,
+  no invoice creation, no payment. Each is a credential whose blast radius is
+  the whole estate or the company's own books; a write belongs behind an
+  approval, not behind an environment variable (T-20).
+- **No Tier-0 automation, no jumphost orchestration.** The MSP pack ships
+  findings and prepared changes. Handing an agent domain-admin credentials
+  would undo the customer's security model, which is the thing an MSP is paid
+  to protect.
+- **No M365/Entra or Drive adapter.** Both are large OAuth surfaces rather
+  than an API key, and an OAuth app registration is a decision an operator
+  makes once with consequences — worth its own piece of work rather than a
+  sixth adapter written the same afternoon.
+- **Not verified against live systems.** Every adapter is written against the
+  vendor's published API with tests over the request it builds; none has run
+  against a real Proxmox cluster or Lexware tenant from this repository. Same
+  honest limit as the CLI adapters; `testConnection()` is the day-one check.
 
 ## Phase 5 — Production hardening
 

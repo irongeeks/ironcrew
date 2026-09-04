@@ -12,6 +12,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { newCorrelationId, newId } from "../domain/ids.ts";
+import type { IntegrationStatus, PackIntegrationAdapter } from "../packs/pack-integration.ts";
+import { PackInstaller } from "../packs/pack-installer.ts";
 import { TaskStore, type TaskRow } from "../domain/task-store.ts";
 import { RunStore } from "../runtime/run-store.ts";
 import { appendAuditEvent, type ActorType } from "../domain/audit.ts";
@@ -198,6 +200,9 @@ export class CompanyOrchestrator {
   readonly routines: RoutineStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly searchProviders = new Map<string, SearchProvider>();
+  /** Business-pack integrations, keyed by the pack definition's integration key. */
+  private readonly packIntegrations = new Map<string, PackIntegrationAdapter>();
+  private packInstaller?: PackInstaller;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -1690,7 +1695,7 @@ export class CompanyOrchestrator {
     }
 
     for (const agent of crew.agents) {
-      this.insertAgent(companyId, agent, deptIds.get(agent.department) ?? null);
+      this.hireAgent(companyId, agent, deptIds.get(agent.department) ?? null);
     }
 
     appendAuditEvent(this.db, {
@@ -1719,26 +1724,47 @@ export class CompanyOrchestrator {
    * runtime becomes a vessel shared by everyone using that runtime — the same
    * grouping migration 0011 derives for an existing crew.
    */
-  private insertAgent(companyId: string, agent: SeedAgent, departmentId: string | null): string {
+  /**
+   * Adds one post to the company.
+   *
+   * Public because seeding is no longer the only way a company grows: a
+   * business pack hires the specialists its trade needs
+   * (server/ironcrew/packs/pack-installer.ts). One definition of "what it
+   * means to add a post" — the alternative was an installer with its own
+   * three INSERTs, and the copy that drifts is always the one with fewer
+   * readers.
+   */
+  hireAgent(companyId: string, agent: SeedAgent, departmentId: string | null): string {
     const vesselId = this.ensureVessel(companyId, "mock");
 
-    const talentId = newId("tal");
-    this.db
-      .prepare(
-        `INSERT INTO crew_talents
-           (id, company_id, key, professional_role, role_summary, seniority, policy_json, persona_json)
-         VALUES (?,?,?,?,?,?,?,?)`,
-      )
-      .run(
-        talentId,
-        companyId,
-        agent.key,
-        agent.professional_role,
-        agent.role_summary,
-        agent.seniority,
-        JSON.stringify(agent.policy),
-        JSON.stringify(agent.skin),
-      );
+    // A role is keyed per company, so an existing one is *the* role rather
+    // than a second copy of it. Reused rather than re-inserted because a post
+    // can be removed (a pack uninstall does exactly that) while its role
+    // survives — and hiring into that role again must not collide with the
+    // row the previous holder left behind.
+    const existingTalent = this.db
+      .prepare("SELECT id FROM crew_talents WHERE company_id = ? AND key = ?")
+      .get(companyId, agent.key) as { id: string } | undefined;
+
+    const talentId = existingTalent?.id ?? newId("tal");
+    if (!existingTalent) {
+      this.db
+        .prepare(
+          `INSERT INTO crew_talents
+             (id, company_id, key, professional_role, role_summary, seniority, policy_json, persona_json)
+           VALUES (?,?,?,?,?,?,?,?)`,
+        )
+        .run(
+          talentId,
+          companyId,
+          agent.key,
+          agent.professional_role,
+          agent.role_summary,
+          agent.seniority,
+          JSON.stringify(agent.policy),
+          JSON.stringify(agent.skin),
+        );
+    }
 
     const id = newId("agt");
     this.db
@@ -2581,6 +2607,62 @@ export class CompanyOrchestrator {
     const provider = this.searchProviders.get(kind);
     if (!provider) return { ok: false, message: `Kein "${kind}"-Suchanbieter registriert.` };
     return provider.testConnection();
+  }
+
+  // --- business packs -----------------------------------------------------
+  //
+  // Registration happens in the composition root, exactly as it does for
+  // runtimes, secret providers and search providers: an adapter exists here
+  // only if the operator configured its environment variables, so "is this
+  // integration available" is answered by what is registered rather than by a
+  // button that is always there and sometimes works.
+
+  /**
+   * Installing and removing business packs.
+   *
+   * Lazy because the installer holds a reference back to this orchestrator
+   * (it hires posts through `hireAgent`), and building it in the constructor
+   * would mean handing out `this` before the fields below it exist.
+   */
+  get packs(): PackInstaller {
+    this.packInstaller ??= new PackInstaller(this.db, this);
+    return this.packInstaller;
+  }
+
+  registerPackIntegration(adapter: PackIntegrationAdapter): void {
+    this.packIntegrations.set(adapter.key, adapter);
+  }
+
+  listPackIntegrationKeys(): string[] {
+    return [...this.packIntegrations.keys()];
+  }
+
+  hasPackIntegration(key: string): boolean {
+    return this.packIntegrations.has(key);
+  }
+
+  /**
+   * Probes one integration.
+   *
+   * Reports rather than throws, like every other `testConnection` in this
+   * codebase: "not configured" is an answer an operator needs on the settings
+   * page, not an exception somebody has to catch to display.
+   */
+  async testPackIntegration(key: string): Promise<IntegrationStatus> {
+    const adapter = this.packIntegrations.get(key);
+    if (!adapter) {
+      return {
+        ok: false,
+        message: `Die Integration "${key}" ist nicht konfiguriert. Ohne ihre Umgebungsvariablen wird sie nicht geladen.`,
+      };
+    }
+    try {
+      return await adapter.testConnection();
+    } catch (err) {
+      // An adapter that throws from its own probe is a bug in the adapter,
+      // and it must not take the settings page down with it.
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   /**

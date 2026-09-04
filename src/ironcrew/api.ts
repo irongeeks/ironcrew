@@ -14,8 +14,11 @@ import type {
   AgentTool,
   Approval,
   AuthStatus,
+  BusinessPackSummary,
   CrewSession,
   CrewUser,
+  PackDetail,
+  PackKeptObject,
   Attachment,
   ChangeApplyConflict,
   ChangeProposal,
@@ -147,6 +150,25 @@ export const api = {
   setUserPassword: (id: string, newPassword: string) =>
     send<{ ok: boolean }>(`/users/${id}/password`, "POST", { newPassword }),
   deleteUser: (id: string) => send<{ ok: boolean }>(`/users/${id}`, "DELETE"),
+
+  // --- business packs ---
+  packs: () => get<{ packs: BusinessPackSummary[] }>("/packs"),
+  pack: (key: string) => get<PackDetail>(`/packs/${key}`),
+  installPack: (key: string) =>
+    send<{ ok: boolean; created: Record<string, number>; reused: Record<string, number> }>(
+      `/packs/${key}/install`,
+      "POST",
+    ),
+  uninstallPack: (key: string) =>
+    send<{ ok: boolean; removed: Record<string, number>; disabledTools: number; kept: PackKeptObject[] }>(
+      `/packs/${key}/uninstall`,
+      "POST",
+    ),
+  testPackIntegration: (packKey: string, integrationKey: string) =>
+    send<{ ok: boolean; message: string; version?: string }>(
+      `/packs/${packKey}/integrations/${integrationKey}/test`,
+      "POST",
+    ),
 
   company: () => get<{ company: { name: string }; departments: Department[] }>("/company"),
   agents: () => get<{ agents: Agent[] }>("/agents"),

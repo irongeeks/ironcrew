@@ -1062,3 +1062,72 @@
 .ic-account-panel tr[data-status="disabled"] {
   opacity: 0.55;
 }
+
+/* --- business packs ------------------------------------------------------ */
+
+.ic-pack {
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--th-border, rgba(255, 255, 255, 0.08));
+}
+
+.ic-pack-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ic-pack-head h3 {
+  margin: 0;
+}
+
+.ic-pack-head small {
+  font-weight: normal;
+  color: var(--th-text-secondary, #9aa4b2);
+}
+
+.ic-pack[data-installed="true"] .ic-pack-head h3::after {
+  content: " · installiert";
+  font-size: 0.8rem;
+  color: #22c55e;
+}
+
+.ic-pack-counts,
+.ic-pack-summary {
+  font-size: 0.8rem;
+  color: var(--th-text-secondary, #9aa4b2);
+}
+
+.ic-pack-integrations {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.ic-pack-integrations li {
+  padding: 0.35rem 0.5rem;
+  border-left: 2px solid var(--th-border, rgba(255, 255, 255, 0.15));
+  font-size: 0.85rem;
+}
+
+.ic-pack-integrations li[data-configured="true"] {
+  border-left-color: #22c55e;
+}
+
+.ic-pack-ok {
+  color: #22c55e;
+}
+
+.ic-pack-missing {
+  color: var(--th-text-secondary, #9aa4b2);
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.ic-pack-detail {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 2px solid var(--th-border, rgba(255, 255, 255, 0.15));
+}

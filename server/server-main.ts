@@ -37,6 +37,12 @@ import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
 import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
 import { setCrewSessionResolver } from "./security/auth.ts";
+import { ProxmoxAdapter } from "./ironcrew/packs/integrations/proxmox.ts";
+import { TacticalRmmAdapter } from "./ironcrew/packs/integrations/tactical-rmm.ts";
+import { UnifiAdapter } from "./ironcrew/packs/integrations/unifi.ts";
+import { LexwareOfficeAdapter } from "./ironcrew/packs/integrations/lexware-office.ts";
+import { PaperlessAdapter } from "./ironcrew/packs/integrations/paperless-ngx.ts";
+import { NextcloudAdapter } from "./ironcrew/packs/integrations/nextcloud.ts";
 import { Scheduler } from "./ironcrew/scheduler/scheduler.ts";
 import { SearxngProvider } from "./ironcrew/search/searxng-provider.ts";
 import { BraveProvider } from "./ironcrew/search/brave-provider.ts";
@@ -532,6 +538,65 @@ const ironCrewApi = registerIronCrewRoutes(app, {
   orchestrator: ironCrewOrchestrator,
   scheduler: () => ironCrewScheduler,
 });
+
+// Business-pack integrations: registered only when their environment says so.
+//
+// This is Phase 4's "every integration ships behind a feature flag as a real
+// adapter — no fake buttons" expressed as code. An adapter that is not
+// constructed here is not registered, so GET /api/crew/packs reports it as
+// not configured, and the Command Center shows what is missing rather than a
+// switch that fails when pressed. Adding an adapter therefore costs exactly
+// one `if` — and forgetting the `if` costs a test in catalog.test.ts.
+//
+// All six are read-only. An MSP's RMM key can run a script on every managed
+// endpoint, a Lexware key can issue a legally binding invoice: those are
+// writes, and a write belongs behind an approval, not behind an environment
+// variable (docs/BUSINESS_PACKS.md).
+if (process.env.PROXMOX_URL && process.env.PROXMOX_TOKEN_ID && process.env.PROXMOX_TOKEN_SECRET) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new ProxmoxAdapter({
+      baseUrl: process.env.PROXMOX_URL,
+      tokenId: process.env.PROXMOX_TOKEN_ID,
+      tokenSecret: process.env.PROXMOX_TOKEN_SECRET,
+    }),
+  );
+}
+if (process.env.TACTICAL_RMM_URL && process.env.TACTICAL_RMM_API_KEY) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new TacticalRmmAdapter({ baseUrl: process.env.TACTICAL_RMM_URL, apiKey: process.env.TACTICAL_RMM_API_KEY }),
+  );
+}
+if (process.env.UNIFI_URL && process.env.UNIFI_API_KEY) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new UnifiAdapter({
+      baseUrl: process.env.UNIFI_URL,
+      apiKey: process.env.UNIFI_API_KEY,
+      site: process.env.UNIFI_SITE,
+    }),
+  );
+}
+if (process.env.LEXWARE_OFFICE_API_KEY) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new LexwareOfficeAdapter({
+      apiKey: process.env.LEXWARE_OFFICE_API_KEY,
+      baseUrl: process.env.LEXWARE_OFFICE_URL,
+    }),
+  );
+}
+if (process.env.PAPERLESS_URL && process.env.PAPERLESS_TOKEN) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new PaperlessAdapter({ baseUrl: process.env.PAPERLESS_URL, token: process.env.PAPERLESS_TOKEN }),
+  );
+}
+if (process.env.NEXTCLOUD_URL && process.env.NEXTCLOUD_USER && process.env.NEXTCLOUD_APP_PASSWORD) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new NextcloudAdapter({
+      baseUrl: process.env.NEXTCLOUD_URL,
+      username: process.env.NEXTCLOUD_USER,
+      appPassword: process.env.NEXTCLOUD_APP_PASSWORD,
+    }),
+  );
+}
 
 // One login, not two. Someone who signed in with their own account satisfies
 // the generic HTTP security layer as well: a crew session is the stronger

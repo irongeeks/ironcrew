@@ -564,6 +564,48 @@ and make the log say plainly which regime it was written under. There is also
 no second factor: a stolen session cookie or password is full access at that
 account's role until it is revoked.
 
+### T-20 — A business pack's credentials — **High**
+
+A business pack exists to talk to the systems a trade runs on, and those are
+the systems that matter: an RMM that can execute on every managed endpoint, a
+hypervisor that can stop every VM, the accounting system that holds the
+company's books. Handing an agent any of those is handing a prompt injection
+the same thing — and the injection arrives, reliably, in a scanned invoice or
+a contract PDF (T-02).
+
+**Mitigation.**
+
+1. **Every shipped adapter is read-only, by construction rather than by
+   convention.** There is no create, update or delete method to call; several
+   adapters assert their own prototype surface in tests so a future addition
+   is a deliberate act with a failing test in front of it. All pack tools are
+   registered at risk class `read`.
+2. **Presence is still not permission.** A pack registers its tools; it never
+   grants them. `ToolStore.resolve()` fails closed until an owner grants a
+   tool to an agent, a talent or a project (T-01, `docs/TOOLS.md`).
+3. **Installing a pack is an owner's decision.** It hires posts, changes the
+   org chart and registers tools — the same line drawn around everything that
+   hands out authority (T-19).
+4. **A routine never starts itself.** Pack routines install disabled, so
+   nothing recurring begins until a human switches it on (T-16).
+5. **No credential ever reaches a log or an error message.** Adapters build
+   messages from status codes and hosts, never from response bodies — because
+   Lexware Office's own documented 403 body echoes the `Authorization` header
+   back, and that is not the only vendor that does. Each adapter has a test
+   that drives every failure path and asserts the credential appears in none
+   of them.
+6. **The environment is the feature flag.** An adapter that was not configured
+   is not constructed, so there is nothing to call and the API says so.
+
+**Residual risk.** A read-only credential is still a credential: a Proxmox
+token that can list every guest describes the whole estate to anyone who
+obtains it, and an agent granted `rmm.agents` can read every customer's
+inventory. Scope the tokens at the vendor's end (a `PVEAuditor` role, an RMM
+key limited to its role) rather than relying on this side alone. And these
+adapters live in the control plane's environment, not in a vault — the same
+argument that moved MCP credentials to SecretRefs (T-18) applies here and has
+not been made yet.
+
 ## Non-negotiable defaults
 
 | Setting                     | Value                                                                        |
@@ -583,3 +625,4 @@ account's role until it is revoked.
 | CLI credentials             | held by the runner's own OS user; the control plane never sees one (T-17)    |
 | MCP credentials             | references in the config; resolved by the runner at start (T-18)             |
 | Audit actor                 | the signed-in user's id; "ceo" only where nobody has a name (T-19)           |
+| Business-pack integrations  | read-only adapters, registered only from the environment (T-20)              |

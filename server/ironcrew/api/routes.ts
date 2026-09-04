@@ -16,6 +16,9 @@ import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { CompanyOrchestrator, type AgentRow } from "../orchestrator/company.ts";
 import { createCrewAuth, methodGuard, type CrewAuth } from "../auth/crew-auth.ts";
+import { BUSINESS_PACKS, findPack } from "../packs/catalog.ts";
+import type { BusinessPack } from "../packs/business-pack.ts";
+import { PackMutationError } from "../packs/pack-store.ts";
 import { registerCrewAuthRoutes } from "./auth-routes.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
@@ -468,6 +471,10 @@ function sendDomainError(res: Response, err: unknown): boolean {
   // A vessel or talent that agents still hold refuses to be deleted, and the
   // message names them — 409, because the request was fine and the *state* is
   // what said no.
+  if (err instanceof PackMutationError) {
+    res.status(409).json({ error: "invalid_pack_mutation", message: err.message });
+    return true;
+  }
   if (err instanceof VesselMutationError || err instanceof TalentMutationError) {
     res.status(409).json({ error: "invalid_pairing_mutation", message: err.message });
     return true;
@@ -2477,6 +2484,127 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       broadcast("crew_task_changed", { taskId: task.id, status: task.status });
       broadcast("crew_routine_changed", { routineId: param(req, "id") });
       res.status(201).json({ task });
+    }),
+  );
+
+  // --- business packs -----------------------------------------------------
+  //
+  // Installing a pack hires posts, registers tools and changes the org chart,
+  // so it is an owner's decision, not an operator's — the same line the rest
+  // of this file draws around anything that hands out authority.
+  //
+  // The listing is deliberately answerable before anything is installed: an
+  // operator has to be able to see what a pack would add, and which of its
+  // integrations this installation actually has, *before* deciding. That is
+  // what "no fake buttons" means in practice — a switch appears configured
+  // only when its adapter was registered at boot, which happens only when its
+  // environment variables are set.
+
+  const presentPack = (pack: BusinessPack) => {
+    const installed = orchestrator.packs.store.byKey(companyId, pack.key);
+    return {
+      key: pack.key,
+      label: pack.label,
+      summary: pack.summary,
+      version: pack.version,
+      installed: installed !== null,
+      installedAt: installed?.installed_at ?? null,
+      installedVersion: installed?.version ?? null,
+      counts: {
+        departments: pack.departments.length,
+        agents: pack.agents.length,
+        tools: pack.tools.length,
+        routines: pack.routines.length,
+      },
+      integrations: pack.integrations.map((integration) => ({
+        key: integration.key,
+        label: integration.label,
+        summary: integration.summary,
+        // Registered at boot from the environment, or not there at all.
+        configured: orchestrator.hasPackIntegration(integration.key),
+        env: integration.env,
+        docsUrl: integration.docs_url ?? null,
+      })),
+    };
+  };
+
+  app.get(
+    `${base}/packs`,
+    wrap((_req, res) => {
+      res.json({ packs: BUSINESS_PACKS.map(presentPack) });
+    }),
+  );
+
+  app.get(
+    `${base}/packs/:key`,
+    wrap((req, res) => {
+      const pack = findPack(param(req, "key"));
+      if (!pack) {
+        res.status(404).json({ error: "pack_not_found" });
+        return;
+      }
+      // The full definition, so an operator can read what they are about to
+      // hire before they hire it.
+      res.json({
+        pack: presentPack(pack),
+        departments: pack.departments,
+        agents: pack.agents.map((agent) => ({
+          key: agent.key,
+          department: agent.department,
+          displayName: agent.skin.display_name,
+          professionalRole: agent.professional_role,
+          roleSummary: agent.role_summary,
+          seniority: agent.seniority,
+          maxRiskLevel: agent.policy.max_risk_level,
+        })),
+        tools: pack.tools,
+        routines: pack.routines,
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/packs/:key/install`,
+    ownerOnly,
+    wrap((req, res) => {
+      const pack = findPack(param(req, "key"));
+      if (!pack) {
+        res.status(404).json({ error: "pack_not_found" });
+        return;
+      }
+      const result = orchestrator.packs.install(companyId, pack, actorOf(req));
+      broadcast("crew_pack_changed", { packKey: pack.key, installed: true });
+      res.status(201).json({ ok: true, pack: presentPack(pack), created: result.created, reused: result.reused });
+    }),
+  );
+
+  app.post(
+    `${base}/packs/:key/uninstall`,
+    ownerOnly,
+    wrap((req, res) => {
+      const pack = findPack(param(req, "key"));
+      if (!pack) {
+        res.status(404).json({ error: "pack_not_found" });
+        return;
+      }
+      const result = orchestrator.packs.uninstall(companyId, pack.key, actorOf(req));
+      broadcast("crew_pack_changed", { packKey: pack.key, installed: false });
+      // `kept` is part of the answer, not an afterthought: a remover that
+      // silently leaves things behind is worse than one that says so.
+      res.json({ ok: true, pack: presentPack(pack), ...result });
+    }),
+  );
+
+  app.post(
+    `${base}/packs/:key/integrations/:integration/test`,
+    wrap(async (req, res) => {
+      const pack = findPack(param(req, "key"));
+      const integrationKey = param(req, "integration");
+      if (!pack || !pack.integrations.some((i) => i.key === integrationKey)) {
+        res.status(404).json({ error: "integration_not_found" });
+        return;
+      }
+      res.json(await orchestrator.testPackIntegration(integrationKey));
     }),
   );
 

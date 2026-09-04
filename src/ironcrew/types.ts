@@ -1034,3 +1034,57 @@ export interface CrewSession {
   /** The session this request itself is using. */
   current: boolean;
 }
+
+/**
+ * A business pack — what a trade adds to the company.
+ *
+ * `configured` on an integration is the honest half: it is true only when the
+ * server registered an adapter for it at boot, which happens only when its
+ * environment variables are set. A switch that is always on is the fake
+ * button Phase 4 forbids.
+ */
+export interface PackIntegrationStatus {
+  key: string;
+  label: string;
+  summary: string;
+  configured: boolean;
+  env: Array<{ name: string; optional: boolean }>;
+  docsUrl: string | null;
+}
+
+export interface BusinessPackSummary {
+  key: string;
+  label: string;
+  summary: string;
+  version: string;
+  installed: boolean;
+  installedAt: number | null;
+  installedVersion: string | null;
+  counts: { departments: number; agents: number; tools: number; routines: number };
+  integrations: PackIntegrationStatus[];
+}
+
+export interface PackAgentPreview {
+  key: string;
+  department: string;
+  displayName: string;
+  professionalRole: string;
+  roleSummary: string;
+  seniority: string;
+  maxRiskLevel: string;
+}
+
+export interface PackDetail {
+  pack: BusinessPackSummary;
+  departments: Array<{ key: string; name: string; description: string; sort_order: number }>;
+  agents: PackAgentPreview[];
+  tools: Array<{ key: string; label: string; description: string; risk_class: string; integration?: string }>;
+  routines: Array<{ key: string; name: string; instruction: string; interval_minutes: number }>;
+}
+
+export interface PackKeptObject {
+  type: string;
+  id: string;
+  key: string;
+  reason: string;
+}
