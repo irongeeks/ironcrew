@@ -11,6 +11,7 @@
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { resolveDbPath, announceLegacyDbPath } from "./lib/db-path.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
@@ -37,7 +38,8 @@ const USAGE = `IronCrew Backup
 
 Optionen:
   --out <dir>          Zielverzeichnis für das Backup
-  --db <pfad>          Datenbank (Standard: $DB_PATH oder ./data/ironcrew.sqlite)
+  --db <pfad>          Datenbank (Standard: $DB_PATH, sonst ./ironcrew.sqlite,
+                       ./octooffice.sqlite oder ./data/ironcrew.sqlite)
   --attachments <dir>  Anhang-Verzeichnis (Standard: neben der Datenbank)
   --extra <pfad>       Zusätzliche Datei/Verzeichnis, mehrfach erlaubt
   --keep <n>           Nur die neuesten n Backups behalten
@@ -117,7 +119,8 @@ async function main() {
   const { createBackup, pruneBackups } = await import(path.join(repoRoot, "server/ironcrew/backup/backup.ts"));
   const { restoreBackup, inspectBackup } = await import(path.join(repoRoot, "server/ironcrew/backup/restore.ts"));
 
-  const dbPath = path.resolve(opts.db ?? process.env.DB_PATH ?? path.join(repoRoot, "data", "ironcrew.sqlite"));
+  const dbPath = resolveDbPath({ explicit: opts.db, cwd: process.cwd(), repoRoot });
+  announceLegacyDbPath(dbPath, "[ironcrew-backup]");
   const attachmentsDir = opts.attachments
     ? path.resolve(opts.attachments)
     : path.join(path.dirname(dbPath), "attachments");

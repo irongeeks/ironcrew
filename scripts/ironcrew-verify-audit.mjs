@@ -25,6 +25,7 @@ import path from "node:path";
 import fs from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { resolveDbPath as sharedResolveDbPath, announceLegacyDbPath } from "./lib/db-path.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
@@ -70,7 +71,7 @@ die NDJSON-Datei unter $LOGS_DIR. Logs liegen absichtlich nicht im Backup.
 
 Optionen:
   --db <pfad>   Datenbank (Standard: $DB_PATH, sonst ./ironcrew.sqlite,
-                ersatzweise ./octooffice.sqlite, wenn es nur die gibt)
+                ersatzweise ./octooffice.sqlite oder ./data/…, wenn es nur die gibt)
   --json        Maschinenlesbare Ausgabe statt Tabelle.
   -h, --help    Diese Hilfe
 
@@ -86,9 +87,6 @@ Exit-Codes:
 const EXIT_OK = 0;
 const EXIT_ERROR = 1;
 const EXIT_BROKEN = 2;
-
-const DB_FILE_NAME = "ironcrew.sqlite";
-const LEGACY_DB_FILE_NAME = "octooffice.sqlite";
 
 function parseArgs(argv) {
   const opts = {};
@@ -158,19 +156,16 @@ function renderTable(headers, rows) {
 }
 
 /**
- * The same fallback the server does in server/config/runtime.ts: an
- * installation older than the rename to IronCrew keeps its whole history —
- * every task, decision, approval and audit entry — in `octooffice.sqlite`.
- * Defaulting to the new name alone would open (or fail to find) an empty file
- * beside the real one and report a perfectly intact, perfectly empty chain.
+ * Resolution order lives in scripts/lib/db-path.mjs, shared with the migrate
+ * and backup CLIs so all three answer "which database?" identically. The
+ * notice matters most here: verifying the pre-rename file is right, but
+ * verifying it without saying which file was read is an answer nobody can
+ * check.
  */
 function resolveDbPath(opts) {
-  if (opts.db) return path.resolve(callerCwd, opts.db);
-  if (process.env.DB_PATH) return path.resolve(callerCwd, process.env.DB_PATH);
-  const preferred = path.join(callerCwd, DB_FILE_NAME);
-  const legacy = path.join(callerCwd, LEGACY_DB_FILE_NAME);
-  if (!fs.existsSync(preferred) && fs.existsSync(legacy)) return legacy;
-  return preferred;
+  const dbPath = sharedResolveDbPath({ explicit: opts.db, cwd: callerCwd, repoRoot });
+  announceLegacyDbPath(dbPath, "[ironcrew-verify-audit]");
+  return dbPath;
 }
 
 /**

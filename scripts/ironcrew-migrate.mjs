@@ -22,6 +22,7 @@ import path from "node:path";
 import fs from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { resolveDbPath as sharedResolveDbPath, announceLegacyDbPath } from "./lib/db-path.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
@@ -56,7 +57,8 @@ Befehle:
              selbst; von Hand nur bei angehaltenem Dienst.
 
 Optionen:
-  --db <pfad>   Datenbank (Standard: $DB_PATH oder ./data/ironcrew.sqlite)
+  --db <pfad>   Datenbank (Standard: $DB_PATH, sonst ./ironcrew.sqlite,
+                ./octooffice.sqlite oder ./data/ironcrew.sqlite — die erste, die existiert)
   --dry-run     Nur zeigen, was laufen WÜRDE. Schreibt nichts.
   --force       'apply' wirklich ausführen (ohne dies wird abgelehnt).
   --strict      Nur 'check': offene Migrationen gelten als Fehler (Code 4).
@@ -159,7 +161,9 @@ function renderTable(headers, rows) {
 }
 
 function resolveDbPath(opts) {
-  return path.resolve(opts.db ?? process.env.DB_PATH ?? path.join(repoRoot, "data", "ironcrew.sqlite"));
+  const dbPath = sharedResolveDbPath({ explicit: opts.db, cwd: process.cwd(), repoRoot });
+  announceLegacyDbPath(dbPath, "[ironcrew-migrate]");
+  return dbPath;
 }
 
 /**
