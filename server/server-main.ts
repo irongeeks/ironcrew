@@ -39,6 +39,7 @@ import { SearxngProvider } from "./ironcrew/search/searxng-provider.ts";
 import { BraveProvider } from "./ironcrew/search/brave-provider.ts";
 import { buildCrewJobs, intervalsFromEnv, schedulerEnabled } from "./ironcrew/scheduler/crew-jobs.ts";
 import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
+import { OpenRouterRuntime } from "./ironcrew/runtime/openrouter-runtime.ts";
 import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
 import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
@@ -315,6 +316,19 @@ Object.assign(runtimeContext, registerApiRoutes(runtimeContext as RuntimeContext
 // isn't simply reports itself unhealthy rather than being hidden.
 const ironCrewOrchestrator = new CompanyOrchestrator(db);
 ironCrewOrchestrator.registerRuntime(new MockRuntime());
+// The first non-CLI runtime. Conditional on a key, like every other
+// integration that needs configuration to be real — and note that the vendor
+// policy is enforced *inside* it: one OpenRouter key reaches hundreds of
+// models from dozens of vendors, so a run could otherwise arrive at a blocked
+// one without anybody having chosen it.
+if (process.env.OPENROUTER_API_KEY) {
+  ironCrewOrchestrator.registerRuntime(
+    new OpenRouterRuntime({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      defaultModel: process.env.OPENROUTER_DEFAULT_MODEL,
+    }),
+  );
+}
 for (const adapter of adapterRegistry.list()) {
   if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
 }

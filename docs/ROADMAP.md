@@ -78,22 +78,44 @@ Requested mid-stream and built with the same standard (domain → orchestrator
 
 ## Phase 3 — Runtimes and tools
 
-- All four runtimes stable: Claude Code, Codex, Antigravity (`agy`), OpenRouter
-- Native runner daemon, so CLI logins stay with their OS user and the control
-  plane never holds a token (`docs/RUNNER_PROTOCOL.md`)
-- MCP registry: **partly shipped** — servers can be discovered and installed
-  from the official registry and three other marketplace kinds
-  (`docs/MARKETPLACES.md`). Still open here: per-agent and per-project scopes,
-  secret injection only in the runner, streamable-HTTP transport, and full
-  tool-call auditing
-- Tool registry with risk classes and approval policies
-- Web search behind a `SearchProvider` (SearXNG, Brave)
-- Playwright browser tool in an isolated profile, with submit/purchase/publish
-  gated behind approval
-- `SecretProvider`: OS keychain first, then Proton Pass
-- Rate-limit-aware scheduler with a persistent queue
-- Routines and heartbeats — every routine produces a visible task or run, never
-  an invisible background action
+**Mostly shipped.** What landed, and what is honestly still open:
+
+- **Tool registry with risk classes and approval policies** — shipped.
+  `crew_tools` says what the server can perform, `crew_tool_grants` says who
+  may; registering grants nothing. An `external` tool is gated by omission
+  (`docs/TOOLS.md`).
+- **Web search behind a `SearchProvider`** — shipped. SearXNG and Brave, with
+  results stripped at the boundary and fenced before they may reach a prompt.
+- **Playwright browser tool in an isolated profile** — shipped, with a
+  deny-by-default host allowlist and `submit` classified as external even
+  when the form looks like a search box.
+- **`SecretProvider`: OS keychain** — shipped, with the caveat enforced in
+  code that a headless service should use Vaultwarden or Proton Pass instead
+  (`docs/PROVIDER_AUTH.md`).
+- **Rate-limit-aware scheduler with a persistent queue** — shipped
+  (`docs/RUN_QUEUE.md`, `docs/SERVICE.md`).
+- **Routines** — shipped. Every routine produces a visible task; none acts
+  directly (`docs/TOOLS.md`).
+- **MCP per-agent and per-project scopes** — shipped, by putting MCP servers
+  in the same registry behind the same grants rather than in a second
+  permission system.
+- **OpenRouter runtime** — shipped. The first runtime that is not a CLI; the
+  vendor policy is enforced inside it, because one key reaches hundreds of
+  models from dozens of vendors.
+
+Still open, and each needs its own decision rather than a checkbox:
+
+- **Native runner daemon** (`docs/RUNNER_PROTOCOL.md`) — the largest remaining
+  piece and the one everything else waits on. Today CLI runtimes run inside
+  the service process, which is why `deploy/ironcrew.service` has to move
+  `HOME` to `/var/lib/ironcrew` for CLI credentials to work at all. A runner
+  would let each CLI login stay with its own OS user, and would be the right
+  place for the two MCP items below.
+- **MCP secret injection in the runner, and streamable-HTTP transport** — both
+  belong to the runner daemon; doing them in the control plane would put
+  secrets exactly where the threat model says they must not be.
+- **Antigravity (`agy`)** — a CLI adapter, blocked on nothing but the adapter
+  itself.
 
 ## Phase 4 — Business packs
 
