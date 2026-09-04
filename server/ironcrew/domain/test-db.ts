@@ -12,6 +12,7 @@ import { migration as crewRemoteWorkers } from "../../modules/bootstrap/migratio
 import { migration as crewMeetings } from "../../modules/bootstrap/migrations/0008-crew-meetings.ts";
 import { migration as crewMailboxes } from "../../modules/bootstrap/migrations/0009-crew-mailboxes.ts";
 import { migration as crewMarketplaces } from "../../modules/bootstrap/migrations/0010-crew-marketplaces.ts";
+import { migration as crewVesselsTalents } from "../../modules/bootstrap/migrations/0011-crew-vessels-talents.ts";
 import { newId } from "./ids.ts";
 
 export function createTestDb(): DatabaseSync {
@@ -26,6 +27,7 @@ export function createTestDb(): DatabaseSync {
   crewMeetings.up(db);
   crewMailboxes.up(db);
   crewMarketplaces.up(db);
+  crewVesselsTalents.up(db);
   return db;
 }
 
@@ -35,11 +37,42 @@ export function seedCompany(db: DatabaseSync, name = "IronCrew Test"): string {
   return id;
 }
 
+/**
+ * Seeds one agent as a Vessel × Talent pairing (migration 0011).
+ *
+ * Each call creates its own talent, so tests that seed several agents get
+ * several roles rather than accidentally sharing one; the vessel is shared
+ * per company, which is how the real derivation groups them too.
+ */
 export function seedAgent(db: DatabaseSync, companyId: string, key = "cto"): string {
+  const existingVessel = db
+    .prepare("SELECT id FROM crew_vessels WHERE company_id = ? AND key = 'mock'")
+    .get(companyId) as { id: string } | undefined;
+
+  let vesselId = existingVessel?.id;
+  if (!vesselId) {
+    vesselId = newId("vsl");
+    db.prepare(`INSERT INTO crew_vessels (id, company_id, key, label, runtime_provider) VALUES (?,?,?,?,?)`).run(
+      vesselId,
+      companyId,
+      "mock",
+      "mock (Standard)",
+      "mock",
+    );
+  }
+
+  const talentId = newId("tal");
+  db.prepare(`INSERT INTO crew_talents (id, company_id, key, professional_role) VALUES (?,?,?,?)`).run(
+    talentId,
+    companyId,
+    key,
+    key,
+  );
+
   const id = newId("agt");
   db.prepare(
-    `INSERT INTO crew_agents (id, company_id, key, professional_role, display_name)
-     VALUES (?,?,?,?,?)`,
-  ).run(id, companyId, key, key, key.toUpperCase());
+    `INSERT INTO crew_agents (id, company_id, key, display_name, vessel_id, talent_id)
+     VALUES (?,?,?,?,?,?)`,
+  ).run(id, companyId, key, key.toUpperCase(), vesselId, talentId);
   return id;
 }

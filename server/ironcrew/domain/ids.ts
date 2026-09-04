@@ -35,6 +35,8 @@ export type IdPrefix =
   | "mmsg"
   | "mkt"
   | "mki"
+  | "vsl"
+  | "tal"
   | "turn"
   | "action"
   | "corr";

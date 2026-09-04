@@ -160,9 +160,13 @@ export class MeetingStore {
   participants(meetingId: string): MeetingParticipant[] {
     return allRows<MeetingParticipant>(
       this.db.prepare(
-        `SELECT a.id AS agent_id, a.key, a.display_name, a.professional_role
+        // The role comes from the agent's talent since migration 0011; a
+        // participant list still wants to show it, so the join follows.
+        `SELECT a.id AS agent_id, a.key, a.display_name,
+                COALESCE(t.professional_role, '') AS professional_role
          FROM crew_meeting_participants p
          JOIN crew_agents a ON a.id = p.agent_id
+         LEFT JOIN crew_talents t ON t.id = a.talent_id
          WHERE p.meeting_id = ?
          ORDER BY p.rowid ASC`,
       ),
