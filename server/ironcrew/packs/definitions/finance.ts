@@ -16,11 +16,13 @@
  * if one existed.
  *
  * Concretely, the tools this pack registers are `read` and only `read`:
- * queries against Lexware Office. There is deliberately no
- * `lexware.book_voucher`, no `lexware.send_dunning` and no payment tool.
- * Writing one would have been the easy way to look complete; the honest
- * version is that booking and paying are the owner's two irreversible acts,
- * and this pack's job is to hand them a good list before they make one.
+ * queries against the books, which here means Lexware Office or sevDesk —
+ * whichever the owner already runs. There is deliberately no
+ * `lexware.book_voucher`, no `sevdesk.book_voucher`, no `send_dunning` and no
+ * payment tool. Writing one would have been the easy way to look complete;
+ * the honest version is that booking and paying are the owner's two
+ * irreversible acts, and this pack's job is to hand them a good list before
+ * they make one.
  *
  * USTVA PREPARATION IS PREPARATION, NOT TAX ADVICE
  *
@@ -33,10 +35,12 @@
  *
  * REGISTERING IS NOT GRANTING
  *
- * Installing this pack makes the Lexware tools *exist*. `ToolStore.resolve()`
- * still fails closed until the owner grants them (docs/TOOLS.md), and the
- * routines below install disabled. An installed pack changes what is
- * possible, never what is already running.
+ * Installing this pack makes the bookkeeping tools *exist*.
+ * `ToolStore.resolve()` still fails closed until the owner grants them
+ * (docs/TOOLS.md), and the routines below install disabled. An installed pack
+ * changes what is possible, never what is already running. That is also what
+ * makes it safe for the pack to declare two bookkeeping systems at once: the
+ * one nobody configured is a key with no adapter and no grant behind it.
  */
 
 import { defineBusinessPack } from "../business-pack.ts";
@@ -54,6 +58,50 @@ import { defineBusinessPack } from "../business-pack.ts";
  */
 const LEXWARE_READ_TOOLS = ["lexware.vouchers", "lexware.invoice"] as const;
 
+/**
+ * The same surface, spoken to sevDesk.
+ *
+ * WHY BOTH, AND WHY NOT A SINGLE ABSTRACT "BOOKKEEPING" TOOL
+ *
+ * A German small business keeps its books in one system. It is Lexware Office
+ * *or* sevDesk, essentially never both, and which one it is was decided years
+ * before IronCrew arrived — by the Steuerberater, usually, and it is not up
+ * for renegotiation. So the pack has to fit whichever the owner already has.
+ *
+ * The tempting move is one tool key — `bookkeeping.invoice` — dispatching to
+ * whichever adapter is configured. It reads well and it is wrong here, for a
+ * reason specific to what these keys are: a tool key is the unit an owner
+ * grants (docs/TOOLS.md). A grant of `bookkeeping.invoice` is a grant against
+ * a target the owner cannot see in the grant, and it silently changes meaning
+ * the day a second adapter is configured — which is exactly the day of a
+ * migration between the two systems, when there are briefly two live tenants
+ * and the wrong one is a real possibility. `sevdesk.invoice` names its target
+ * in the thing being granted, and the grant stays true whatever else gets
+ * configured later.
+ *
+ * The cost is that both key sets sit in every allowlist below. That cost is
+ * nothing: registering is not granting. Installing this pack makes both sets
+ * *exist*; `ToolStore.resolve()` still fails closed until the owner grants
+ * one, and the composition root only registers the adapter whose environment
+ * variables are actually set. The owner who runs sevDesk grants the two
+ * sevDesk tools; the two Lexware-shaped entries in the allowlist permit
+ * nothing, because there is no adapter behind them and no grant for them.
+ *
+ * Read-only for the same reason as Lexware: no booking, no payment, no
+ * dunning. `SevdeskAdapter` has no create, update or delete method to call.
+ */
+const SEVDESK_READ_TOOLS = ["sevdesk.vouchers", "sevdesk.invoice"] as const;
+
+/**
+ * What a finance agent may ask of the books, whichever system holds them.
+ *
+ * Named once so that adding a third bookkeeping system later is one constant
+ * and one `integrations` entry, rather than five allowlists that have to be
+ * edited in step — and an allowlist that gets edited four times out of five
+ * is the one that silently permits nothing.
+ */
+const BOOKKEEPING_READ_TOOLS = [...LEXWARE_READ_TOOLS, ...SEVDESK_READ_TOOLS] as const;
+
 export const financePack = defineBusinessPack({
   key: "finance-de",
   version: "1.0.0",
@@ -61,8 +109,9 @@ export const financePack = defineBusinessPack({
   summary:
     "Eingangsrechnungsprüfung, Forderungen und Mahnvorschläge, Belegabgleich, " +
     "Liquiditätsvorschau und UStVA-Vorbereitung — auf Basis rein lesender " +
-    "Lexware-Office-Abfragen. Dieses Paket bucht nichts, zahlt nichts und meldet " +
-    "nichts an: es bereitet vor, entschieden wird vom Inhaber.",
+    "Abfragen an die Buchhaltung, wahlweise Lexware Office oder sevDesk. " +
+    "Dieses Paket bucht nichts, zahlt nichts und meldet nichts an: es bereitet " +
+    "vor, entschieden wird vom Inhaber.",
 
   // No own departments: the company is already seeded with `finance`
   // (config/departments.yaml, sort_order 40). A pack that redefined a seeded
@@ -94,7 +143,7 @@ export const financePack = defineBusinessPack({
         may_create_tasks: true,
         may_approve: false,
         max_risk_level: "low",
-        allowed_tools: ["document_read", "file_read", "task_query", "memory_search", ...LEXWARE_READ_TOOLS],
+        allowed_tools: ["document_read", "file_read", "task_query", "memory_search", ...BOOKKEEPING_READ_TOOLS],
         // No tool in this pack could execute a transfer. The entry is here so
         // that a later grant of some future write tool runs into a gate that
         // already exists, instead of one somebody has to remember to add.
@@ -123,7 +172,7 @@ export const financePack = defineBusinessPack({
         may_create_tasks: true,
         may_approve: false,
         max_risk_level: "low",
-        allowed_tools: ["document_read", "task_query", "memory_search", ...LEXWARE_READ_TOOLS],
+        allowed_tools: ["document_read", "task_query", "memory_search", ...BOOKKEEPING_READ_TOOLS],
         // A dunning letter is a statement to a customer, so it sits behind the
         // same gate as any other outbound commitment.
         requires_approval_for: ["external_customer_commitment"],
@@ -151,7 +200,7 @@ export const financePack = defineBusinessPack({
         may_create_tasks: true,
         may_approve: false,
         max_risk_level: "low",
-        allowed_tools: ["document_read", "file_read", "task_query", "memory_search", ...LEXWARE_READ_TOOLS],
+        allowed_tools: ["document_read", "file_read", "task_query", "memory_search", ...BOOKKEEPING_READ_TOOLS],
         requires_approval_for: [],
       },
     },
@@ -177,7 +226,7 @@ export const financePack = defineBusinessPack({
         may_create_tasks: true,
         may_approve: false,
         max_risk_level: "low",
-        allowed_tools: ["document_read", "task_query", "memory_search", ...LEXWARE_READ_TOOLS],
+        allowed_tools: ["document_read", "task_query", "memory_search", ...BOOKKEEPING_READ_TOOLS],
         requires_approval_for: [],
       },
     },
@@ -204,7 +253,7 @@ export const financePack = defineBusinessPack({
         may_create_tasks: true,
         may_approve: false,
         max_risk_level: "low",
-        allowed_tools: ["document_read", "file_read", "task_query", "memory_search", ...LEXWARE_READ_TOOLS],
+        allowed_tools: ["document_read", "file_read", "task_query", "memory_search", ...BOOKKEEPING_READ_TOOLS],
         requires_approval_for: ["tax_filing"],
       },
     },
@@ -228,6 +277,25 @@ export const financePack = defineBusinessPack({
         "Nur lesend: verschickt nichts, mahnt nicht und bucht keine Zahlung.",
       risk_class: "read",
       integration: "lexware-office",
+    },
+    {
+      key: "sevdesk.vouchers",
+      label: "sevDesk — Belege lesen",
+      description:
+        "Liest Belege aus sevDesk (Zeitraum, Betrag, Lieferant, Status). " +
+        "Nur lesend: legt nichts an, ändert nichts und bucht nichts.",
+      risk_class: "read",
+      integration: "sevdesk",
+    },
+    {
+      key: "sevdesk.invoice",
+      label: "sevDesk — Rechnungen lesen",
+      description:
+        "Liest Rechnungen samt Fälligkeit, Status und Kontakt; überfällige " +
+        "erkennt sevDesk selbst. Nur lesend: verschickt nichts, mahnt nicht " +
+        "und bucht keine Zahlung.",
+      risk_class: "read",
+      integration: "sevdesk",
     },
   ],
 
@@ -295,6 +363,24 @@ export const financePack = defineBusinessPack({
       // developer portal moved with it, and a URL guessed from memory is worse
       // than none — an operator following a dead link learns nothing, while an
       // absent link at least says "look it up".
+    },
+    {
+      key: "sevdesk",
+      label: "sevDesk",
+      summary:
+        "Buchhaltung: Belege und Rechnungen. Alternative zu Lexware Office — " +
+        "konfiguriert wird das System, das ohnehin geführt wird. Dieses Paket " +
+        "nutzt ausschliesslich lesende Abfragen.",
+      env: [
+        // The 32-character token from Einstellungen → Benutzer → Benutzer.
+        // Required, and it is the whole feature flag: no key, no adapter, and
+        // GET /api/crew/packs says "nicht konfiguriert" rather than showing a
+        // switch that fails when pressed.
+        { name: "SEVDESK_API_KEY", optional: false },
+        // Optional for the same reason as LEXWARE_OFFICE_URL: the public API
+        // is the normal case, and the variable exists for a proxied instance.
+        { name: "SEVDESK_URL", optional: true },
+      ],
     },
   ],
 });

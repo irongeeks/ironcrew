@@ -50,6 +50,7 @@ export const INTEGRATION_ADAPTERS = [
   "tactical-rmm",
   "unifi",
   "lexware-office",
+  "sevdesk",
   "paperless-ngx",
   "nextcloud",
 ] as const;

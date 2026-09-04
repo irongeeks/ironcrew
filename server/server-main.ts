@@ -41,6 +41,7 @@ import { ProxmoxAdapter } from "./ironcrew/packs/integrations/proxmox.ts";
 import { TacticalRmmAdapter } from "./ironcrew/packs/integrations/tactical-rmm.ts";
 import { UnifiAdapter } from "./ironcrew/packs/integrations/unifi.ts";
 import { LexwareOfficeAdapter } from "./ironcrew/packs/integrations/lexware-office.ts";
+import { SevdeskAdapter } from "./ironcrew/packs/integrations/sevdesk.ts";
 import { PaperlessAdapter } from "./ironcrew/packs/integrations/paperless-ngx.ts";
 import { NextcloudAdapter } from "./ironcrew/packs/integrations/nextcloud.ts";
 import { Scheduler } from "./ironcrew/scheduler/scheduler.ts";
@@ -548,7 +549,7 @@ const ironCrewApi = registerIronCrewRoutes(app, {
 // switch that fails when pressed. Adding an adapter therefore costs exactly
 // one `if` — and forgetting the `if` costs a test in catalog.test.ts.
 //
-// All six are read-only. An MSP's RMM key can run a script on every managed
+// All seven are read-only. An MSP's RMM key can run a script on every managed
 // endpoint, a Lexware key can issue a legally binding invoice: those are
 // writes, and a write belongs behind an approval, not behind an environment
 // variable (docs/BUSINESS_PACKS.md).
@@ -580,6 +581,19 @@ if (process.env.LEXWARE_OFFICE_API_KEY) {
     new LexwareOfficeAdapter({
       apiKey: process.env.LEXWARE_OFFICE_API_KEY,
       baseUrl: process.env.LEXWARE_OFFICE_URL,
+    }),
+  );
+}
+// The finance pack declares two bookkeeping systems because a company runs
+// one of them; the `if` decides which, and an owner who runs neither gets
+// neither. Both stay read-only — a sevDesk key can issue an invoice, and an
+// invoice is a legally binding statement, so it belongs behind an approval
+// rather than behind an environment variable.
+if (process.env.SEVDESK_API_KEY) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new SevdeskAdapter({
+      apiKey: process.env.SEVDESK_API_KEY,
+      baseUrl: process.env.SEVDESK_URL,
     }),
   );
 }

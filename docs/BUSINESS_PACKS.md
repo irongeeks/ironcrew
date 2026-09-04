@@ -113,9 +113,24 @@ return preparation.
 - **Posts:** Assay (incoming invoices, §14 UStG), Recoup (receivables and
   dunning drafts), Tally (receipt matching), Tide (cash forecast), Levy (UStVA
   preparation).
-- **Tools:** `lexware.vouchers`, `lexware.invoice` — read.
-- **Integration:** Lexware Office.
+- **Tools:** `lexware.vouchers`, `lexware.invoice`, `sevdesk.vouchers`,
+  `sevdesk.invoice` — all read.
+- **Integrations:** Lexware Office **or** sevDesk.
 - **Routines:** open items daily, receipt matching monthly, UStVA quarterly.
+
+**Two bookkeeping systems, one company.** A German small business keeps its
+books in Lexware Office or in sevDesk, essentially never both, and which one
+was decided long before IronCrew arrived. So the pack declares both and the
+environment decides: set `SEVDESK_API_KEY` and the sevDesk adapter is
+registered, set `LEXWARE_OFFICE_API_KEY` and the Lexware one is, set neither
+and the pack installs with four tool keys that nothing stands behind.
+
+That is safe because registering is not granting. The keys are not merged into
+one abstract `bookkeeping.invoice`, and the reason is that a tool key is the
+unit an owner grants: a grant against "whichever system happens to be
+configured" would silently change meaning on the day of a migration between
+the two, when both tenants are briefly live. `sevdesk.invoice` names its
+target inside the thing being granted.
 
 **Nothing here books, pays or files.** `POST /v1/invoices?finalize=true` would
 produce a _legal_ document in your books — gap-free number, tax statement, a
@@ -154,7 +169,7 @@ Every document this pack reads is untrusted content.
 
 ## Integrations
 
-All six are **read-only**, and none of them is loaded unless its environment
+All seven are **read-only**, and none of them is loaded unless its environment
 variables are set.
 
 | Integration    | Environment                                                 | Adapter                          |
@@ -163,6 +178,7 @@ variables are set.
 | Tactical RMM   | `TACTICAL_RMM_URL`, `TACTICAL_RMM_API_KEY`                  | `integrations/tactical-rmm.ts`   |
 | UniFi Network  | `UNIFI_URL`, `UNIFI_API_KEY`, `UNIFI_SITE` (optional)       | `integrations/unifi.ts`          |
 | Lexware Office | `LEXWARE_OFFICE_API_KEY`, `LEXWARE_OFFICE_URL` (optional)   | `integrations/lexware-office.ts` |
+| sevDesk        | `SEVDESK_API_KEY`, `SEVDESK_URL` (optional)                 | `integrations/sevdesk.ts`        |
 | Paperless-ngx  | `PAPERLESS_URL`, `PAPERLESS_TOKEN`                          | `integrations/paperless-ngx.ts`  |
 | Nextcloud      | `NEXTCLOUD_URL`, `NEXTCLOUD_USER`, `NEXTCLOUD_APP_PASSWORD` | `integrations/nextcloud.ts`      |
 
@@ -220,6 +236,20 @@ Two findings worth repeating from building them:
 - **Tactical RMM's alert list is a `PATCH`.** The filter travels in the body.
   It looks like a write and is not; the adapter says so at length, because the
   next reader will otherwise "fix" it.
+- **sevDesk answers "overdue" with a status that does not say overdue.** An
+  invoice past its pay date still reads status `200` ("offen"); overdue is a
+  separate `delinquent=true` filter. The adapter uses that filter rather than
+  doing date arithmetic of its own, because the arithmetic would have to know
+  the tenant's payment terms and it does not.
+- **sevDesk publishes no rate limit.** Not "the limit is high" — there is no
+  documented number. The adapter says so in the text of its own 429 message,
+  so an operator who hits one is not left wondering whether we simply failed
+  to look it up.
+- **A sevDesk tenant is 1.0 or 2.0, and it changes the field names.** A 2.0
+  tenant answers with `taxRule` where a 1.0 tenant answers with `taxType`, so
+  anything reasoning about VAT has to ask
+  `GET /Tools/bookkeepingSystemVersion` first. `testConnection()` reports the
+  answer, which is also how an owner confirms they connected _their_ tenant.
 
 ## Using them
 

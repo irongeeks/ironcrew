@@ -87,13 +87,15 @@ describe("finance-de business pack", () => {
     for (const agent of financePack.agents) expect(agent.skin.accent).not.toBe("red");
   });
 
-  it("registers only read-only Lexware queries", () => {
+  it("registers only read-only bookkeeping queries, in both systems", () => {
     // Exact, not "contains": the central promise of this pack is that it
     // cannot book or pay, and a future `lexware.book_voucher` slipped into the
     // list must fail here rather than be discovered in production.
     expect(financePack.tools.map((t) => `${t.key}:${t.risk_class}`).sort()).toEqual([
       "lexware.invoice:read",
       "lexware.vouchers:read",
+      "sevdesk.invoice:read",
+      "sevdesk.vouchers:read",
     ]);
     const keys = financePack.tools.map((t) => t.key);
     expect(new Set(keys).size).toBe(keys.length);
@@ -111,13 +113,42 @@ describe("finance-de business pack", () => {
     }
   });
 
-  it("asks the operator for exactly the Lexware variables", () => {
-    expect(financePack.integrations.map((i) => i.key)).toEqual(["lexware-office"]);
-    const lexware = financePack.integrations[0]!;
-    expect(lexware.env).toEqual([
+  it("asks the operator for exactly the variables of both bookkeeping systems", () => {
+    expect(financePack.integrations.map((i) => i.key)).toEqual(["lexware-office", "sevdesk"]);
+    const byKey = new Map(financePack.integrations.map((i) => [i.key, i]));
+    expect(byKey.get("lexware-office")!.env).toEqual([
       { name: "LEXWARE_OFFICE_API_KEY", optional: false },
       { name: "LEXWARE_OFFICE_URL", optional: true },
     ]);
+    expect(byKey.get("sevdesk")!.env).toEqual([
+      { name: "SEVDESK_API_KEY", optional: false },
+      { name: "SEVDESK_URL", optional: true },
+    ]);
+  });
+
+  it("gives every finance post both bookkeeping systems, so the pack fits either", () => {
+    // The owner runs one of the two and grants only its keys; the other pair
+    // permits nothing because no adapter is registered behind it. Asserting
+    // the *symmetry* is the point: a post that got only the Lexware keys
+    // would be a post that silently does nothing on a sevDesk installation,
+    // and "silently does nothing" is the failure this pack must not have.
+    for (const agent of financePack.agents) {
+      for (const key of ["lexware.vouchers", "lexware.invoice", "sevdesk.vouchers", "sevdesk.invoice"]) {
+        expect(agent.policy.allowed_tools, `${agent.key} is missing ${key}`).toContain(key);
+      }
+    }
+  });
+
+  it("declares no bookkeeping tool that could write", () => {
+    // Both adapters are read-only by construction — neither class has a
+    // create, update or delete method — but the tool *declaration* is what an
+    // owner grants, so the promise is asserted here too. A verb in a key is
+    // the cheapest early warning that somebody added a write.
+    for (const tool of financePack.tools) {
+      expect(tool.key, `${tool.key} names an action`).not.toMatch(
+        /\.(book|send|pay|create|update|delete|post|cancel)/i,
+      );
+    }
   });
 
   it("lets every agent name only tools that exist", () => {
