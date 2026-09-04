@@ -188,16 +188,82 @@ What Phase 4 deliberately does **not** contain, and why:
   against a real Proxmox cluster or Lexware tenant from this repository. Same
   honest limit as the CLI adapters; `testConnection()` is the day-one check.
 
-## Phase 5 — Production hardening
+## Phase 5 — Production hardening — **shipped**
 
-- Authentik OIDC, multiple human reviewers
-- Multi-company (the schema already carries `company_id` everywhere)
-- Optional PostgreSQL adapter
-- Backup and restore procedures, tested
-- External audit-log shipping, so tampering is not merely detectable but
-  preserved off-box
-- Security review and load testing
-- Upgrade and migration strategy
+- **Multiple human reviewers.** `crew_approval_reviews`, one row per person
+  per approval, with the quorum on the approval it guards rather than in a
+  settings page — a company-wide two-person rule makes every routine approval
+  wait for somebody with nothing to add and gets switched off within a
+  fortnight, including for the payment. `UNIQUE (approval_id, reviewer_id)`
+  makes four eyes structurally four eyes. N to proceed, one to stop.
+  (docs/IDENTITY.md, THREAT_MODEL T-21.)
+- **Authentik OIDC beside the password login.** Authorization Code with PKCE
+  against a generic issuer; ID tokens verified against the issuer's JWKS with
+  `none` and `HS*` refused by construction. An unlinked subject fails closed.
+  The password login stays, because the day the directory is down is the day
+  somebody has to sign in and fix it. (docs/IDENTITY.md.)
+- **External audit-log shipping.** A file or HTTP sink, drained every 60
+  seconds, cursor advancing only over entries the sink accepted and a partial
+  acceptance always a prefix. The chain proves nobody edited the record; only
+  the off-box copy survives somebody deleting it. (docs/AUDIT_SHIPPING.md.)
+- **Backup and restore, tested.** `scripts/ironcrew-backup.mjs`, `VACUUM INTO`
+  snapshot. (docs/BACKUP.md.)
+- **Load testing.** `scripts/ironcrew-load-test.mjs` — real domain layer, real
+  file, real concurrent writers, non-zero exit only for a broken invariant and
+  never for a slow percentile. It found the dashboard re-hashing the whole
+  audit chain on every poll, now fixed.
+- **Upgrade and migration strategy.** `scripts/ironcrew-migrate.mjs` plus
+  docs/UPGRADE.md, whose "known gaps" section names where the documented path
+  is not yet backed by code.
+- **Security review** over the whole diff.
+
+### Multi-company — **not done, and not "just turn it on"**
+
+The schema carries `company_id` on the domain tables, which made this look
+like a configuration change. It is not, and the reason is worth writing down
+so nobody re-reaches the optimistic conclusion:
+
+- **109 statements in `domain/` select or update by `WHERE id = ?` alone.**
+  They are safe today because one company exists. With two, any of them will
+  happily act on another company's row when handed its id.
+- The scoping that does exist lives in the layers above, as hand-written
+  comparisons after the read. That is a convention, and a convention is
+  exactly what a new store method forgets.
+- **`crew_users`, `crew_sessions`, `crew_tool_grants` and
+  `crew_oidc_identities` have no `company_id` at all.** Accounts, sessions,
+  tool grants and directory identities are installation-wide by construction.
+  Multi-company would have to decide whether a person belongs to a company or
+  to the box, and every answer changes the identity model.
+- `decideApproval`, `acceptReview`, `requestRevision` and `ToolStore.grant`
+  reach caller-supplied ids with no company check.
+
+Doing this properly means the company predicate becomes structural — in the
+query builder or the schema, not in the callers — and that is a change to
+every store. Worth doing before a second company exists, never after.
+
+### PostgreSQL — **no, and the number says why**
+
+This one is not close, and the obstacle is not the SQL dialect:
+
+- **1,501 synchronous `prepare(...).run/get/all` call sites**, 327
+  `DatabaseSync` annotations, 222 files importing `node:sqlite`.
+- Every store method is synchronous, and so is every caller — the
+  orchestrator, the scheduler, the route handlers. There is no mainstream
+  synchronous PostgreSQL driver for Node, so an adapter means making all 1,501
+  sites `async` and colouring every function above them.
+- The atomic task claim, the audit chain's read-then-insert, and the
+  single-connection transaction discipline are all correct _because_ there is
+  one synchronous connection. Each would need re-proving under a connection
+  pool.
+- 149 uses of `unixepoch()`, 62 `PRAGMA`s, 12 `AUTOINCREMENT`s and the
+  `VACUUM INTO` backup would each need a translation.
+
+The honest position: this is a rewrite of the persistence layer wearing the
+word "adapter". A self-hosted single-operator box does not need it, and the
+load test says why — 400 tasks, 511 runs and 5,420 audit entries in 5 MiB,
+with the claim path at 1 ms p50 under four concurrent writers. SQLite is not
+the thing that will fall over first. Revisit if and only if multi-company
+lands and a real installation outgrows one file.
 
 ## Deliberately not planned
 
