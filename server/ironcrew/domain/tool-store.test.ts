@@ -322,9 +322,11 @@ describe("project scope: a tool that belongs to one customer's project", () => {
     tools.grant({ toolId: always.id, talentId: talentOf(agentId) });
 
     expect(tools.listForAgent(companyId, agentId).map((r) => r.tool.key)).toEqual(["web.search"]);
-    expect(tools.listForAgent(companyId, agentId, { projectId }).map((r) => r.tool.key).sort()).toEqual([
-      "mcp.jira",
-      "web.search",
-    ]);
+    expect(
+      tools
+        .listForAgent(companyId, agentId, { projectId })
+        .map((r) => r.tool.key)
+        .sort(),
+    ).toEqual(["mcp.jira", "web.search"]);
   });
 });

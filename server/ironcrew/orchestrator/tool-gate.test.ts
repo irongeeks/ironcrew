@@ -59,12 +59,12 @@ class StubSearch implements SearchProvider {
 
 describe("built-in tools", () => {
   it("registers the four this server can actually perform", () => {
-    expect(orc.tools.list(companyId).map((t) => t.key).sort()).toEqual([
-      "browser.external",
-      "browser.interact",
-      "browser.read",
-      "web.search",
-    ]);
+    expect(
+      orc.tools
+        .list(companyId)
+        .map((t) => t.key)
+        .sort(),
+    ).toEqual(["browser.external", "browser.interact", "browser.read", "web.search"]);
   });
 
   it("grants nothing by registering", () => {
@@ -109,9 +109,9 @@ describe("requestToolUse", () => {
   it("records a use, so the log shows what a run actually reached for", () => {
     grant("web.search");
     orc.requestToolUse(companyId, agentId, "web.search");
-    expect(
-      db.prepare("SELECT COUNT(*) AS n FROM crew_audit_events WHERE action = 'tool.used'").get(),
-    ).toEqual({ n: 1 });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM crew_audit_events WHERE action = 'tool.used'").get()).toEqual({
+      n: 1,
+    });
   });
 
   it("honours the project scope", () => {

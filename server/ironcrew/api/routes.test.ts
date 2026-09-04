@@ -2359,9 +2359,7 @@ describe("tools over HTTP (presence is not permission)", () => {
       .grant;
 
     await request(app).delete(`/api/crew/tool-grants/${grant.id}`).expect(200);
-    const after = (await request(app).get("/api/crew/tools")).body.tools.find(
-      (t: { id: string }) => t.id === tool.id,
-    );
+    const after = (await request(app).get("/api/crew/tools")).body.tools.find((t: { id: string }) => t.id === tool.id);
     expect(after.grants).toHaveLength(0);
   });
 
@@ -2383,9 +2381,7 @@ describe("tools over HTTP (presence is not permission)", () => {
     const outside = await request(app).get(`/api/crew/agents/${agentId()}/tools`).expect(200);
     expect(outside.body.tools).toHaveLength(0);
 
-    const inside = await request(app)
-      .get(`/api/crew/agents/${agentId()}/tools?projectId=${project.id}`)
-      .expect(200);
+    const inside = await request(app).get(`/api/crew/agents/${agentId()}/tools?projectId=${project.id}`).expect(200);
     expect(inside.body.tools.map((t: { tool: { key: string } }) => t.tool.key)).toEqual(["web.search"]);
   });
 
