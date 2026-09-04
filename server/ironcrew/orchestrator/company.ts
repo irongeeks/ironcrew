@@ -59,6 +59,7 @@ import type {
 import { sanitiseLine, wrapUntrusted } from "../policy/untrusted-content.ts";
 import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-resolution.ts";
 import { AgentLockStore } from "../domain/agent-lock-store.ts";
+import { ExternalEventStore } from "../domain/external-event-store.ts";
 import {
   MarketplaceStore,
   MarketplaceMutationError,
@@ -122,6 +123,7 @@ export class CompanyOrchestrator {
   readonly mailboxes: MailboxStore;
   readonly marketplaces: MarketplaceStore;
   readonly agentLocks: AgentLockStore;
+  readonly externalEvents: ExternalEventStore;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -160,6 +162,7 @@ export class CompanyOrchestrator {
     this.mailboxes = new MailboxStore(db);
     this.marketplaces = new MarketplaceStore(db);
     this.agentLocks = new AgentLockStore(db);
+    this.externalEvents = new ExternalEventStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
