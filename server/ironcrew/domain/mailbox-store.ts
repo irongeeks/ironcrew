@@ -125,6 +125,14 @@ export interface UpdateMailboxInput {
 
 export class MailboxMutationError extends Error {}
 
+/**
+ * Thrown when an agent reaches for a mailbox it holds no grant for. Kept
+ * distinct from MailboxMutationError so the API can answer 403 (you may not)
+ * rather than 400 (your request was malformed) — a refused permission is not
+ * a bad request.
+ */
+export class MailboxAccessError extends Error {}
+
 export class MailboxStore {
   constructor(
     private readonly db: DatabaseSync,
