@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * OctoOffice Interactive Setup Wizard
+ * IronCrew Interactive Setup Wizard
  *
  * Guides the user through first-time configuration:
  *   - Company name & CEO name
@@ -175,7 +175,7 @@ async function askQuestions(rl, cliArgs) {
   header("Configuration");
 
   // 1. Company name
-  const companyName = (await ask(rl, `  Company name [OctoOffice]: `)) || "OctoOffice";
+  const companyName = (await ask(rl, `  Company name [IronCrew]: `)) || "IronCrew";
 
   // 2. CEO name
   const ceoName = (await ask(rl, `  CEO name [CEO]: `)) || "CEO";
@@ -292,7 +292,7 @@ function writeSetupJson({ companyName, ceoName, defaultProvider }) {
 
 async function main() {
   console.log(C.bold("\n╔══════════════════════════════════════╗"));
-  console.log(C.bold("║   OctoOffice Interactive Setup     ║"));
+  console.log(C.bold("║      IronCrew Interactive Setup      ║"));
   console.log(C.bold("╚══════════════════════════════════════╝"));
 
   const cliArgs = parseArgs();
@@ -316,7 +316,7 @@ async function main() {
     header("Configuration");
     info(cliArgs.yes ? "--yes flag set — accepting defaults" : "Non-interactive stdin — accepting defaults");
     config = {
-      companyName: "OctoOffice",
+      companyName: "IronCrew",
       ceoName: "CEO",
       defaultProvider: CLI_PROVIDERS[0].value,
       port: cliArgs.port || "8790",

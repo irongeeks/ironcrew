@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, ReactNode, SetStateAction } from "reac
 import * as api from "../../api";
 import type { RoomTheme } from "../../types";
 import { ROOM_THEMES_STORAGE_KEY } from "../constants";
+import { writeStoredValue } from "../../storage";
 import type { RoomThemeMap } from "../types";
 import { readStoredRoomThemes } from "../utils";
 
@@ -31,11 +32,7 @@ export function RoomThemesProvider({ children }: RoomThemesProviderProps) {
   const handleRoomThemeChange = useCallback((themes: RoomThemeMap) => {
     setCustomRoomThemes(themes);
     hasLocalRoomThemesRef.current = true;
-    try {
-      window.localStorage.setItem(ROOM_THEMES_STORAGE_KEY, JSON.stringify(themes));
-    } catch {
-      // ignore quota errors
-    }
+    writeStoredValue(ROOM_THEMES_STORAGE_KEY, JSON.stringify(themes));
     api.saveRoomThemes(themes as Record<string, RoomTheme>).catch((error) => {
       console.error("Save room themes failed:", error);
     });

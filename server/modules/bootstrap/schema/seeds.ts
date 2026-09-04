@@ -372,7 +372,7 @@ export function applyDefaultSeeds(db: DbLike): void {
         randomUUID(),
         "Primary Database",
         "database",
-        "postgres://db.internal:5432/octooffice",
+        "postgres://db.internal:5432/ironcrew",
         null,
         6,
         0,
@@ -432,7 +432,7 @@ export function applyDefaultSeeds(db: DbLike): void {
     const isLegacySettingsInstall = settingsCount > 0;
     if (settingsCount === 0) {
       const insertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
-      insertSetting.run("companyName", setupConfig.company_name || "OctoOffice");
+      insertSetting.run("companyName", setupConfig.company_name || "IronCrew");
       insertSetting.run("ceoName", setupConfig.ceo_name || "CEO");
       insertSetting.run("autoAssign", "true");
       insertSetting.run("yoloMode", "false");

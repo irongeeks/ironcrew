@@ -178,8 +178,8 @@ const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
 function LogoIcon() {
   return (
     <img
-      src="/assets/octooffice-logo-white.svg"
-      alt="OctoOffice"
+      src="/assets/ironcrew-logo-white.svg"
+      alt="IronCrew"
       style={{
         width: 40,
         height: 40,
@@ -265,7 +265,7 @@ export default function RetroSidebar({ view, onChangeView, connected }: LeftNavP
             transitionDelay: expanded ? "100ms" : "0ms",
           }}
         >
-          OCTOOFFICE
+          IRONCREW
         </span>
       </div>
 

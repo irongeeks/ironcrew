@@ -121,7 +121,7 @@ describe("PUT /api/ops/workflow-packs/:key/positions", () => {
 
   beforeEach(() => {
     prevCwd = process.cwd();
-    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "octooffice-positions-"));
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-positions-"));
     fs.mkdirSync(path.join(tmpRoot, "server", "packs", "community"), { recursive: true });
     process.chdir(tmpRoot);
   });

@@ -304,8 +304,8 @@ export function createWorktreeMergeTools(deps: CreateWorktreeMergeToolsDeps) {
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                  title: `[OctoOffice] ${taskTitle}`,
-                  body: `## OctoOffice Task\n\n**Task:** ${taskTitle}\n**Task ID:** ${taskId.slice(0, 8)}\n\nAutomatically created by OctoOffice workflow.`,
+                  title: `[IronCrew] ${taskTitle}`,
+                  body: `## IronCrew Task\n\n**Task:** ${taskTitle}\n**Task ID:** ${taskId.slice(0, 8)}\n\nAutomatically created by IronCrew workflow.`,
                   head: "dev",
                   base: "main",
                 }),

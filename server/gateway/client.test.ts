@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const ORIGINAL_ENV = { ...process.env };
 
 function createTestDb(options?: { messengerChannels?: unknown }): string {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "octooffice-messenger-test-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-messenger-test-"));
   const dbPath = path.join(tmpDir, "test.sqlite");
   const db = new DatabaseSync(dbPath);
   try {

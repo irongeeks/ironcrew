@@ -7,5 +7,6 @@ logs/
 .env.*
 !.env.example
 .git/
+.ironcrew-worktrees/
 .octooffice-worktrees/
 tools/playwright-mcp/

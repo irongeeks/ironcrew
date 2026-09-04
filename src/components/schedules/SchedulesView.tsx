@@ -79,8 +79,8 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
     const handler = () => {
       void load();
     };
-    window.addEventListener("octooffice:schedules-changed", handler);
-    return () => window.removeEventListener("octooffice:schedules-changed", handler);
+    window.addEventListener("ironcrew:schedules-changed", handler);
+    return () => window.removeEventListener("ironcrew:schedules-changed", handler);
   }, [load]);
 
   const handleCreate = useCallback(

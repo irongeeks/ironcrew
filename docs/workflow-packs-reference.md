@@ -2,6 +2,37 @@
 
 > Complete reference for how each workflow pack orchestrates tasks, agents, meetings, and inter-phase coordination.
 
+> [!IMPORTANT]
+> **This document is inherited from upstream and describes an older code
+> layout.** The behaviour it documents — the phases, their order, what each one
+> consumes and produces, how meetings and artifact hand-offs work — is still
+> accurate and still worth reading. **The file and function names in the prose
+> are not.**
+>
+> What changed: a pipeline used to be a pair of hand-written TypeScript modules
+> per pack, with a bespoke seeding function, a bespoke phase-advancement
+> function and a bespoke bridge helper for every hand-off. A pack is now
+> **declarative** — `server/packs/built-in/<pack>/pack.yaml` declares the phases
+> and their outputs, per-phase instructions are Markdown under `guidance/`, and
+> one generic engine drives every pack identically.
+>
+> These names appear in the prose below and **no longer exist anywhere in the
+> tree** (verified, not assumed):
+>
+> | Gone                                                                                                                                     | Now                                                                      |
+> | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+> | `seedVideoPipelineSubtasks()`, `seedResearchPipelineSubtasks()`, `getCurrentPipelinePhase()`                                             | phases declared in `pack.yaml`, driven by `graph-runner.ts`              |
+> | `bridgePlanningForCrawlers()`, `bridgeCrawlerFindingsForSynthesis()`, `bridgeSynthesisForFactCheck()`, `bridgeFactCheckForFinalReport()` | one generic `bridgeArtifactsForPhase()` in `artifact-bridge.ts`          |
+> | `bridgeImagesForVideoGeneration()`, `bridgeClipsForAssembly()`                                                                           | the same generic `bridgeArtifactsForPhase()`                             |
+> | `buildWorkflowPackExecutionGuidance()`                                                                                                   | Markdown under `guidance/`, loaded by `pack-loader.ts`                   |
+> | `areAllCrawlersComplete()`                                                                                                               | the fan-in is expressed as phase dependencies in `pack.yaml`             |
+> | `tts-stub-connector.ts`                                                                                                                  | no TTS connector exists in this build at all — the phase is still a stub |
+>
+> The [Appendix](#appendix-key-source-files) has the corrected file map. When
+> the prose and the appendix disagree about a path, the appendix is right.
+> Nobody has rewritten the prose section by section yet; saying so is better
+> than leaving a reader to discover it one failed `grep` at a time.
+
 ---
 
 ## Table of Contents
@@ -877,13 +908,25 @@ if (prov === "copilot" || prov === "antigravity" || prov === "api" || prov === "
 
 ### Environment Configuration
 
-Optional env var in `.env`:
+`.env` carries a commented-out `OPENCLAW_CONFIG` line, inherited from upstream:
 
 ```bash
-OPENCLAW_CONFIG="/path/to/openclaw.json"  # Override default config path
+# OPENCLAW_CONFIG="/path/to/openclaw.json"  # inherited; nothing reads it
 ```
 
-Setup scripts (`scripts/openclaw-setup.sh`, `scripts/openclaw-setup.ps1`) detect and configure OpenClaw automatically.
+**Two corrections to what this section used to say**, both verified against the
+tree rather than against the upstream README:
+
+- **Nothing in this build reads `OPENCLAW_CONFIG`.** The only occurrences
+  outside `.env` are in a test's environment fixture. Setting it changes
+  nothing; OpenClaw finds its own config the way it normally does.
+- **There are no `scripts/openclaw-setup.sh` / `.ps1`.** They do not exist in
+  this repository and nothing detects or configures OpenClaw automatically.
+  What exists is `scripts/setup-wizard.mjs`, which offers OpenClaw in its
+  provider list, and `scripts/setup.mjs`, which reads
+  `~/.openclaw/openclaw.json` (and `OPENCLAW_PROFILE`) only to work out a
+  default agents workspace path. Installing and logging into OpenClaw itself is
+  yours to do.
 
 ### Key Source Files
 
@@ -905,30 +948,76 @@ Setup scripts (`scripts/openclaw-setup.sh`, `scripts/openclaw-setup.ps1`) detect
 
 ## Appendix: Key Source Files
 
-| Mechanism                            | File                                                                  |
-| ------------------------------------ | --------------------------------------------------------------------- |
-| Pack definitions                     | `server/modules/workflow/packs/definitions.ts`                        |
-| Execution guidance (all packs)       | `server/modules/workflow/packs/execution-guidance.ts`                 |
-| Video phase seeding & advancement    | `server/modules/workflow/packs/video-pipeline-phases.ts`              |
-| Video artifact bridging              | `server/modules/workflow/packs/video-pipeline-artifact-bridge.ts`     |
-| Research phase seeding & advancement | `server/modules/workflow/packs/research-pipeline-phases.ts`           |
-| Research artifact bridging           | `server/modules/workflow/packs/research-artifact-bridge.ts`           |
-| Design artifact sync                 | `server/modules/workflow/packs/design-asset.ts`                       |
-| Task execution entry point           | `server/modules/routes/core/tasks/execution-run.ts`                   |
-| Agent auto-assignment                | `server/modules/routes/core/tasks/execution-run-auto-assign.ts`       |
-| Run-complete handler chain           | `server/modules/workflow/orchestration/run-complete-handler.ts`       |
-| Video phase advancement              | `server/modules/workflow/orchestration/run-complete-video.ts`         |
-| Research phase advancement           | `server/modules/workflow/orchestration/run-complete-research.ts`      |
-| Dept pipeline advancement            | `server/modules/workflow/orchestration/run-complete-dept-pipeline.ts` |
-| Meeting orchestrator                 | `server/modules/workflow/orchestration/meetings.ts`                   |
-| Review consensus                     | `server/modules/workflow/orchestration/meetings/review-consensus.ts`  |
-| Leader selection                     | `server/modules/workflow/orchestration/meetings/leader-selection.ts`  |
-| Meeting presence (CEO office)        | `server/modules/workflow/orchestration/meetings/presence.ts`          |
-| Meeting minutes                      | `server/modules/workflow/orchestration/meetings/minutes.ts`           |
-| Office pack config (name pools)      | `src/app/office-workflow-pack.ts`                                     |
-| CLI agent spawn                      | `server/modules/workflow/agents/cli-runtime.ts`                       |
-| Subtask seeding                      | `server/modules/workflow/agents/subtask-seeding.ts`                   |
-| Meeting prompt builder               | `server/modules/workflow/core/meeting-prompt-tools.ts`                |
+> **The packs moved, and this table has been corrected.** This document is
+> inherited from upstream, where each pipeline was a pair of hand-written
+> TypeScript modules — `video-pipeline-phases.ts`, `research-artifact-bridge.ts`
+> and six others named in earlier revisions of this table. Those files no longer
+> exist. A pack is now **declarative**: `pack.yaml` under
+> `server/packs/built-in/<pack>/` declares its phases, their departments, their
+> outputs and the JSON schema each output must satisfy, and one generic engine
+> (`graph-runner.ts`) drives every pack the same way. The rows below name what
+> actually exists today; where a per-pipeline module was replaced by the generic
+> path, the row says so rather than pointing at a file that is gone.
+>
+> The prose sections above still describe the pipelines accurately in behaviour.
+> Where they name a file, prefer this table.
+
+**Where a pack lives now:**
+
+| Part                   | Path                                                      |
+| ---------------------- | --------------------------------------------------------- |
+| Pack manifest (phases) | `server/packs/built-in/<pack>/pack.yaml`                  |
+| Per-phase guidance     | `server/packs/built-in/<pack>/guidance/<phase>.<lang>.md` |
+| Output JSON schemas    | `server/packs/built-in/<pack>/schemas/*.schema.json`      |
+| Pack-specific hooks    | `server/packs/built-in/<pack>/hooks/*.ts`                 |
+
+The four built-in packs are `video-preprod`, `web-research`, `design-studio`
+and `development`.
+
+| Mechanism                          | File                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| Pack loading (manifest + guidance) | `server/packs/pack-loader.ts`                                                            |
+| Pack manifest schema               | `server/packs/pack-schema.ts`                                                            |
+| Phase execution engine (all packs) | `server/modules/workflow/orchestration/graph-runner.ts`                                  |
+| Artifact bridging (all packs)      | `server/modules/workflow/orchestration/artifact-bridge.ts`                               |
+| Artifact collection for prompts    | `server/modules/workflow/orchestration/pack-artifact-collector.ts`                       |
+| Per-task phase locking             | `server/modules/workflow/orchestration/phase-lock.ts`                                    |
+| Legacy pack definitions            | `server/modules/workflow/packs/definitions.ts`                                           |
+| Task → pack resolution             | `server/modules/workflow/packs/task-pack-resolver.ts`                                    |
+| Video output discovery             | `server/modules/workflow/packs/video-artifact.ts`                                        |
+| Video render-engine gate           | `server/modules/workflow/packs/video-render-engine-gate.ts`                              |
+| Video artifact probe (hook)        | `server/packs/built-in/video-preprod/hooks/probe-video-artifact.ts`                      |
+| Remotion gate (hook)               | `server/packs/built-in/video-preprod/hooks/remotion-gate.ts`                             |
+| Design artifact sync (hooks)       | `server/packs/built-in/design-studio/hooks/design-asset.ts`, `.../sync-design-assets.ts` |
+| Task execution entry point         | `server/modules/routes/core/tasks/execution-run.ts`                                      |
+| Agent auto-assignment              | `server/modules/routes/core/tasks/execution-run-auto-assign.ts`                          |
+| Run-complete handler chain         | `server/modules/workflow/orchestration/run-complete-handler.ts`                          |
+| Run-complete: success path         | `server/modules/workflow/orchestration/run-complete-success.ts`                          |
+| Run-complete: retry / hard failure | `server/modules/workflow/orchestration/run-complete-failure.ts`                          |
+| Dept pipeline advancement          | `server/modules/workflow/orchestration/run-complete-dept-pipeline.ts`                    |
+| Meeting orchestrator               | `server/modules/workflow/orchestration/meetings.ts`                                      |
+| Review consensus                   | `server/modules/workflow/orchestration/meetings/review-consensus.ts`                     |
+| Leader selection                   | `server/modules/workflow/orchestration/meetings/leader-selection.ts`                     |
+| Meeting presence (CEO office)      | `server/modules/workflow/orchestration/meetings/presence.ts`                             |
+| Meeting minutes                    | `server/modules/workflow/orchestration/meetings/minutes.ts`                              |
+| Office pack config (name pools)    | `src/app/office-workflow-pack.ts`                                                        |
+| CLI agent spawn                    | `server/modules/workflow/agents/cli-runtime.ts`                                          |
+| Subtask seeding                    | `server/modules/workflow/agents/subtask-seeding.ts`                                      |
+| Meeting prompt builder             | `server/modules/workflow/core/meeting-prompt-tools.ts`                                   |
+
+**Phase advancement is no longer per-pipeline.** Upstream had a
+`run-complete-video.ts` and a `run-complete-research.ts`; there is now one
+success path, and the phase graph in `pack.yaml` decides what comes next. If
+you are looking for "where does the video pipeline move to the next phase",
+the answer is `graph-runner.ts` plus `video-preprod/pack.yaml`, not a
+video-specific module.
+
+**Execution guidance is no longer code.** Upstream's
+`execution-guidance.ts` held the per-phase instruction text; it is now one
+Markdown file per phase per language under `guidance/`, resolved by
+`pack-loader.ts` from the `guidance: "guidance/<phase>.{lang}.md"` field on the
+phase. Editing what an agent is told in a phase is editing a Markdown file, not
+a TypeScript constant.
 
 ## Visual Node Editor
 

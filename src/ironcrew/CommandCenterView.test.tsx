@@ -9,6 +9,7 @@ import type {
   AgentTool,
   Approval,
   Attachment,
+  AuditShipResult,
   ChangeProposal,
   ChangeProposalFile,
   Dashboard,
@@ -232,6 +233,15 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     drainRunQueue: vi.fn(),
     scheduler: vi.fn().mockResolvedValue({ enabled: true, jobs: [] }),
     runSchedulerJob: vi.fn(),
+    // Off by default, which is what a fresh installation reports: no sink is
+    // set, and the server says so in a sentence rather than a 404.
+    auditShipping: vi.fn().mockResolvedValue({
+      configured: false,
+      message:
+        "Kein Ziel konfiguriert. Ohne Kopie ausser Haus kann eine Übernahme dieses Rechners die eigene Spur löschen.",
+    }),
+    testAuditShipping: vi.fn(),
+    runAuditShipping: vi.fn(),
     tools: vi.fn().mockResolvedValue({ tools: [] }),
     agentTools: vi.fn().mockResolvedValue({ tools: [] }),
     grantTool: vi.fn(),
@@ -3684,6 +3694,60 @@ describe("four eyes on a dangerous approval", () => {
     expect(quorum).not.toHaveTextContent("es fehlt noch");
   });
 
+  it("lets an owner demand more than two, which the store always allowed", async () => {
+    // The button used to send a hardcoded 2. The store accepts up to
+    // MAX_REQUIRED_APPROVALS, so three reviewers on a Tier-0 change was a
+    // capability the product had and the screen did not expose.
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+    const user = userEvent.setup();
+
+    const card = await screen.findByTestId("approval-apr_1");
+    await user.selectOptions(within(card).getByTestId("quorum-choice-apr_1"), "3");
+    // The label follows the number, so the button never claims "four eyes"
+    // while about to demand three.
+    const button = within(card).getByTestId("require-two-apr_1");
+    expect(button.textContent).toBe("3 Zustimmungen verlangen");
+
+    await user.click(button);
+    await waitFor(() => expect(client.setQuorum).toHaveBeenCalledWith("apr_1", 3));
+  });
+
+  it("keeps two eyes to a single click", async () => {
+    // The common case must not pay for the rare one: the picker starts at 2,
+    // so demanding four eyes is still one press with nothing to choose.
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = await screen.findByTestId("approval-apr_1");
+    expect((within(card).getByTestId("quorum-choice-apr_1") as HTMLSelectElement).value).toBe("2");
+    await userEvent.setup().click(within(card).getByTestId("require-two-apr_1"));
+    await waitFor(() => expect(client.setQuorum).toHaveBeenCalledWith("apr_1", 2));
+  });
+
+  it("offers nothing the server would refuse", async () => {
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = await screen.findByTestId("approval-apr_1");
+    const options = Array.from(
+      (within(card).getByTestId("quorum-choice-apr_1") as HTMLSelectElement).options,
+      (o) => o.value,
+    );
+    // A quorum of 1 is not "fewer eyes", it is the default — offering it here
+    // would look like a way to lower one, which the store refuses outright.
+    expect(options).toEqual(["2", "3", "4", "5"]);
+  });
+
   it("asks for four eyes on a single approval, not as a global setting", async () => {
     const client = makeClient({
       approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
@@ -3694,5 +3758,294 @@ describe("four eyes on a dangerous approval", () => {
     const card = await screen.findByTestId("approval-apr_1");
     await userEvent.setup().click(within(card).getByTestId("require-two-apr_1"));
     await waitFor(() => expect(client.setQuorum).toHaveBeenCalledWith("apr_1", 2));
+  });
+});
+
+describe("audit shipping (the copy of the chain that leaves this machine)", () => {
+  async function openDialog(client: Client) {
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
+    return await screen.findByRole("dialog", { name: "Audit-Kopie" });
+  }
+
+  function shipped(over: Partial<AuditShipResult> = {}): AuditShipResult {
+    return { ok: true, shipped: 3, fromSeq: 10, cursorSeq: 13, pending: 0, gapDetected: false, ...over };
+  }
+
+  it("says why an off-box copy matters at all, next to the sentence the server sent", async () => {
+    const dialog = await openDialog(makeClient());
+
+    // The reasoning, not just the state: an edit breaks the chain, a deletion
+    // does not, and only a copy elsewhere survives the second one.
+    expect(dialog).toHaveTextContent("geändert");
+    expect(dialog).toHaveTextContent("gelöscht");
+    expect(await within(dialog).findByTestId("audit-shipping-unconfigured")).toHaveTextContent(
+      "Ohne Kopie ausser Haus",
+    );
+  });
+
+  it("not configured is not an error: it names the variables and offers nothing that would 409", async () => {
+    const client = makeClient();
+    const dialog = await openDialog(client);
+
+    const setup = await within(dialog).findByTestId("audit-shipping-setup");
+    expect(setup).toHaveTextContent("IRONCREW_AUDIT_SINK=file");
+    expect(setup).toHaveTextContent("IRONCREW_AUDIT_FILE=");
+    expect(setup).toHaveTextContent("IRONCREW_AUDIT_URL=");
+    // A file target on the same disk is the mistake worth naming.
+    expect(dialog).toHaveTextContent("derselben Platte");
+
+    // Both routes answer 409 without a sink, so neither button exists.
+    expect(within(dialog).queryByTestId("audit-shipping-test")).toBeNull();
+    expect(within(dialog).queryByTestId("audit-shipping-run")).toBeNull();
+    expect(client.testAuditShipping).not.toHaveBeenCalled();
+    expect(client.runAuditShipping).not.toHaveBeenCalled();
+  });
+
+  it("shows the sink kind, how far the cursor got and how many entries still wait", async () => {
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "http", cursor: 4200, pending: 17 }),
+    });
+    const dialog = await openDialog(client);
+
+    expect(await within(dialog).findByTestId("audit-shipping-sink")).toHaveTextContent("HTTP-Collector");
+    expect(within(dialog).getByTestId("audit-shipping-cursor")).toHaveTextContent("bis Eintrag 4200 ausser Haus");
+    const pending = within(dialog).getByTestId("audit-shipping-pending");
+    expect(pending).toHaveTextContent("17 wartend");
+    // A backlog is a warning, not a chain break: amber, never red.
+    expect(within(pending).getByText("17 wartend")).toHaveAttribute("data-tone", "gate");
+    expect(within(dialog).queryByTestId("audit-shipping-unconfigured")).toBeNull();
+  });
+
+  it("a nothing-shipped-yet cursor says so rather than printing 0", async () => {
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "file", cursor: 0, pending: 820 }),
+    });
+    const dialog = await openDialog(client);
+
+    expect(await within(dialog).findByTestId("audit-shipping-cursor")).toHaveTextContent("noch nichts übertragen");
+    expect(within(dialog).getByTestId("audit-shipping-sink")).toHaveTextContent("Datei (NDJSON)");
+  });
+
+  it("an unreachable collector renders the probe's message as a warning, not as a crash", async () => {
+    const testAuditShipping = vi
+      .fn()
+      .mockResolvedValue({ ok: false, message: "Audit-Ziel nicht erreichbar: connect ECONNREFUSED" });
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "http", cursor: 12, pending: 0 }),
+      testAuditShipping,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("audit-shipping-test"));
+
+    expect(testAuditShipping).toHaveBeenCalled();
+    const probe = await within(dialog).findByTestId("audit-shipping-probe");
+    expect(probe).toHaveTextContent("nicht erreichbar");
+    expect(probe).toHaveTextContent("connect ECONNREFUSED");
+    expect(probe).toHaveAttribute("data-ok", "false");
+    // `ok: false` is a status, so the page-wide error banner stays clean.
+    expect(screen.queryByTestId("error-banner")).toBeNull();
+  });
+
+  it("a reachable collector reports itself without writing a test row", async () => {
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "file", cursor: 12, pending: 0 }),
+      testAuditShipping: vi.fn().mockResolvedValue({ ok: true, message: "Verzeichnis beschreibbar." }),
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("audit-shipping-test"));
+
+    const probe = await within(dialog).findByTestId("audit-shipping-probe");
+    expect(probe).toHaveAttribute("data-ok", "true");
+    expect(probe).toHaveTextContent("Verzeichnis beschreibbar.");
+  });
+
+  it("draining reports what went and re-reads the backlog", async () => {
+    const runAuditShipping = vi.fn().mockResolvedValue(shipped({ shipped: 17, cursorSeq: 4217, pending: 0 }));
+    const client = makeClient({
+      auditShipping: vi
+        .fn()
+        .mockResolvedValueOnce({ configured: true, sink: "http", cursor: 4200, pending: 17 })
+        .mockResolvedValue({ configured: true, sink: "http", cursor: 4217, pending: 0 }),
+      runAuditShipping,
+    });
+    const dialog = await openDialog(client);
+    expect(await within(dialog).findByTestId("audit-shipping-pending")).toHaveTextContent("17 wartend");
+
+    await userEvent.setup().click(within(dialog).getByTestId("audit-shipping-run"));
+
+    expect(runAuditShipping).toHaveBeenCalled();
+    expect(await within(dialog).findByTestId("audit-shipping-run-result")).toHaveTextContent("17 übertragen");
+    // The status is read back, so the header agrees with the result line.
+    await waitFor(() => expect(within(dialog).getByTestId("audit-shipping-pending")).toHaveTextContent("0 wartend"));
+    expect(within(dialog).getByTestId("audit-shipping-cursor")).toHaveTextContent("bis Eintrag 4217 ausser Haus");
+  });
+
+  it("a partial drain says the rest is retried instead of claiming success", async () => {
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "http", cursor: 4200, pending: 60 }),
+      runAuditShipping: vi
+        .fn()
+        .mockResolvedValue(shipped({ ok: false, shipped: 40, cursorSeq: 4240, pending: 20, error: "HTTP 502" })),
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("audit-shipping-run"));
+
+    expect(await within(dialog).findByTestId("audit-shipping-run-result")).toHaveTextContent("20 weiterhin wartend");
+    expect(within(dialog).getByTestId("audit-shipping-run-error")).toHaveTextContent("HTTP 502");
+  });
+
+  it("a gap below the cursor is said out loud — that is the shape a deletion has", async () => {
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "file", cursor: 900, pending: 4 }),
+      runAuditShipping: vi.fn().mockResolvedValue(shipped({ shipped: 4, cursorSeq: 904, gapDetected: true })),
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("audit-shipping-run"));
+
+    const gap = await within(dialog).findByTestId("audit-shipping-gap");
+    expect(gap).toHaveTextContent("Lücke erkannt");
+    expect(gap).toHaveTextContent("Löschversuch");
+    // Red is reserved for exactly this: risk, not a slow collector.
+    expect(gap).toHaveClass("ic-conflict");
+  });
+
+  it("a non-owner gets the server's refusal in the dialog that asked", async () => {
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "http", cursor: 12, pending: 3 }),
+      runAuditShipping: vi
+        .fn()
+        .mockRejectedValue(
+          apiFailure(403, "forbidden", 'Dafür wird mindestens die Rolle "owner" gebraucht; angemeldet als "operator".'),
+        ),
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("audit-shipping-run"));
+
+    expect(await within(dialog).findByTestId("audit-shipping-error")).toHaveTextContent('Rolle "owner"');
+    expect(within(dialog).queryByTestId("audit-shipping-run-result")).toBeNull();
+  });
+});
+
+describe("a gap is visible without pressing anything", () => {
+  it("warns on the status alone", async () => {
+    // The alarm used to live only on the drain result, so the scheduler saw
+    // it every tick while the page an operator opens said nothing.
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({
+        configured: true,
+        sink: "file",
+        cursor: 12,
+        pending: 4,
+        gapDetected: true,
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
+
+    const gap = await screen.findByTestId("audit-shipping-gap-status");
+    expect(gap.textContent).toMatch(/Lücke in der Audit-Kette/);
+  });
+
+  it("stays quiet when there is no gap", async () => {
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({
+        configured: true,
+        sink: "file",
+        cursor: 12,
+        pending: 0,
+        gapDetected: false,
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
+
+    await screen.findByTestId("audit-shipping-run");
+    expect(screen.queryByTestId("audit-shipping-gap-status")).toBeNull();
+  });
+
+  it("stays quiet against an older server that does not report it", async () => {
+    const client = makeClient({
+      auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "http", cursor: 3, pending: 1 }),
+    });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
+
+    await screen.findByTestId("audit-shipping-run");
+    expect(screen.queryByTestId("audit-shipping-gap-status")).toBeNull();
+  });
+});
+
+describe("the audit copy says whether it is healthy, not just how far behind", () => {
+  /**
+   * A backlog is a number; it looks the same whether it is one minute or one
+   * week old. The shipper was already logging every failure at warn — into a
+   * file nobody reads — while the page an operator opens showed a count and
+   * invited them to press a button to find out.
+   */
+  const configured = (over: Record<string, unknown> = {}) => ({
+    configured: true,
+    sink: "http",
+    cursor: 40,
+    pending: 17,
+    gapDetected: false,
+    ...over,
+  });
+
+  async function openPanel(status: Record<string, unknown>) {
+    const client = makeClient({ auditShipping: vi.fn().mockResolvedValue(status) });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
+    return screen.findByTestId("audit-shipping-health");
+  }
+
+  it("names a failing collector, how long it has been failing, and when it last worked", async () => {
+    const health = await openPanel(
+      configured({
+        health: {
+          lastAttemptAt: Date.parse("2026-09-04T09:00:00Z"),
+          lastSuccessAt: Date.parse("2026-09-04T06:00:00Z"),
+          lastError: "HTTP 503: queue full",
+          lastErrorAt: Date.parse("2026-09-04T09:00:00Z"),
+          consecutiveFailures: 34,
+        },
+      }),
+    );
+    expect(health.textContent).toMatch(/nimmt nichts an/);
+    // The count is what turns "it failed" into "it has been failing".
+    expect(health.textContent).toMatch(/34 Versuche in Folge/);
+    expect(health.textContent).toContain("HTTP 503: queue full");
+    expect(health.textContent).toMatch(/Zuletzt erfolgreich/);
+  });
+
+  it("does not say 'last succeeded' when it never has", async () => {
+    const health = await openPanel(
+      configured({
+        health: { lastAttemptAt: 1, lastError: "connect ECONNREFUSED", lastErrorAt: 1, consecutiveFailures: 1 },
+      }),
+    );
+    expect(health.textContent).toMatch(/noch nie etwas übertragen/);
+    // One failure is a failure, not "1 Versuche in Folge".
+    expect(health.textContent).not.toMatch(/Versuche in Folge/);
+  });
+
+  it("reports a healthy sink by when it last shipped", async () => {
+    const health = await openPanel(
+      configured({ pending: 0, health: { lastAttemptAt: 2, lastSuccessAt: 2, consecutiveFailures: 0 } }),
+    );
+    expect(health.textContent).toMatch(/Zuletzt übertragen/);
+    expect(health.textContent).not.toMatch(/nimmt nichts an/);
+  });
+
+  it("says so plainly when nothing has run yet", async () => {
+    // A fresh installation must not look broken, and must not look healthy
+    // either — nothing has been proven yet.
+    const health = await openPanel(configured({ health: {} }));
+    expect(health.textContent).toMatch(/Noch kein Übertragungslauf/);
+  });
+
+  it("renders against an older server that reports no health at all", async () => {
+    const health = await openPanel(configured());
+    expect(health.textContent).toMatch(/Noch kein Übertragungslauf/);
   });
 });

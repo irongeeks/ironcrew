@@ -268,7 +268,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
       }
       worktreePath = wtPath;
       agentCwd = wtPath;
-      appendTaskLog(taskId, "system", `Git worktree created: ${wtPath} (branch: octooffice/${taskId.slice(0, 8)})`);
+      appendTaskLog(taskId, "system", `Git worktree created: ${wtPath} (branch: ironcrew/${taskId.slice(0, 8)})`);
     }
     const docsContext = buildDocsExecutionContextBlock({
       db: db as any,
@@ -352,7 +352,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
         execAgent.personality ? `Personality: ${execAgent.personality}` : "",
         deptConstraint,
         deptPromptBlock,
-        `NOTE: You are working in an isolated Git worktree branch (octooffice/${taskId.slice(0, 8)}). Commit your changes normally.`,
+        `NOTE: You are working in an isolated Git worktree branch (ironcrew/${taskId.slice(0, 8)}). Commit your changes normally.`,
         interruptPromptBlock,
         continuationInstruction,
         runInstruction,
@@ -427,10 +427,10 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
 
     const worktreeNote = pickL(
       l(
-        [` (격리 브랜치: octooffice/${taskId.slice(0, 8)})`],
-        [` (isolated branch: octooffice/${taskId.slice(0, 8)})`],
-        [` (分離ブランチ: octooffice/${taskId.slice(0, 8)})`],
-        [`（隔离分支: octooffice/${taskId.slice(0, 8)}）`],
+        [` (격리 브랜치: ironcrew/${taskId.slice(0, 8)})`],
+        [` (isolated branch: ironcrew/${taskId.slice(0, 8)})`],
+        [` (分離ブランチ: ironcrew/${taskId.slice(0, 8)})`],
+        [`（隔离分支: ironcrew/${taskId.slice(0, 8)}）`],
       ),
       taskLang,
     );

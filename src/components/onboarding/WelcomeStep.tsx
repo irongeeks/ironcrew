@@ -54,7 +54,7 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
             lineHeight: 1.4,
           }}
         >
-          Welcome to OctoOffice
+          Welcome to IronCrew
         </h1>
         <p
           style={{
@@ -82,7 +82,7 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
             type="text"
             value={localCompanyName}
             onChange={(e) => setLocalCompanyName(e.target.value)}
-            placeholder="e.g. OctoOffice Corp"
+            placeholder="e.g. IronCrew Corp"
             style={inputStyle}
             autoFocus
           />
@@ -106,7 +106,7 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
       <div style={{ display: "flex", justifyContent: "center" }}>
         <button
           onClick={() =>
-            onNext({ companyName: localCompanyName.trim() || "OctoOffice", ceoName: localCeoName.trim() || "CEO" })
+            onNext({ companyName: localCompanyName.trim() || "IronCrew", ceoName: localCeoName.trim() || "CEO" })
           }
           style={{
             padding: "12px 32px",

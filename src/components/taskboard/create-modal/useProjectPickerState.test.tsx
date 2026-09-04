@@ -32,7 +32,7 @@ describe("useProjectPickerState native picker fallback", () => {
     });
     apiMocks.getProjectPathSuggestions.mockResolvedValue([]);
     apiMocks.browseProjectPath.mockResolvedValue({
-      current_path: "D:\\AI\\octooffice",
+      current_path: "D:\\AI\\ironcrew",
       parent_path: "D:\\AI",
       entries: [],
       truncated: false,
@@ -72,7 +72,7 @@ describe("useProjectPickerState native picker fallback", () => {
 
     act(() => {
       result.current.setCreateNewProjectMode(true);
-      result.current.setNewProjectPath("D:\\AI\\octooffice");
+      result.current.setNewProjectPath("D:\\AI\\ironcrew");
     });
 
     await act(async () => {
@@ -85,7 +85,7 @@ describe("useProjectPickerState native picker fallback", () => {
 
     expect(result.current.nativePickerUnsupported).toBe(true);
     expect(result.current.nativePathPicking).toBe(false);
-    expect(apiMocks.browseProjectPath).toHaveBeenCalledWith("D:\\AI\\octooffice");
+    expect(apiMocks.browseProjectPath).toHaveBeenCalledWith("D:\\AI\\ironcrew");
     expect(setFormFeedback).toHaveBeenCalledWith({
       tone: "info",
       message: "OS folder picker is unavailable in this environment. Use in-app browser or manual input.",

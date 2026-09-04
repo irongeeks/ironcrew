@@ -29,7 +29,7 @@ function buildSshArgs(config: SshConfig, command?: string): string[] {
     "-o",
     "ControlMaster=auto",
     "-o",
-    `ControlPath=${controlDir}/octooffice-%h-%p-%r`,
+    `ControlPath=${controlDir}/ironcrew-%h-%p-%r`,
     "-o",
     "ControlPersist=300",
     "-p",
@@ -79,7 +79,7 @@ function spawnSftp(config: SshConfig, batchCommands: string[], timeoutMs = COMMA
       "-o",
       "ControlMaster=auto",
       "-o",
-      `ControlPath=${controlDir}/octooffice-%h-%p-%r`,
+      `ControlPath=${controlDir}/ironcrew-%h-%p-%r`,
       "-o",
       "ControlPersist=300",
       "-P",
@@ -198,7 +198,7 @@ export function createSshConnector(config: SshConfig): SshConnectorInterface {
       const { writeFileSync, unlinkSync } = await import("node:fs");
       const { tmpdir } = await import("node:os");
       const { join: pathJoin } = await import("node:path");
-      const tmpFile = pathJoin(tmpdir(), `octooffice-ssh-write-${Date.now()}`);
+      const tmpFile = pathJoin(tmpdir(), `ironcrew-ssh-write-${Date.now()}`);
       try {
         writeFileSync(tmpFile, content, "utf-8");
         const safePath = sanitizePath(path);

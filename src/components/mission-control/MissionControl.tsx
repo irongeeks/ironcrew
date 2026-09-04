@@ -114,7 +114,7 @@ export default function MissionControl(props: MissionControlProps) {
               borderBottom: "1px solid var(--border)",
             }}
           >
-            {/* OctoOffice label + live pulse dot */}
+            {/* IronCrew label + live pulse dot */}
             <div
               style={{
                 position: "absolute",
@@ -136,7 +136,7 @@ export default function MissionControl(props: MissionControlProps) {
                   textTransform: "uppercase",
                 }}
               >
-                OctoOffice
+                IronCrew
               </span>
               <div
                 style={{

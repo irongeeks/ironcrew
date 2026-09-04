@@ -25,19 +25,19 @@ continues to govern the vendored portions.
 Per section 4(b) of the Apache License, the following files carry
 IronCrew modifications:
 
-| File                                                                                   | Change                                                                                      |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `server/adapters/adapter-interface.ts`                                                 | Added `permissionMode` to `InvocationContext`.                                              |
-| `server/adapters/claude.ts`                                                            | Removed hardcoded `--dangerously-skip-permissions`; permission flags are now policy-driven. |
-| `server/adapters/codex.ts`                                                             | Removed hardcoded `--yolo`; defaults to a read-only sandbox.                                |
-| `server/adapters/gemini.ts`                                                            | Removed hardcoded `--yolo`; defaults to `--approval-mode default`.                          |
-| `server/modules/workflow/core/cli-tools.ts`                                            | Same permission-flag change on the second argv-building path.                               |
-| `server/modules/workflow/agents/cli-runtime.ts`                                        | Added a pre-spawn guard rejecting unauthorised permission-bypass flags.                     |
-| `server/modules/bootstrap/migrations/registry.ts`                                      | Registered migration `0002-iron-crew-domain`.                                               |
-| `server/server-main.ts`                                                                | Mounted the IronCrew control plane under `/api/crew`.                                       |
-| `server/test/adapters/{claude,codex,gemini}-adapter.test.ts`                           | Updated to assert the safe defaults instead of the removed unsafe flags.                    |
-| `src/app/types.ts`, `src/app/AppMainLayout.tsx`, `src/components/OctoOfficeTopBar.tsx` | Added the `command` view and its navigation entry.                                          |
-| `.gitignore`                                                                           | Added IronCrew entries.                                                                     |
+| File                                                                                 | Change                                                                                                        |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `server/adapters/adapter-interface.ts`                                               | Added `permissionMode` to `InvocationContext`.                                                                |
+| `server/adapters/claude.ts`                                                          | Removed hardcoded `--dangerously-skip-permissions`; permission flags are now policy-driven.                   |
+| `server/adapters/codex.ts`                                                           | Removed hardcoded `--yolo`; defaults to a read-only sandbox.                                                  |
+| `server/adapters/gemini.ts`                                                          | Removed hardcoded `--yolo`; defaults to `--approval-mode default`.                                            |
+| `server/modules/workflow/core/cli-tools.ts`                                          | Same permission-flag change on the second argv-building path.                                                 |
+| `server/modules/workflow/agents/cli-runtime.ts`                                      | Added a pre-spawn guard rejecting unauthorised permission-bypass flags.                                       |
+| `server/modules/bootstrap/migrations/registry.ts`                                    | Registered migration `0002-iron-crew-domain`.                                                                 |
+| `server/server-main.ts`                                                              | Mounted the IronCrew control plane under `/api/crew`.                                                         |
+| `server/test/adapters/{claude,codex,gemini}-adapter.test.ts`                         | Updated to assert the safe defaults instead of the removed unsafe flags.                                      |
+| `src/app/types.ts`, `src/app/AppMainLayout.tsx`, `src/components/IronCrewTopBar.tsx` | Added the `command` view and its navigation entry. The top bar is upstream's `OctoOfficeTopBar.tsx`, renamed. |
+| `.gitignore`                                                                         | Added IronCrew entries.                                                                                       |
 
 All files under `server/ironcrew/`, `src/ironcrew/` and `config/` are
 original IronCrew work, not derived from OctoOffice.

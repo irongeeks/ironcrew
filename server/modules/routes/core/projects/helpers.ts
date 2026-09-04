@@ -377,7 +377,7 @@ export function createProjectRouteHelpers({ db, normalizeTextField }: CreateProj
     // BIF_RETURNONLYFSDIRS(1) + BIF_NEWDIALOGSTYLE(64) = 65
     const psCommand = [
       "$shell = New-Object -ComObject Shell.Application;",
-      "$folder = $shell.BrowseForFolder(0, 'Select project folder for OctoOffice', 65, 0);",
+      "$folder = $shell.BrowseForFolder(0, 'Select project folder for IronCrew', 65, 0);",
       `if ($folder -ne $null) { [System.IO.File]::WriteAllText('${escapedResultFile}', $folder.Self.Path) }`,
     ].join(" ");
 
@@ -417,7 +417,7 @@ export function createProjectRouteHelpers({ db, normalizeTextField }: CreateProj
       "Dim shell, folder, fso",
       'Set shell = CreateObject("Shell.Application")',
       "If Err.Number <> 0 Then WScript.Quit 1",
-      'Set folder = shell.BrowseForFolder(0, "Select project folder for OctoOffice", 65, 0)',
+      'Set folder = shell.BrowseForFolder(0, "Select project folder for IronCrew", 65, 0)',
       "If Not folder Is Nothing Then",
       '  Set fso = CreateObject("Scripting.FileSystemObject")',
       `  Set f = fso.CreateTextFile("${resultFile.replace(/\\/g, "\\\\")}", True)`,
@@ -491,7 +491,7 @@ export function createProjectRouteHelpers({ db, normalizeTextField }: CreateProj
 
     if (process.platform === "darwin") {
       const script =
-        'try\nPOSIX path of (choose folder with prompt "Select project folder for OctoOffice")\non error number -128\n""\nend try';
+        'try\nPOSIX path of (choose folder with prompt "Select project folder for IronCrew")\non error number -128\n""\nend try';
       const { stdout } = await execFileText("osascript", ["-e", script], timeoutMs);
       const value = stdout.trim();
       return { path: value || null, cancelled: !value, source: "osascript" };
@@ -516,7 +516,7 @@ export function createProjectRouteHelpers({ db, normalizeTextField }: CreateProj
     try {
       const { stdout } = await execFileText(
         "zenity",
-        ["--file-selection", "--directory", "--title=Select project folder for OctoOffice"],
+        ["--file-selection", "--directory", "--title=Select project folder for IronCrew"],
         timeoutMs,
       );
       const value = stdout.trim();
@@ -529,7 +529,7 @@ export function createProjectRouteHelpers({ db, normalizeTextField }: CreateProj
             "--getexistingdirectory",
             path.join(os.homedir(), "Projects"),
             "--title",
-            "Select project folder for OctoOffice",
+            "Select project folder for IronCrew",
           ],
           timeoutMs,
         );

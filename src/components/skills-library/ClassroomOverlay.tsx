@@ -27,7 +27,7 @@ export default function ClassroomOverlay({ t, show, skillName, providers, agents
           </div>
 
           <div className="classroom-claw-teacher">
-            <img src="/assets/octooffice-logo.png" alt="Teacher" />
+            <img src="/assets/ironcrew-logo.png" alt="Teacher" />
             <span className="classroom-chalk-pointer">✏️</span>
           </div>
 

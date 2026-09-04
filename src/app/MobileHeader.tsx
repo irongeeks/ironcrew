@@ -69,15 +69,15 @@ export default function MobileHeader({
         type="button"
         onClick={() => onChangeView("office")}
         className="flex h-11 w-11 items-center justify-center rounded"
-        aria-label="OctoOffice home"
-        title="OctoOffice"
+        aria-label="IronCrew home"
+        title="IronCrew"
       >
         <picture>
-          <source media="(prefers-color-scheme: dark)" srcSet="/assets/octooffice-logo-white.svg" />
-          <source media="(prefers-color-scheme: light)" srcSet="/assets/octooffice-logo-black.svg" />
+          <source media="(prefers-color-scheme: dark)" srcSet="/assets/ironcrew-logo-white.svg" />
+          <source media="(prefers-color-scheme: light)" srcSet="/assets/ironcrew-logo-black.svg" />
           <img
-            src="/assets/octooffice-favicon.png"
-            alt="OctoOffice"
+            src="/assets/ironcrew-favicon.png"
+            alt="IronCrew"
             width={32}
             height={32}
             style={{ imageRendering: "pixelated" }}

@@ -28,8 +28,8 @@ export function registerModelRoutes(ctx: RuntimeContext): void {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
-          "User-Agent": "octooffice",
-          "Editor-Version": "octooffice/1.0.0",
+          "User-Agent": "ironcrew",
+          "Editor-Version": "ironcrew/1.0.0",
           "Copilot-Integration-Id": "vscode-chat",
         },
         signal: AbortSignal.timeout(10_000),

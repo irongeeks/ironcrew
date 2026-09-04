@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import RetroSidebar from "../components/RetroSidebar";
-import OctoOfficeTopBar from "../components/OctoOfficeTopBar";
+import IronCrewTopBar from "../components/IronCrewTopBar";
 import MissionControl from "../components/mission-control/MissionControl";
 import { ChatPanel } from "../components/ChatPanel";
 import AgentSidebar from "../components/AgentSidebar";
@@ -321,7 +321,7 @@ export default function AppMainLayout({
         {/* Desktop: Top Bar (hidden on mobile, hidden when office expanded) */}
         {!officeExpanded && (
           <div className="hidden lg:block">
-            <OctoOfficeTopBar
+            <IronCrewTopBar
               view={view}
               onChangeView={handleChangeView}
               language={uiLanguage}

@@ -21,6 +21,7 @@ import {
   FileAuditSink,
   HttpAuditSink,
   auditShipperCursorKey,
+  auditShipperHealthKey,
   type AuditShipOutcome,
   type AuditSink,
   type ShippedAuditEntry,
@@ -741,5 +742,108 @@ describe("a collector that echoes the token back", () => {
       sink: new HttpAuditSink({ url: "https://archive.example/audit", fetchImpl: impl }),
     }).shipNewEntries(companyId);
     expect(result.error).toContain("queue full, try later");
+  });
+});
+
+describe("what the last attempt did, remembered across a restart", () => {
+  /**
+   * Health is persisted in `settings`, not held in memory, and the reason is
+   * the scenario it exists for: a sink that has been refusing for hours is
+   * exactly the situation in which somebody restarts the service. An
+   * in-memory record would come back empty and report "no error" about a
+   * collector that has not accepted an entry all day — with the backlog as
+   * the only hint, and a backlog looks the same at one minute as at one week.
+   */
+  it("starts with no history rather than inventing a healthy one", () => {
+    const shipper = new AuditShipper({ db, sink: new RecordingSink() });
+    expect(shipper.health(companyId)).toEqual({});
+  });
+
+  it("records a failure with its message and counts the run", async () => {
+    appendN(db, companyId, 2);
+    const sink = new RecordingSink();
+    sink.behaviour = () => ({ accepted: 0, error: "HTTP 503: queue full" });
+    const shipper = new AuditShipper({ db, sink });
+
+    await shipper.shipNewEntries(companyId);
+    const health = shipper.health(companyId);
+    expect(health.lastError).toContain("503");
+    expect(health.consecutiveFailures).toBe(1);
+    expect(health.lastSuccessAt).toBeUndefined();
+    expect(health.lastAttemptAt).toBeGreaterThan(0);
+  });
+
+  it("counts consecutive failures, which is what turns a failure into an outage", async () => {
+    appendN(db, companyId, 2);
+    const sink = new RecordingSink();
+    sink.behaviour = () => ({ accepted: 0, error: "down" });
+    const shipper = new AuditShipper({ db, sink });
+
+    await shipper.shipNewEntries(companyId);
+    await shipper.shipNewEntries(companyId);
+    await shipper.shipNewEntries(companyId);
+    expect(shipper.health(companyId).consecutiveFailures).toBe(3);
+  });
+
+  it("survives the restart that would otherwise clear the alarm", async () => {
+    appendN(db, companyId, 2);
+    const sink = new RecordingSink();
+    sink.behaviour = () => ({ accepted: 0, error: "collector unreachable" });
+    await new AuditShipper({ db, sink }).shipNewEntries(companyId);
+
+    // A brand new shipper over the same database — a restarted service.
+    const afterRestart = new AuditShipper({ db, sink: new RecordingSink() });
+    expect(afterRestart.health(companyId).lastError).toContain("collector unreachable");
+    expect(afterRestart.health(companyId).consecutiveFailures).toBe(1);
+  });
+
+  it("clears the error once the collector comes back, and does not leave it beside the recovery", async () => {
+    appendN(db, companyId, 2);
+    const sink = new RecordingSink();
+    sink.behaviour = () => ({ accepted: 0, error: "down" });
+    const shipper = new AuditShipper({ db, sink });
+    await shipper.shipNewEntries(companyId);
+
+    sink.behaviour = (entries) => ({ accepted: entries.length });
+    await shipper.shipNewEntries(companyId);
+
+    const health = shipper.health(companyId);
+    // A stale error surviving a recovery would have somebody chasing a
+    // collector that started working again an hour ago.
+    expect(health.lastError).toBeUndefined();
+    expect(health.consecutiveFailures).toBe(0);
+    expect(health.lastSuccessAt).toBeGreaterThan(0);
+  });
+
+  it("does not claim a success when there was nothing to ship", async () => {
+    const shipper = new AuditShipper({ db, sink: new RecordingSink() });
+    await shipper.shipNewEntries(companyId);
+    const health = shipper.health(companyId);
+    expect(health.lastAttemptAt).toBeGreaterThan(0);
+    expect(health.lastSuccessAt).toBeUndefined();
+  });
+
+  it("never records the collector's own token", async () => {
+    const TOKEN = "sk-audit-supersecret-token";
+    appendN(db, companyId, 1);
+    const { impl } = fakeFetch(() => ({ status: 401, body: `bad token ${TOKEN}` }));
+    const shipper = new AuditShipper({
+      db,
+      sink: new HttpAuditSink({ url: "https://archive.example/audit", bearerToken: TOKEN, fetchImpl: impl }),
+    });
+    await shipper.shipNewEntries(companyId);
+    expect(JSON.stringify(shipper.health(companyId))).not.toContain(TOKEN);
+  });
+
+  it("reads a corrupt health record as no history rather than throwing", () => {
+    const shipper = new AuditShipper({ db, sink: new RecordingSink() });
+    db.prepare("INSERT INTO settings (key, value) VALUES (?,?)").run(
+      auditShipperHealthKey(companyId),
+      "{not json at all",
+    );
+    // This is rendered on a status page; a health field that can break the
+    // page it appears on is worse than one that admits it knows nothing.
+    expect(() => shipper.health(companyId)).not.toThrow();
+    expect(shipper.health(companyId)).toEqual({});
   });
 });

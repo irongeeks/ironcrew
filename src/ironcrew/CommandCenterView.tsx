@@ -14,6 +14,7 @@ import "./command-center.css";
 import { api, serverErrorCode, serverMessage } from "./api.ts";
 import {
   AGENT_STATUS_LABEL,
+  AUDIT_SINK_LABEL,
   BOARD_COLUMNS,
   CHANGE_OPERATION_LABEL,
   CHANGE_PROPOSAL_STATUS_LABEL,
@@ -42,6 +43,9 @@ import {
   type AgentTool,
   type Approval,
   type Attachment,
+  type AuditShipResult,
+  type AuditShippingStatus,
+  type AuditSinkProbe,
   type ChangeApplyConflict,
   type ChangeProposal,
   type ChangeProposalFile,
@@ -95,6 +99,7 @@ import {
   type ToolGrantScope,
   type ToolWithGrants,
   type Vessel,
+  MAX_QUORUM,
 } from "./types.ts";
 
 function formatTime(ts: number): string {
@@ -222,6 +227,14 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
    * human and the question does not arise.
    */
   const [myUserId, setMyUserId] = useState<string | null>(null);
+  /**
+   * How many approvals the owner is about to demand, per approval.
+   *
+   * Local and unsent until the button is pressed: raising a quorum is
+   * irreversible (it can never be lowered again), so the number is chosen
+   * first and committed deliberately, not on every keystroke of a select.
+   */
+  const [quorumChoice, setQuorumChoice] = useState<Record<string, number>>({});
 
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [secretProviders, setSecretProviders] = useState<SecretProviderStatus[]>([]);
@@ -364,6 +377,17 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [runQueueStatusFilter, setRunQueueStatusFilter] = useState<RunRequestStatus | "">("");
   const [drainResult, setDrainResult] = useState<string | null>(null);
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
+
+  // --- audit shipping: does the record leave this machine at all? ---------
+  const [showAuditShipping, setShowAuditShipping] = useState(false);
+  const [auditShipping, setAuditShipping] = useState<AuditShippingStatus | null>(null);
+  const [auditProbe, setAuditProbe] = useState<AuditSinkProbe | null>(null);
+  const [auditShipResult, setAuditShipResult] = useState<AuditShipResult | null>(null);
+  // Both buttons are owner-only on the server, and a refusal belongs in the
+  // dialog that asked: the page-wide banner sits behind this backdrop, and the
+  // server's sentence is the only text that says whether it was the role
+  // (403) or a sink that vanished between the read and the click (409).
+  const [auditShippingError, setAuditShippingError] = useState<string | null>(null);
 
   // --- tools & search: the register says what, the grants say who ---------
   const [tools, setTools] = useState<ToolWithGrants[]>([]);
@@ -1862,6 +1886,53 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [actWith, client, refreshRunQueue, refreshScheduler, runQueueStatusFilter],
   );
 
+  // --- audit shipping: the copy of the chain that leaves this machine -----
+
+  // Catches its own failure rather than throwing: this refresher runs both on
+  // open (where nothing would catch it) and as the read-back after a drain,
+  // and an unreadable status is information for this dialog, not the page.
+  const refreshAuditShipping = useCallback(async () => {
+    try {
+      setAuditShipping(await client.auditShipping());
+    } catch (err) {
+      setAuditShippingError(serverMessage(err));
+    }
+  }, [client]);
+
+  const openAuditShipping = useCallback(() => {
+    setShowAuditShipping(true);
+    setAuditProbe(null);
+    setAuditShipResult(null);
+    setAuditShippingError(null);
+    void refreshAuditShipping();
+  }, [refreshAuditShipping]);
+
+  const testAuditShipping = useCallback(() => {
+    void actWith(async () => {
+      setAuditShippingError(null);
+      try {
+        // `ok: false` resolves — an unreachable collector is a status this
+        // panel displays. Only a refusal of the *request* lands in the catch.
+        setAuditProbe(await client.testAuditShipping());
+      } catch (err) {
+        setAuditProbe(null);
+        setAuditShippingError(serverMessage(err));
+      }
+    }, refreshAuditShipping);
+  }, [actWith, client, refreshAuditShipping]);
+
+  const runAuditShipping = useCallback(() => {
+    void actWith(async () => {
+      setAuditShippingError(null);
+      try {
+        setAuditShipResult(await client.runAuditShipping());
+      } catch (err) {
+        setAuditShipResult(null);
+        setAuditShippingError(serverMessage(err));
+      }
+    }, refreshAuditShipping);
+  }, [actWith, client, refreshAuditShipping]);
+
   // --- notification channels (Discord, Telegram, email fan-out) -----------
 
   const refreshChannels = useCallback(async () => {
@@ -2116,6 +2187,13 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
           Warteschlange
         </button>
 
+        {/* Sits beside the "Audit" metric on purpose: that one says the local
+            chain still verifies, this one says whether a copy of it exists
+            anywhere the owner of this box cannot reach. */}
+        <button type="button" className="ic-btn" data-testid="open-audit-shipping" onClick={openAuditShipping}>
+          Audit-Kopie
+        </button>
+
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
           <Metric label="Läuft" value={dashboard?.tasks.running ?? 0} tone="accent" />
           <Metric label="Review" value={dashboard?.tasks.review ?? 0} />
@@ -2328,16 +2406,45 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                         // every routine approval wait for somebody with
                         // nothing to add, and gets switched off within a
                         // fortnight — including for the bank transfer.
-                        <button
-                          type="button"
-                          className="ic-btn"
-                          data-variant="ghost"
-                          disabled={busy}
-                          data-testid={`require-two-${approval.id}`}
-                          onClick={() => act(() => client.setQuorum(approval.id, 2))}
-                        >
-                          Vier Augen verlangen
-                        </button>
+                        //
+                        // The picker defaults to 2 and the button is one
+                        // click, because two is what nearly every case wants
+                        // and the control must not tax the common path to
+                        // serve the rare one. Three or more exists because the
+                        // store allows it and a Tier-0 change on a customer's
+                        // network is a real reason to want it — it was simply
+                        // unreachable from here before.
+                        <>
+                          <label className="ic-quorum-pick">
+                            <span className="ic-quorum-pick-label">Zustimmungen</span>
+                            <select
+                              value={quorumChoice[approval.id] ?? 2}
+                              disabled={busy}
+                              data-testid={`quorum-choice-${approval.id}`}
+                              onChange={(e) =>
+                                setQuorumChoice((prev) => ({ ...prev, [approval.id]: Number(e.target.value) }))
+                              }
+                            >
+                              {Array.from({ length: MAX_QUORUM - 1 }, (_, i) => i + 2).map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            className="ic-btn"
+                            data-variant="ghost"
+                            disabled={busy}
+                            data-testid={`require-two-${approval.id}`}
+                            onClick={() => act(() => client.setQuorum(approval.id, quorumChoice[approval.id] ?? 2))}
+                          >
+                            {(quorumChoice[approval.id] ?? 2) === 2
+                              ? "Vier Augen verlangen"
+                              : `${quorumChoice[approval.id]} Zustimmungen verlangen`}
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -5557,6 +5664,200 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               </li>
             ))}
           </ul>
+        </DetailDialog>
+      )}
+
+      {showAuditShipping && (
+        <DetailDialog title="Audit-Kopie" onClose={() => setShowAuditShipping(false)}>
+          <p className="ic-note">
+            Die lokale Kette beweist, dass niemand Einträge <strong>geändert</strong> hat — jeder Eintrag trägt den Hash
+            des vorherigen. Dass niemand sie <strong>gelöscht</strong> hat, kann sie nicht beweisen: Wer diese Maschine
+            besitzt, kann die Tabelle kürzen und die Kette darüber lückenlos neu rechnen. Nur eine Kopie dort, wohin die
+            Zugangsdaten dieser Maschine nicht reichen, überlebt das.
+          </p>
+
+          {auditShippingError !== null && (
+            <div className="ic-conflict" data-testid="audit-shipping-error">
+              {auditShippingError}
+            </div>
+          )}
+
+          {auditShipping === null && <p className="ic-empty">…</p>}
+
+          {/* Not configured is the common case, and it is not an error: the
+              sink is off until somebody sets it. So the server's own sentence,
+              then what to set — and no buttons, because a probe or a drain
+              without a sink can only answer 409. */}
+          {auditShipping?.configured === false && (
+            <>
+              <div className="ic-warn" data-testid="audit-shipping-unconfigured">
+                {auditShipping.message}
+              </div>
+              <p className="ic-note">
+                Einschalten über Umgebungsvariablen und Serverneustart — entweder eine Datei oder ein Collector, nicht
+                beides:
+              </p>
+              <pre className="ic-env-block" data-testid="audit-shipping-setup">
+                {`IRONCREW_AUDIT_SINK=file
+IRONCREW_AUDIT_FILE=/mnt/audit-archiv/ironcrew.ndjson
+
+IRONCREW_AUDIT_SINK=http
+IRONCREW_AUDIT_URL=https://collector.intern.example/ingest
+IRONCREW_AUDIT_TOKEN=…`}
+              </pre>
+              <p className="ic-note">
+                Das Ziel muss wirklich ausser Haus liegen. Eine Datei auf derselben Platte bringt nichts: Wer die
+                Tabelle löscht, löscht sie in derselben Bewegung mit. Ein gemountetes Volume ohne Löschrecht, ein Export
+                mit Append-Semantik, ein Collector auf einer anderen Maschine — das ist der Punkt. Ein halb
+                konfiguriertes Ziel lehnt der Server beim Start ab, statt still nichts zu übertragen.
+              </p>
+            </>
+          )}
+
+          {auditShipping?.configured === true && (
+            <>
+              <ul className="ic-milestone-list">
+                <li data-testid="audit-shipping-sink">
+                  <span className="ic-milestone-title">Ziel</span>
+                  <span className="ic-tag" data-tone="policy">
+                    {AUDIT_SINK_LABEL[auditShipping.sink] ?? auditShipping.sink}
+                  </span>
+                </li>
+                <li data-testid="audit-shipping-cursor">
+                  <span className="ic-milestone-title">Stand</span>
+                  <span className="ic-tag">
+                    {auditShipping.cursor === 0
+                      ? "noch nichts übertragen"
+                      : `bis Eintrag ${auditShipping.cursor} ausser Haus`}
+                  </span>
+                </li>
+                <li data-testid="audit-shipping-pending">
+                  <span className="ic-milestone-title">Rückstand</span>
+                  <span className="ic-tag" data-tone={auditShipping.pending > 0 ? "gate" : "policy"}>
+                    {auditShipping.pending} wartend
+                  </span>
+                </li>
+              </ul>
+              <p className="ic-note">
+                Der Rückstand ist die Zahl, auf die es ankommt. Der Scheduler überträgt alle 60 Sekunden; eine Zahl, die
+                über mehrere Aufrufe hinweg nur wächst, heisst: Das Ziel nimmt nichts mehr an. Jeder Eintrag, der nur
+                hier liegt, ist ein Eintrag, den eine Übernahme dieser Maschine spurlos entfernen kann.
+              </p>
+
+              {/*
+                Shown on the status itself, not only after a drain. A gap means
+                rows below the next unshipped entry are gone from the table —
+                the shape a deletion leaves — and it used to be visible only to
+                whoever happened to press "Jetzt übertragen".
+              */}
+              {/*
+                How the last attempt went. The backlog alone cannot tell an
+                operator whether it is a minute or a week old, and the sink
+                has been logging its failures to a file nobody reads.
+              */}
+              {auditShipping?.configured === true &&
+                (auditShipping.health?.lastError !== undefined ? (
+                  <div className="ic-warn" data-testid="audit-shipping-health">
+                    <strong>
+                      Das Ziel nimmt nichts an
+                      {(auditShipping.health.consecutiveFailures ?? 0) > 1
+                        ? ` — ${auditShipping.health.consecutiveFailures} Versuche in Folge`
+                        : ""}
+                      .
+                    </strong>{" "}
+                    {auditShipping.health.lastError}
+                    {auditShipping.health.lastErrorAt !== undefined && (
+                      <> (zuletzt {new Date(auditShipping.health.lastErrorAt).toLocaleString("de-DE")})</>
+                    )}
+                    {auditShipping.health.lastSuccessAt !== undefined ? (
+                      <>
+                        {" "}
+                        Zuletzt erfolgreich übertragen:{" "}
+                        {new Date(auditShipping.health.lastSuccessAt).toLocaleString("de-DE")}.
+                      </>
+                    ) : (
+                      <> Es wurde noch nie etwas übertragen.</>
+                    )}
+                  </div>
+                ) : auditShipping.health?.lastSuccessAt !== undefined ? (
+                  <p className="ic-note" data-testid="audit-shipping-health">
+                    Zuletzt übertragen: {new Date(auditShipping.health.lastSuccessAt).toLocaleString("de-DE")}.
+                  </p>
+                ) : auditShipping.health?.lastAttemptAt !== undefined ? (
+                  <p className="ic-note" data-testid="audit-shipping-health">
+                    Der letzte Lauf hatte nichts zu übertragen.
+                  </p>
+                ) : (
+                  <p className="ic-note" data-testid="audit-shipping-health">
+                    Noch kein Übertragungslauf. Der Scheduler startet den ersten innerhalb einer Minute.
+                  </p>
+                ))}
+
+              {auditShipping?.configured === true && auditShipping.gapDetected === true && (
+                <div className="ic-conflict" data-testid="audit-shipping-gap-status">
+                  <strong>Lücke in der Audit-Kette.</strong> Zwischen dem zuletzt übertragenen Eintrag und dem nächsten
+                  wartenden fehlen Zeilen. Das kann ein importierter Stand sein — oder genau das, wogegen diese Kopie
+                  existiert. Prüf die Kette unter „Audit" und vergleich sie mit dem, was ausser Haus liegt.
+                </div>
+              )}
+
+              <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid="audit-shipping-test"
+                  disabled={busy}
+                  onClick={testAuditShipping}
+                >
+                  Verbindung prüfen
+                </button>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="primary"
+                  data-testid="audit-shipping-run"
+                  disabled={busy}
+                  onClick={runAuditShipping}
+                >
+                  Jetzt übertragen
+                </button>
+              </div>
+
+              {/* Unreachable is amber, not red: the record is intact, the copy
+                  is merely behind. Nothing was written to the archive to find
+                  this out — the probe posts an empty body. */}
+              {auditProbe !== null && (
+                <div
+                  className={auditProbe.ok ? "ic-note" : "ic-warn"}
+                  data-testid="audit-shipping-probe"
+                  data-ok={auditProbe.ok ? "true" : "false"}
+                >
+                  {auditProbe.ok ? "Ziel erreichbar" : "Ziel nicht erreichbar"} — {auditProbe.message}
+                </div>
+              )}
+
+              {auditShipResult !== null && (
+                <div className="ic-note" data-testid="audit-shipping-run-result">
+                  {auditShipResult.shipped} übertragen · {auditShipResult.pending} weiterhin wartend · Stand jetzt
+                  Eintrag {auditShipResult.cursorSeq}
+                </div>
+              )}
+              {auditShipResult !== null && !auditShipResult.ok && (
+                <div className="ic-warn" data-testid="audit-shipping-run-error">
+                  Nicht alles ist durchgegangen: {auditShipResult.error ?? "Das Ziel hat den Rest abgelehnt."} Der Rest
+                  wird beim nächsten Durchlauf erneut versucht — der Stand rückt nur über angenommene Einträge vor, nie
+                  darüber hinaus.
+                </div>
+              )}
+              {auditShipResult?.gapDetected === true && (
+                <div className="ic-conflict" data-testid="audit-shipping-gap">
+                  Lücke erkannt: Unterhalb des Stands fehlen Zeilen in der Audit-Tabelle. Die Übertragung läuft weiter,
+                  aber genau so sieht ein Löschversuch aus. Jetzt die lokale Kette prüfen und gegen die Kopie ausser
+                  Haus halten — was hier fehlt, steht dort noch.
+                </div>
+              )}
+            </>
+          )}
         </DetailDialog>
       )}
     </div>

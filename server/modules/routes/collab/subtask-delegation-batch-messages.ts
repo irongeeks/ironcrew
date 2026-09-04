@@ -149,10 +149,10 @@ export function buildWorktreeCeoNote(
   if (!hasWorktree) return "";
   return deps.pickL(
     deps.l(
-      [` (격리 브랜치: octooffice/${delegatedTaskId.slice(0, 8)})`],
-      [` (isolated branch: octooffice/${delegatedTaskId.slice(0, 8)})`],
-      [` (分離ブランチ: octooffice/${delegatedTaskId.slice(0, 8)})`],
-      [`（隔离分支: octooffice/${delegatedTaskId.slice(0, 8)}）`],
+      [` (격리 브랜치: ironcrew/${delegatedTaskId.slice(0, 8)})`],
+      [` (isolated branch: ironcrew/${delegatedTaskId.slice(0, 8)})`],
+      [` (分離ブランチ: ironcrew/${delegatedTaskId.slice(0, 8)})`],
+      [`（隔离分支: ironcrew/${delegatedTaskId.slice(0, 8)}）`],
     ),
     lang,
   );

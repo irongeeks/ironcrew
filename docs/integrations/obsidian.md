@@ -2,7 +2,7 @@
 
 ## Overview
 
-OctoOffice can connect local Obsidian vaults and expose them as knowledge providers.
+IronCrew can connect local Obsidian vaults and expose them as knowledge providers.
 
 - Provider type: `obsidian_local`
 - Department usage: Knowledge/docs workflows and project-bound documentation sync

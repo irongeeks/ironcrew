@@ -21,6 +21,7 @@ export default tseslint.config(
       "**/coverage/**",
       "**/test-results/**",
       "**/.tmp/**",
+      "**/.ironcrew/**",
       "**/.octooffice/**",
       "**/logs/**",
       "**/custom-skills/**",

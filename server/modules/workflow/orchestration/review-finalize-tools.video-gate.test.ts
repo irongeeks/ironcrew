@@ -107,8 +107,8 @@ describe("review finalize video gate", () => {
 
   it("video artifact가 있어도 Remotion 증빙이 없으면 승인/머지를 차단한다", () => {
     const db = createDb();
-    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "octooffice-review-gate-"));
-    const logsDir = fs.mkdtempSync(path.join(os.tmpdir(), "octooffice-review-logs-"));
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-review-gate-"));
+    const logsDir = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-review-logs-"));
     try {
       const taskId = "task-video-remotion-missing";
       const outputDir = path.join(projectRoot, "video_output");

@@ -1,7 +1,7 @@
 /**
  * IronCrew — CliAdapterRuntime.
  *
- * The bridge between the normalised AgentRuntime contract and OctoOffice's
+ * The bridge between the normalised AgentRuntime contract and IronCrew's
  * existing CLI adapters (server/adapters/{claude,codex,gemini}.ts). This is
  * what turns the MockRuntime-only vertical slice into one that can drive a
  * real Claude Code / Codex / Gemini CLI session.

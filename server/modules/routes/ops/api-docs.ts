@@ -40,7 +40,7 @@ window.addEventListener("load", () => {
     try {
       const setup = swaggerUi.setup(loadOpenApiDoc(), {
         explorer: true,
-        customSiteTitle: "OctoOffice API Docs",
+        customSiteTitle: "IronCrew API Docs",
         customJs: "/api/docs/swagger-bootstrap.js",
         swaggerOptions: {
           persistAuthorization: true,

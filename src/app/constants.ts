@@ -8,5 +8,5 @@ export const MAX_SUBAGENT_STREAM_TAIL_CHARS = 16_000;
 export const MAX_SUBAGENT_STREAM_TRACKED_TASKS = 180;
 export const MAX_CODEX_THREAD_BINDINGS = 2000;
 export const CODEX_THREAD_BINDING_TTL_MS = 30 * 60 * 1000;
-export const UPDATE_BANNER_DISMISS_STORAGE_KEY = "octooffice_update_banner_dismissed";
-export const ROOM_THEMES_STORAGE_KEY = "octooffice_room_themes";
+export const UPDATE_BANNER_DISMISS_STORAGE_KEY = "ironcrew_update_banner_dismissed";
+export const ROOM_THEMES_STORAGE_KEY = "ironcrew_room_themes";

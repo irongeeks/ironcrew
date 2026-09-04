@@ -1,5 +1,11 @@
 # Releases
 
+These notes describe releases of
+[OctoOffice](https://github.com/Chepko932/OctoOffice), the project IronCrew is
+forked from, and are kept under the names those releases shipped with. They are
+useful for the features IronCrew inherited; they are not IronCrew's own release
+history, which starts after the fork.
+
 - [`v2.6.0`](v2.6.0.md) - Code-review backlog cut: 41/41 high+critical issues closed across five waves (security/SSRF + DNS-rebind, a11y/WCAG, TS strictness, architecture refactors, +30 % backend tests). pnpm overrides for `ip-address`, `hono`, `fast-uri`. Backend coverage 35 → 39 % statements / 72 % functions; no breaking API changes
 - [`v2.5.2`](v2.5.2.md) - Patch release: completed `pnpm setup` → `pnpm run setup` cleanup across CHANGELOG, release notes, AGENTS templates, setup scripts, and runtime routes (the bare `pnpm setup` command is reserved by pnpm itself); simplified `how-it-works.svg` to a single linear pipeline diagram
 - [`v2.5.1`](v2.5.1.md) - Post-release hardening: mobile agent picker in chat panel, auth/CSRF fixes, dependency security patches (xmldom, hono, postcss), E2E test suite stabilisation, a11y and logging improvements, PPT workflow removal, community health files, neutral placeholder values across UI/tests

@@ -18,7 +18,7 @@ function initRepo(basePrefix: string): string {
     runGit(dir, ["checkout", "-B", "main"]);
   }
   runGit(dir, ["config", "user.name", "OctoOffice Test"]);
-  runGit(dir, ["config", "user.email", "octooffice-test@example.local"]);
+  runGit(dir, ["config", "user.email", "ironcrew-test@example.local"]);
   fs.writeFileSync(path.join(dir, "README.md"), "seed\n", "utf8");
   runGit(dir, ["add", "."]);
   runGit(dir, ["commit", "--no-gpg-sign", "-m", "seed"]);
@@ -37,11 +37,11 @@ afterEach(() => {
 
 describe("worktree lifecycle branch collision handling", () => {
   it("reuses existing task branch when branch already exists", () => {
-    const repo = initRepo("octooffice-wt-reuse-");
+    const repo = initRepo("ironcrew-wt-reuse-");
     tempDirs.push(repo);
     const shortId = "reuse001";
     const taskId = `${shortId}-0000-0000-0000-000000000000`;
-    runGit(repo, ["branch", `octooffice/${shortId}`]);
+    runGit(repo, ["branch", `ironcrew/${shortId}`]);
 
     const taskWorktrees = new Map();
     const tools = createWorktreeLifecycleTools({
@@ -52,7 +52,7 @@ describe("worktree lifecycle branch collision handling", () => {
     const worktreePath = tools.createWorktree(repo, taskId, "Tester");
     expect(worktreePath).toBeTruthy();
     const info = taskWorktrees.get(taskId);
-    expect(info?.branchName).toBe(`octooffice/${shortId}`);
+    expect(info?.branchName).toBe(`ironcrew/${shortId}`);
     expect(fs.existsSync(String(info?.worktreePath || ""))).toBe(true);
 
     tools.cleanupWorktree(repo, taskId);
@@ -60,10 +60,10 @@ describe("worktree lifecycle branch collision handling", () => {
   });
 
   it("falls back to suffixed branch when existing branch is occupied in another worktree", () => {
-    const repo = initRepo("octooffice-wt-fallback-");
+    const repo = initRepo("ironcrew-wt-fallback-");
     tempDirs.push(repo);
     const shortId = "fallback";
-    const baseBranch = `octooffice/${shortId}`;
+    const baseBranch = `ironcrew/${shortId}`;
     const occupiedPath = path.join(repo, ".occupied-worktree");
     runGit(repo, ["worktree", "add", occupiedPath, "-b", baseBranch, "HEAD"]);
 

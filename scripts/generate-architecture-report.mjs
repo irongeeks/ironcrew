@@ -4,13 +4,31 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+/**
+ * The database file, resolved the way the server resolves it.
+ *
+ * `ironcrew.sqlite` is the name; an installation older than the rename from
+ * OctoOffice still has `octooffice.sqlite`, which `server/config/runtime.ts`
+ * adopts read-only. A script that hardcoded either name would open the wrong
+ * file on half the installations out there — and reading an empty database
+ * produces a confident, wrong report rather than an error.
+ */
+function resolveDbPath(root) {
+  const preferred = path.join(root, "ironcrew.sqlite");
+  const legacy = path.join(root, "octooffice.sqlite");
+  if (!fs.existsSync(preferred) && fs.existsSync(legacy)) return legacy;
+  return preferred;
+}
+
 const repoRoot = process.cwd();
 const outputDir = path.join(repoRoot, "docs", "architecture");
 
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"];
 
-const SKIP_DIRS = new Set([".git", "node_modules", "dist", "logs", ".octooffice-worktrees"]);
+// Both worktree directory names are skipped: a checkout older than the rename
+// to IronCrew still has its worktrees under the pre-rename name.
+const SKIP_DIRS = new Set([".git", "node_modules", "dist", "logs", ".ironcrew-worktrees", ".octooffice-worktrees"]);
 
 function toPosix(p) {
   return p.split(path.sep).join("/");
@@ -310,12 +328,16 @@ function roleRank(role) {
 }
 
 function readOrgData() {
-  const dbPath = path.join(repoRoot, "octooffice.sqlite");
+  const dbPath = resolveDbPath(repoRoot);
   if (!fs.existsSync(dbPath)) return [];
 
   let db;
   try {
-    db = new DatabaseSync(dbPath, { readonly: true });
+    // `readOnly`, not `readonly`. node:sqlite ignores an unknown option
+    // silently, so the lowercase spelling opened this database read-WRITE
+    // while every reader of the line believed otherwise. A report generator
+    // has no business being able to write to the database it describes.
+    db = new DatabaseSync(dbPath, { readOnly: true });
     const rows = db
       .prepare(
         `
@@ -533,7 +555,7 @@ flowchart LR
   subgraph Backend
     B1["server/index.ts"] --> B2["Express REST API"]
     B1 --> B3["WebSocket Server"]
-    B1 --> B4["SQLite (octooffice.sqlite)"]
+    B1 --> B4["SQLite (ironcrew.sqlite)"]
     B1 --> B5["Git Worktree + CLI Process"]
   end
 

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
-import OctoOfficeTopBar from "./OctoOfficeTopBar";
+import IronCrewTopBar from "./IronCrewTopBar";
 
-function createBaseProps(): ComponentProps<typeof OctoOfficeTopBar> {
+function createBaseProps(): ComponentProps<typeof IronCrewTopBar> {
   return {
     view: "office",
     onChangeView: vi.fn(),
@@ -31,10 +31,10 @@ function parsePx(value: string | null | undefined): number {
   return Number.isFinite(num) ? num : 0;
 }
 
-describe("OctoOfficeTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
+describe("IronCrewTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
   it("ghost icon buttons (announcement, decision inbox, more, theme) report width and height >= 36px", () => {
     const props = createBaseProps();
-    render(<OctoOfficeTopBar {...props} />);
+    render(<IronCrewTopBar {...props} />);
 
     const labels = ["Announcement", "Decision Inbox", "More actions"];
     for (const label of labels) {
@@ -51,7 +51,7 @@ describe("OctoOfficeTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
 
   it("language cycle ghost button has height >= 36px (width may auto-fit text)", () => {
     const props = createBaseProps();
-    render(<OctoOfficeTopBar {...props} />);
+    render(<IronCrewTopBar {...props} />);
 
     const langBtn = screen.getByRole("button", { name: /current language/i }) as HTMLButtonElement;
     expect(parsePx(langBtn.style.height)).toBeGreaterThanOrEqual(36);
@@ -59,7 +59,7 @@ describe("OctoOfficeTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
 
   it("nav cluster has gap >= 6px between items", () => {
     const props = createBaseProps();
-    const { container } = render(<OctoOfficeTopBar {...props} />);
+    const { container } = render(<IronCrewTopBar {...props} />);
 
     const nav = container.querySelector("nav") as HTMLElement | null;
     expect(nav).not.toBeNull();
@@ -69,7 +69,7 @@ describe("OctoOfficeTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
 
   it("nav tab buttons have height >= 36px and 2px outer margin", () => {
     const props = createBaseProps();
-    render(<OctoOfficeTopBar {...props} />);
+    render(<IronCrewTopBar {...props} />);
 
     const tabLabels = ["OFFICE", "TASKS", "WORKFLOWS", "OPS", "ROSTER", "LIBRARY", "PROJECTS", "SCHEDULES", "SETTINGS"];
     for (const label of tabLabels) {
@@ -82,7 +82,7 @@ describe("OctoOfficeTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
 
   it("+ NEW MISSION button has height >= 36px", () => {
     const props = createBaseProps();
-    render(<OctoOfficeTopBar {...props} />);
+    render(<IronCrewTopBar {...props} />);
 
     const btn = screen.getByRole("button", { name: /new mission/i }) as HTMLButtonElement;
     expect(parsePx(btn.style.height)).toBeGreaterThanOrEqual(36);
@@ -104,7 +104,7 @@ describe("OctoOfficeTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
       ],
       onChange: vi.fn(),
     };
-    render(<OctoOfficeTopBar {...props} />);
+    render(<IronCrewTopBar {...props} />);
 
     const select = screen.getByRole("combobox", { name: /workflow pack/i }) as HTMLSelectElement;
     expect(parsePx(select.style.height)).toBeGreaterThanOrEqual(36);

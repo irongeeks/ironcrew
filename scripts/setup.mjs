@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * OctoOffice setup script
+ * IronCrew setup script
  *
  * Prepends CEO directive + orchestration rules to the user's AGENTS.md.
  * This is an UPDATE, not an OVERWRITE — existing content is preserved.
@@ -17,9 +17,36 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_PATH = path.join(__dirname, "..", "templates", "AGENTS-octooffice.md");
-const START_MARKER = "<!-- BEGIN octooffice orchestration rules -->";
-const END_MARKER = "<!-- END octooffice orchestration rules -->";
+const TEMPLATE_PATH = path.join(__dirname, "..", "templates", "AGENTS-ironcrew.md");
+// The markers that delimit the block this script owns inside somebody's
+// AGENTS.md — and the migration that lets them be renamed at all.
+//
+// These are not branding, they are a key. An installation that ran setup
+// before the rename has the OLD words sitting in its AGENTS.md right now. If
+// this script only knew the new spelling it would fail to find that block,
+// prepend a second copy, and add another on every subsequent run. If it only
+// knew the old one, the old name would live on in every file it writes.
+//
+// So it writes the new markers and recognises both. The first run after the
+// rename finds the legacy block, replaces it with the new one, and the old
+// spelling is gone from that file for good — a migration, not a rename.
+// `server/modules/routes/ops/setup-status.ts` recognises both for the same
+// reason, or it would report a perfectly good installation as un-configured.
+const START_MARKER = "<!-- BEGIN ironcrew orchestration rules -->";
+const END_MARKER = "<!-- END ironcrew orchestration rules -->";
+const LEGACY_START_MARKER = "<!-- BEGIN octooffice orchestration rules -->";
+const LEGACY_END_MARKER = "<!-- END octooffice orchestration rules -->";
+
+/** The marker pair present in `content`, or null when there is no block. */
+function findMarkers(content) {
+  if (content.includes(START_MARKER) && content.includes(END_MARKER)) {
+    return { start: START_MARKER, end: END_MARKER };
+  }
+  if (content.includes(LEGACY_START_MARKER) && content.includes(LEGACY_END_MARKER)) {
+    return { start: LEGACY_START_MARKER, end: LEGACY_END_MARKER };
+  }
+  return null;
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -75,13 +102,13 @@ function resolveWorkspaceDir() {
 
 function findAgentsPath() {
   const projectAgentsPath = path.join(process.cwd(), "AGENTS.md");
-  // Default target: current project root (octooffice users first).
+  // Default target: current project root (ironcrew users first).
   // OpenClaw workspace targeting should be explicit via --agents-path.
   return projectAgentsPath;
 }
 
 /**
- * Inject (or update) the OctoOffice orchestration rules block into an AGENTS.md file.
+ * Inject (or update) the IronCrew orchestration rules block into an AGENTS.md file.
  *
  * @param {{ port?: string, agentsPath?: string }} options
  * @returns {{ path: string, port: string }}
@@ -93,9 +120,9 @@ export function injectAgentsRules({ port, agentsPath } = {}) {
   let templateContent = fs.readFileSync(TEMPLATE_PATH, "utf8");
   templateContent = templateContent.replace(/__PORT__/g, resolvedPort);
 
-  console.log(`[OctoOffice] Setting up orchestration rules`);
-  console.log(`[OctoOffice] Target: ${resolvedPath}`);
-  console.log(`[OctoOffice] Port: ${resolvedPort}`);
+  console.log(`[IronCrew] Setting up orchestration rules`);
+  console.log(`[IronCrew] Target: ${resolvedPath}`);
+  console.log(`[IronCrew] Port: ${resolvedPort}`);
 
   // Read existing content
   let existingContent = "";
@@ -104,14 +131,15 @@ export function injectAgentsRules({ port, agentsPath } = {}) {
   }
 
   // Check if already installed — offer update
-  if (existingContent.includes(START_MARKER) && existingContent.includes(END_MARKER)) {
-    const startIdx = existingContent.indexOf(START_MARKER);
-    const endIdx = existingContent.indexOf(END_MARKER) + END_MARKER.length;
+  const found = findMarkers(existingContent);
+  if (found) {
+    const startIdx = existingContent.indexOf(found.start);
+    const endIdx = existingContent.indexOf(found.end) + found.end.length;
     const before = existingContent.slice(0, startIdx);
     const after = existingContent.slice(endIdx);
     const newContent = before + templateContent + after;
     fs.writeFileSync(resolvedPath, newContent, "utf8");
-    console.log(`[OctoOffice] Updated existing orchestration rules in ${resolvedPath}`);
+    console.log(`[IronCrew] Updated existing orchestration rules in ${resolvedPath}`);
   } else {
     // Prepend template to existing content
     const newContent = templateContent + "\n\n" + existingContent;
@@ -121,17 +149,17 @@ export function injectAgentsRules({ port, agentsPath } = {}) {
     fs.mkdirSync(dir, { recursive: true });
 
     fs.writeFileSync(resolvedPath, newContent, "utf8");
-    console.log(`[OctoOffice] Orchestration rules added to top of ${resolvedPath}`);
-    console.log(`[OctoOffice] Your existing AGENTS.md content is preserved below.`);
+    console.log(`[IronCrew] Orchestration rules added to top of ${resolvedPath}`);
+    console.log(`[IronCrew] Your existing AGENTS.md content is preserved below.`);
   }
 
   // Verify markers after write
   const written = fs.readFileSync(resolvedPath, "utf8");
   if (!written.includes(START_MARKER) || !written.includes(END_MARKER)) {
-    throw new Error(`[OctoOffice] Marker verification failed after writing ${resolvedPath}`);
+    throw new Error(`[IronCrew] Marker verification failed after writing ${resolvedPath}`);
   }
 
-  console.log(`[OctoOffice] Done!`);
+  console.log(`[IronCrew] Done!`);
 
   return { path: resolvedPath, port: resolvedPort };
 }

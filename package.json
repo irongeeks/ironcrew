@@ -1,17 +1,17 @@
 {
-  "name": "octooffice",
+  "name": "ironcrew",
   "private": true,
   "version": "2.7.0",
-  "description": "Local-first orchestrator that turns CLI coding agents into a simulated virtual software company with departments, workflows, and a pixel-art office.",
+  "description": "Self-hosted, local-first multi-agent company OS: an executive assistant triages your directives, delegates to a crew of specialist agents, and reports back under a governance-grade control plane.",
   "license": "Apache-2.0",
-  "author": "Joshua Dormann <joshua.dormann@googlemail.com>",
-  "homepage": "https://github.com/Chepko932/OctoOffice#readme",
+  "author": "IronGeeks",
+  "homepage": "https://github.com/irongeeks/ironcrew#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Chepko932/OctoOffice.git"
+    "url": "https://github.com/irongeeks/ironcrew.git"
   },
   "bugs": {
-    "url": "https://github.com/Chepko932/OctoOffice/issues"
+    "url": "https://github.com/irongeeks/ironcrew/issues"
   },
   "keywords": [
     "ai-agents",
@@ -37,7 +37,7 @@
     "prestart:tailscale": "node scripts/auto-apply-v1.0.5.mjs && node scripts/ensure-remotion-runtime.mjs",
     "dev": "concurrently -n web,api -c cyan,magenta \"cross-env VITE_DEV=1 vite --host 0.0.0.0 --port 8800\" \"cross-env VITE_DEV=1 HOST=0.0.0.0 nodemon --watch server --ext ts --exec tsx server/index.ts\"",
     "dev:local": "concurrently -n web,api -c cyan,magenta \"cross-env VITE_DEV=1 vite --host 127.0.0.1 --port 8800\" \"cross-env VITE_DEV=1 HOST=127.0.0.1 nodemon --watch server --ext ts --exec tsx server/index.ts\"",
-    "dev:e2e": "node scripts/prepare-e2e-runtime.mjs && cross-env VITE_DEV=1 HOST=127.0.0.1 DB_PATH=.tmp/e2e-runtime/octooffice.e2e.sqlite LOGS_DIR=.tmp/e2e-runtime/logs concurrently -n web,api -c cyan,magenta \"vite --host 127.0.0.1 --port 8810\" \"nodemon --watch server --ext ts --exec tsx server/index.ts\"",
+    "dev:e2e": "node scripts/prepare-e2e-runtime.mjs && cross-env VITE_DEV=1 HOST=127.0.0.1 DB_PATH=.tmp/e2e-runtime/ironcrew.e2e.sqlite LOGS_DIR=.tmp/e2e-runtime/logs concurrently -n web,api -c cyan,magenta \"vite --host 127.0.0.1 --port 8810\" \"nodemon --watch server --ext ts --exec tsx server/index.ts\"",
     "dev:docker": "concurrently -n web,api -c cyan,magenta \"cross-env VITE_DEV=1 vite --host 0.0.0.0 --port 8800\" \"cross-env VITE_DEV=1 HOST=0.0.0.0 nodemon --legacy-watch --watch server --ext ts --exec tsx server/index.ts\"",
     "dev:tailscale": "concurrently -n web,api -c cyan,magenta \"cross-env VITE_DEV=1 vite --host 0.0.0.0 --port 8800\" \"cross-env VITE_DEV=1 HOST=0.0.0.0 nodemon --watch server --ext ts --exec tsx server/index.ts\"",
     "start": "tsx server/index.ts",
@@ -48,6 +48,7 @@
     "arch:map": "node scripts/generate-architecture-report.mjs",
     "preflight:public": "bash scripts/preflight-public.sh",
     "audit:verify": "node scripts/verify-security-audit-log.mjs",
+    "audit:verify:db": "node scripts/ironcrew-verify-audit.mjs",
     "test:comm:llm": "node scripts/qa/llm-comm-test.mjs",
     "test:comm:oauth": "node scripts/qa/oauth-comm-test.mjs",
     "test:comm:api": "node scripts/qa/api-comm-test.mjs",
@@ -59,13 +60,14 @@
     "test:qa:office:management": "node scripts/qa/office-management-requirements.mjs",
     "test:qa:office:theme": "node scripts/qa/office-theme-requirements.mjs",
     "test:qa:project-path": "node scripts/qa/project-path-api-smoke.mjs",
+    "test:scripts": "vitest run --config scripts/lib/vitest.config.mjs",
     "test:web": "vitest --config vitest.config.ts",
     "test:api": "vitest --config server/vitest.config.ts",
     "test:api:ci": "vitest --config server/vitest.ci.config.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
     "test:e2e:smoke": "playwright test tests/e2e/smoke.spec.ts --config playwright.config.ts",
-    "test": "pnpm run test:web && pnpm run test:api",
-    "test:ci:unit": "pnpm run test:web --coverage && pnpm run test:api:ci --coverage",
+    "test": "pnpm run test:web && pnpm run test:api && pnpm run test:scripts",
+    "test:ci:unit": "pnpm run test:web --coverage && pnpm run test:api:ci --coverage && pnpm run test:scripts",
     "test:ci": "pnpm run test:ci:unit && pnpm run test:e2e",
     "lint": "eslint src server",
     "lint:fix": "eslint src server --fix",

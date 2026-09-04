@@ -2838,6 +2838,17 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         sink: shipper.sinkKind,
         cursor: shipper.cursor(companyId),
         pending: shipper.pending(companyId),
+        // Reported here, not only after a drain. A gap means rows below the
+        // next unshipped entry are gone from the table, which is what a
+        // deletion looks like — and it was previously visible only to
+        // whoever pressed "übertragen".
+        gapDetected: shipper.gapAhead(companyId),
+        // How the last attempt went. Without this the panel can say "17
+        // waiting" but not "and nothing has left since 06:00" — and a backlog
+        // looks identical whether it is a minute or a week old. The message
+        // is already redacted by the shipper; the collector's token has never
+        // been in it.
+        health: shipper.health(companyId),
       });
     }),
   );

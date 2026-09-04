@@ -254,7 +254,7 @@ export default function SetupWizard({ settings, cliStatus: cliStatusProp, onComp
           color: "var(--text-muted)",
         }}
       >
-        OctoOffice — Step {step + 1} of {STEPS.length}
+        IronCrew — Step {step + 1} of {STEPS.length}
       </div>
     </div>
   );

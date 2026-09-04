@@ -80,8 +80,8 @@ describe("MissionControl", () => {
     // Expand button
     expect(screen.getByText("↗ Expand")).toBeInTheDocument();
 
-    // OctoOffice label
-    expect(screen.getByText("OctoOffice")).toBeInTheDocument();
+    // IronCrew label
+    expect(screen.getByText("IronCrew")).toBeInTheDocument();
   });
 
   it("renders LiveTaskView in the center column", () => {

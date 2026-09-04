@@ -107,7 +107,7 @@ async function main() {
   await clickByText(page, "OFFICE");
   await waitSettle(page, 1200);
 
-  // Theme toggle: OctoOfficeTopBar has a button with title/aria-label for theme.
+  // Theme toggle: IronCrewTopBar has a button with title/aria-label for theme.
   // Try common selectors; fall back to evaluating document theme attribute.
   const themeBtn = page
     .locator(

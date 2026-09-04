@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { readStoredValue, writeStoredValue } from "./storage";
 
 export type ThemeMode = "dark" | "light";
 
-const THEME_STORAGE_KEY = "octooffice_theme";
+const THEME_STORAGE_KEY = "ironcrew_theme";
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -19,13 +20,13 @@ const ThemeContext = createContext<ThemeContextValue>({
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "light";
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const stored = readStoredValue(THEME_STORAGE_KEY);
     return stored === "dark" ? "dark" : "light";
   });
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    writeStoredValue(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

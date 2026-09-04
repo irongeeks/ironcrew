@@ -207,7 +207,7 @@ export function createSecurityAuditTools(deps: SecurityAuditDeps) {
       return true;
     } catch (fallbackErr) {
       try {
-        process.stderr.write(`[OctoOffice] security audit fallback append failed: ${String(fallbackErr)}\n${line}`);
+        process.stderr.write(`[IronCrew] security audit fallback append failed: ${String(fallbackErr)}\n${line}`);
         // Fail closed when neither primary nor fallback file append succeeds.
         return false;
       } catch {

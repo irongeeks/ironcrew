@@ -3,12 +3,28 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
+/**
+ * The database file, resolved the way the server resolves it.
+ *
+ * `ironcrew.sqlite` is the name; an installation older than the rename from
+ * OctoOffice still has `octooffice.sqlite`, which `server/config/runtime.ts`
+ * adopts read-only. A script that hardcoded either name would open the wrong
+ * file on half the installations out there — and reading an empty database
+ * produces a confident, wrong report rather than an error.
+ */
+function resolveDbPath(root) {
+  const preferred = path.join(root, "ironcrew.sqlite");
+  const legacy = path.join(root, "octooffice.sqlite");
+  if (!fs.existsSync(preferred) && fs.existsSync(legacy)) return legacy;
+  return preferred;
+}
+
 const SKILL_NAME_RE = /^[A-Za-z0-9_-]{1,80}$/;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const customSkillsDir = path.join(projectRoot, "custom-skills");
-const defaultDbPath = path.join(projectRoot, "octooffice.sqlite");
+const defaultDbPath = resolveDbPath(projectRoot);
 
 function toPosInt(value) {
   const n = Number(value);

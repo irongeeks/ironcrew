@@ -15,7 +15,9 @@ import { randomUUID } from "node:crypto";
 // (newlines, $, `, ", spaces, ;, &) and MUST be rejected.
 const TOKEN_RE = /^[A-Za-z0-9_-]{20,255}$/;
 
-const ENV_VAR_NAME = "OCTOOFFICE_GIT_ASKPASS_TOKEN";
+// Generated per call and handed straight to the child process — never read
+// from the operator's environment, so the rename needs no compatibility.
+const ENV_VAR_NAME = "IRONCREW_GIT_ASKPASS_TOKEN";
 
 export interface GitAskpassResult {
   scriptPath: string;

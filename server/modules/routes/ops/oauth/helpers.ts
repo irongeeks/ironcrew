@@ -264,7 +264,7 @@ export function createOAuthRouteHelpers(deps: OAuthHelperDeps) {
       const emailResp = await fetch("https://api.github.com/user/emails", {
         headers: {
           Authorization: `Bearer ${tokenData.access_token}`,
-          "User-Agent": "octooffice",
+          "User-Agent": "ironcrew",
           Accept: "application/vnd.github+json",
         },
         signal: AbortSignal.timeout(5000),

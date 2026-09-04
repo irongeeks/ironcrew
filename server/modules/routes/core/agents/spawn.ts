@@ -239,11 +239,7 @@ export function registerAgentSpawnRoute(
         });
       }
       agentCwd = worktreePath;
-      appendTaskLog(
-        taskId,
-        "system",
-        `Git worktree created: ${worktreePath} (branch: octooffice/${taskId.slice(0, 8)})`,
-      );
+      appendTaskLog(taskId, "system", `Git worktree created: ${worktreePath} (branch: ironcrew/${taskId.slice(0, 8)})`);
       if (provider === "claude") {
         ensureClaudeMd(projectPath, worktreePath);
       }
@@ -285,7 +281,7 @@ export function registerAgentSpawnRoute(
         `[Task] ${task.title}`,
         task.description ? `\n${task.description}` : "",
         sshGuidance,
-        `NOTE: You are working in an isolated Git worktree branch (octooffice/${taskId.slice(0, 8)}). Commit your changes normally.`,
+        `NOTE: You are working in an isolated Git worktree branch (ironcrew/${taskId.slice(0, 8)}). Commit your changes normally.`,
         `Agent: ${agent.name} (${roleLabel}, ${agent.department_name || "Unassigned"})`,
         agent.personality ? `Personality: ${agent.personality}` : "",
         deptConstraint,

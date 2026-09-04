@@ -124,6 +124,12 @@ export function registerSetupStatusRoutes(ctx: RuntimeContext): void {
         const agentsMdPath = path.resolve("AGENTS.md");
         const agentsMdContent = fs.readFileSync(agentsMdPath, "utf8");
         const hasMarker =
+          // Both spellings: an installation configured before the rename from
+          // OctoOffice still has the old marker in its AGENTS.md, and
+          // reporting it as un-configured would send an operator to re-run a
+          // setup that had already worked. `scripts/setup.mjs` replaces the
+          // old block with the new one on its next run.
+          agentsMdContent.includes("<!-- BEGIN ironcrew orchestration rules -->") ||
           agentsMdContent.includes("<!-- BEGIN octooffice orchestration rules -->") ||
           agentsMdContent.includes("INBOX_SECRET_DISCOVERY_V2");
         checks.agents_md_injected = hasMarker

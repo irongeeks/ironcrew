@@ -384,7 +384,7 @@ export function createCliRuntimeTools(deps: CliRuntimeDeps) {
         kind === "idle"
           ? `no output for ${Math.round(timeoutMs / 1000)}s`
           : `exceeded max runtime ${Math.round(timeoutMs / 1000)}s`;
-      const msg = `[OctoOffice] RUN TIMEOUT (${reason})`;
+      const msg = `[IronCrew] RUN TIMEOUT (${reason})`;
       safeWrite(`\n${msg}\n`);
       appendTaskLog(taskId, "error", msg);
       try {
@@ -421,7 +421,7 @@ export function createCliRuntimeTools(deps: CliRuntimeDeps) {
       clearRunTimers();
       detachOutputListeners();
       log.error({ err, provider, taskId }, "spawn error");
-      safeWrite(`\n[OctoOffice] SPAWN ERROR: ${err.message}\n`);
+      safeWrite(`\n[IronCrew] SPAWN ERROR: ${err.message}\n`);
       safeEnd();
       if (activeProcesses.get(taskId) === child) {
         activeProcesses.delete(taskId);

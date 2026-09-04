@@ -59,12 +59,12 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       >
         {/* Logo */}
         <div className="mb-6 flex flex-col items-center gap-4">
-          <img src="/assets/octooffice-logo-white.svg" alt="OctoOffice" style={{ height: 64, width: "auto" }} />
+          <img src="/assets/ironcrew-logo-white.svg" alt="IronCrew" style={{ height: 64, width: "auto" }} />
           <h1
             className="text-lg"
             style={{ fontFamily: "'Press Start 2P', monospace", color: "var(--th-text-heading, #f4f4f5)" }}
           >
-            OctoOffice
+            IronCrew
           </h1>
           <p
             className="text-center text-xs"

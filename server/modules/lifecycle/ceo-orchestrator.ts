@@ -316,7 +316,7 @@ Rules:
     const companyNameRow = db.prepare("SELECT value FROM settings WHERE key = 'companyName' LIMIT 1").get() as
       | { value?: string }
       | undefined;
-    const companyName = companyNameRow?.value ?? "OctoOffice";
+    const companyName = companyNameRow?.value ?? "IronCrew";
     const model = resolveModel(provider, readCeoModel(db));
 
     running = true;

@@ -1,8 +1,8 @@
-# gitleaks configuration for OctoOffice
+# gitleaks configuration for IronCrew
 # Uses the full default ruleset and allowlists known synthetic test fixtures.
 # Run: gitleaks detect --source . --redact
 
-title = "OctoOffice gitleaks config"
+title = "IronCrew gitleaks config"
 
 [extend]
 useDefault = true

@@ -612,7 +612,7 @@ export type AutonomousActionEvent = {
 };
 
 export const DEFAULT_SETTINGS: CompanySettings = {
-  companyName: "OctoOffice",
+  companyName: "IronCrew",
   ceoName: "CEO",
   autoAssign: true,
   yoloMode: false,

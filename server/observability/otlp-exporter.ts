@@ -42,11 +42,11 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
     const resourceSpans = [
       {
         resource: {
-          attributes: [{ key: "service.name", value: { stringValue: "octooffice" } }],
+          attributes: [{ key: "service.name", value: { stringValue: "ironcrew" } }],
         },
         scopeSpans: [
           {
-            scope: { name: "octooffice.observability" },
+            scope: { name: "ironcrew.observability" },
             spans: spans.map((s: any) => ({
               traceId: s.trace_id.replace(/-/g, "").slice(0, 32).padStart(32, "0"),
               spanId: s.id.replace(/-/g, "").slice(0, 16).padStart(16, "0"),
@@ -102,11 +102,11 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
     const resourceMetrics = [
       {
         resource: {
-          attributes: [{ key: "service.name", value: { stringValue: "octooffice" } }],
+          attributes: [{ key: "service.name", value: { stringValue: "ironcrew" } }],
         },
         scopeMetrics: [
           {
-            scope: { name: "octooffice.observability" },
+            scope: { name: "ironcrew.observability" },
             metrics: rows.map((m: any) => ({
               name: m.name,
               sum:
@@ -196,11 +196,11 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
     const resourceLogs = [
       {
         resource: {
-          attributes: [{ key: "service.name", value: { stringValue: "octooffice" } }],
+          attributes: [{ key: "service.name", value: { stringValue: "ironcrew" } }],
         },
         scopeLogs: [
           {
-            scope: { name: "octooffice.observability" },
+            scope: { name: "ironcrew.observability" },
             logRecords: rows.map((l: any) => {
               const sev = severityMap[l.level] ?? { text: "INFO", number: 9 };
               return {

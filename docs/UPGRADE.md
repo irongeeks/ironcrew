@@ -290,8 +290,9 @@ curl -s localhost:8790/api/health
 ```
 
 `/api/health` is deliberately unauthenticated and returns `version` from
-`package.json`. (`app` still reads `OctoOffice` — that is the upstream name in
-the payload, not a sign that the wrong build is running.)
+`package.json`. (`app` reads `IronCrew`. On a build older than the rename it
+reads `OctoOffice` instead — that is the previous product name in the payload,
+not a sign that the wrong build is running.)
 
 **2. The migration state is what you expected.**
 
@@ -316,15 +317,21 @@ database came through the upgrade unaltered — every audited row is hashed into
 a chain, so a changed byte breaks it:
 
 ```bash
-curl -s -H "Authorization: Bearer $TOKEN" localhost:8790/api/crew/dashboard | grep auditChainValid
+node scripts/ironcrew-verify-audit.mjs --db /var/lib/ironcrew/data/ironcrew.sqlite
 ```
 
-`GET /api/crew/audit` returns the full `chain` object, including the sequence
-number of the first broken link. The Command Center's dashboard shows the same
-flag.
+This opens the database read-only, verifies the chain for **every** company and
+needs no running service, so it can be run before the upgraded build is started
+— exit code 0 means every chain is intact, 2 means a chain is broken or a
+number is missing from the `seq` sequence. `--json` for a monitoring check.
+
+With the service running, `GET /api/crew/audit` returns the same `chain` object,
+including the sequence number of the first broken link, and the Command Center's
+dashboard shows the flag.
 
 Note that `pnpm run audit:verify` does **not** answer this question — it
-verifies a different chain, in a log file. See [Known gaps](#known-gaps).
+verifies a different chain, in a log file. The database chain is
+`pnpm run audit:verify:db`. See [Known gaps](#known-gaps).
 
 **5. The integrations still reach the systems they name.** Installed business
 packs declare integrations, and each has a probe that makes one real call:
@@ -348,9 +355,36 @@ next section.
 **A smoke test, if you want one beyond the checks above.** `pnpm run test:api`
 runs the server unit suite against the checkout — it does not touch your
 database and does not need the service running, so it is safe to run on the box
-after an upgrade. `pnpm run openapi:check` verifies the shipped contract still
-matches the routes. `pnpm run test:e2e:smoke` exists but drives a browser
-against a dev server and is not meant for a production host.
+after an upgrade. `pnpm run test:e2e:smoke` exists but drives a browser against
+a dev server and is not meant for a production host.
+
+**`pnpm run openapi:check` is not a post-upgrade gate, and should not be used
+as one.** What it actually does, in this order:
+
+1. Re-serialises `docs/openapi.json` and fails (exit 1) if the file on disk
+   differs — a formatting and normalisation check on the committed spec.
+2. Validates the spec against the OpenAPI schema. It prints
+   `validated 34 operations`, and 34 is all there is: the spec describes 25
+   paths, **none of them under `/api/crew`**. The entire IronCrew control
+   plane — approvals, routines, packs, audit, the scheduler — is absent from
+   it.
+3. Statically greps `server/modules/routes/` for `.get("…")`-shaped calls and
+   compares them against the spec. It reports roughly `197 in code but missing
+from spec` and prints the first fifty. That number is **information, not a
+   failure**: the command exits 0 with it. (`server/ironcrew/api/routes.ts` is
+   not in the scanned directory at all, so those routes are counted by
+   neither side.)
+
+So a green `openapi:check` tells you the committed spec file is well-formed and
+unmodified. It tells you nothing about whether the routes your build serves
+match what a client expects, because the shipped contract does not describe
+them. Reading its output as "the API is intact after the upgrade" is exactly
+the wrong conclusion. There is a `--strict` flag that turns the drift report
+into a non-zero exit, but nothing in `package.json` passes it and turning it on
+today would fail on all 197.
+
+The check that does catch a changed API surface is the functional one: step 5
+above, plus the Command Center actually loading.
 
 ## Version skew: the runner is a separate process
 
@@ -512,16 +546,25 @@ Written down rather than described as if they worked.
    file is honest — it says the database has no `schema_migrations` — but the
    failure mode of `apply` is not explained by its message.
 
-2. **`pnpm run audit:verify` does not verify the database audit chain.** It
-   runs `scripts/verify-security-audit-log.mjs`, which checks a separate
-   hash chain in `$LOGS_DIR/security-audit.ndjson`. `BACKUP.md` step 4 presents
-   it as the check on a restored database; it is not. Worse, logs are
-   deliberately excluded from backups, so after a restore onto a fresh machine
-   the command exits 1 with `log file not found`. The `crew_audit_events` chain
-   has **no offline CLI** — `verifyAuditChain()` is reachable only through
-   `GET /api/crew/audit` and `GET /api/crew/dashboard`, which means the server
-   must be running, which means you have already started the build you were
-   trying to verify first.
+2. **Closed, with one limit that remains.** The `crew_audit_events` chain now
+   has an offline CLI: `scripts/ironcrew-verify-audit.mjs`
+   (`pnpm run audit:verify:db`). It opens the database read-only, calls the
+   product's own `verifyAuditChain()` — not a second copy of the hashing — for
+   every company in `crew_companies`, and exits 2 if a chain is broken or the
+   `seq` sequence has a hole. No server needed, so a restored database can be
+   checked before the build that would open it is started. `BACKUP.md` step 4
+   and step 4 above now point at it.
+
+   `pnpm run audit:verify` still verifies the other chain, the NDJSON file under
+   `$LOGS_DIR` — that remains a real check, just not this one, and it still
+   exits 1 with `log file not found` on a machine that only has a restored
+   database. The two names are one character apart; read the one in the runbook.
+
+   What remains, and cannot be fixed by a verifier: entries removed from the
+   **end** of a chain leave neither a broken link nor a hole in `seq`. The chain
+   proves that the rows which are there have not been edited, not that no row is
+   missing after the last one. Detecting that needs a second copy — an older
+   backup, or the entry count from a previous run — to compare against.
 
 3. **`scripts/install-service.sh` cannot install the runner unit.**
    `SERVICE_NAME` is hardcoded to `ironcrew` and there is no flag to select the
@@ -532,27 +575,19 @@ Written down rather than described as if they worked.
    `sudo cmp deploy/ironcrew-runner.service /etc/systemd/system/ironcrew-runner.service`
    and copy it over if it differs.
 
-4. **Nothing calls the audit shipper.** `AuditShipper` and both sinks are
-   implemented and tested, but no scheduler job constructs one, no environment
-   variable configures a sink, and no route exposes its status. The module's own
-   header says it is written for `scheduler/crew-jobs.ts`; it is not registered
-   there. Off-box audit preservation is therefore a library in this build, not a
-   feature — treat `docs/THREAT_MODEL.md`'s note that off-box shipping "would
-   close this" as still open.
-
-5. **There is no pre-start migration check in the unit.**
+4. **There is no pre-start migration check in the unit.**
    `ironcrew-migrate.mjs check` was written for exactly that
    (`ExecStartPre=`), and its exit codes are documented as a contract, but
    `deploy/ironcrew.service` does not use it. The protection against "old code,
    new database" therefore only exists if you run the command yourself, as
    step 4 and the rollback section tell you to.
 
-6. **No version is recorded in the database.** `schema_migrations` records
+5. **No version is recorded in the database.** `schema_migrations` records
    schema versions; nothing records which application version last opened the
    file. `check` infers a rollback from unknown migration versions, which works
    only when the rollback crossed a migration. A code-only rollback leaves no
    trace at all.
 
-7. **`deploy/README.md` still describes backups as "stop the service and `tar`
+6. **`deploy/README.md` still describes backups as "stop the service and `tar`
    the data directory".** That predates `scripts/ironcrew-backup.mjs` and its
    online snapshot. Follow `BACKUP.md`.

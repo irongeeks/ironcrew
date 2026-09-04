@@ -51,7 +51,7 @@ async function findCreatablePath(seedPath) {
     if (seen.has(root)) continue;
     seen.add(root);
 
-    const candidate = path.join(root, `octooffice-qa-path-${runId}`);
+    const candidate = path.join(root, `ironcrew-qa-path-${runId}`);
     const check = await requestJson("GET", `/api/projects/path-check?path=${encodeURIComponent(candidate)}`);
 
     if (check.status === 403 && check.json && Array.isArray(check.json.allowed_roots)) {

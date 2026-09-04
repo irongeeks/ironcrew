@@ -1,7 +1,7 @@
 import type { Response } from "express";
 
 /**
- * Standard OctoOffice API error response shape.
+ * Standard IronCrew API error response shape.
  *
  * - `error` is a stable, machine-readable snake_case code.
  * - `message` is optional human-readable text.

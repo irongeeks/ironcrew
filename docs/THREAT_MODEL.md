@@ -42,10 +42,17 @@ might swallow. `assertArgsMatchMode()` runs immediately before `spawn()` and
 rejects argv carrying a bypass flag the resolved mode does not authorise,
 covering hand-assembled argv.
 
-_Residual risk:_ the resolved grant is not yet threaded from the approval store
-through the upstream execution path — that path currently always resolves to
-`restricted`, which is safe but means elevation is not yet reachable in
-production. Tracked in `IMPLEMENTATION_STATUS.md`.
+_Residual risk:_ **elevation is not reachable in production at all**, and the
+missing half is the writing one. The read side is wired: `executeNextTask()`
+looks up a live grant with `SandboxGrantStore.findLive()` and resolves the mode
+through `resolvePermissionMode()`, auditing the result. But nothing ever mints a
+grant — `mintFromApproval()` has no callers outside its own tests, no code path
+creates an approval of type `sandbox_elevation`, and there is no route by which
+an owner could raise one. `findLive()` therefore always returns nothing and every
+dispatch resolves `restricted`. That is the safe direction, and it is the mode
+the system would fall back to anyway, but it means the elevation path is
+untested by use rather than merely unused. Tracked in
+`IMPLEMENTATION_STATUS.md`.
 
 ### T-02 — Prompt injection escalating privilege — **High**
 
@@ -105,9 +112,20 @@ user that owns them; the control plane receives capabilities and status, never
 tokens. `authStatus()` returns booleans and a non-identifying account hint by
 contract. Only `SecretRef` values are stored in the database — never plaintext.
 
-_Residual risk:_ the native runner daemon is not implemented yet
-(`IMPLEMENTATION_STATUS.md`). Today the control plane and the runtime share a
-process, so this boundary is a design commitment rather than an enforced one.
+**No longer only a design.** The native runner daemon shipped
+(`server/runner-main.ts`, `server/ironcrew/runner/`,
+`deploy/ironcrew-runner.service`), and **T-17** below is the full account of
+how the separation is enforced: its own OS user, its own home, a `0660` Unix
+socket, and a protocol that carries capabilities and events but never a token.
+
+_Residual risk:_ **the runner is installed by hand, and an install that skips
+it puts the boundary back where it was.** `scripts/install-service.sh`
+hardcodes `SERVICE_NAME="ironcrew"` and cannot install the second unit, so
+without `IRONCREW_RUNNER_SOCKET` set the CLI runtimes run inline in the control
+plane and this mitigation is a design commitment again. `deploy/README.md`
+carries the manual procedure and says so plainly. Nothing in the product warns
+an operator that they are running the un-separated arrangement — the only
+signal is the absence of a second unit.
 
 ### T-06 — Undetected tampering with the record — **Medium**
 
@@ -121,8 +139,17 @@ one. Every governance decision — approvals, budget blocks, claims, transitions
 elevation — writes an entry.
 
 _Residual risk:_ an attacker with write access to the database file can rewrite
-the entire chain from scratch. Off-box audit shipping would close this and is
-out of MVP scope.
+the entire chain from scratch. **Off-box shipping now closes this, and is
+implemented** — a file or HTTP sink drained by the `audit-ship` scheduler job,
+with the cursor advancing only over entries the sink accepted
+(`docs/AUDIT_SHIPPING.md`). The chain proves nobody edited the record; only the
+copy elsewhere survives somebody deleting it, which is why these are two
+mechanisms rather than a stronger hash.
+
+Two conditions on that, both real: shipping only happens **when a sink is
+configured** (`IRONCREW_AUDIT_SINK`) — with none, the job is not registered at
+all and the local file is the only copy — and it stops entirely under
+`IRONCREW_SCHEDULER=off`, along with every other background job.
 
 ### T-07 — Unwanted vendor exposure — **Medium**
 
@@ -222,7 +249,8 @@ automatically.
 **What it costs.** Anyone holding both the database file and the encryption
 key can read mailbox credentials. On a single-owner, local-first host that is
 the same person who can read the mailbox anyway; on a shared or backed-up
-host it is a real exposure, and backups of `octooffice.sqlite` must be treated
+host it is a real exposure, and backups of `ironcrew.sqlite` (or
+`octooffice.sqlite`, on an installation older than the rename) must be treated
 as credential material.
 
 **What limits it.** `MailboxRow` omits the credentials column entirely and
@@ -398,13 +426,59 @@ reach the queue at all".
 
 **Mitigation.** Four layers, each answering a different half of the question.
 
-1. **Only delegated work is enqueued.** `enqueueRun()` has exactly two
-   callers: the EA delegating a request the owner made, and the owner asking
-   for a revision. External ingresses do not enqueue. Incoming mail (T-10) and
-   a guest's chat message (T-13) become `inbox` tasks, which never enter the
-   claimable queue — so a stranger's text cannot start a run while nobody is
-   watching, no matter how it is phrased. The queue drains what the owner
-   asked for; the inbox holds what the world sent.
+1. **Only delegated work is enqueued.** `enqueueRun()` has exactly four
+   callers, all of them in `server/ironcrew/orchestrator/company.ts`, and each
+   one traces back to something the owner set in motion:
+
+   | caller               | `requestedBy`        | what put it there                    |
+   | -------------------- | -------------------- | ------------------------------------ |
+   | approval released    | the deciding owner   | the owner opened a gate              |
+   | EA delegation        | the requesting human | the owner asked the EA for something |
+   | **a routine firing** | `routine:<id>`       | a timer the owner created            |
+   | revision requested   | the reviewing owner  | the owner sent work back             |
+
+   External ingresses do not enqueue. Incoming mail (T-10) and a guest's chat
+   message (T-13) become `inbox` tasks, which never enter the claimable queue
+   — so a stranger's text cannot start a run while nobody is watching, no
+   matter how it is phrased. The queue drains what the owner asked for; the
+   inbox holds what the world sent.
+
+   **The routine caller is the one that matters here**, and it deserves saying
+   out loud rather than being counted quietly: it is the only caller with no
+   human in the room at the moment it fires. A routine set to run daily fires
+   at three in the morning as readily as at noon, which is precisely the
+   condition this finding is about. Four things bound it:
+
+   - **A routine is created by a signed-in person**, not by an agent and not by
+     anything that arrives from outside. `POST /api/crew/routines` sits behind
+     the same guard as every other mutation (operator or owner —
+     `methodGuard`), and the instruction it will run is fixed at that moment.
+     A routine cannot be authored by the work it produces.
+   - **A pack's routines install disabled.** Rule 3 of the pack framework — "a
+     pack suggests work, it does not start it" — is `enabled: false` in
+     `pack-installer.ts`, so installing the MSP pack at 17:00 does not put a
+     new unattended run on the queue overnight. Somebody has to switch each one
+     on deliberately.
+   - **A firing cannot double-fire.** `RoutineStore.claimDue()` advances
+     `next_run_at` inside the same `UPDATE` that claims the row, guarded on the
+     value it read (`WHERE id = ? AND enabled = 1 AND next_run_at = ?`). Two
+     overlapping scheduler ticks cannot both take the same routine; the loser
+     sees zero changed rows and does nothing. Same shape as the run queue's
+     claim and the agent lock — the database decides, not a flag in memory.
+   - **A sensitive routine is still parked behind an approval.** Its
+     instruction goes through the same triage as a request typed into the chat,
+     and a sensitive one becomes an `approval_required` task rather than a run
+     request. A timer is not a way around the gate; see mitigation 2.
+
+   What the routine caller does _not_ have is a second pair of eyes on the
+   instruction between the moment it was written and each of the hundreds of
+   times it fires. That is the residual risk of the feature, not a defect in
+   it, and it is the reason a routine produces a **visible task** rather than
+   performing an action directly (`docs/TOOLS.md`): every firing leaves a row
+   on the board, an audit entry (`routine.fired`) and a cost record, so a
+   misfiring routine is discoverable the next morning rather than only by the
+   damage it did.
+
 2. **Sensitive work is still gated by an approval.** Triage classifies before
    anything is queued, and a sensitive or high-risk request becomes an
    `approval_required` task rather than a run request. The gate is unchanged

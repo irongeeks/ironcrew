@@ -682,6 +682,29 @@
   color: var(--ic-red);
   opacity: 1;
 }
+/* The quorum picker sits with the button that commits it, and stays visually
+   quieter than the approve/reject pair above — asking for more eyes is a
+   deliberate step, not the primary action on the card. */
+.ic-quorum-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ic-text-dim);
+}
+.ic-quorum-pick select {
+  background: var(--ic-bg-inset);
+  color: var(--ic-text);
+  border: 1px solid var(--ic-line-strong);
+  border-radius: var(--ic-radius);
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 11px;
+}
+.ic-quorum-pick-label {
+  opacity: 0.8;
+}
+
 .ic-approval-voted {
   font-size: 11px;
   opacity: 0.8;
@@ -856,6 +879,22 @@
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--ic-text-dim);
+}
+
+/* The one block on this surface meant to be typed into a .env file rather
+   than skimmed: same inset ground as .ic-pre, but the cyan rule and the
+   undimmed text of .ic-note, because it is an instruction, not an excerpt. */
+.ic-env-block {
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  background: var(--ic-bg-inset);
+  border-left: 2px solid var(--ic-cyan-dim);
+  font-family: var(--ic-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ic-text);
 }
 
 /* Red: a conflict is a refusal, not a partial success — nothing was written. */

@@ -603,7 +603,7 @@ export function startLifecycle(ctx: RuntimeContext): void {
       const lines = [
         "",
         "\x1b[36m┌─────────────────────────────────────────────────┐\x1b[0m",
-        `\x1b[36m│\x1b[0m  OctoOffice v${PKG_VERSION} — Health Check`,
+        `\x1b[36m│\x1b[0m  IronCrew v${PKG_VERSION} — Health Check`,
         "\x1b[36m├─────────────────────────────────────────────────┤\x1b[0m",
         `${g("Database")}        ${secretsCell}`,
         `${g(`Agents (${agentCount})`)}     ${g(`Departments (${deptCount})`)}`,
@@ -675,7 +675,7 @@ export function startLifecycle(ctx: RuntimeContext): void {
         type: "connected",
         payload: {
           version: PKG_VERSION,
-          app: "OctoOffice",
+          app: "IronCrew",
         },
         ts: nowMs(),
       }),

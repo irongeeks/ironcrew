@@ -78,8 +78,8 @@ function createMockDb(
 
 const TASK_ID = "task-0001-0000-0000-000000000001";
 const PROJECT_PATH = "/home/user/project";
-const WORKTREE_PATH = "/home/user/project/.octooffice-worktrees/task-000";
-const BRANCH_NAME = "octooffice/task-000";
+const WORKTREE_PATH = "/home/user/project/.ironcrew-worktrees/task-000";
+const BRANCH_NAME = "ironcrew/task-000";
 
 function defaultWorktreeInfo(): WorktreeInfo {
   return { worktreePath: WORKTREE_PATH, branchName: BRANCH_NAME, projectPath: PROJECT_PATH };

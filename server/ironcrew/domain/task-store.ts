@@ -1,7 +1,7 @@
 /**
  * IronCrew — task repository.
  *
- * The important part of this file is claiming. Upstream OctoOffice claimed a
+ * The important part of this file is claiming. Upstream IronCrew claimed a
  * task with an unguarded `UPDATE tasks SET status='in_progress' WHERE id = ?`
  * and relied on in-process Sets for mutual exclusion, which stops working the
  * moment there is a second worker or a restart.

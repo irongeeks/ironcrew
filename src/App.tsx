@@ -23,6 +23,7 @@ import * as api from "./api";
 import { detectBrowserLanguage } from "./i18n";
 import { useTheme } from "./ThemeContext";
 import { UPDATE_BANNER_DISMISS_STORAGE_KEY } from "./app/constants";
+import { readStoredValue, writeStoredValue } from "./storage";
 import { detectRuntimeOs, isForceUpdateBannerEnabled, mergeSettingsWithDefaults } from "./app/utils";
 import type { OAuthCallbackResult, RuntimeOs, RoomThemeMap, TaskPanelTab, View } from "./app/types";
 import { useRealtimeSync } from "./app/useRealtimeSync";
@@ -70,7 +71,7 @@ export default function App() {
   }, []);
 
   if (authState === "checking") {
-    return <AppLoadingScreen language="en" title="OctoOffice" subtitle="" />;
+    return <AppLoadingScreen language="en" title="IronCrew" subtitle="" />;
   }
 
   if (authState === "login_required") {
@@ -156,8 +157,7 @@ function AppAuthenticated() {
   const [forceUpdateBanner] = useState<boolean>(() => isForceUpdateBannerEnabled());
   const [updateStatus, setUpdateStatus] = useState<api.UpdateStatus | null>(null);
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return window.localStorage.getItem(UPDATE_BANNER_DISMISS_STORAGE_KEY) ?? "";
+    return readStoredValue(UPDATE_BANNER_DISMISS_STORAGE_KEY) ?? "";
   });
   const [streamingMessage, setStreamingMessage] = useState<{
     message_id: string;
@@ -396,9 +396,7 @@ function AppAuthenticated() {
   const handleDismissUpdate = useCallback(() => {
     const latest = labels.effectiveUpdateStatus?.latest_version ?? "";
     setDismissedUpdateVersion(latest);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(UPDATE_BANNER_DISMISS_STORAGE_KEY, latest);
-    }
+    writeStoredValue(UPDATE_BANNER_DISMISS_STORAGE_KEY, latest);
   }, [labels.effectiveUpdateStatus?.latest_version]);
   const handleCloseChat = useCallback(() => setShowChat(false), []);
   const handleOpenChat = useCallback(

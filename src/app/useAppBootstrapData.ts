@@ -18,6 +18,7 @@ import type {
 } from "../types";
 import { DEFAULT_SETTINGS } from "../types";
 import { ROOM_THEMES_STORAGE_KEY } from "./constants";
+import { writeStoredValue } from "../storage";
 import { mapWorkflowDecisionItemsRaw } from "./decision-inbox";
 import { normalizeOfficeWorkflowPack } from "./office-workflow-pack";
 import type { RoomThemeMap } from "./types";
@@ -136,11 +137,7 @@ export function useAppBootstrapData({
       if (!hasLocalRoomThemesRef.current && dbRoomThemes && Object.keys(dbRoomThemes).length > 0) {
         setCustomRoomThemes(dbRoomThemes);
         hasLocalRoomThemesRef.current = true;
-        try {
-          window.localStorage.setItem(ROOM_THEMES_STORAGE_KEY, JSON.stringify(dbRoomThemes));
-        } catch {
-          // ignore quota errors
-        }
+        writeStoredValue(ROOM_THEMES_STORAGE_KEY, JSON.stringify(dbRoomThemes));
       }
 
       if (

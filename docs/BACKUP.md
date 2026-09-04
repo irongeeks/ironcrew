@@ -92,12 +92,33 @@ Diese Reihenfolge, auch wenn es eilt.
    sudo -u ironcrew node scripts/ironcrew-backup.mjs \
      --restore <archiv> --db /var/lib/ironcrew/data/ironcrew.sqlite --force
    ```
-4. **Prüfen, bevor du startest.** Die Audit-Kette ist die härteste Aussage
-   darüber, ob die Kopie unverfälscht ist — jedes veränderte Byte in einer
-   auditierten Zeile bricht sie:
+4. **Prüfen, bevor du startest.** Die Audit-Kette in der Datenbank ist die
+   härteste Aussage darüber, ob die Kopie unverfälscht ist — jedes veränderte
+   Byte in einer auditierten Zeile bricht sie. Das Skript öffnet die Datei nur
+   lesend, prüft jede Firma einzeln und braucht keinen laufenden Dienst — genau
+   deshalb steht es hier, vor dem Start:
+
    ```bash
-   pnpm run audit:verify
+   sudo -u ironcrew node scripts/ironcrew-verify-audit.mjs \
+     --db /var/lib/ironcrew/data/ironcrew.sqlite
+   # oder, aus dem Repo heraus:  pnpm run audit:verify:db --db <pfad>
    ```
+
+   Exit-Code 0 heißt: alle Ketten in Ordnung. 2 heißt: eine Kette ist gebrochen
+   oder in der `seq`-Folge fehlt eine Nummer — dann NICHT starten, die Datei
+   beiseitelegen und das nächstältere Archiv prüfen.
+
+   Zwei Dinge, die das Skript nicht sagen kann, und die man wissen sollte: eine
+   Lücke in der `seq`-Folge ist kein Beweis für Manipulation (ein Import kann
+   eine hinterlassen), und Einträge, die am ENDE einer Kette abgeschnitten
+   wurden, hinterlassen weder Bruch noch Lücke. Gegen Letzteres hilft nur der
+   Vergleich mit einem älteren Backup.
+
+   Nicht zu verwechseln mit `pnpm run audit:verify`: das prüft die zweite Kette
+   in `$LOGS_DIR/security-audit.ndjson`. Logs liegen absichtlich nicht im
+   Backup, das Kommando bricht auf einer frisch wiederhergestellten Maschine
+   also mit `log file not found` ab — es ist hier die falsche Prüfung.
+
 5. **Dienst starten und nachsehen:**
    ```bash
    sudo systemctl start ironcrew

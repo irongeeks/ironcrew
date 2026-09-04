@@ -146,6 +146,19 @@ export interface ApprovalTally {
   selfApproved: boolean;
 }
 
+/**
+ * How many approvals this UI will offer to demand.
+ *
+ * The server is the authority — `MAX_REQUIRED_APPROVALS` in
+ * `approval-review-store.ts`, enforced again by the route's zod schema — so a
+ * value out of range is refused there, not merely absent here. This constant
+ * exists only so the picker does not offer a number that is going to bounce.
+ *
+ * The ceiling is not arbitrary: a quorum larger than the number of people who
+ * could ever satisfy it is a deadlock dressed as diligence.
+ */
+export const MAX_QUORUM = 5;
+
 export interface ApprovalReview {
   id: string;
   approval_id: string;
@@ -912,6 +925,79 @@ export interface SchedulerJob {
 export interface SchedulerStatus {
   enabled: boolean;
   jobs: SchedulerJob[];
+}
+
+// --- audit shipping: the copy of the chain that leaves this machine --------
+
+/**
+ * Where the off-box copy stands.
+ *
+ * `configured: false` is the common answer and not an error — the sink is off
+ * until somebody sets `IRONCREW_AUDIT_SINK` — which is why the server answers
+ * it with a sentence rather than a 404: the operator is asking "verlässt mein
+ * Audit-Log diese Maschine?", and "not found" answers a different question.
+ */
+export type AuditShippingStatus =
+  | { configured: false; message: string }
+  | {
+      configured: true;
+      /** Sink kind as the server named it: "file" or "http". */
+      sink: string;
+      /** Last seq known to be off-box. 0 means nothing has ever shipped. */
+      cursor: number;
+      /** Entries still waiting. The number that actually matters. */
+      pending: number;
+      /**
+       * Rows are missing between the cursor and the next entry waiting.
+       *
+       * Optional so an older server that does not report it renders as
+       * before. Reported on the status, not only after a drain: it is the
+       * shape a deletion leaves, and a signal that needs a button press is a
+       * signal nobody gets.
+       */
+      gapDetected?: boolean;
+      /**
+       * How the last attempt went. Optional so an older server renders as
+       * before, and every field inside is optional because a shipper that has
+       * never run has no history to report.
+       */
+      health?: {
+        lastAttemptAt?: number;
+        lastSuccessAt?: number;
+        lastError?: string;
+        lastErrorAt?: number;
+        consecutiveFailures?: number;
+      };
+    };
+
+export const AUDIT_SINK_LABEL: Record<string, string> = {
+  file: "Datei (NDJSON)",
+  http: "HTTP-Collector",
+};
+
+/**
+ * Answer of the sink probe. `ok: false` means the collector is unreachable
+ * right now — a status this panel displays, not a failed request.
+ */
+export interface AuditSinkProbe {
+  ok: boolean;
+  message: string;
+}
+
+/** What one drain actually did — reported back, never assumed. */
+export interface AuditShipResult {
+  ok: boolean;
+  shipped: number;
+  fromSeq: number;
+  cursorSeq: number;
+  pending: number;
+  /** Redacted sink message, when something went wrong. */
+  error?: string;
+  /**
+   * Rows below the cursor are gone from the table. Never fatal to the
+   * shipper — and exactly the shape a deletion has, so it is said out loud.
+   */
+  gapDetected: boolean;
 }
 
 // --- tools: what this server can perform, and who may ---------------------
