@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./command-center.css";
-import { api } from "./api.ts";
+import { api, serverMessage } from "./api.ts";
 import {
   AGENT_STATUS_LABEL,
   BOARD_COLUMNS,
@@ -31,6 +31,7 @@ import {
   PAIRING_ROLE_LABEL,
   PAIRING_STATUS_LABEL,
   PROJECT_STATUS_LABEL,
+  RUN_REQUEST_STATUS_LABEL,
   SECRET_PROVIDER_LABEL,
   TASK_STATUS_LABEL,
   type Agent,
@@ -73,13 +74,18 @@ import {
   type Project,
   type RemoteWorker,
   type RunEvent,
+  type RunRequest,
+  type RunRequestStatus,
   type RuntimeInfo,
+  type SchedulerStatus,
   type Secret,
   type SecretProviderKind,
   type SecretProviderStatus,
   type TailscaleInfo,
+  type Talent,
   type Task,
   type TaskStatus,
+  type Vessel,
 } from "./types.ts";
 
 function formatTime(ts: number): string {
@@ -90,6 +96,50 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * A duration the way a person would say it.
+ *
+ * A vessel's limits are stored in milliseconds, but `600000` tells an owner
+ * nothing about how long a run may take — "10 min" does. Zero is not a very
+ * short limit, it is the absence of one, so it is named as such.
+ */
+function formatDurationMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "ohne Limit";
+  for (const [size, suffix] of [
+    [3_600_000, "h"],
+    [60_000, "min"],
+    [1000, "s"],
+  ] as const) {
+    if (ms >= size) {
+      const value = ms / size;
+      return `${Number.isInteger(value) ? value : value.toFixed(1)} ${suffix}`;
+    }
+  }
+  return `${ms} ms`;
+}
+
+/**
+ * Skill names out of a talent's stored `skills_json`.
+ *
+ * The inner shape of that column belongs to whoever authored the talent pack,
+ * so anything unreadable yields no tags rather than taking the dialog down.
+ */
+function talentSkills(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => {
+        if (typeof entry === "string") return entry;
+        const name = (entry as { name?: unknown } | null)?.name;
+        return typeof name === "string" ? name : "";
+      })
+      .filter((name) => name !== "");
+  } catch {
+    return [];
+  }
 }
 
 /** Reads a File as base64 (without the data: URL prefix), for the JSON upload body. */
@@ -234,6 +284,50 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [proposalApplyResults, setProposalApplyResults] = useState<
     Record<string, { applied: string[]; conflicts: ChangeApplyConflict[] }>
   >({});
+
+  // --- vessels & talents: an agent is a vessel × talent pairing ----------
+  const [vessels, setVessels] = useState<Vessel[]>([]);
+  const [talents, setTalents] = useState<Talent[]>([]);
+  const [seniorities, setSeniorities] = useState<string[]>([]);
+  const [showVessels, setShowVessels] = useState(false);
+  // A refused delete belongs on the row it refused. The page-wide error banner
+  // sits behind the dialog backdrop, and a 409 here names the agents that
+  // still use this vessel — the one piece of text the owner has to read.
+  const [vesselErrors, setVesselErrors] = useState<Record<string, string>>({});
+  const [talentErrors, setTalentErrors] = useState<Record<string, string>>({});
+  const [editVesselId, setEditVesselId] = useState<string | null>(null);
+  const [vesselDraft, setVesselDraft] = useState({
+    label: "",
+    runtimeProvider: "",
+    model: "",
+    timeoutMin: "",
+    maxRetries: "",
+    maxConcurrency: "",
+  });
+  const [editTalentId, setEditTalentId] = useState<string | null>(null);
+  const [talentDraft, setTalentDraft] = useState({ professionalRole: "", roleSummary: "", seniority: "" });
+  const [newVesselKey, setNewVesselKey] = useState("");
+  const [newVesselLabel, setNewVesselLabel] = useState("");
+  const [newVesselRuntime, setNewVesselRuntime] = useState("");
+  const [newVesselModel, setNewVesselModel] = useState("");
+  const [newVesselTimeoutMin, setNewVesselTimeoutMin] = useState("10");
+  const [newVesselRetries, setNewVesselRetries] = useState("2");
+  const [newVesselConcurrency, setNewVesselConcurrency] = useState("1");
+  const [newTalentKey, setNewTalentKey] = useState("");
+  const [newTalentRole, setNewTalentRole] = useState("");
+  const [newTalentSummary, setNewTalentSummary] = useState("");
+  const [newTalentSeniority, setNewTalentSeniority] = useState("");
+  // `null` means "whatever the agent is paired with right now" — the drafts
+  // only exist once the owner actually picks something else.
+  const [pairingVesselId, setPairingVesselId] = useState<string | null>(null);
+  const [pairingTalentId, setPairingTalentId] = useState<string | null>(null);
+
+  // --- run queue & scheduler ---------------------------------------------
+  const [runQueue, setRunQueue] = useState<RunRequest[]>([]);
+  const [showRunQueue, setShowRunQueue] = useState(false);
+  const [runQueueStatusFilter, setRunQueueStatusFilter] = useState<RunRequestStatus | "">("");
+  const [drainResult, setDrainResult] = useState<string | null>(null);
+  const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
 
   const [notificationChannels, setNotificationChannels] = useState<NotificationChannelStatus[]>([]);
   const [showChannels, setShowChannels] = useState(false);
@@ -380,14 +474,32 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     }
   }, [client]);
 
+  // Both catalogues are small and always read together: the pairing dropdowns
+  // in the agent detail need them, and so does the Vessels & Talente dialog.
+  const refreshVesselsAndTalents = useCallback(async () => {
+    try {
+      const [{ vessels: v }, { talents: t }] = await Promise.all([client.vessels(), client.talents()]);
+      setVessels(v);
+      setTalents(t);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [client]);
+
   // Shared by the roster and the org chart — the same agent-detail dialog
   // opens from either place.
   const openAgentDetail = useCallback(
     (agent: Agent) => {
       setSelectedAgent(agent);
+      setPairingVesselId(null);
+      setPairingTalentId(null);
       void refreshRuntimes();
+      // Which vessel and talent this agent sits in is read back out of the
+      // catalogues rather than from a duplicated field on the agent, so the
+      // dropdowns can never disagree with the lists they are filled from.
+      void refreshVesselsAndTalents();
     },
-    [refreshRuntimes],
+    [refreshRuntimes, refreshVesselsAndTalents],
   );
 
   useEffect(() => {
@@ -1252,6 +1364,271 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [actWith, client, proposalStatusFilter, refreshChangeProposals],
   );
 
+  // --- vessels & talents (a vessel is *how* a run may go, never *what*) ----
+
+  const openVessels = useCallback(() => {
+    setShowVessels(true);
+    setVesselErrors({});
+    setTalentErrors({});
+    setEditVesselId(null);
+    setEditTalentId(null);
+    void refreshVesselsAndTalents();
+    // The runtime list fills the vessel's runtime dropdown; the seniority
+    // vocabulary is the server's to define, so it is asked for rather than
+    // hardcoded here where it would drift.
+    void refreshRuntimes();
+    client
+      .talentSeniorities()
+      .then((r) => setSeniorities(r.seniorities))
+      .catch(() => setSeniorities([]));
+  }, [client, refreshRuntimes, refreshVesselsAndTalents]);
+
+  /** Minutes in the form, milliseconds on the wire — `0`/blank means "leave it". */
+  const timeoutMsFrom = useCallback((minutes: string): number | undefined => {
+    const value = Number(minutes);
+    return Number.isFinite(value) && value > 0 ? Math.round(value * 60_000) : undefined;
+  }, []);
+
+  const countFrom = useCallback((raw: string, min: number): number | undefined => {
+    const value = Number(raw);
+    return Number.isFinite(value) && raw.trim() !== "" && value >= min ? Math.round(value) : undefined;
+  }, []);
+
+  const createVessel = useCallback(() => {
+    const key = newVesselKey.trim();
+    const runtimeProvider = newVesselRuntime.trim();
+    if (!key || !runtimeProvider) return;
+    void actWith(
+      () =>
+        client.createVessel({
+          key,
+          label: newVesselLabel.trim() || undefined,
+          runtimeProvider,
+          model: newVesselModel.trim() || undefined,
+          timeoutMs: timeoutMsFrom(newVesselTimeoutMin),
+          maxRetries: countFrom(newVesselRetries, 0),
+          maxConcurrency: countFrom(newVesselConcurrency, 1),
+        }),
+      async () => {
+        setNewVesselKey("");
+        setNewVesselLabel("");
+        setNewVesselModel("");
+        await refreshVesselsAndTalents();
+      },
+    );
+  }, [
+    actWith,
+    client,
+    countFrom,
+    newVesselConcurrency,
+    newVesselKey,
+    newVesselLabel,
+    newVesselModel,
+    newVesselRetries,
+    newVesselRuntime,
+    newVesselTimeoutMin,
+    refreshVesselsAndTalents,
+    timeoutMsFrom,
+  ]);
+
+  const startEditVessel = useCallback((vessel: Vessel) => {
+    setEditVesselId(vessel.id);
+    setVesselDraft({
+      label: vessel.label,
+      runtimeProvider: vessel.runtime_provider,
+      model: vessel.model,
+      timeoutMin: String(vessel.timeout_ms / 60_000),
+      maxRetries: String(vessel.max_retries),
+      maxConcurrency: String(vessel.max_concurrency),
+    });
+  }, []);
+
+  const saveVessel = useCallback(
+    (id: string) => {
+      void actWith(
+        () =>
+          client.updateVessel(id, {
+            label: vesselDraft.label.trim(),
+            runtimeProvider: vesselDraft.runtimeProvider,
+            model: vesselDraft.model.trim(),
+            timeoutMs: timeoutMsFrom(vesselDraft.timeoutMin),
+            maxRetries: countFrom(vesselDraft.maxRetries, 0),
+            maxConcurrency: countFrom(vesselDraft.maxConcurrency, 1),
+          }),
+        async () => {
+          setEditVesselId(null);
+          await refreshVesselsAndTalents();
+        },
+      );
+    },
+    [actWith, client, countFrom, refreshVesselsAndTalents, timeoutMsFrom, vesselDraft],
+  );
+
+  const deleteVessel = useCallback(
+    (id: string) => {
+      void actWith(async () => {
+        setVesselErrors((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        try {
+          await client.deleteVessel(id);
+        } catch (err) {
+          // A 409 here is a refusal, not a transport failure: agents still
+          // run in this vessel and the server's message is what names them.
+          // It has to land on the row, because the page-wide banner is
+          // hidden behind this dialog's backdrop.
+          setVesselErrors((prev) => ({ ...prev, [id]: serverMessage(err) }));
+        }
+      }, refreshVesselsAndTalents);
+    },
+    [actWith, client, refreshVesselsAndTalents],
+  );
+
+  const createTalent = useCallback(() => {
+    const key = newTalentKey.trim();
+    const professionalRole = newTalentRole.trim();
+    if (!key || !professionalRole) return;
+    void actWith(
+      () =>
+        client.createTalent({
+          key,
+          professionalRole,
+          roleSummary: newTalentSummary.trim() || undefined,
+          seniority: newTalentSeniority || undefined,
+        }),
+      async () => {
+        setNewTalentKey("");
+        setNewTalentRole("");
+        setNewTalentSummary("");
+        await refreshVesselsAndTalents();
+      },
+    );
+  }, [actWith, client, newTalentKey, newTalentRole, newTalentSeniority, newTalentSummary, refreshVesselsAndTalents]);
+
+  const startEditTalent = useCallback((talent: Talent) => {
+    setEditTalentId(talent.id);
+    setTalentDraft({
+      professionalRole: talent.professional_role,
+      roleSummary: talent.role_summary,
+      seniority: talent.seniority,
+    });
+  }, []);
+
+  const saveTalent = useCallback(
+    (id: string) => {
+      void actWith(
+        () =>
+          client.updateTalent(id, {
+            professionalRole: talentDraft.professionalRole.trim(),
+            roleSummary: talentDraft.roleSummary.trim(),
+            seniority: talentDraft.seniority,
+          }),
+        async () => {
+          setEditTalentId(null);
+          await refreshVesselsAndTalents();
+        },
+      );
+    },
+    [actWith, client, refreshVesselsAndTalents, talentDraft],
+  );
+
+  const deleteTalent = useCallback(
+    (id: string) => {
+      void actWith(async () => {
+        setTalentErrors((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        try {
+          await client.deleteTalent(id);
+        } catch (err) {
+          // Same refusal as a vessel delete: the message names the agents.
+          setTalentErrors((prev) => ({ ...prev, [id]: serverMessage(err) }));
+        }
+      }, refreshVesselsAndTalents);
+    },
+    [actWith, client, refreshVesselsAndTalents],
+  );
+
+  // --- run queue & scheduler (the durable intent to run, and its worker) ---
+
+  const refreshRunQueue = useCallback(
+    async (status: RunRequestStatus | "") => {
+      const { requests } = await client.runQueue(status === "" ? undefined : status);
+      setRunQueue(requests);
+    },
+    [client],
+  );
+
+  const refreshScheduler = useCallback(async () => {
+    setScheduler(await client.scheduler());
+  }, [client]);
+
+  const openRunQueue = useCallback(() => {
+    setShowRunQueue(true);
+    setDrainResult(null);
+    void actWith(
+      async () => {
+        await Promise.all([refreshRunQueue(runQueueStatusFilter), refreshScheduler()]);
+      },
+      async () => {},
+    );
+  }, [actWith, refreshRunQueue, refreshScheduler, runQueueStatusFilter]);
+
+  const filterRunQueue = useCallback(
+    (status: RunRequestStatus | "") => {
+      setRunQueueStatusFilter(status);
+      void actWith(
+        () => refreshRunQueue(status),
+        async () => {},
+      );
+    },
+    [actWith, refreshRunQueue],
+  );
+
+  const cancelRunRequest = useCallback(
+    (id: string) => {
+      void actWith(
+        () => client.cancelRunRequest(id),
+        () => refreshRunQueue(runQueueStatusFilter),
+      );
+    },
+    [actWith, client, refreshRunQueue, runQueueStatusFilter],
+  );
+
+  const drainRunQueue = useCallback(() => {
+    void actWith(
+      async () => {
+        const result = await client.drainRunQueue();
+        setDrainResult(
+          `${result.claimed} übernommen · ${result.completed} erledigt · ${result.failed} fehlgeschlagen · ${result.deferred} zurückgestellt`,
+        );
+      },
+      // Only the re-read is honest about what moved: a drain defers as well as
+      // finishes, and a request whose attempts are spent is never claimed.
+      async () => {
+        await refreshRunQueue(runQueueStatusFilter);
+        await refreshScheduler();
+      },
+    );
+  }, [actWith, client, refreshRunQueue, refreshScheduler, runQueueStatusFilter]);
+
+  const runSchedulerJob = useCallback(
+    (name: string) => {
+      void actWith(
+        () => client.runSchedulerJob(name),
+        async () => {
+          await refreshScheduler();
+          await refreshRunQueue(runQueueStatusFilter);
+        },
+      );
+    },
+    [actWith, client, refreshRunQueue, refreshScheduler, runQueueStatusFilter],
+  );
+
   // --- notification channels (Discord, Telegram, email fan-out) -----------
 
   const refreshChannels = useCallback(async () => {
@@ -1363,6 +1740,50 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   // refresh() lands, same as every other figure in this view.
   const currentAgent = selectedAgent ? (agentById.get(selectedAgent.id) ?? selectedAgent) : null;
   const currentRuntime = currentAgent ? runtimes.find((r) => r.type === currentAgent.runtimeProvider) : undefined;
+  // The pairing is read out of the catalogues, not off the agent: whichever
+  // vessel lists this agent *is* its vessel, so the dropdown and the "genutzt
+  // von" line on the vessel row can never tell different stories.
+  const currentVesselId = useMemo(
+    () => (currentAgent ? (vessels.find((v) => v.agents.some((a) => a.id === currentAgent.id))?.id ?? "") : ""),
+    [currentAgent, vessels],
+  );
+  const currentTalentId = useMemo(
+    () => (currentAgent ? (talents.find((t) => t.agents.some((a) => a.id === currentAgent.id))?.id ?? "") : ""),
+    [currentAgent, talents],
+  );
+  const effectiveVesselId = pairingVesselId ?? currentVesselId;
+  const effectiveTalentId = pairingTalentId ?? currentTalentId;
+  const pairingChanged = effectiveVesselId !== currentVesselId || effectiveTalentId !== currentTalentId;
+
+  const savePairing = useCallback(() => {
+    if (!currentAgent) return;
+    // An omitted field leaves that half untouched server-side, so only the
+    // half the owner actually changed is sent.
+    const body: { vesselId?: string; talentId?: string } = {};
+    if (effectiveVesselId !== "" && effectiveVesselId !== currentVesselId) body.vesselId = effectiveVesselId;
+    if (effectiveTalentId !== "" && effectiveTalentId !== currentTalentId) body.talentId = effectiveTalentId;
+    if (Object.keys(body).length === 0) return;
+    void actWith(
+      () => client.setAgentPairing(currentAgent.id, body),
+      async () => {
+        setPairingVesselId(null);
+        setPairingTalentId(null);
+        await refreshVesselsAndTalents();
+        await refresh();
+      },
+    );
+  }, [
+    actWith,
+    client,
+    currentAgent,
+    currentTalentId,
+    currentVesselId,
+    effectiveTalentId,
+    effectiveVesselId,
+    refresh,
+    refreshVesselsAndTalents,
+  ]);
+
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
   const currentTask = selectedTask ? (taskById.get(selectedTask.id) ?? selectedTask) : null;
   // Pending first: those are the only rows still waiting on the CEO.
@@ -1448,6 +1869,14 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-change-proposals" onClick={openChangeProposals}>
           Änderungen
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-vessels" onClick={openVessels}>
+          Vessels &amp; Talente
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-run-queue" onClick={openRunQueue}>
+          Warteschlange
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -1902,7 +2331,69 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
             </dd>
             <dt>Auftreten</dt>
             <dd>{currentAgent.persona.traits.join(", ") || "—"}</dd>
+            <dt>Vessel</dt>
+            <dd>
+              <label className="ic-sr-only" htmlFor="ic-agent-vessel-select">
+                Vessel für {currentAgent.displayName}
+              </label>
+              <select
+                id="ic-agent-vessel-select"
+                className="ic-select"
+                data-testid="agent-vessel-select"
+                value={effectiveVesselId}
+                disabled={busy}
+                onChange={(e) => setPairingVesselId(e.target.value)}
+              >
+                <option value="">— nicht zugeordnet —</option>
+                {vessels.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.label || v.key} · {v.runtime_provider}
+                    {v.model === "" ? "" : ` · ${v.model}`}
+                  </option>
+                ))}
+              </select>
+            </dd>
+            <dt>Talent</dt>
+            <dd>
+              <label className="ic-sr-only" htmlFor="ic-agent-talent-select">
+                Talent für {currentAgent.displayName}
+              </label>
+              <select
+                id="ic-agent-talent-select"
+                className="ic-select"
+                data-testid="agent-talent-select"
+                value={effectiveTalentId}
+                disabled={busy}
+                onChange={(e) => setPairingTalentId(e.target.value)}
+              >
+                <option value="">— nicht zugeordnet —</option>
+                {talents.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.professional_role}
+                    {t.seniority === "" ? "" : ` · ${t.seniority}`}
+                  </option>
+                ))}
+              </select>
+            </dd>
           </dl>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="agent-pairing-save"
+              disabled={busy || !pairingChanged}
+              onClick={savePairing}
+            >
+              Zuordnung übernehmen
+            </button>
+          </div>
+          <p className="ic-note" data-testid="agent-pairing-note">
+            Ein Agent ist ein Vessel × Talent. Das Vessel bestimmt, worin gearbeitet wird — Runtime, Modell und die
+            Grenzen für Dauer, Wiederholung und Parallelität. Das Talent bestimmt, was der Agent kann: Rolle,
+            Seniorität, Policy, Auftreten, Skills. Berechtigungen kommen ausschliesslich aus dem Talent; ein Vessel kann
+            keine erteilen und keine entziehen.
+          </p>
           <p className="ic-note">
             Das Auftreten ist rein stilistisch. Es kann Berechtigungen, Werkzeuge oder Freigabepflichten nicht verändern
             — Policy hat immer Vorrang.
@@ -3770,6 +4261,613 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                       </li>
                     ))}
                   </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </DetailDialog>
+      )}
+
+      {showVessels && (
+        <DetailDialog title="Vessels & Talente" onClose={() => setShowVessels(false)}>
+          <p className="ic-note">
+            Ein Agent ist ein Vessel × Talent. Das Vessel ist der Ausführungsrahmen: welche Runtime, welches Modell und
+            wie lange, wie oft und wie parallel ein Lauf sein darf. Das Talent ist das Können: Rolle, Seniorität,
+            Policy, Auftreten, Skills. Genau deshalb kann dieselbe Rolle in einem anderen Vessel laufen — ein Vessel
+            regelt nur, wie lange und wie oft gearbeitet wird, nie was dabei erlaubt ist. Berechtigungen stehen
+            ausschliesslich im Talent.
+          </p>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Vessels
+          </h3>
+          {vessels.length === 0 && <p className="ic-empty">Kein Vessel angelegt.</p>}
+          <ul className="ic-milestone-list">
+            {vessels.map((v) => (
+              <li key={v.id} data-testid={`vessel-${v.id}`} style={{ flexWrap: "wrap" }}>
+                <span className="ic-milestone-title">{v.label || v.key}</span>
+                <span className="ic-tag" data-testid={`vessel-key-${v.id}`}>
+                  {v.key}
+                </span>
+                <span className="ic-tag" data-tone="policy" data-testid={`vessel-runtime-${v.id}`}>
+                  {v.runtime_provider}
+                </span>
+                {v.model !== "" && (
+                  <span className="ic-tag" data-testid={`vessel-model-${v.id}`}>
+                    {v.model}
+                  </span>
+                )}
+                {/* The three limits are shown as what they mean for a run, not
+                    as the columns they are stored in. */}
+                <span className="ic-tag" data-testid={`vessel-timeout-${v.id}`}>
+                  Zeitlimit {formatDurationMs(v.timeout_ms)}
+                </span>
+                <span className="ic-tag" data-testid={`vessel-retries-${v.id}`}>
+                  {v.max_retries} Versuch{v.max_retries === 1 ? "" : "e"}
+                </span>
+                <span className="ic-tag" data-testid={`vessel-concurrency-${v.id}`}>
+                  max. {v.max_concurrency} gleichzeitig
+                </span>
+                <span className="ic-note" style={{ width: "100%" }} data-testid={`vessel-agents-${v.id}`}>
+                  {v.agents.length === 0
+                    ? "Von keinem Agent genutzt."
+                    : `Genutzt von: ${v.agents.map((a) => a.display_name).join(", ")}`}
+                </span>
+
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid={`vessel-edit-${v.id}`}
+                  disabled={busy}
+                  onClick={() => startEditVessel(v)}
+                >
+                  Bearbeiten
+                </button>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="danger"
+                  data-testid={`vessel-delete-${v.id}`}
+                  disabled={busy}
+                  onClick={() => deleteVessel(v.id)}
+                >
+                  Entfernen
+                </button>
+
+                {/* The server's own words: a 409 names the agents that still
+                    run in this vessel, and no generic wording could. */}
+                {vesselErrors[v.id] && (
+                  <div className="ic-conflict" style={{ width: "100%" }} data-testid={`vessel-error-${v.id}`}>
+                    {vesselErrors[v.id]}
+                  </div>
+                )}
+
+                {editVesselId === v.id && (
+                  <div className="ic-form-row" data-testid={`vessel-form-${v.id}`}>
+                    <label className="ic-sr-only" htmlFor={`ic-vessel-label-${v.id}`}>
+                      Bezeichnung
+                    </label>
+                    <input
+                      id={`ic-vessel-label-${v.id}`}
+                      data-testid={`vessel-edit-label-${v.id}`}
+                      placeholder="Bezeichnung"
+                      value={vesselDraft.label}
+                      onChange={(e) => setVesselDraft((prev) => ({ ...prev, label: e.target.value }))}
+                    />
+                    <label className="ic-sr-only" htmlFor={`ic-vessel-runtime-${v.id}`}>
+                      Runtime
+                    </label>
+                    <select
+                      id={`ic-vessel-runtime-${v.id}`}
+                      className="ic-select"
+                      data-testid={`vessel-edit-runtime-${v.id}`}
+                      value={vesselDraft.runtimeProvider}
+                      onChange={(e) => setVesselDraft((prev) => ({ ...prev, runtimeProvider: e.target.value }))}
+                    >
+                      {/* A vessel can point at a provider this install no longer
+                          registers; say so instead of silently selecting another. */}
+                      {!runtimes.some((r) => r.type === vesselDraft.runtimeProvider) && (
+                        <option value={vesselDraft.runtimeProvider}>
+                          {vesselDraft.runtimeProvider} (nicht registriert)
+                        </option>
+                      )}
+                      {runtimes.map((r) => (
+                        <option key={r.type} value={r.type}>
+                          {r.type}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="ic-sr-only" htmlFor={`ic-vessel-model-${v.id}`}>
+                      Modell
+                    </label>
+                    <input
+                      id={`ic-vessel-model-${v.id}`}
+                      data-testid={`vessel-edit-model-${v.id}`}
+                      placeholder="Modell"
+                      value={vesselDraft.model}
+                      onChange={(e) => setVesselDraft((prev) => ({ ...prev, model: e.target.value }))}
+                    />
+                    <label htmlFor={`ic-vessel-timeout-${v.id}`}>Zeitlimit (Min.)</label>
+                    <input
+                      id={`ic-vessel-timeout-${v.id}`}
+                      type="number"
+                      min={1}
+                      data-testid={`vessel-edit-timeout-${v.id}`}
+                      value={vesselDraft.timeoutMin}
+                      onChange={(e) => setVesselDraft((prev) => ({ ...prev, timeoutMin: e.target.value }))}
+                    />
+                    <label htmlFor={`ic-vessel-retries-${v.id}`}>Versuche</label>
+                    <input
+                      id={`ic-vessel-retries-${v.id}`}
+                      type="number"
+                      min={0}
+                      data-testid={`vessel-edit-retries-${v.id}`}
+                      value={vesselDraft.maxRetries}
+                      onChange={(e) => setVesselDraft((prev) => ({ ...prev, maxRetries: e.target.value }))}
+                    />
+                    <label htmlFor={`ic-vessel-concurrency-${v.id}`}>Gleichzeitig</label>
+                    <input
+                      id={`ic-vessel-concurrency-${v.id}`}
+                      type="number"
+                      min={1}
+                      data-testid={`vessel-edit-concurrency-${v.id}`}
+                      value={vesselDraft.maxConcurrency}
+                      onChange={(e) => setVesselDraft((prev) => ({ ...prev, maxConcurrency: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="primary"
+                      data-testid={`vessel-save-${v.id}`}
+                      disabled={busy}
+                      onClick={() => saveVessel(v.id)}
+                    >
+                      Speichern
+                    </button>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-testid={`vessel-cancel-edit-${v.id}`}
+                      disabled={busy}
+                      onClick={() => setEditVesselId(null)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Neues Vessel
+          </h3>
+          <div className="ic-form-row">
+            <label className="ic-sr-only" htmlFor="ic-new-vessel-key">
+              Schlüssel
+            </label>
+            <input
+              id="ic-new-vessel-key"
+              data-testid="new-vessel-key"
+              placeholder="Schlüssel (z. B. claude-fast)"
+              value={newVesselKey}
+              onChange={(e) => setNewVesselKey(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-vessel-label">
+              Bezeichnung
+            </label>
+            <input
+              id="ic-new-vessel-label"
+              data-testid="new-vessel-label"
+              placeholder="Bezeichnung"
+              value={newVesselLabel}
+              onChange={(e) => setNewVesselLabel(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-vessel-runtime">
+              Runtime
+            </label>
+            <select
+              id="ic-new-vessel-runtime"
+              className="ic-select"
+              data-testid="new-vessel-runtime"
+              value={newVesselRuntime}
+              onChange={(e) => setNewVesselRuntime(e.target.value)}
+            >
+              <option value="">Runtime wählen…</option>
+              {runtimes.map((r) => (
+                <option key={r.type} value={r.type}>
+                  {r.type} {r.health.healthy ? "● bereit" : "○ nicht verfügbar"}
+                </option>
+              ))}
+            </select>
+            <label className="ic-sr-only" htmlFor="ic-new-vessel-model">
+              Modell
+            </label>
+            <input
+              id="ic-new-vessel-model"
+              data-testid="new-vessel-model"
+              placeholder="Modell (optional)"
+              value={newVesselModel}
+              onChange={(e) => setNewVesselModel(e.target.value)}
+            />
+            <label htmlFor="ic-new-vessel-timeout">Zeitlimit (Min.)</label>
+            <input
+              id="ic-new-vessel-timeout"
+              type="number"
+              min={1}
+              data-testid="new-vessel-timeout"
+              value={newVesselTimeoutMin}
+              onChange={(e) => setNewVesselTimeoutMin(e.target.value)}
+            />
+            <label htmlFor="ic-new-vessel-retries">Versuche</label>
+            <input
+              id="ic-new-vessel-retries"
+              type="number"
+              min={0}
+              data-testid="new-vessel-retries"
+              value={newVesselRetries}
+              onChange={(e) => setNewVesselRetries(e.target.value)}
+            />
+            <label htmlFor="ic-new-vessel-concurrency">Gleichzeitig</label>
+            <input
+              id="ic-new-vessel-concurrency"
+              type="number"
+              min={1}
+              data-testid="new-vessel-concurrency"
+              value={newVesselConcurrency}
+              onChange={(e) => setNewVesselConcurrency(e.target.value)}
+            />
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="new-vessel-submit"
+              disabled={busy || !newVesselKey.trim() || !newVesselRuntime}
+              onClick={createVessel}
+            >
+              Anlegen
+            </button>
+          </div>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Talente
+          </h3>
+          {talents.length === 0 && <p className="ic-empty">Kein Talent angelegt.</p>}
+          <ul className="ic-milestone-list">
+            {talents.map((t) => (
+              <li key={t.id} data-testid={`talent-${t.id}`} style={{ flexWrap: "wrap" }}>
+                <span className="ic-milestone-title">{t.professional_role}</span>
+                <span className="ic-tag" data-testid={`talent-key-${t.id}`}>
+                  {t.key}
+                </span>
+                {t.seniority !== "" && (
+                  <span className="ic-tag" data-tone="policy" data-testid={`talent-seniority-${t.id}`}>
+                    {t.seniority}
+                  </span>
+                )}
+                {talentSkills(t.skills_json).map((skill) => (
+                  <span key={skill} className="ic-tag">
+                    {skill}
+                  </span>
+                ))}
+                {t.role_summary !== "" && (
+                  <span className="ic-note" style={{ width: "100%" }}>
+                    {t.role_summary}
+                  </span>
+                )}
+                <span className="ic-note" style={{ width: "100%" }} data-testid={`talent-agents-${t.id}`}>
+                  {t.agents.length === 0
+                    ? "Von keinem Agent genutzt."
+                    : `Genutzt von: ${t.agents.map((a) => a.display_name).join(", ")}`}
+                </span>
+
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid={`talent-edit-${t.id}`}
+                  disabled={busy}
+                  onClick={() => startEditTalent(t)}
+                >
+                  Bearbeiten
+                </button>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="danger"
+                  data-testid={`talent-delete-${t.id}`}
+                  disabled={busy}
+                  onClick={() => deleteTalent(t.id)}
+                >
+                  Entfernen
+                </button>
+
+                {talentErrors[t.id] && (
+                  <div className="ic-conflict" style={{ width: "100%" }} data-testid={`talent-error-${t.id}`}>
+                    {talentErrors[t.id]}
+                  </div>
+                )}
+
+                {editTalentId === t.id && (
+                  <div className="ic-form-row" data-testid={`talent-form-${t.id}`}>
+                    <label className="ic-sr-only" htmlFor={`ic-talent-role-${t.id}`}>
+                      Berufsrolle
+                    </label>
+                    <input
+                      id={`ic-talent-role-${t.id}`}
+                      data-testid={`talent-edit-role-${t.id}`}
+                      placeholder="Berufsrolle"
+                      value={talentDraft.professionalRole}
+                      onChange={(e) => setTalentDraft((prev) => ({ ...prev, professionalRole: e.target.value }))}
+                    />
+                    <label className="ic-sr-only" htmlFor={`ic-talent-summary-${t.id}`}>
+                      Kurzbeschreibung
+                    </label>
+                    <input
+                      id={`ic-talent-summary-${t.id}`}
+                      data-testid={`talent-edit-summary-${t.id}`}
+                      placeholder="Kurzbeschreibung"
+                      value={talentDraft.roleSummary}
+                      onChange={(e) => setTalentDraft((prev) => ({ ...prev, roleSummary: e.target.value }))}
+                    />
+                    <label className="ic-sr-only" htmlFor={`ic-talent-seniority-${t.id}`}>
+                      Seniorität
+                    </label>
+                    <select
+                      id={`ic-talent-seniority-${t.id}`}
+                      className="ic-select"
+                      data-testid={`talent-edit-seniority-${t.id}`}
+                      value={talentDraft.seniority}
+                      onChange={(e) => setTalentDraft((prev) => ({ ...prev, seniority: e.target.value }))}
+                    >
+                      {/* The vocabulary comes from the server; a value it no
+                          longer offers is still shown rather than swapped. */}
+                      {!seniorities.includes(talentDraft.seniority) && (
+                        <option value={talentDraft.seniority}>{talentDraft.seniority || "—"}</option>
+                      )}
+                      {seniorities.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="primary"
+                      data-testid={`talent-save-${t.id}`}
+                      disabled={busy}
+                      onClick={() => saveTalent(t.id)}
+                    >
+                      Speichern
+                    </button>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-testid={`talent-cancel-edit-${t.id}`}
+                      disabled={busy}
+                      onClick={() => setEditTalentId(null)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Neues Talent
+          </h3>
+          <div className="ic-form-row">
+            <label className="ic-sr-only" htmlFor="ic-new-talent-key">
+              Schlüssel
+            </label>
+            <input
+              id="ic-new-talent-key"
+              data-testid="new-talent-key"
+              placeholder="Schlüssel (z. B. cto)"
+              value={newTalentKey}
+              onChange={(e) => setNewTalentKey(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-talent-role">
+              Berufsrolle
+            </label>
+            <input
+              id="ic-new-talent-role"
+              data-testid="new-talent-role"
+              placeholder="Berufsrolle (z. B. chief_technology_officer)"
+              value={newTalentRole}
+              onChange={(e) => setNewTalentRole(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-talent-summary">
+              Kurzbeschreibung
+            </label>
+            <input
+              id="ic-new-talent-summary"
+              data-testid="new-talent-summary"
+              placeholder="Kurzbeschreibung (optional)"
+              value={newTalentSummary}
+              onChange={(e) => setNewTalentSummary(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-talent-seniority">
+              Seniorität
+            </label>
+            <select
+              id="ic-new-talent-seniority"
+              className="ic-select"
+              data-testid="new-talent-seniority"
+              value={newTalentSeniority}
+              onChange={(e) => setNewTalentSeniority(e.target.value)}
+            >
+              <option value="">Seniorität wählen…</option>
+              {seniorities.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="new-talent-submit"
+              disabled={busy || !newTalentKey.trim() || !newTalentRole.trim()}
+              onClick={createTalent}
+            >
+              Anlegen
+            </button>
+          </div>
+        </DetailDialog>
+      )}
+
+      {showRunQueue && (
+        <DetailDialog title="Warteschlange" onClose={() => setShowRunQueue(false)}>
+          <p className="ic-note">
+            Die Warteschlange hält den Auftrag, eine Aufgabe auszuführen — dauerhaft, auch wenn niemand zusieht und auch
+            über einen Neustart hinweg. Ein Hintergrund-Scheduler arbeitet sie ab; „Jetzt abarbeiten“ macht denselben
+            Durchlauf von Hand.
+          </p>
+
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-run-queue-status-filter">
+              Status
+            </label>
+            <select
+              id="ic-run-queue-status-filter"
+              className="ic-select"
+              data-testid="run-queue-status-filter"
+              value={runQueueStatusFilter}
+              disabled={busy}
+              onChange={(e) => filterRunQueue(e.target.value as RunRequestStatus | "")}
+            >
+              <option value="">Alle</option>
+              <option value="queued">{RUN_REQUEST_STATUS_LABEL.queued}</option>
+              <option value="running">{RUN_REQUEST_STATUS_LABEL.running}</option>
+              <option value="done">{RUN_REQUEST_STATUS_LABEL.done}</option>
+              <option value="failed">{RUN_REQUEST_STATUS_LABEL.failed}</option>
+              <option value="dead">{RUN_REQUEST_STATUS_LABEL.dead}</option>
+              <option value="cancelled">{RUN_REQUEST_STATUS_LABEL.cancelled}</option>
+            </select>
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="run-queue-drain"
+              disabled={busy}
+              onClick={drainRunQueue}
+            >
+              Jetzt abarbeiten
+            </button>
+            {drainResult !== null && (
+              <span className="ic-tag" data-testid="run-queue-drain-result">
+                {drainResult}
+              </span>
+            )}
+          </div>
+
+          {runQueue.length === 0 && <p className="ic-empty">Nichts in der Warteschlange.</p>}
+          <ul className="ic-milestone-list">
+            {runQueue.map((r) => (
+              <li
+                key={r.id}
+                className="ic-queue-row"
+                data-queue-state={r.status}
+                data-testid={`run-request-${r.id}`}
+                style={{ flexWrap: "wrap" }}
+              >
+                <span className="ic-milestone-title">{r.task_title || r.task_id}</span>
+                <span
+                  className="ic-tag"
+                  data-tone={r.status === "dead" || r.status === "failed" ? "gate" : "policy"}
+                  data-testid={`run-request-status-${r.id}`}
+                >
+                  {RUN_REQUEST_STATUS_LABEL[r.status]}
+                </span>
+                <span className="ic-tag" data-testid={`run-request-attempts-${r.id}`}>
+                  {r.attempts}/{r.max_attempts} Versuche
+                </span>
+                <span className="ic-tag">{r.requested_by}</span>
+
+                {/* Cancelling is only meaningful while something can still
+                    happen — a finished or dead request has nothing to stop. */}
+                {(r.status === "queued" || r.status === "running") && (
+                  <button
+                    type="button"
+                    className="ic-btn"
+                    data-variant="danger"
+                    data-testid={`run-request-cancel-${r.id}`}
+                    disabled={busy}
+                    onClick={() => cancelRunRequest(r.id)}
+                  >
+                    Abbrechen
+                  </button>
+                )}
+
+                {r.status === "dead" && (
+                  <div className="ic-warn" style={{ width: "100%" }} data-testid={`run-request-dead-hint-${r.id}`}>
+                    Aufgegeben: alle Versuche sind verbraucht. Diese Anfrage läuft von selbst nicht wieder an — hier
+                    muss ein Mensch entscheiden.
+                  </div>
+                )}
+                {(r.status === "failed" || r.status === "dead") && r.last_error !== "" && (
+                  <div className="ic-conflict" style={{ width: "100%" }} data-testid={`run-request-error-${r.id}`}>
+                    {r.last_error}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Scheduler
+          </h3>
+          {scheduler !== null && !scheduler.enabled && (
+            <div className="ic-warn" data-testid="scheduler-disabled">
+              Hintergrundarbeit ist ausgeschaltet — nichts in dieser Warteschlange wird von selbst abgearbeitet. Setzen
+              Sie die Umgebungsvariable IRONCREW_SCHEDULER und starten Sie den Server neu, oder arbeiten Sie hier von
+              Hand ab.
+            </div>
+          )}
+          {scheduler !== null && scheduler.jobs.length === 0 && <p className="ic-empty">Kein Job registriert.</p>}
+          <ul className="ic-milestone-list">
+            {(scheduler?.jobs ?? []).map((job) => (
+              <li key={job.name} data-testid={`scheduler-job-${job.name}`} style={{ flexWrap: "wrap" }}>
+                <span className="ic-milestone-title">{job.name}</span>
+                <span className="ic-tag" data-testid={`scheduler-job-interval-${job.name}`}>
+                  alle {formatDurationMs(job.intervalMs)}
+                </span>
+                <span className="ic-tag" data-testid={`scheduler-job-last-${job.name}`}>
+                  {job.lastFinishedAt === null ? "noch nie gelaufen" : `zuletzt ${formatTime(job.lastFinishedAt)}`}
+                </span>
+                <span
+                  className="ic-tag"
+                  data-tone={job.failures > 0 ? "gate" : undefined}
+                  data-testid={`scheduler-job-failures-${job.name}`}
+                >
+                  {job.failures} Fehlschläge / {job.runs} Läufe
+                </span>
+                {job.running && (
+                  <span className="ic-tag" data-tone="policy">
+                    läuft gerade
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid={`scheduler-run-${job.name}`}
+                  disabled={busy || job.running}
+                  onClick={() => runSchedulerJob(job.name)}
+                >
+                  Jetzt ausführen
+                </button>
+                {job.lastError !== "" && (
+                  <div
+                    className="ic-conflict"
+                    style={{ width: "100%" }}
+                    data-testid={`scheduler-job-error-${job.name}`}
+                  >
+                    {job.lastError}
+                  </div>
                 )}
               </li>
             ))}

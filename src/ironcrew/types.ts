@@ -746,3 +746,122 @@ export interface ChangeApplyConflict {
   path: string;
   reason: string;
 }
+
+// --- vessels & talents: an agent is a vessel × talent pairing --------------
+
+/** An agent that currently uses a vessel or a talent, flattened by the server
+ *  so a row can name its dependants without a second round trip. */
+export interface PairedAgentRef {
+  id: string;
+  key: string;
+  display_name: string;
+}
+
+/**
+ * The execution container: which runtime runs an agent, on which model, and
+ * how long and how often a single run may take.
+ *
+ * A vessel deliberately carries no permission mode, no tool allowlist and no
+ * sandbox setting. It governs the *shape* of a run — duration, repetition,
+ * parallelism — never what that run is allowed to do; that stays with the
+ * talent's policy. Keeping the two apart is what lets the same talent run in
+ * a different vessel without quietly gaining or losing authority.
+ */
+export interface Vessel {
+  id: string;
+  company_id: string;
+  key: string;
+  label: string;
+  runtime_provider: string;
+  model: string;
+  timeout_ms: number;
+  max_retries: number;
+  max_concurrency: number;
+  created_at: number;
+  updated_at: number;
+  agents: PairedAgentRef[];
+}
+
+/**
+ * The capability package: role, seniority, policy, persona and skills.
+ *
+ * `policy_json`, `persona_json` and `skills_json` arrive as stored text. Their
+ * inner shape belongs to whoever authored the talent pack, so the UI reads
+ * them defensively and never assumes a schema.
+ */
+export interface Talent {
+  id: string;
+  company_id: string;
+  key: string;
+  professional_role: string;
+  role_summary: string;
+  seniority: string;
+  policy_json: string;
+  persona_json: string;
+  skills_json: string;
+  created_at: number;
+  updated_at: number;
+  agents: PairedAgentRef[];
+}
+
+// --- run queue: the durable intent to run a task --------------------------
+
+/**
+ * `dead` is the only status a scheduler will never move again: the attempts
+ * are spent, so the request sits there until a person decides. Every other
+ * status either advances on its own or is already final by choice.
+ */
+export type RunRequestStatus = "queued" | "running" | "done" | "failed" | "dead" | "cancelled";
+
+export const RUN_REQUEST_STATUS_LABEL: Record<RunRequestStatus, string> = {
+  queued: "wartet",
+  running: "läuft",
+  done: "erledigt",
+  failed: "fehlgeschlagen",
+  dead: "aufgegeben",
+  cancelled: "abgebrochen",
+};
+
+export interface RunRequest {
+  id: string;
+  task_id: string;
+  requested_by: string;
+  status: RunRequestStatus;
+  attempts: number;
+  max_attempts: number;
+  not_before: number | null;
+  run_id: string | null;
+  last_error: string;
+  created_at: number;
+  updated_at: number;
+  finished_at: number | null;
+  task_title: string;
+}
+
+/** What one drain pass actually did — reported back, never assumed. */
+export interface RunQueueDrainResult {
+  claimed: number;
+  completed: number;
+  failed: number;
+  deferred: number;
+}
+
+// --- scheduler: the background worker that drains the queue ----------------
+
+export interface SchedulerJob {
+  name: string;
+  intervalMs: number;
+  running: boolean;
+  runs: number;
+  failures: number;
+  skipped: number;
+  lastStartedAt: number | null;
+  lastFinishedAt: number | null;
+  lastDurationMs: number | null;
+  lastError: string;
+}
+
+export interface SchedulerStatus {
+  enabled: boolean;
+  jobs: SchedulerJob[];
+}

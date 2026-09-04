@@ -830,6 +830,43 @@
   color: var(--ic-red);
 }
 
+/* A queue row that will never move again on its own: `dead` means the attempts
+   are spent, so red — the same "this is a stop" signal as .ic-conflict — and a
+   dimmed ground so it reads apart from the rows a drain can still pick up. */
+.ic-queue-row[data-queue-state="dead"] {
+  border-left: 2px solid var(--ic-red);
+  padding-left: 8px;
+  background: var(--ic-bg-inset);
+}
+
+/* Groups the fields of one create/edit form so a row's inline editor is
+   visibly one unit rather than controls loose among the list items. */
+.ic-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--ic-bg-inset);
+  border: 1px solid var(--ic-line);
+  border-radius: var(--ic-radius);
+}
+.ic-form-row input {
+  padding: 4px 8px;
+  background: var(--ic-bg);
+  border: 1px solid var(--ic-line-strong);
+  border-radius: var(--ic-radius);
+  color: var(--ic-text);
+  font: inherit;
+  font-size: 11px;
+}
+/* The three vessel limits are entered as plain numbers; a wide text field
+   would suggest free-form input it does not take. */
+.ic-form-row input[type="number"] {
+  width: 84px;
+}
+
 .ic-check {
   display: inline-flex;
   align-items: center;
