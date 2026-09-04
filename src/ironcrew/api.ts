@@ -13,6 +13,10 @@ import type {
   Agent,
   Approval,
   Attachment,
+  ChangeApplyConflict,
+  ChangeProposal,
+  ChangeProposalFile,
+  ChangeProposalStatus,
   Dashboard,
   Decision,
   Department,
@@ -42,9 +46,13 @@ import type {
   MemoryRef,
   MemorySearchHit,
   Message,
+  MessengerChannelStatus,
+  MessengerPairing,
+  MessengerPollResult,
   Milestone,
   Notification,
   NotificationChannelStatus,
+  PairingRole,
   Project,
   ProjectStatus,
   RemoteWorker,
@@ -280,4 +288,32 @@ export const api = {
     ),
   uninstallFromMarketplace: (entryType: MarketplaceEntryType, name: string) =>
     send<{ ok: true }>(`/marketplace-installs/${entryType}/${encodeURIComponent(name)}`, "DELETE"),
+
+  messengerChannels: () => get<{ channels: MessengerChannelStatus[] }>("/messenger-channels"),
+  // A poll consumes the channel cursor, so it is an explicit action and never
+  // something the dialog does on open.
+  pollMessengerChannel: (kind: string) =>
+    send<MessengerPollResult>(`/messenger-channels/${encodeURIComponent(kind)}/poll`, "POST"),
+  messengerPairings: () => get<{ pairings: MessengerPairing[] }>("/messenger-pairings"),
+  acceptMessengerPairing: (id: string, role: PairingRole) =>
+    send<{ pairing: MessengerPairing }>(`/messenger-pairings/${id}/accept`, "POST", { role }),
+  blockMessengerPairing: (id: string) => send<{ pairing: MessengerPairing }>(`/messenger-pairings/${id}/block`, "POST"),
+  revokeMessengerPairing: (id: string) =>
+    send<{ pairing: MessengerPairing }>(`/messenger-pairings/${id}/revoke`, "POST"),
+  unblockMessengerPairing: (id: string) =>
+    send<{ pairing: MessengerPairing }>(`/messenger-pairings/${id}/unblock`, "POST"),
+
+  changeProposals: (status?: ChangeProposalStatus) =>
+    get<{ proposals: ChangeProposal[] }>(`/change-proposals${status ? `?status=${status}` : ""}`),
+  changeProposal: (id: string) =>
+    get<{ proposal: ChangeProposal; files: ChangeProposalFile[] }>(`/change-proposals/${id}`),
+  decideChangeProposal: (id: string, decision: "approved" | "rejected", reason?: string) =>
+    send<{ proposal: ChangeProposal }>(`/change-proposals/${id}/decision`, "POST", { decision, reason }),
+  // Nothing reaches the disk until this call, and it is all-or-nothing: a
+  // single conflict leaves the workspace exactly as it was.
+  applyChangeProposal: (id: string) =>
+    send<{ proposal: ChangeProposal; applied: string[]; conflicts: ChangeApplyConflict[] }>(
+      `/change-proposals/${id}/apply`,
+      "POST",
+    ),
 };

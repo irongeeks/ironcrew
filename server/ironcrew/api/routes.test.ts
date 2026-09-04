@@ -11,6 +11,7 @@ import { CompanyOrchestrator } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts";
 import { UNTRUSTED_OPEN } from "../policy/untrusted-content.ts";
+import type { ProposedFile } from "../domain/change-proposal-store.ts";
 
 let db: DatabaseSync;
 let app: Express;
@@ -1904,7 +1905,7 @@ describe("change proposals over HTTP (nothing is written before the owner says s
   });
   afterEach(() => fs.rmSync(workspace, { recursive: true, force: true }));
 
-  function propose(files = [{ path: "a.txt", operation: "create" as const, content: "neu" }]) {
+  function propose(files: ProposedFile[] = [{ path: "a.txt", operation: "create", content: "neu" }]) {
     return orchestrator.proposeChanges(companyId, { title: "Konfiguration anpassen", workspacePath: workspace, files });
   }
 
@@ -1916,6 +1917,18 @@ describe("change proposals over HTTP (nothing is written before the owner says s
 
     const approved = await request(app).get("/api/crew/change-proposals?status=approved").expect(200);
     expect(approved.body.proposals).toHaveLength(0);
+  });
+
+  it("carries a file count in the list, so a row need not fetch its files", async () => {
+    propose([
+      { path: "a.txt", operation: "create", content: "A" },
+      { path: "b.txt", operation: "create", content: "B" },
+    ]);
+    const res = await request(app).get("/api/crew/change-proposals").expect(200);
+    expect(res.body.proposals[0].file_count).toBe(2);
+    // The count is a number, not the contents: a list view must not ship
+    // every proposed file to draw one line.
+    expect(JSON.stringify(res.body.proposals[0])).not.toContain('"A"');
   });
 
   it("returns the proposed files with the proposal", async () => {

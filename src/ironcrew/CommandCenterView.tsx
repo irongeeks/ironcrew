@@ -15,6 +15,8 @@ import { api } from "./api.ts";
 import {
   AGENT_STATUS_LABEL,
   BOARD_COLUMNS,
+  CHANGE_OPERATION_LABEL,
+  CHANGE_PROPOSAL_STATUS_LABEL,
   MEETING_STATUS_LABEL,
   MAILBOX_ACCESS_LABEL,
   MAILBOX_KIND_LABEL,
@@ -22,15 +24,22 @@ import {
   MARKETPLACE_KIND_LABEL,
   MARKETPLACE_URL_HINT,
   MEMORY_KIND_LABEL,
+  MESSENGER_CHANNEL_LABEL,
   MILESTONE_STATUS_LABEL,
   NOTIFICATION_CHANNEL_LABEL,
   NOTIFICATION_SEVERITY_LABEL,
+  PAIRING_ROLE_LABEL,
+  PAIRING_STATUS_LABEL,
   PROJECT_STATUS_LABEL,
   SECRET_PROVIDER_LABEL,
   TASK_STATUS_LABEL,
   type Agent,
   type Approval,
   type Attachment,
+  type ChangeApplyConflict,
+  type ChangeProposal,
+  type ChangeProposalFile,
+  type ChangeProposalStatus,
   type Dashboard,
   type Decision,
   type Department,
@@ -55,9 +64,12 @@ import {
   type MemoryRef,
   type MemorySearchHit,
   type Message,
+  type MessengerChannelStatus,
+  type MessengerPairing,
   type Milestone,
   type Notification,
   type NotificationChannelStatus,
+  type PairingRole,
   type Project,
   type RemoteWorker,
   type RunEvent,
@@ -205,6 +217,23 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [newMarketplaceName, setNewMarketplaceName] = useState("");
   const [newMarketplaceKind, setNewMarketplaceKind] = useState<MarketplaceKind>("catalog");
   const [newMarketplaceUrl, setNewMarketplaceUrl] = useState("");
+
+  const [messengerChannels, setMessengerChannels] = useState<MessengerChannelStatus[]>([]);
+  const [pairings, setPairings] = useState<MessengerPairing[]>([]);
+  const [showMessenger, setShowMessenger] = useState(false);
+  const [messengerPollResults, setMessengerPollResults] = useState<Record<string, string>>({});
+
+  const [changeProposals, setChangeProposals] = useState<ChangeProposal[]>([]);
+  const [showChangeProposals, setShowChangeProposals] = useState(false);
+  const [proposalStatusFilter, setProposalStatusFilter] = useState<ChangeProposalStatus | "">("");
+  const [proposalDetail, setProposalDetail] = useState<{
+    proposal: ChangeProposal;
+    files: ChangeProposalFile[];
+  } | null>(null);
+  const [proposalReason, setProposalReason] = useState<Record<string, string>>({});
+  const [proposalApplyResults, setProposalApplyResults] = useState<
+    Record<string, { applied: string[]; conflicts: ChangeApplyConflict[] }>
+  >({});
 
   const [notificationChannels, setNotificationChannels] = useState<NotificationChannelStatus[]>([]);
   const [showChannels, setShowChannels] = useState(false);
@@ -1085,6 +1114,144 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [actWith, client, refreshMarketplaces],
   );
 
+  // --- messenger pairings (who may talk to the EA, and with what authority) -
+
+  const refreshMessenger = useCallback(async () => {
+    const [{ channels }, { pairings: list }] = await Promise.all([
+      client.messengerChannels(),
+      client.messengerPairings(),
+    ]);
+    setMessengerChannels(channels);
+    setPairings(list);
+  }, [client]);
+
+  const openMessenger = useCallback(() => {
+    setShowMessenger(true);
+    setMessengerPollResults({});
+    void refreshMessenger();
+  }, [refreshMessenger]);
+
+  const pollMessengerChannel = useCallback(
+    (kind: string) => {
+      void actWith(
+        async () => {
+          const result = await client.pollMessengerChannel(kind);
+          setMessengerPollResults((prev) => ({
+            ...prev,
+            [kind]: `${result.received} empfangen · ${result.handled} bearbeitet · ${result.pairingPrompts} wartet auf Freigabe`,
+          }));
+        },
+        // A poll is what turns an unknown sender into a pending row with a
+        // code, so the list has to be re-read or that code is nowhere to be
+        // seen.
+        refreshMessenger,
+      );
+    },
+    [actWith, client, refreshMessenger],
+  );
+
+  const acceptPairing = useCallback(
+    (id: string, role: PairingRole) => {
+      void actWith(() => client.acceptMessengerPairing(id, role), refreshMessenger);
+    },
+    [actWith, client, refreshMessenger],
+  );
+
+  const blockPairing = useCallback(
+    (id: string) => {
+      void actWith(() => client.blockMessengerPairing(id), refreshMessenger);
+    },
+    [actWith, client, refreshMessenger],
+  );
+
+  const revokePairing = useCallback(
+    (id: string) => {
+      void actWith(() => client.revokeMessengerPairing(id), refreshMessenger);
+    },
+    [actWith, client, refreshMessenger],
+  );
+
+  const unblockPairing = useCallback(
+    (id: string) => {
+      void actWith(() => client.unblockMessengerPairing(id), refreshMessenger);
+    },
+    [actWith, client, refreshMessenger],
+  );
+
+  // --- change proposals (nothing is written until the CEO approves) --------
+
+  const refreshChangeProposals = useCallback(
+    async (status: ChangeProposalStatus | "") => {
+      const { proposals } = await client.changeProposals(status === "" ? undefined : status);
+      setChangeProposals(proposals);
+    },
+    [client],
+  );
+
+  const openChangeProposals = useCallback(() => {
+    setShowChangeProposals(true);
+    setProposalDetail(null);
+    setProposalApplyResults({});
+    void refreshChangeProposals(proposalStatusFilter);
+  }, [refreshChangeProposals, proposalStatusFilter]);
+
+  const filterChangeProposals = useCallback(
+    (status: ChangeProposalStatus | "") => {
+      setProposalStatusFilter(status);
+      setProposalDetail(null);
+      void actWith(
+        () => refreshChangeProposals(status),
+        async () => {},
+      );
+    },
+    [actWith, refreshChangeProposals],
+  );
+
+  const openProposalDetail = useCallback(
+    (id: string) => {
+      void actWith(
+        async () => {
+          const detail = await client.changeProposal(id);
+          setProposalDetail(detail);
+        },
+        async () => {},
+      );
+    },
+    [actWith, client],
+  );
+
+  const decideProposal = useCallback(
+    (id: string, decision: "approved" | "rejected") => {
+      const reason = proposalReason[id]?.trim();
+      void actWith(
+        () => client.decideChangeProposal(id, decision, decision === "rejected" ? reason || undefined : undefined),
+        async () => {
+          setProposalReason((prev) => ({ ...prev, [id]: "" }));
+          await refreshChangeProposals(proposalStatusFilter);
+        },
+      );
+    },
+    [actWith, client, proposalReason, proposalStatusFilter, refreshChangeProposals],
+  );
+
+  const applyProposal = useCallback(
+    (id: string) => {
+      void actWith(
+        async () => {
+          const result = await client.applyChangeProposal(id);
+          setProposalApplyResults((prev) => ({
+            ...prev,
+            [id]: { applied: result.applied, conflicts: result.conflicts },
+          }));
+        },
+        // Apply is all-or-nothing, so the row's own status is the only honest
+        // report of what happened — re-read it rather than assuming success.
+        () => refreshChangeProposals(proposalStatusFilter),
+      );
+    },
+    [actWith, client, proposalStatusFilter, refreshChangeProposals],
+  );
+
   // --- notification channels (Discord, Telegram, email fan-out) -----------
 
   const refreshChannels = useCallback(async () => {
@@ -1198,6 +1365,14 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const currentRuntime = currentAgent ? runtimes.find((r) => r.type === currentAgent.runtimeProvider) : undefined;
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
   const currentTask = selectedTask ? (taskById.get(selectedTask.id) ?? selectedTask) : null;
+  // Pending first: those are the only rows still waiting on the CEO.
+  const sortedProposals = useMemo(
+    () =>
+      [...changeProposals].sort(
+        (a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1) || b.created_at - a.created_at,
+      ),
+    [changeProposals],
+  );
   const agentsByDepartment = useMemo(() => {
     const map = new Map<string, Agent[]>();
     for (const a of agents) {
@@ -1265,6 +1440,14 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-marketplaces" onClick={openMarketplaces}>
           Marktplätze
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-messenger" onClick={openMessenger}>
+          Messenger
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-change-proposals" onClick={openChangeProposals}>
+          Änderungen
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -3280,6 +3463,317 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               Hinzufügen
             </button>
           </div>
+        </DetailDialog>
+      )}
+
+      {showMessenger && (
+        <DetailDialog title="Messenger" onClose={() => setShowMessenger(false)}>
+          <p className="ic-note">
+            Wer über Telegram oder Discord schreibt, erreicht die Assistenz erst nach Ihrer Freigabe. Vorher entsteht
+            nur ein Eintrag mit Code — keine Aufgabe, keine Antwort. Danach entscheidet die Rolle über die Befugnis,
+            nicht der Kanal.
+          </p>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Kanäle
+          </h3>
+          {messengerChannels.length === 0 && <p className="ic-empty">Kein Messenger-Kanal registriert.</p>}
+          <ul className="ic-milestone-list">
+            {messengerChannels.map((c) => (
+              <li key={c.kind} data-testid={`messenger-channel-${c.kind}`}>
+                <span className="ic-milestone-title">{MESSENGER_CHANNEL_LABEL[c.kind] ?? c.kind}</span>
+                <span className="ic-tag" data-tone={c.registered ? "policy" : "gate"}>
+                  {c.registered ? "verfügbar" : "nicht registriert"}
+                </span>
+                {c.message !== "" && (
+                  <span
+                    className="ic-tag"
+                    data-tone={c.ok ? "policy" : "gate"}
+                    data-testid={`messenger-channel-message-${c.kind}`}
+                  >
+                    {c.message}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid={`messenger-poll-${c.kind}`}
+                  disabled={busy || !c.registered}
+                  onClick={() => pollMessengerChannel(c.kind)}
+                >
+                  Abrufen
+                </button>
+                {messengerPollResults[c.kind] && (
+                  <span className="ic-tag" data-testid={`messenger-poll-result-${c.kind}`}>
+                    {messengerPollResults[c.kind]}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Absender
+          </h3>
+          {pairings.length === 0 && <p className="ic-empty">Bisher hat niemand geschrieben.</p>}
+          <ul className="ic-milestone-list">
+            {pairings.map((p) => (
+              <li key={p.id} data-testid={`pairing-${p.id}`} style={{ flexWrap: "wrap" }}>
+                {/* `display_name` is chosen by whoever wrote in. Plain text
+                    only — never markup, never a link target. */}
+                <span className="ic-milestone-title">{p.display_name || p.sender_id}</span>
+                <span className="ic-tag" data-tone="policy">
+                  {MESSENGER_CHANNEL_LABEL[p.channel_kind] ?? p.channel_kind}
+                </span>
+                <span
+                  className="ic-tag"
+                  data-tone={p.status === "active" ? "policy" : "gate"}
+                  data-testid={`pairing-status-${p.id}`}
+                >
+                  {PAIRING_STATUS_LABEL[p.status]}
+                </span>
+                {p.status === "active" && (
+                  <span
+                    className="ic-tag"
+                    data-tone={p.role === "owner" ? "gate" : "policy"}
+                    data-testid={`pairing-role-${p.id}`}
+                  >
+                    {PAIRING_ROLE_LABEL[p.role]}
+                  </span>
+                )}
+
+                {p.status === "pending" && (
+                  <>
+                    {p.pairing_code !== "" && (
+                      <span className="ic-code" data-testid={`pairing-code-${p.id}`}>
+                        {p.pairing_code}
+                      </span>
+                    )}
+                    <div className="ic-warn" style={{ width: "100%" }} data-testid={`pairing-role-hint-${p.id}`}>
+                      Als Chef freigeben heißt: diese Person spricht über den Chat als Sie und kann sofort Aufträge
+                      erteilen. Als Gast landet ihre Nachricht nur als Fremdinhalt im Eingang.
+                    </div>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="decision"
+                      data-testid={`pairing-accept-owner-${p.id}`}
+                      disabled={busy}
+                      onClick={() => acceptPairing(p.id, "owner")}
+                    >
+                      Als Chef freigeben
+                    </button>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-testid={`pairing-accept-guest-${p.id}`}
+                      disabled={busy}
+                      onClick={() => acceptPairing(p.id, "guest")}
+                    >
+                      Als Gast freigeben
+                    </button>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="danger"
+                      data-testid={`pairing-block-${p.id}`}
+                      disabled={busy}
+                      onClick={() => blockPairing(p.id)}
+                    >
+                      Blockieren
+                    </button>
+                  </>
+                )}
+
+                {p.status === "active" && (
+                  <>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-testid={`pairing-revoke-${p.id}`}
+                      disabled={busy}
+                      onClick={() => revokePairing(p.id)}
+                    >
+                      Freigabe entziehen
+                    </button>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="danger"
+                      data-testid={`pairing-block-${p.id}`}
+                      disabled={busy}
+                      onClick={() => blockPairing(p.id)}
+                    >
+                      Blockieren
+                    </button>
+                  </>
+                )}
+
+                {p.status === "blocked" && (
+                  <button
+                    type="button"
+                    className="ic-btn"
+                    data-testid={`pairing-unblock-${p.id}`}
+                    disabled={busy}
+                    onClick={() => unblockPairing(p.id)}
+                  >
+                    Entsperren
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </DetailDialog>
+      )}
+
+      {showChangeProposals && (
+        <DetailDialog title="Änderungsfreigaben" onClose={() => setShowChangeProposals(false)}>
+          <p className="ic-note">
+            Ein Agent schlägt Dateiänderungen vor, geschrieben wird erst nach Ihrer Freigabe. Beim Anwenden gilt alles
+            oder nichts: hat sich eine Datei seit dem Vorschlag geändert, wird gar nichts geschrieben und der Konflikt
+            hier gemeldet.
+          </p>
+
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-proposal-status-filter">
+              Status
+            </label>
+            <select
+              id="ic-proposal-status-filter"
+              className="ic-select"
+              data-testid="proposal-status-filter"
+              value={proposalStatusFilter}
+              disabled={busy}
+              onChange={(e) => filterChangeProposals(e.target.value as ChangeProposalStatus | "")}
+            >
+              <option value="">Alle</option>
+              <option value="pending">{CHANGE_PROPOSAL_STATUS_LABEL.pending}</option>
+              <option value="approved">{CHANGE_PROPOSAL_STATUS_LABEL.approved}</option>
+              <option value="rejected">{CHANGE_PROPOSAL_STATUS_LABEL.rejected}</option>
+              <option value="applied">{CHANGE_PROPOSAL_STATUS_LABEL.applied}</option>
+              <option value="failed">{CHANGE_PROPOSAL_STATUS_LABEL.failed}</option>
+              <option value="superseded">{CHANGE_PROPOSAL_STATUS_LABEL.superseded}</option>
+            </select>
+          </div>
+
+          {sortedProposals.length === 0 && <p className="ic-empty">Kein Änderungsvorschlag.</p>}
+          <ul className="ic-milestone-list">
+            {sortedProposals.map((p) => (
+              <li key={p.id} data-testid={`proposal-${p.id}`} style={{ flexWrap: "wrap" }}>
+                <span className="ic-milestone-title">{p.title}</span>
+                <span
+                  className="ic-tag"
+                  data-tone={p.status === "pending" ? "gate" : "policy"}
+                  data-testid={`proposal-status-${p.id}`}
+                >
+                  {CHANGE_PROPOSAL_STATUS_LABEL[p.status]}
+                </span>
+                <span className="ic-tag">
+                  {p.file_count} Datei{p.file_count === 1 ? "" : "en"}
+                </span>
+                <span className="ic-note">{p.workspace_path}</span>
+                {p.summary !== "" && <span className="ic-note">{p.summary}</span>}
+
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid={`proposal-open-${p.id}`}
+                  disabled={busy}
+                  onClick={() => openProposalDetail(p.id)}
+                >
+                  Dateien
+                </button>
+
+                {p.status === "pending" && (
+                  <>
+                    <label className="ic-sr-only" htmlFor={`ic-proposal-reason-${p.id}`}>
+                      Grund der Ablehnung
+                    </label>
+                    <input
+                      id={`ic-proposal-reason-${p.id}`}
+                      data-testid={`proposal-reason-${p.id}`}
+                      placeholder="Grund (bei Ablehnung)"
+                      value={proposalReason[p.id] ?? ""}
+                      onChange={(e) => setProposalReason((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="decision"
+                      data-testid={`proposal-approve-${p.id}`}
+                      disabled={busy}
+                      onClick={() => decideProposal(p.id, "approved")}
+                    >
+                      Freigeben
+                    </button>
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="danger"
+                      data-testid={`proposal-reject-${p.id}`}
+                      disabled={busy}
+                      onClick={() => decideProposal(p.id, "rejected")}
+                    >
+                      Ablehnen
+                    </button>
+                  </>
+                )}
+
+                {/* Only an approved proposal can be written — a pending one has
+                    no apply button at all, not a disabled one. */}
+                {p.status === "approved" && (
+                  <button
+                    type="button"
+                    className="ic-btn"
+                    data-variant="primary"
+                    data-testid={`proposal-apply-${p.id}`}
+                    disabled={busy}
+                    onClick={() => applyProposal(p.id)}
+                  >
+                    Anwenden
+                  </button>
+                )}
+
+                {proposalApplyResults[p.id] && (
+                  <div className="ic-note" style={{ width: "100%" }} data-testid={`proposal-apply-result-${p.id}`}>
+                    {proposalApplyResults[p.id].conflicts.length === 0
+                      ? `${proposalApplyResults[p.id].applied.length} Datei${
+                          proposalApplyResults[p.id].applied.length === 1 ? "" : "en"
+                        } geschrieben.`
+                      : "Nichts geschrieben — der Arbeitsordner ist unverändert."}
+                  </div>
+                )}
+                {(proposalApplyResults[p.id]?.conflicts.length ?? 0) > 0 && (
+                  <div style={{ width: "100%" }} data-testid={`proposal-conflicts-${p.id}`}>
+                    {proposalApplyResults[p.id].conflicts.map((conflict) => (
+                      <div key={conflict.path} className="ic-conflict">
+                        {conflict.path} — {conflict.reason}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {proposalDetail?.proposal.id === p.id && (
+                  <ul className="ic-milestone-list" data-testid={`proposal-files-${p.id}`} style={{ width: "100%" }}>
+                    {proposalDetail.files.length === 0 && <li className="ic-empty">Keine Datei im Vorschlag.</li>}
+                    {proposalDetail.files.map((file) => (
+                      <li key={file.id} data-testid={`proposal-file-${file.id}`} style={{ flexWrap: "wrap" }}>
+                        <span className="ic-milestone-title">{file.path}</span>
+                        <span className="ic-tag" data-tone="policy">
+                          {CHANGE_OPERATION_LABEL[file.operation]}
+                        </span>
+                        {file.operation !== "delete" && (
+                          <pre className="ic-pre" data-testid={`proposal-file-content-${file.id}`}>
+                            {file.content}
+                          </pre>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
         </DetailDialog>
       )}
     </div>

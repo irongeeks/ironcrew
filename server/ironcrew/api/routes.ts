@@ -1808,7 +1808,14 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/change-proposals`,
     wrap((req, res) => {
       const query = listChangeProposalsSchema.parse(req.query ?? {});
-      res.json({ proposals: orchestrator.changeProposals.list(companyId, query) });
+      // file_count is a projection, not a column: a list says how much a
+      // proposal touches without shipping the contents of everything it
+      // touches to draw one line.
+      const counts = orchestrator.changeProposals.fileCounts(companyId);
+      const proposals = orchestrator.changeProposals
+        .list(companyId, query)
+        .map((proposal) => ({ ...proposal, file_count: counts[proposal.id] ?? 0 }));
+      res.json({ proposals });
     }),
   );
 

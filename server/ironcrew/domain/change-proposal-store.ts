@@ -242,6 +242,27 @@ export class ChangeProposalStore {
     );
   }
 
+  /**
+   * How many files each proposal touches, keyed by proposal id.
+   *
+   * Separate from `files()` because a list only needs the number: loading
+   * every proposal's file rows to count them would drag their full contents
+   * through memory to render one digit.
+   */
+  fileCounts(companyId: string): Record<string, number> {
+    const rows = allRows<{ proposal_id: string; n: number }>(
+      this.db.prepare(
+        `SELECT f.proposal_id AS proposal_id, COUNT(*) AS n
+           FROM crew_change_proposal_files f
+           JOIN crew_change_proposals p ON p.id = f.proposal_id
+          WHERE p.company_id = ?
+          GROUP BY f.proposal_id`,
+      ),
+      companyId,
+    );
+    return Object.fromEntries(rows.map((row) => [row.proposal_id, Number(row.n)]));
+  }
+
   list(companyId: string, opts: { status?: ChangeProposalStatus; limit?: number } = {}): ChangeProposalRow[] {
     if (opts.status) {
       return allRows<ChangeProposalRow>(

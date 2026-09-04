@@ -636,3 +636,113 @@ export interface MarketplaceKindStatus {
   kind: MarketplaceKind;
   registered: boolean;
 }
+
+// --- messenger pairings: who may talk to the executive assistant -----------
+
+export interface MessengerChannelStatus {
+  kind: string;
+  registered: boolean;
+  ok: boolean;
+  message: string;
+}
+
+export const MESSENGER_CHANNEL_LABEL: Record<string, string> = {
+  telegram: "Telegram",
+  discord: "Discord",
+};
+
+/**
+ * `owner` is authority, not a label: that sender speaks as the CEO through a
+ * chat app and can delegate work immediately. `guest` is routed like incoming
+ * mail — an `inbox` task, quoted as third-party content.
+ */
+export type PairingRole = "owner" | "guest";
+
+export const PAIRING_ROLE_LABEL: Record<PairingRole, string> = {
+  owner: "Chef",
+  guest: "Gast",
+};
+
+export type PairingStatus = "pending" | "active" | "blocked";
+
+export const PAIRING_STATUS_LABEL: Record<PairingStatus, string> = {
+  pending: "wartet auf Freigabe",
+  active: "freigegeben",
+  blocked: "blockiert",
+};
+
+/**
+ * A row of crew_messenger_pairings, straight from the DB.
+ *
+ * `display_name` is chosen by whoever wrote in. It arrives flattened from the
+ * server, and it is rendered as plain text only — never as markup and never as
+ * a link target.
+ */
+export interface MessengerPairing {
+  id: string;
+  channel_kind: string;
+  chat_id: string;
+  sender_id: string;
+  display_name: string;
+  role: PairingRole;
+  status: PairingStatus;
+  pairing_code: string;
+  code_expires_at: number | null;
+  paired_at: number | null;
+  last_seen_at: number | null;
+}
+
+export interface MessengerPollResult {
+  received: number;
+  handled: number;
+  pairingPrompts: number;
+}
+
+// --- change proposals: an agent proposes file edits, the owner approves ----
+
+export type ChangeProposalStatus = "pending" | "approved" | "rejected" | "applied" | "failed" | "superseded";
+
+export const CHANGE_PROPOSAL_STATUS_LABEL: Record<ChangeProposalStatus, string> = {
+  pending: "wartet auf Freigabe",
+  approved: "freigegeben",
+  rejected: "abgelehnt",
+  applied: "angewendet",
+  failed: "fehlgeschlagen",
+  superseded: "überholt",
+};
+
+export type ChangeOperation = "create" | "update" | "delete";
+
+export const CHANGE_OPERATION_LABEL: Record<ChangeOperation, string> = {
+  create: "neu anlegen",
+  update: "ändern",
+  delete: "löschen",
+};
+
+export interface ChangeProposal {
+  id: string;
+  title: string;
+  summary: string;
+  status: ChangeProposalStatus;
+  workspace_path: string;
+  file_count: number;
+  agent_id: string | null;
+  created_at: number;
+  applied_at: number | null;
+}
+
+export interface ChangeProposalFile {
+  id: string;
+  path: string;
+  operation: ChangeOperation;
+  content: string;
+  expected_sha256: string;
+  applied_sha256: string;
+}
+
+/** A file that could not be written, and why. Apply is all-or-nothing: one of
+ *  these means the whole proposal was refused and the workspace is untouched. */
+export interface ChangeApplyConflict {
+  path: string;
+  reason: string;
+}
