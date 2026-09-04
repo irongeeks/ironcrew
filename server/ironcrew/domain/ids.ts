@@ -41,6 +41,7 @@ export type IdPrefix =
   | "chg"
   | "chgf"
   | "pair"
+  | "rreq"
   | "turn"
   | "action"
   | "corr";

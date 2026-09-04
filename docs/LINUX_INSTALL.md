@@ -55,7 +55,9 @@ LOGS_DIR=./data/logs
 
 # Bind to localhost unless you know you want otherwise.
 HOST=127.0.0.1
-PORT=8800
+# The API server's port (server/config/runtime.ts). 8800 is the Vite dev
+# server, which proxies here — setting PORT=8800 makes the two collide.
+PORT=8790
 ```
 
 **Do not put provider API keys in `.env` for production use.** They belong in a
@@ -131,59 +133,58 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ## Run as a service (systemd)
 
-Create a dedicated user so the service never runs as root:
+Do not hand-copy a unit file. The repository ships one, plus an installer:
+
+| File                          | Purpose                                     |
+| ----------------------------- | ------------------------------------------- |
+| `deploy/ironcrew.service`     | the systemd unit, hardened and commented    |
+| `deploy/ironcrew.env.example` | every environment variable the server reads |
+| `scripts/install-service.sh`  | idempotent installer for both of the above  |
 
 ```bash
-sudo useradd --system --create-home --shell /usr/sbin/nologin ironcrew
-sudo cp -r . /opt/ironcrew
-sudo chown -R ironcrew:ironcrew /opt/ironcrew
+# The service runs the checkout in place — put it where it belongs first.
+sudo git clone https://github.com/irongeeks/ironcrew.git /opt/ironcrew
+cd /opt/ironcrew && sudo pnpm install && sudo pnpm build
+
+sudo scripts/install-service.sh
 ```
 
-`/etc/systemd/system/ironcrew.service`:
+**What the installer does.** It refuses to run as anything but root, creates
+the `ironcrew` system user (no login shell, home in `/var/lib/ironcrew`),
+creates `data/` and `data/logs/` owned by that user, copies
+`deploy/ironcrew.env.example` to `/etc/ironcrew/ironcrew.env` with mode 600 —
+**only if that file does not already exist**, so re-running never destroys your
+configuration — templates the unit with your prefix, user and `node` path,
+installs it and runs `daemon-reload`.
 
-```ini
-[Unit]
-Description=IronCrew
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=ironcrew
-Group=ironcrew
-WorkingDirectory=/opt/ironcrew
-EnvironmentFile=/opt/ironcrew/.env
-ExecStart=/usr/bin/node --experimental-strip-types server/index.ts
-Restart=on-failure
-RestartSec=5
-
-# Hardening. The service needs its own data directory and nothing else.
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/ironcrew/data
-ProtectKernelTunables=true
-ProtectControlGroups=true
-RestrictSUIDSGID=true
-LockPersonality=true
-
-[Install]
-WantedBy=multi-user.target
-```
+It does **not** start anything. Fill in the environment file, then enable the
+service yourself:
 
 ```bash
-sudo systemctl daemon-reload
+sudoedit /etc/ironcrew/ironcrew.env     # at minimum OAUTH_ENCRYPTION_SECRET
 sudo systemctl enable --now ironcrew
 sudo systemctl status ironcrew
 journalctl -u ironcrew -f
 ```
 
+Another prefix or user: `--prefix /srv/ironcrew --user crew`. Removing it
+again: `sudo scripts/install-service.sh --uninstall`, which stops, disables and
+deletes the unit but never touches the data directory or the environment file.
+Update, backup and log details are in `deploy/README.md`.
+
+The unit logs to journald, restarts on failure, and gives up after 5 starts in
+5 minutes instead of crash-looping forever. The application directory is
+read-only to the service; only `data/` and `/var/lib/ironcrew` are writable.
+
 > **Note on CLI runtimes.** `ProtectHome=true` means the service cannot read a
-> human user's `~/.claude` or `~/.codex` logins — which is deliberate. Running
-> real CLI runtimes under a service account requires the native runner daemon
-> described in `docs/RUNNER_PROTOCOL.md`, which is not implemented yet. Until
-> then, run interactively (`pnpm dev`) as the user who owns those logins.
+> human user's `~/.claude` or `~/.codex` logins — which is deliberate. The unit
+> therefore gives the service account a home _outside_ `/home`
+> (`HOME=/var/lib/ironcrew`, writable), so a CLI runtime authenticated **as the
+> service user** keeps working while every human home directory stays
+> invisible. Sharing a human user's logins with the service instead would
+> require the native runner daemon described in `docs/RUNNER_PROTOCOL.md`,
+> which is not implemented yet. Until then, run interactively (`pnpm dev`) as
+> the user who owns those logins, or authenticate the service account itself.
 
 ## Docker Compose
 

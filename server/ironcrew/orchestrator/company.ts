@@ -61,6 +61,9 @@ import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-re
 import { AgentLockStore } from "../domain/agent-lock-store.ts";
 import { ExternalEventStore } from "../domain/external-event-store.ts";
 import { MessengerPairingStore, type PairingRole } from "../domain/messenger-pairing-store.ts";
+import { VesselStore } from "../domain/vessel-store.ts";
+import { TalentStore } from "../domain/talent-store.ts";
+import { RunRequestStore, type RunRequestRow } from "../domain/run-request-store.ts";
 import type { InboundMessage, MessengerChannel } from "../notify/messenger-channel.ts";
 import {
   ChangeProposalStore,
@@ -101,6 +104,32 @@ import type { AgentRuntime, RunEvent } from "../runtime/run-events.ts";
  */
 export type AgentRow = ResolvedAgentRow;
 
+/**
+ * How long a run may go unheard from before it stops counting against its
+ * vessel's concurrency.
+ *
+ * A run row says `running` until something writes otherwise, and a process
+ * killed mid-run writes nothing. Without this, one crash would permanently
+ * consume a slot on a vessel whose whole purpose is to cap how many runs
+ * happen at once — the concurrency limit would ratchet down to zero over
+ * time and no error would ever say why.
+ *
+ * Every persisted event calls `runs.heartbeat()`, so a live run refreshes
+ * this constantly; five minutes of total silence is well past anything a
+ * working run produces.
+ */
+const VESSEL_RUN_STALE_MS = 5 * 60_000;
+
+/** Fallback when a vessel is missing, so a run is never unbounded in time. */
+const DEFAULT_RUN_TIMEOUT_MS = 600_000;
+
+/** What a caller may say about how a run is executed. */
+export interface ExecuteOptions {
+  runtimeType?: string;
+  workspacePath?: string;
+  onEvent?: (e: RunEvent) => void;
+}
+
 export interface CeoMessageResult {
   conversationId: string;
   messageId: string;
@@ -135,6 +164,9 @@ export class CompanyOrchestrator {
   readonly externalEvents: ExternalEventStore;
   readonly changeProposals: ChangeProposalStore;
   readonly messengerPairings: MessengerPairingStore;
+  readonly vessels: VesselStore;
+  readonly talents: TalentStore;
+  readonly runRequests: RunRequestStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
@@ -177,6 +209,9 @@ export class CompanyOrchestrator {
     this.externalEvents = new ExternalEventStore(db);
     this.changeProposals = new ChangeProposalStore(db);
     this.messengerPairings = new MessengerPairingStore(db);
+    this.vessels = new VesselStore(db);
+    this.talents = new TalentStore(db);
+    this.runRequests = new RunRequestStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -1952,6 +1987,10 @@ export class CompanyOrchestrator {
         actorId: ea.id,
         correlationId,
       });
+      // "queued for execution" used to be a hope. Now it is a row: the run
+      // request outlives this process, so work delegated at three in the
+      // morning is still waiting to be picked up at eight.
+      this.enqueueRun(companyId, task.id, { requestedBy: "ceo" });
     }
 
     this.addMessage({
@@ -2047,14 +2086,192 @@ export class CompanyOrchestrator {
    * The budget gate runs before the claim, so a blocked company does not
    * churn task state.
    */
+  /**
+   * Whether this run may proceed under its vessel's concurrency cap.
+   *
+   * The check is by *rank*, not by count, and that is deliberate. Counting
+   * before inserting is a read-then-write: two dispatchers for two different
+   * agents sharing one vessel would both read "one slot free" and both take
+   * it. Here the run row is already committed, so both dispatchers see both
+   * rows and order them the same way — the earlier one is admitted, the later
+   * one backs off. The database resolves the race rather than the timing of
+   * two callers.
+   *
+   * Order is by `rowid` — SQLite's insertion order — and not by `created_at`,
+   * which is only millisecond-precise: two runs created in the same
+   * millisecond would need a tiebreak, and `id` is a random UUID, so that
+   * tiebreak would decide by coin flip which of them counts as "first".
+   * A cap that admits or refuses the same situation differently on different
+   * runs is worse than no cap, because nobody can reproduce it. `rowid` is
+   * monotonic per insert, so "ahead of me" means exactly what it says.
+   */
+  private vesselAdmits(agent: AgentRow, runId: string, now = Date.now()): boolean {
+    if (!agent.vessel_id) return true;
+    const limit = Math.max(1, agent.vessel_max_concurrency);
+
+    const rank = this.db
+      .prepare(
+        `SELECT COUNT(*) AS ahead
+           FROM crew_runs r
+           JOIN crew_agents a ON a.id = r.agent_id
+          WHERE a.vessel_id = ?
+            AND r.status IN ('queued','running')
+            AND COALESCE(r.heartbeat_at, r.created_at) > ?
+            AND r.rowid < (SELECT rowid FROM crew_runs WHERE id = ?)`,
+      )
+      .get(agent.vessel_id, now - VESSEL_RUN_STALE_MS, runId) as { ahead: number };
+
+    return rank.ahead < limit;
+  }
+
+  // --- the run queue: intent to run, kept until it happened ----------------
+  //
+  // Everything above creates tasks. Nothing above makes them run: that needed
+  // someone to call executeNextTask, which was fine while the only ingress was
+  // a person typing into the Command Center and stopped being fine the moment
+  // mail and chat could create work at three in the morning.
+  //
+  // So an ingress records the *intent* to run, durably, and a drain turns
+  // intents into runs whenever the company has capacity. The queue is what
+  // makes "the server is running as a service" mean something.
+
+  /**
+   * Records that a task should run.
+   *
+   * The attempt budget comes from the agent's vessel — `max_retries + 1`,
+   * since the first go is not a retry. That is the fourth vessel column
+   * finally doing something: an operator raising retries on a flaky runtime
+   * changes how hard the queue tries, without touching the queue.
+   */
+  enqueueRun(
+    companyId: string,
+    taskId: string,
+    opts: { requestedBy?: string; maxAttempts?: number; notBefore?: number } = {},
+  ): { request: RunRequestRow; isNew: boolean } | null {
+    const task = this.tasks.get(taskId);
+    if (!task || task.company_id !== companyId) return null;
+
+    return this.runRequests.enqueue({
+      companyId,
+      taskId,
+      requestedBy: opts.requestedBy ?? task.created_by,
+      maxAttempts: opts.maxAttempts ?? this.attemptBudgetFor(task.assigned_agent_id),
+      notBefore: opts.notBefore,
+      correlationId: task.correlation_id,
+    });
+  }
+
+  private attemptBudgetFor(agentId: string | null): number {
+    if (!agentId) return 1;
+    const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
+    // +1 because max_retries counts retries, and the first attempt is not one.
+    return agent ? Math.max(1, agent.vessel_max_retries + 1) : 1;
+  }
+
+  /**
+   * Turns queued intents into runs, until the queue is empty or `limit` is hit.
+   *
+   * The limit exists because this is called on a timer: an unbounded drain
+   * that starts every queued run at once would defeat both the agent lock and
+   * the vessel's concurrency cap by making them fight over a hundred
+   * simultaneous dispatches instead of a handful.
+   *
+   * Three outcomes per request, and the difference between the last two is the
+   * point of the whole queue:
+   *
+   *   completed  the run finished; the task moved to review or waiting
+   *   failed     the run happened and went wrong — that spends an attempt,
+   *              and enough of them dead-letter the request for a human
+   *   deferred   the run never started because the agent or the vessel was
+   *              busy. Nothing was attempted, so nothing is spent; it goes
+   *              back on the queue with a short delay.
+   */
+  async drainRunQueue(
+    companyId: string,
+    opts: ExecuteOptions & { limit?: number; leaseOwner?: string } = {},
+  ): Promise<{ claimed: number; completed: number; failed: number; deferred: number }> {
+    const limit = Math.max(1, opts.limit ?? 5);
+    const leaseOwner = opts.leaseOwner ?? `drain:${process.pid}`;
+    const result = { claimed: 0, completed: 0, failed: 0, deferred: 0 };
+
+    // A drain that crashed mid-run holds a lease nobody will release. Sweeping
+    // first means the recovery happens on the next tick rather than needing a
+    // restart of the whole service.
+    this.runRequests.sweepExpired(companyId);
+
+    for (let i = 0; i < limit; i++) {
+      const request = this.runRequests.claimNext(companyId, leaseOwner);
+      if (!request) break;
+      result.claimed++;
+
+      try {
+        const executed = await this.executeTaskById(companyId, request.task_id, opts);
+
+        if (!executed) {
+          this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.");
+          result.deferred++;
+          continue;
+        }
+
+        if (executed.task.status === "failed") {
+          // The run's own summary is the useful text here; the queue records
+          // it so the reason survives on the request a human is looking at.
+          this.runRequests.fail(request.id, executed.task.result_summary || "Lauf fehlgeschlagen.");
+          result.failed++;
+        } else {
+          this.runRequests.complete(request.id, { runId: executed.runId });
+          result.completed++;
+        }
+      } catch (err) {
+        // An exception here is the drain's own failure, not the runtime's —
+        // executeTask already catches those. Spending an attempt is right:
+        // whatever broke will break again next tick, and the dead letter is
+        // how it becomes visible instead of looping forever.
+        this.runRequests.fail(request.id, err instanceof Error ? err.message : String(err));
+        result.failed++;
+      }
+    }
+
+    return result;
+  }
+
   async executeNextTask(
     companyId: string,
-    opts: { runtimeType?: string; workspacePath?: string; onEvent?: (e: RunEvent) => void } = {},
+    opts: ExecuteOptions = {},
   ): Promise<{ task: TaskRow; runId: string; events: RunEvent[] } | null> {
     const claimable = this.tasks.findClaimable(companyId);
     if (claimable.length === 0) return null;
+    return this.executeTask(companyId, claimable[0], opts);
+  }
 
-    const candidate = claimable[0];
+  /**
+   * Executes one *named* task, if it is claimable right now.
+   *
+   * The queue names a specific task, where `executeNextTask` takes whatever is
+   * next — so the claimability check has to happen here rather than at the
+   * caller. It deliberately re-uses `findClaimable`, so "claimable" keeps one
+   * definition: a drain and a button must not disagree about whether a task
+   * may start.
+   *
+   * Returns null when the task exists but cannot start yet. That is not an
+   * error — see `drainRunQueue`, which treats it as "try again shortly"
+   * rather than as a failed attempt.
+   */
+  async executeTaskById(
+    companyId: string,
+    taskId: string,
+    opts: ExecuteOptions = {},
+  ): Promise<{ task: TaskRow; runId: string; events: RunEvent[] } | null> {
+    const candidate = this.tasks.findClaimable(companyId).find((t) => t.id === taskId);
+    if (!candidate) return null;
+    return this.executeTask(companyId, candidate, opts);
+  }
+
+  private async executeTask(
+    companyId: string,
+    candidate: TaskRow,
+    opts: ExecuteOptions = {},
+  ): Promise<{ task: TaskRow; runId: string; events: RunEvent[] } | null> {
     const agentId = candidate.assigned_agent_id;
     if (!agentId) return null;
 
@@ -2103,12 +2320,19 @@ export class CompanyOrchestrator {
       details: { mode: permission.mode, code: permission.code, grantId: permission.grantId ?? null },
     });
 
+    // The vessel's model, if it names one. Empty means "whatever the runtime
+    // defaults to", which is why it is normalised to undefined rather than
+    // passed through as "" — a runtime asked to use a model called "" fails
+    // in a way that looks like a broken account rather than a blank field.
+    const model = agent.vessel_model.trim() || undefined;
+
     const run = this.runs.create({
       companyId,
       taskId: candidate.id,
       agentId,
       projectId: candidate.project_id,
       runtimeType,
+      model,
       permissionMode: permission.mode,
       sandboxGrantId: permission.grantId ?? null,
       correlationId: candidate.correlation_id,
@@ -2147,6 +2371,27 @@ export class CompanyOrchestrator {
       return null;
     }
 
+    // The vessel's own cap, one layer out from the agent lock. The lock says
+    // "this agent is busy"; this says "this runtime has no seat free" — five
+    // agents sharing one Claude Code vessel are five agents sharing one CLI
+    // account and one rate limit, and starting all five at once is how that
+    // account gets throttled.
+    //
+    // Same fail-closed shape as above: the task returns to `ready` and is
+    // picked up as soon as a seat frees.
+    if (!this.vesselAdmits(agent, run.id)) {
+      this.agentLocks.release(agentId, run.id);
+      this.tasks.releaseLock(candidate.id, run.id);
+      this.tasks.transition(claimed.id, "ready", {
+        reason: `vessel "${agent.vessel_key || agent.vessel_id}" is at its concurrency limit`,
+        actorType: "system",
+        actorId: "scheduler",
+        correlationId: claimed.correlation_id,
+      });
+      this.runs.setStatus(run.id, "cancelled");
+      return null;
+    }
+
     this.tasks.transition(claimed.id, "running", {
       reason: "run started",
       actorType: "agent",
@@ -2168,9 +2413,52 @@ export class CompanyOrchestrator {
     let waiting = false;
     let summary = "";
 
+    // The vessel's timeout, as an abort signal. Both runtimes already honour
+    // `context.signal` — CliAdapterRuntime kills its process tree on it and
+    // MockRuntime stops iterating — so the cap is enforced by the thing doing
+    // the work rather than by a watchdog that can only notice afterwards.
+    const timeoutMs = agent.vessel_timeout_ms > 0 ? agent.vessel_timeout_ms : DEFAULT_RUN_TIMEOUT_MS;
+    const abort = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, timeoutMs);
+    // A finished run must not hold the process open for the rest of its
+    // vessel's timeout — which, at ten minutes by default, is exactly what an
+    // un-unref'd timer would do to a server trying to shut down.
+    timer.unref?.();
+
+    /**
+     * Records a failure the runtime did not report itself.
+     *
+     * It goes through the same two channels every other event does — the
+     * returned list and `onEvent` — because a failure that only reaches the
+     * database is invisible both to the caller that asked for the run and to
+     * the websocket the Command Center is listening on. That hole already
+     * existed for the catch branch below; a timeout would have inherited it.
+     */
+    const recordFailure = (payload: Record<string, unknown>): void => {
+      const persisted = this.runs.appendEvent({
+        companyId,
+        runId: run.id,
+        taskId: candidate.id,
+        projectId: candidate.project_id,
+        agentId,
+        type: "run.failed",
+        payload,
+      });
+      events.push(persisted);
+      opts.onEvent?.(persisted);
+      failed = true;
+    };
+
     try {
       for await (const ev of runtime.startRun(
-        { prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}` },
+        {
+          prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}`,
+          model,
+        },
         {
           companyId,
           projectId: candidate.project_id,
@@ -2180,6 +2468,7 @@ export class CompanyOrchestrator {
           correlationId: candidate.correlation_id,
           workspacePath: opts.workspacePath ?? "/tmp/iron-crew-workspace",
           permissionMode: permission.mode,
+          signal: abort.signal,
         },
       )) {
         const persisted = this.runs.appendEvent({
@@ -2235,15 +2524,22 @@ export class CompanyOrchestrator {
         }
       }
     } catch (err) {
-      this.runs.appendEvent({
-        companyId,
-        runId: run.id,
-        taskId: candidate.id,
-        agentId,
-        type: "run.failed",
-        payload: { message: err instanceof Error ? err.message : String(err) },
-      });
-      failed = true;
+      // A timeout reads as an opaque abort from inside the runtime, so name it
+      // here instead: "the vessel's limit stopped this" is actionable — raise
+      // the limit or split the task — where "aborted" is not.
+      recordFailure(
+        timedOut
+          ? { message: `Zeitlimit des Vessels erreicht (${timeoutMs} ms).`, timedOut: true }
+          : { message: err instanceof Error ? err.message : String(err) },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // A runtime that ends its stream quietly on abort would otherwise leave a
+    // timed-out run looking like a clean finish waiting for review.
+    if (timedOut && !failed) {
+      recordFailure({ message: `Zeitlimit des Vessels erreicht (${timeoutMs} ms).`, timedOut: true });
     }
 
     this.tasks.releaseLock(candidate.id, run.id);
@@ -2315,6 +2611,10 @@ export class CompanyOrchestrator {
       correlationId: task.correlation_id,
     });
     if (!revised) return null;
+
+    // A revision is a new run that has to actually happen; without this the
+    // task would sit at `ready` waiting for someone to press a button.
+    this.enqueueRun(companyId, taskId, { requestedBy: "ceo" });
 
     this.addMessage({
       companyId,

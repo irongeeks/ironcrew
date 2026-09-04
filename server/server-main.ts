@@ -34,6 +34,8 @@ import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
 import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
+import { Scheduler } from "./ironcrew/scheduler/scheduler.ts";
+import { buildCrewJobs, intervalsFromEnv, schedulerEnabled } from "./ironcrew/scheduler/crew-jobs.ts";
 import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
 import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
@@ -413,11 +415,55 @@ ironCrewOrchestrator.registerMarketplaceInstaller(
   }),
 );
 
-registerIronCrewRoutes(app, {
+const ironCrewApi = registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
   orchestrator: ironCrewOrchestrator,
 });
+
+// The background loop — the difference between a program someone operates and
+// a service that runs. Without it the run queue only drains when a person
+// presses a button, which is exactly the situation the queue exists to end
+// (docs/RUN_QUEUE.md, docs/SERVICE.md).
+//
+// Registered here rather than inside registerIronCrewRoutes because a timer
+// is a property of *this process*, not of the routes: the test suite mounts
+// those routes hundreds of times and must not start a hundred loops.
+const ironCrewScheduler = schedulerEnabled()
+  ? new Scheduler({
+      jobs: buildCrewJobs({
+        orchestrator: ironCrewOrchestrator,
+        companyId: ironCrewApi.companyId,
+        intervals: intervalsFromEnv(),
+        broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
+      }),
+    })
+  : null;
+
+if (ironCrewScheduler) {
+  ironCrewScheduler.start();
+} else {
+  logger.info("IronCrew scheduler disabled via IRONCREW_SCHEDULER");
+}
+
+// systemd sends SIGTERM and waits. Stopping the scheduler first lets a run in
+// flight finish recording its outcome, rather than leaving a lease to expire
+// and the next few minutes wasted on recovery that was never needed.
+let shuttingDown = false;
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ signal }, "shutting down");
+    void (async () => {
+      try {
+        await ironCrewScheduler?.stop();
+      } finally {
+        process.exit(0);
+      }
+    })();
+  });
+}
 
 app.use(globalErrorHandler);
 
