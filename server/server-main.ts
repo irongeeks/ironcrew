@@ -415,10 +415,17 @@ ironCrewOrchestrator.registerMarketplaceInstaller(
   }),
 );
 
+// Declared before the routes and assigned after: the scheduler needs the
+// company id that registering the routes produces, and the routes need to be
+// able to reach the scheduler. A callback breaks the cycle without either
+// side holding a half-built object.
+let ironCrewScheduler: Scheduler | null = null;
+
 const ironCrewApi = registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
   orchestrator: ironCrewOrchestrator,
+  scheduler: () => ironCrewScheduler,
 });
 
 // The background loop — the difference between a program someone operates and
@@ -429,7 +436,7 @@ const ironCrewApi = registerIronCrewRoutes(app, {
 // Registered here rather than inside registerIronCrewRoutes because a timer
 // is a property of *this process*, not of the routes: the test suite mounts
 // those routes hundreds of times and must not start a hundred loops.
-const ironCrewScheduler = schedulerEnabled()
+ironCrewScheduler = schedulerEnabled()
   ? new Scheduler({
       jobs: buildCrewJobs({
         orchestrator: ironCrewOrchestrator,

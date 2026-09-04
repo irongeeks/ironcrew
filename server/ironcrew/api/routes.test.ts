@@ -2046,3 +2046,245 @@ describe("external events over HTTP (recorded once, replayable)", () => {
     await request(app).post("/api/crew/external-events/xevt_nope/replay").expect(404);
   });
 });
+
+describe("vessels and talents over HTTP (an agent is a pairing, not a monolith)", () => {
+  async function createVessel(over: Record<string, unknown> = {}) {
+    const res = await request(app)
+      .post("/api/crew/vessels")
+      .send({ key: "claude", runtimeProvider: "mock", timeoutMs: 60_000, maxConcurrency: 2, ...over })
+      .expect(201);
+    return res.body.vessel;
+  }
+
+  async function createTalent(over: Record<string, unknown> = {}) {
+    const res = await request(app)
+      .post("/api/crew/talents")
+      .send({ key: "cto", professionalRole: "Chief Technology Officer", ...over })
+      .expect(201);
+    return res.body.talent;
+  }
+
+  it("lists the vessels the seed derived, with the agents using each", async () => {
+    const res = await request(app).get("/api/crew/vessels").expect(200);
+    expect(res.body.vessels.length).toBeGreaterThan(0);
+    expect(res.body.vessels[0].agents.length).toBeGreaterThan(0);
+  });
+
+  it("creates, patches and deletes a vessel nobody uses", async () => {
+    const vessel = await createVessel();
+    expect(vessel.max_concurrency).toBe(2);
+
+    const patched = await request(app)
+      .patch(`/api/crew/vessels/${vessel.id}`)
+      .send({ maxConcurrency: 5, model: "claude-opus-5" })
+      .expect(200);
+    expect(patched.body.vessel.max_concurrency).toBe(5);
+    expect(patched.body.vessel.model).toBe("claude-opus-5");
+    // An omitted field is untouched, not reset.
+    expect(patched.body.vessel.timeout_ms).toBe(60_000);
+
+    await request(app).delete(`/api/crew/vessels/${vessel.id}`).expect(200);
+    expect(
+      (await request(app).get("/api/crew/vessels")).body.vessels.find((v: { id: string }) => v.id === vessel.id),
+    ).toBeUndefined();
+  });
+
+  it("refuses to delete a vessel agents still hold, and says who", async () => {
+    const inUse = (await request(app).get("/api/crew/vessels")).body.vessels[0];
+
+    const res = await request(app).delete(`/api/crew/vessels/${inUse.id}`).expect(409);
+    // The names are the whole point of the refusal — a generic "delete failed"
+    // would leave an operator guessing which agents to move first.
+    expect(res.body.message).toBeTruthy();
+    expect(res.body.error).toBe("invalid_pairing_mutation");
+  });
+
+  it("refuses a vessel key that is already taken", async () => {
+    await createVessel({ key: "doppelt" });
+    await request(app).post("/api/crew/vessels").send({ key: "doppelt", runtimeProvider: "mock" }).expect(409);
+  });
+
+  it("refuses limits that make no sense", async () => {
+    await request(app).post("/api/crew/vessels").send({ key: "a", runtimeProvider: "mock", timeoutMs: 0 }).expect(400);
+    await request(app)
+      .post("/api/crew/vessels")
+      .send({ key: "b", runtimeProvider: "mock", maxConcurrency: 0 })
+      .expect(400);
+    await request(app).post("/api/crew/vessels").send({ key: "c" }).expect(400);
+  });
+
+  it("gives a vessel no authority over what a run may do", async () => {
+    const vessel = await createVessel({ key: "sandbox-versuch" });
+
+    // A vessel that could set a permission mode would be a second route to
+    // elevation that no approval ever authorised (THREAT_MODEL T-01).
+    await request(app)
+      .patch(`/api/crew/vessels/${vessel.id}`)
+      .send({ permission_mode: "elevated", allowed_tools: ["*"], sandbox: "off" })
+      .expect(200);
+
+    const columns = db.prepare("PRAGMA table_info(crew_vessels)").all() as Array<{ name: string }>;
+    const names = columns.map((c) => c.name);
+    for (const forbidden of ["permission_mode", "allowed_tools", "sandbox", "policy_json", "grant_id"]) {
+      expect(names).not.toContain(forbidden);
+    }
+  });
+
+  it("serves the seniority list rather than making the UI guess", async () => {
+    const res = await request(app).get("/api/crew/talents/seniorities").expect(200);
+    expect(res.body.seniorities.length).toBeGreaterThan(0);
+    await request(app)
+      .post("/api/crew/talents")
+      .send({ key: "x", professionalRole: "X", seniority: "erfunden" })
+      .expect(400);
+  });
+
+  it("stores a talent's policy, persona and skills as given", async () => {
+    const talent = await createTalent({
+      key: "sre",
+      professionalRole: "Site Reliability Engineer",
+      skills: ["postmortem", "oncall"],
+      policy: { may_approve: false },
+    });
+
+    expect(JSON.parse(talent.skills_json)).toEqual(["postmortem", "oncall"]);
+    expect(JSON.parse(talent.policy_json)).toEqual({ may_approve: false });
+  });
+
+  it("rebinds an agent to a different vessel and talent", async () => {
+    const vessel = await createVessel({ key: "codex", runtimeProvider: "mock" });
+    const talent = await createTalent({ key: "architect", professionalRole: "Architect" });
+    const agent = (await request(app).get("/api/crew/agents")).body.agents[0];
+
+    const res = await request(app)
+      .post(`/api/crew/agents/${agent.id}/pairing`)
+      .send({ vesselId: vessel.id, talentId: talent.id })
+      .expect(200);
+
+    expect(res.body.agent.vesselId).toBe(vessel.id);
+    expect(res.body.agent.talentId).toBe(talent.id);
+    // The role travelled with the talent — that is the point of the split.
+    expect(res.body.agent.professionalRole).toBe("Architect");
+  });
+
+  it("changes only the half it was given", async () => {
+    const vessel = await createVessel({ key: "nur-vessel" });
+    const agent = (await request(app).get("/api/crew/agents")).body.agents[0];
+
+    const res = await request(app)
+      .post(`/api/crew/agents/${agent.id}/pairing`)
+      .send({ vesselId: vessel.id })
+      .expect(200);
+
+    expect(res.body.agent.vesselId).toBe(vessel.id);
+    expect(res.body.agent.talentId).toBe(agent.talentId);
+  });
+
+  it("refuses a pairing request that names nothing", async () => {
+    const agent = (await request(app).get("/api/crew/agents")).body.agents[0];
+    await request(app).post(`/api/crew/agents/${agent.id}/pairing`).send({}).expect(400);
+  });
+
+  it("404s for things that do not exist", async () => {
+    await request(app).patch("/api/crew/vessels/vsl_nope").send({ model: "x" }).expect(404);
+    await request(app).delete("/api/crew/vessels/vsl_nope").expect(404);
+    await request(app).patch("/api/crew/talents/tal_nope").send({ roleSummary: "x" }).expect(404);
+    await request(app).post("/api/crew/agents/agt_nope/pairing").send({ vesselId: "vsl_1" }).expect(404);
+  });
+});
+
+describe("run queue over HTTP", () => {
+  async function delegate(text = "Bitte dokumentiere das Deployment-Verfahren.") {
+    const res = await request(app).post("/api/crew/chat").send({ body: text }).expect(201);
+    return res.body.task;
+  }
+
+  it("lists what is waiting, with the task's title", async () => {
+    const task = await delegate();
+    const res = await request(app).get("/api/crew/run-queue").expect(200);
+
+    expect(res.body.requests).toHaveLength(1);
+    expect(res.body.requests[0].task_id).toBe(task.id);
+    // An operator recognises a title, not an id.
+    expect(res.body.requests[0].task_title).toBe(task.title);
+    expect(res.body.requests[0].status).toBe("queued");
+  });
+
+  it("filters by status", async () => {
+    await delegate();
+    expect((await request(app).get("/api/crew/run-queue?status=dead")).body.requests).toHaveLength(0);
+    expect((await request(app).get("/api/crew/run-queue?status=queued")).body.requests).toHaveLength(1);
+    await request(app).get("/api/crew/run-queue?status=erfunden").expect(400);
+  });
+
+  it("drains on demand, the same way the scheduler does", async () => {
+    const task = await delegate();
+
+    const res = await request(app).post("/api/crew/run-queue/drain").expect(200);
+    expect(res.body).toEqual({ claimed: 1, completed: 1, failed: 0, deferred: 0 });
+
+    const after = await request(app).get(`/api/crew/tasks/${task.id}`).expect(200);
+    expect(after.body.task.status).toBe("review");
+    expect(broadcasts.map((b) => b.type)).toContain("crew_run_queue_changed");
+  });
+
+  it("cancels a request the owner changed their mind about", async () => {
+    await delegate();
+    const queued = (await request(app).get("/api/crew/run-queue")).body.requests[0];
+
+    const res = await request(app).post(`/api/crew/run-queue/${queued.id}/cancel`).expect(200);
+    expect(res.body.request.status).toBe("cancelled");
+
+    // Cancelled means cancelled: the drain must not pick it up afterwards.
+    expect((await request(app).post("/api/crew/run-queue/drain")).body.claimed).toBe(0);
+  });
+
+  it("refuses to cancel something already finished", async () => {
+    await delegate();
+    const queued = (await request(app).get("/api/crew/run-queue")).body.requests[0];
+    await request(app).post("/api/crew/run-queue/drain").expect(200);
+
+    const res = await request(app).post(`/api/crew/run-queue/${queued.id}/cancel`).expect(409);
+    expect(res.body.error).toBe("invalid_run_request_transition");
+  });
+
+  it("404s for a request that does not exist", async () => {
+    await request(app).post("/api/crew/run-queue/rreq_nope/cancel").expect(404);
+  });
+});
+
+describe("scheduler status over HTTP", () => {
+  it("reports honestly that background work is switched off", async () => {
+    // No scheduler passed to registerIronCrewRoutes — which is exactly the
+    // IRONCREW_SCHEDULER=off case, and has to read as a configuration, not
+    // as an empty broken page.
+    const res = await request(app).get("/api/crew/scheduler").expect(200);
+    expect(res.body).toEqual({ enabled: false, jobs: [] });
+
+    const refused = await request(app).post("/api/crew/scheduler/run-queue/run").expect(409);
+    expect(refused.body.error).toBe("scheduler_disabled");
+  });
+
+  it("reports the jobs when one is attached", async () => {
+    const runNow = vi.fn().mockResolvedValue({ name: "run-queue", runs: 1 });
+    const scheduled = express();
+    scheduled.use(express.json());
+    registerIronCrewRoutes(scheduled, {
+      db,
+      orchestrator,
+      scheduler: () => ({
+        status: () => [{ name: "run-queue", intervalMs: 15_000 }] as never,
+        runNow,
+      }),
+    });
+
+    const res = await request(scheduled).get("/api/crew/scheduler").expect(200);
+    expect(res.body.enabled).toBe(true);
+    expect(res.body.jobs[0].name).toBe("run-queue");
+
+    await request(scheduled).post("/api/crew/scheduler/run-queue/run").expect(200);
+    expect(runNow).toHaveBeenCalledWith("run-queue");
+
+    await request(scheduled).post("/api/crew/scheduler/erfunden/run").expect(404);
+  });
+});

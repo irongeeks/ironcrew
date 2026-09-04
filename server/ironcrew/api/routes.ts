@@ -51,6 +51,10 @@ import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts
 import { MessengerPairingError, PAIRING_ROLES } from "../domain/messenger-pairing-store.ts";
 import { MessengerChannelError } from "../notify/messenger-channel.ts";
 import { ChangeProposalError, CHANGE_PROPOSAL_STATUSES } from "../domain/change-proposal-store.ts";
+import { VesselMutationError } from "../domain/vessel-store.ts";
+import { TalentMutationError, SENIORITY_LEVELS } from "../domain/talent-store.ts";
+import { RunRequestError, RUN_REQUEST_STATUSES } from "../domain/run-request-store.ts";
+import type { JobStatus } from "../scheduler/scheduler.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -208,6 +212,47 @@ const createMarketplaceSchema = z.object({
 // The kind decides how the URL is parsed, so it stays fixed for the life of
 // a source — changing it would silently reinterpret the same URL.
 const updateMarketplaceSchema = createMarketplaceSchema.partial().omit({ kind: true });
+
+const createVesselSchema = z.object({
+  key: z.string().min(1).max(120),
+  label: z.string().max(200).optional(),
+  runtimeProvider: z.string().min(1).max(120),
+  model: z.string().max(200).optional(),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60_000)
+    .optional(),
+  maxRetries: z.number().int().min(0).max(20).optional(),
+  maxConcurrency: z.number().int().min(1).max(100).optional(),
+});
+// `key` is omitted rather than made optional: renaming a vessel's key would
+// silently orphan anything that referred to it by key.
+const updateVesselSchema = createVesselSchema.omit({ key: true }).partial();
+
+const createTalentSchema = z.object({
+  key: z.string().min(1).max(120),
+  professionalRole: z.string().min(1).max(200),
+  roleSummary: z.string().max(2000).optional(),
+  seniority: z.enum(SENIORITY_LEVELS).optional(),
+  policy: z.record(z.string(), z.unknown()).optional(),
+  persona: z.record(z.string(), z.unknown()).optional(),
+  skills: z.array(z.string().max(200)).max(100).optional(),
+});
+const updateTalentSchema = createTalentSchema.omit({ key: true }).partial();
+
+const agentPairingSchema = z
+  .object({ vesselId: z.string().min(1).max(200).optional(), talentId: z.string().min(1).max(200).optional() })
+  .refine((v) => v.vesselId !== undefined || v.talentId !== undefined, {
+    message: "Mindestens vesselId oder talentId angeben.",
+  });
+
+const listRunQueueSchema = z.object({
+  status: z.enum(RUN_REQUEST_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+const drainRunQueueSchema = z.object({ limit: z.coerce.number().int().min(1).max(50).optional() });
 
 const acceptPairingSchema = z.object({ role: z.enum(PAIRING_ROLES) });
 const changeProposalDecisionSchema = z.object({
@@ -375,6 +420,17 @@ function sendDomainError(res: Response, err: unknown): boolean {
     res.status(409).json({ error: "change_proposal_refused", message: err.message });
     return true;
   }
+  // A vessel or talent that agents still hold refuses to be deleted, and the
+  // message names them — 409, because the request was fine and the *state* is
+  // what said no.
+  if (err instanceof VesselMutationError || err instanceof TalentMutationError) {
+    res.status(409).json({ error: "invalid_pairing_mutation", message: err.message });
+    return true;
+  }
+  if (err instanceof RunRequestError) {
+    res.status(409).json({ error: "invalid_run_request_transition", message: err.message });
+    return true;
+  }
   if (err instanceof z.ZodError) {
     res.status(400).json({ error: "invalid_request", issues: err.issues });
     return true;
@@ -398,6 +454,20 @@ function wrap(handler: (req: Request, res: Response) => Promise<void> | void) {
   };
 }
 
+/**
+ * What the API needs from the background scheduler.
+ *
+ * Narrowed to two methods rather than taking the Scheduler itself: the routes
+ * are mounted before the scheduler exists (it needs the company id this
+ * function returns), so this is resolved lazily through a callback. Keeping
+ * the surface tiny also keeps the API from growing a dependency on the loop's
+ * internals.
+ */
+export interface SchedulerHandle {
+  status(): JobStatus[];
+  runNow(name: string): Promise<JobStatus>;
+}
+
 export interface IronCrewApiOptions {
   db: DatabaseSync;
   broadcast?: Broadcast;
@@ -405,6 +475,8 @@ export interface IronCrewApiOptions {
   companySlug?: string;
   companyName?: string;
   orchestrator?: CompanyOrchestrator;
+  /** Resolved per request; absent means IRONCREW_SCHEDULER=off. */
+  scheduler?: () => SchedulerHandle | null;
 }
 
 export interface IronCrewApi {
@@ -1886,6 +1958,226 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const event = orchestrator.externalEvents.replay(existing.id);
       broadcast("crew_external_event_changed", { eventId: existing.id, replayed: true });
       res.json({ event });
+    }),
+  );
+
+  // --- vessels and talents: the two halves of an agent ---------------------
+  //
+  // A vessel is the execution container (which runtime, which model, how long,
+  // how often, how many at once); a talent is the capability package (role,
+  // policy, persona, skills). Splitting them is what makes a role portable
+  // across runtimes.
+  //
+  // Note what the vessel surface does NOT accept: no permission mode, no
+  // sandbox, no tool allowlist. That is not an oversight to fill in later —
+  // elevation comes only from a SandboxGrant minted from an approved request
+  // and capped at four hours (docs/THREAT_MODEL.md T-01), and a vessel field
+  // saying "elevated" would be a second route to it that no approval ever
+  // authorised. The store's patch allowlist enforces the same thing one layer
+  // down, so a body carrying such a key changes nothing either way.
+
+  app.get(
+    `${base}/vessels`,
+    wrap((_req, res) => {
+      const vessels = orchestrator.vessels.list(companyId).map((vessel) => ({
+        ...vessel,
+        agents: orchestrator.vessels.agentsFor(vessel.id),
+      }));
+      res.json({ vessels });
+    }),
+  );
+
+  app.post(
+    `${base}/vessels`,
+    wrap((req, res) => {
+      const input = createVesselSchema.parse(req.body ?? {});
+      const vessel = orchestrator.vessels.create({ companyId, ...input }, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_vessel_changed", { vesselId: vessel.id });
+      res.status(201).json({ vessel });
+    }),
+  );
+
+  app.patch(
+    `${base}/vessels/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.vessels.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const patch = updateVesselSchema.parse(req.body ?? {});
+      const vessel = orchestrator.vessels.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_vessel_changed", { vesselId: existing.id });
+      res.json({ vessel });
+    }),
+  );
+
+  app.delete(
+    `${base}/vessels/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.vessels.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      // A vessel still bound to agents refuses to go, and the store's message
+      // names them — which is the whole value of the refusal, so it reaches
+      // the client as a 409 rather than being flattened into "delete failed".
+      orchestrator.vessels.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_vessel_changed", { vesselId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.get(
+    `${base}/talents`,
+    wrap((_req, res) => {
+      const talents = orchestrator.talents.list(companyId).map((talent) => ({
+        ...talent,
+        agents: orchestrator.talents.agentsFor(talent.id),
+      }));
+      res.json({ talents });
+    }),
+  );
+
+  // Served rather than hardcoded in the UI: one list, one place to change it.
+  app.get(
+    `${base}/talents/seniorities`,
+    wrap((_req, res) => {
+      res.json({ seniorities: SENIORITY_LEVELS });
+    }),
+  );
+
+  app.post(
+    `${base}/talents`,
+    wrap((req, res) => {
+      const input = createTalentSchema.parse(req.body ?? {});
+      const talent = orchestrator.talents.create({ companyId, ...input }, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_talent_changed", { talentId: talent.id });
+      res.status(201).json({ talent });
+    }),
+  );
+
+  app.patch(
+    `${base}/talents/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.talents.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const patch = updateTalentSchema.parse(req.body ?? {});
+      const talent = orchestrator.talents.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_talent_changed", { talentId: existing.id });
+      res.json({ talent });
+    }),
+  );
+
+  app.delete(
+    `${base}/talents/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.talents.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.talents.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_talent_changed", { talentId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  /** Rebinds an agent. Omitting a field leaves that half of the pairing alone. */
+  app.post(
+    `${base}/agents/:id/pairing`,
+    wrap((req, res) => {
+      const pairing = agentPairingSchema.parse(req.body ?? {});
+      const agent = orchestrator.setAgentPairing(companyId, param(req, "id"), pairing);
+      if (!agent) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_agent_changed", { agentId: agent.id });
+      res.json({ agent: presentAgent(agent) });
+    }),
+  );
+
+  // --- the run queue and the loop that drains it ---------------------------
+  //
+  // Read-mostly. The queue is filled by whatever delegated the work and
+  // emptied by the scheduler; the endpoints here exist so an operator can see
+  // what is waiting, push it along by hand, and withdraw something that should
+  // not run after all.
+
+  app.get(
+    `${base}/run-queue`,
+    wrap((req, res) => {
+      const { status, limit } = listRunQueueSchema.parse(req.query ?? {});
+      const requests = orchestrator.runRequests.list(companyId, { status, limit }).map((request) => ({
+        ...request,
+        // The title is what an operator recognises; the task id is not.
+        task_title: orchestrator.tasks.get(request.task_id)?.title ?? null,
+      }));
+      res.json({ requests });
+    }),
+  );
+
+  app.post(
+    `${base}/run-queue/:id/cancel`,
+    wrap((req, res) => {
+      const existing = orchestrator.runRequests.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const request = orchestrator.runRequests.cancel(existing.id, { reason: "vom Chef zurückgezogen" });
+      broadcast("crew_run_queue_changed", { requestId: existing.id, cancelled: true });
+      res.json({ request });
+    }),
+  );
+
+  /** The "do it now" button. Same drain the scheduler runs, same limits. */
+  app.post(
+    `${base}/run-queue/drain`,
+    wrap(async (req, res) => {
+      const { limit } = drainRunQueueSchema.parse(req.body ?? {});
+      const result = await orchestrator.drainRunQueue(companyId, {
+        limit,
+        onEvent: (event: RunEvent) => broadcast("crew_run_event", event),
+      });
+      if (result.claimed > 0) {
+        broadcast("crew_run_queue_changed", result);
+        broadcast("crew_task_changed", {});
+      }
+      res.json(result);
+    }),
+  );
+
+  app.get(
+    `${base}/scheduler`,
+    wrap((_req, res) => {
+      const scheduler = opts.scheduler?.();
+      // Absent is a real answer, not an error: IRONCREW_SCHEDULER=off is a
+      // supported configuration, and the UI has to be able to say so rather
+      // than showing an empty list that looks like a broken page.
+      res.json({ enabled: Boolean(scheduler), jobs: scheduler?.status() ?? [] });
+    }),
+  );
+
+  app.post(
+    `${base}/scheduler/:name/run`,
+    wrap(async (req, res) => {
+      const scheduler = opts.scheduler?.();
+      if (!scheduler) {
+        res.status(409).json({ error: "scheduler_disabled", message: "Der Hintergrund-Scheduler ist abgeschaltet." });
+        return;
+      }
+      const name = param(req, "name");
+      if (!scheduler.status().some((job) => job.name === name)) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({ job: await scheduler.runNow(name) });
     }),
   );
 

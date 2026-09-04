@@ -61,8 +61,8 @@ import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-re
 import { AgentLockStore } from "../domain/agent-lock-store.ts";
 import { ExternalEventStore } from "../domain/external-event-store.ts";
 import { MessengerPairingStore, type PairingRole } from "../domain/messenger-pairing-store.ts";
-import { VesselStore } from "../domain/vessel-store.ts";
-import { TalentStore } from "../domain/talent-store.ts";
+import { VesselStore, VesselMutationError } from "../domain/vessel-store.ts";
+import { TalentStore, TalentMutationError } from "../domain/talent-store.ts";
 import { RunRequestStore, type RunRequestRow } from "../domain/run-request-store.ts";
 import type { InboundMessage, MessengerChannel } from "../notify/messenger-channel.ts";
 import {
@@ -2122,6 +2122,64 @@ export class CompanyOrchestrator {
       .get(agent.vessel_id, now - VESSEL_RUN_STALE_MS, runId) as { ahead: number };
 
     return rank.ahead < limit;
+  }
+
+  /**
+   * Rebinds an agent to a different vessel, talent, or both.
+   *
+   * Both ids are re-checked against this company before anything is written.
+   * The foreign keys alone would not catch it: `crew_vessels.id` is unique
+   * across the database, so binding an agent to *another company's* vessel is
+   * a perfectly valid FK and a complete tenancy break. The check has to be
+   * here, where the company is known.
+   */
+  setAgentPairing(
+    companyId: string,
+    agentId: string,
+    pairing: { vesselId?: string; talentId?: string },
+  ): AgentRow | null {
+    const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
+    if (!agent || agent.company_id !== companyId) return null;
+
+    if (pairing.vesselId !== undefined) {
+      const vessel = this.vessels.get(pairing.vesselId);
+      if (!vessel || vessel.company_id !== companyId) {
+        throw new VesselMutationError(`Vessel "${pairing.vesselId}" gehört nicht zu dieser Firma.`);
+      }
+    }
+    if (pairing.talentId !== undefined) {
+      const talent = this.talents.get(pairing.talentId);
+      if (!talent || talent.company_id !== companyId) {
+        throw new TalentMutationError(`Talent "${pairing.talentId}" gehört nicht zu dieser Firma.`);
+      }
+    }
+
+    const now = Date.now();
+    if (pairing.vesselId !== undefined) {
+      this.db
+        .prepare("UPDATE crew_agents SET vessel_id = ?, updated_at = ? WHERE id = ?")
+        .run(pairing.vesselId, now, agentId);
+    }
+    if (pairing.talentId !== undefined) {
+      this.db
+        .prepare("UPDATE crew_agents SET talent_id = ?, updated_at = ? WHERE id = ?")
+        .run(pairing.talentId, now, agentId);
+    }
+
+    appendAuditEvent(this.db, {
+      companyId,
+      actorType: "owner",
+      actorId: "ceo",
+      action: "agent.repaired",
+      entityType: "agent",
+      entityId: agentId,
+      details: {
+        vesselId: pairing.vesselId ?? agent.vessel_id,
+        talentId: pairing.talentId ?? agent.talent_id,
+      },
+    });
+
+    return (this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined) ?? null;
   }
 
   // --- the run queue: intent to run, kept until it happened ----------------
