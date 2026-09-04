@@ -4,8 +4,9 @@ All IronCrew tables are prefixed `crew_` and live alongside the upstream
 OctoOffice tables. The base schema (companies through audit events) is
 created by migration `0002-iron-crew-domain.ts`; everything since —
 milestones, secrets, attachments, remote workers, meetings, mailboxes,
-marketplaces — arrived as
-additive migrations `0003`–`0010`, listed in `registry.ts` and applied in
+marketplaces, vessels and talents, the agent run lease, external events,
+change proposals, messenger pairings — arrived as
+additive migrations `0003`–`0015`, listed in `registry.ts` and applied in
 order at startup. `0006` is the one exception: it renamed every table from
 this project's original `ic_` prefix to `crew_` in place (see
 `docs/UPSTREAM_ANALYSIS.md`), which is also why this file no longer matches
@@ -241,6 +242,88 @@ already exists rather than a second source of truth that drifts.
 record of what it put on this machine. Catalog entries are never cached —
 they are third-party JSON read live. See `docs/MARKETPLACES.md`.
 
+## The agent run lease
+
+Migration `0012` adds two columns to `crew_agents` rather than a table of its
+own, matching where the task lock already lives so the two are read and
+reasoned about the same way:
+
+| Column                | Meaning                                                          |
+| --------------------- | ---------------------------------------------------------------- |
+| `run_lock_run_id`     | The run holding the lease. Release is **guarded on this id**     |
+| `run_lock_expires_at` | A lease, not a lock — an expired one is reclaimable              |
+
+`crew_tasks` already stops two workers claiming the same task. This stops the
+other collision: two _different_ tasks dispatched to the same agent at once.
+An agent holds a workspace, a CLI session and a budget, and two concurrent
+runs share all three — they interleave writes in one working tree, and each
+clears the pre-dispatch budget gate without seeing the other's spend, so a
+limit checked twice concurrently is a limit enforced once.
+
+The mechanics deliberately mirror `TaskStore.claim()`: the condition lives in
+the `WHERE` clause so the database decides, the guard on `run_lock_run_id`
+stops a late reaper clearing a fresh owner's lease, and failure is closed —
+no lease, no run, and the task goes back to `ready` rather than sitting
+claimed by a run that never happened.
+
+## External events
+
+| Table                  | Purpose                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `crew_external_events` | Every arrival from outside, recorded once, with what was done about it (`0013`) |
+
+`UNIQUE (company_id, source_kind, source_id, external_id)` is the whole
+mechanism: `crew_mailbox_messages` already did this for mail, and this is the
+general form for every ingress. Seeing an event a second time is a lookup
+rather than a duplicate task — `delivery_count` rises instead, so a source
+redelivering endlessly is visible rather than silent.
+
+`handled_at` and `handler` separate **seen** from **processed**, which is not
+pedantry: a process that dies between recording and acting leaves an event
+recorded and unhandled, and that is exactly what `unhandled()` finds.
+
+`payload_json` holds the event **as received**, because replay is the point —
+re-fetching from a source is often impossible once a poll window has moved on.
+It is therefore third-party content, sanitised at the ingress and never on the
+way out, and prunable by `received_at` (handled rows only: an unhandled event
+is outstanding work).
+
+## Change proposals
+
+| Table                        | Purpose                                                             |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `crew_change_proposals`      | One proposed set of file changes and its status (migration `0014`)  |
+| `crew_change_proposal_files` | Path, operation, content and hashes per file (migration `0014`)     |
+
+`approval_id` references `crew_approvals`: nothing reaches the disk until that
+approval is approved. `workspace_path` is the root every file must resolve
+inside, re-checked at apply time.
+
+`expected_sha256` records what a file looked like **when proposed**; a file
+whose hash no longer matches is refused at apply, because an approval granted
+against one state of the world does not describe what would happen in another.
+`applied_sha256` records what was actually written. See
+`docs/CHANGE_PROPOSALS.md`.
+
+## Messenger pairings
+
+| Table                     | Purpose                                                                  |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `crew_messenger_pairings` | Who may talk to the EA over chat, and with what authority (`0015`)       |
+
+`role` is authority, not a label: `owner` reaches `handleCeoMessage()` and
+speaks with the CEO's authority, `guest` is routed like incoming mail. Both
+are constrained by `CHECK`, so an operator can look at who holds CEO access
+rather than reconstruct it from code.
+
+`status` is `pending` until the owner accepts in the Command Center — no row
+and no acceptance means no access, the same deny-by-default posture the
+mailbox grants take. `pairing_code` is short-lived (`code_expires_at`) and
+cleared to `''` on accept. `chat_id` is separate from `sender_id` because a
+channel and a person are not the same thing: several people can write in one
+Discord channel. `UNIQUE (company_id, channel_kind, sender_id)` means a second
+account is a second row, paired on its own. See `docs/MESSENGER.md`.
+
 ## Indexes
 
 Every hot path is indexed on `(company_id, …)`:
@@ -254,6 +337,12 @@ Every hot path is indexed on `(company_id, …)`:
 - `idx_crew_mailboxes_company`, `idx_crew_mailboxes_poll` on `(poll_enabled, last_polled_at)`
 - `idx_crew_mailbox_agents_agent`, `idx_crew_mailbox_agents_mailbox` (the n:n join, both directions)
 - `idx_crew_marketplaces_company`, `idx_crew_marketplace_installs_source`
+- `idx_crew_agents_run_lock` on `(run_lock_run_id, run_lock_expires_at)` for lease sweeps
+- `idx_crew_external_events_source`, `idx_crew_external_events_unhandled`,
+  `idx_crew_external_events_received` — the two scans that must not walk the
+  table are "what still needs handling" and "what is old enough to prune"
+- `idx_crew_change_proposals_company` on `(company_id, status)`, `idx_crew_change_proposals_task`
+- `idx_crew_messenger_pairings_company` on `(company_id, channel_kind, status)`
 
 ## Migration policy
 

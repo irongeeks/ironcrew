@@ -264,6 +264,124 @@ what the package it names then does — running third-party MCP servers is a
 trust decision the owner makes, and the exact command is shown in the UI
 before installing so it is made knowingly.
 
+### T-13 — Inbound chat as an unauthenticated ingress — **High**
+
+The messenger integration adds a new ingress, and an ingress without an
+identity check is an open door. A Telegram bot token or a Discord channel id
+is not a secret in any meaningful sense: anyone who finds the bot can message
+it, and message text arriving over chat looks exactly like message text
+arriving from the owner. This is T-10 again, reachable by anyone who can find
+a bot rather than anyone who knows an address.
+
+**Mitigation.** Deny by default, decided by a human who can see who is asking:
+
+- Every inbound message is resolved to a row in `crew_messenger_pairings`
+  before anything else happens. No row, no access — the same posture the
+  mailbox grants take.
+- An unknown sender produces a `pending` row and a six-digit code, and that
+  code is the only thing they get back. No task, no EA turn, nothing routed.
+  The owner accepts the request in the Command Center, where the sender's
+  (sanitised) display name and channel are visible next to the decision.
+- The code is short-lived, cleared on accept, and absent from the audit entry
+  that records the request. It proves nothing on its own; it is a handle for
+  pointing at the right stranger.
+- A blocked sender gets nothing at all — not even the courtesy of knowing they
+  are blocked, which would only tell them to try from another account.
+- **Control tokens are stripped at the channel boundary**, inside `poll()`,
+  before an `InboundMessage` reaches any caller — so a channel that forgot the
+  strip would be indistinguishable from one that did it, from the outside.
+- Anything that is not the owner is **fenced**: a guest message becomes an
+  `inbox` task with the body wrapped by `wrapUntrusted()` naming its sender,
+  classified by `triage()` as a classifier and never as an instruction
+  interpreter (T-10).
+- Identity is matched on the provider's `senderId`, never on `senderName`,
+  which the sender chooses and can change at will.
+- Every message is recorded in `crew_external_events` before it is acted on,
+  so a redelivery — which both providers can produce — is recognised rather
+  than answered twice.
+
+_Residual risk:_ the same one T-10 carries. A pending pairing request shows
+attacker-chosen display text to the owner; it is sanitised, flattened and
+attributed, but social engineering against a human reader is outside what a
+state machine can prevent. And polling is pulled rather than pushed, so an
+unpolled channel is silent rather than queued — a gap in availability, not in
+authorisation.
+
+### T-14 — Granting owner authority over a chat app — **High**
+
+Role `owner` on a pairing reaches `handleCeoMessage()`, which treats its text
+as the owner speaking and can delegate work immediately. That is the feature —
+it is how the owner talks to their own EA from a phone — and it is also the
+risk: a compromised, borrowed or handed-over phone becomes CEO access to the
+company, with no further gate between a chat message and delegated work.
+
+**Mitigation.** The grant is a deliberate, visible, reversible act:
+
+- It is **only ever granted by the owner** in the Command Center, on a pending
+  request they can see, and never earned by a first message.
+- `role` is a column with a `CHECK` constraint, not a branch someone has to
+  remember — an operator can look at who holds CEO authority rather than
+  reconstruct it.
+- Every grant, revoke and block is a **distinct audited action**:
+  `messenger.owner_granted` is not the same entry as
+  `messenger.pairing_accepted`, and `messenger.pairing_revoked` (which records
+  the `previousRole` it took away) is not the same entry as
+  `messenger.pairing_blocked`. "I do not want to hear from this person" and
+  "this person may no longer speak for me" are different statements and stay
+  distinguishable in the log.
+- **Unblocking returns a pairing to `pending`, never to what it was.**
+  Un-refusing a sender is a different decision from re-granting them CEO
+  authority, and the second must never ride along with the first: the owner
+  accepts again, choosing the role again.
+- Nothing else can promote a pairing. Accepting a blocked row is refused
+  (409) rather than silently unblocking it.
+
+_Residual risk:_ once granted, the authority is as good as the owner's own,
+bounded only by what `handleCeoMessage()` can do and by every gate downstream
+of it (approvals, budgets, permission modes). Chat-app account security is the
+owner's, and a paired device is a credential — which is why the pairing list
+in the Command Center is meant to be read occasionally, not set once.
+
+### T-15 — An agent writing files directly — **High**
+
+An agent that can write files can write any file: its own prompt, a CI
+configuration, a deploy script, something outside the workspace entirely.
+There is no useful middle ground between "may write" and "may not" unless
+someone sees the write before it happens, which is why file-touching
+capability otherwise stays switched off.
+
+**Mitigation.** `change-proposal-store.ts` makes a write a proposal an owner
+decides on. Four rules, each with an obvious failure in its absence:
+
+1. **No approval, no apply.** `apply()` refuses unless the proposal is
+   `approved`, and there is deliberately **no force flag** — a gate with a
+   bypass is not a gate. The orchestrator re-reads the approval rather than
+   trusting the proposal row, so a decision reversed or expired after the
+   fact still stops the write.
+2. **The expected hash must still match.** Every file carries the hash it had
+   when proposed; a mismatch is refused, a `create` whose target now exists is
+   refused, an `update` whose file is gone is refused. An approval granted
+   against one state of the world does not describe what would happen in
+   another.
+3. **Path containment, re-checked at apply.** Absolute paths and `..` are
+   refused, and the **real path of the containing directory** is resolved and
+   re-tested against the real workspace root — which is what catches a
+   symlinked directory that passes every string test and writes elsewhere.
+4. **All or nothing.** Files are validated first and written second, so one
+   conflicting file means nothing at all is written and the workspace is left
+   exactly as it was. Applying an applied proposal is a no-op, so a retry
+   cannot write twice.
+
+The audit log records the whole lifecycle — created, approved, rejected,
+applied, apply_failed, superseded — with paths and reasons, and **never file
+contents**: an audit log is not a place to duplicate a repository.
+
+_Residual risk:_ approval fatigue. A proposal touching forty files is approved
+by reading a summary, and the owner's attention is the last check in the
+chain. The contents are always one request away
+(`GET /api/crew/change-proposals/:id`), and the approval summary deliberately
+lists every path so the size of what is being approved cannot be hidden.
+
 ## Explicitly out of scope for the MVP
 
 - Multi-user authorisation (single owner only; OIDC is Phase 5).
@@ -285,4 +403,6 @@ before installing so it is made knowingly.
 | Secrets in the database     | references only, never values — except mailbox credentials, encrypted (T-11) |
 | Incoming mail               | `inbox` task, never the CEO path (T-10)                                      |
 | Marketplace MCP servers     | allowlisted launcher, `autoConnect: false` (T-12)                            |
+| Inbound chat                | no pairing, no access; `owner` role granted by the owner only (T-13, T-14)   |
+| Agent file writes           | approved proposal, path-contained, hash-checked, all-or-nothing (T-15)       |
 | Sandbox grant lifetime      | ≤ 4 hours, tied to an approval                                               |
