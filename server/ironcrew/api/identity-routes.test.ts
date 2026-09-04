@@ -396,3 +396,162 @@ describe("a person's own account", () => {
     await request(app).delete(`/api/crew/auth/sessions/${theirSession.id}`).set("Cookie", ownerCookie).expect(404);
   });
 });
+
+describe("four eyes over HTTP", () => {
+  /** A parked transfer, plus the two owners who could sign it off. */
+  async function transferApproval(cookie: string) {
+    await request(app)
+      .post("/api/crew/chat")
+      .set("Cookie", cookie)
+      .send({ body: "Bitte überweise 10.000 EUR an den Lieferanten." })
+      .expect(201);
+    const list = await request(app).get("/api/crew/approvals").set("Cookie", cookie).expect(200);
+    return list.body.approvals[0];
+  }
+
+  let anna: string;
+  let bob: string;
+
+  beforeEach(async () => {
+    await seedUser("anna@example.com", "owner");
+    await seedUser("bob@example.com", "owner");
+    anna = await login("anna@example.com");
+    bob = await login("bob@example.com");
+  });
+
+  it("answers 200 and settles at the default quorum of one", async () => {
+    const approval = await transferApproval(anna);
+    expect(approval.tally).toMatchObject({ required: 1, approvals: 0 });
+
+    const res = await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", anna)
+      .send({ decision: "approved", reason: "geprüft" })
+      .expect(200);
+    expect(res.body.approval.status).toBe("approved");
+    expect(res.body.tally).toMatchObject({ approvals: 1, required: 1, satisfied: true });
+  });
+
+  it("answers 202 for a vote that is not yet a decision", async () => {
+    const approval = await transferApproval(anna);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/quorum`)
+      .set("Cookie", anna)
+      .send({ required: 2 })
+      .expect(200);
+
+    // 202, not 200: a UI that read this as success would tell the owner the
+    // transfer is released while it is still waiting for a second human.
+    const first = await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", anna)
+      .send({ decision: "approved", reason: "sieht gut aus" })
+      .expect(202);
+    expect(first.body.approval.status).toBe("pending");
+    expect(first.body.tally).toMatchObject({ approvals: 1, required: 2, outstanding: 1 });
+
+    const second = await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", bob)
+      .send({ decision: "approved", reason: "IBAN geprüft" })
+      .expect(200);
+    expect(second.body.approval.status).toBe("approved");
+  });
+
+  it("refuses the same person voting twice, with a sentence rather than a 500", async () => {
+    const approval = await transferApproval(anna);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/quorum`)
+      .set("Cookie", anna)
+      .send({ required: 2 })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", anna)
+      .send({ decision: "approved" })
+      .expect(202);
+    const again = await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", anna)
+      .send({ decision: "approved" })
+      .expect(409);
+    expect(again.body.error).toBe("invalid_approval_review");
+    expect(again.body.message).toMatch(/bereits bewertet/);
+  });
+
+  it("names each reviewer in the audit chain by their own account", async () => {
+    const approval = await transferApproval(anna);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/quorum`)
+      .set("Cookie", anna)
+      .send({ required: 2 })
+      .expect(200);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", anna)
+      .send({ decision: "approved" })
+      .expect(202);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", bob)
+      .send({ decision: "approved" })
+      .expect(200);
+
+    const reviewers = listAuditEvents(db, companyId, { limit: 300 })
+      .filter((e) => String(e.action).startsWith("approval.review_"))
+      .map((e) => String(e.actor_id));
+    expect(reviewers).toHaveLength(2);
+    expect(new Set(reviewers).size).toBe(2);
+    // T-19: a real account id, never the pre-identity "ceo" constant.
+    for (const id of reviewers) expect(id).toMatch(/^usr_/);
+  });
+
+  it("shows the second reviewer who has already looked, before they add their name", async () => {
+    const approval = await transferApproval(anna);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/quorum`)
+      .set("Cookie", anna)
+      .send({ required: 2 })
+      .expect(200);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", anna)
+      .send({ decision: "approved", reason: "Betrag stimmt" })
+      .expect(202);
+
+    // Readable by the colleague, not only by whoever voted: who has already
+    // looked is exactly what the second pair of eyes needs.
+    const res = await request(app).get(`/api/crew/approvals/${approval.id}/reviews`).set("Cookie", bob).expect(200);
+    expect(res.body.reviews).toHaveLength(1);
+    expect(res.body.reviews[0].reason).toBe("Betrag stimmt");
+    expect(res.body.tally).toMatchObject({ approvals: 1, required: 2, outstanding: 1 });
+  });
+
+  it("lets a viewer read the reviews but never cast one", async () => {
+    const approval = await transferApproval(anna);
+    await seedUser("vera@example.com", "viewer");
+    const vera = await login("vera@example.com");
+
+    await request(app).get(`/api/crew/approvals/${approval.id}/reviews`).set("Cookie", vera).expect(200);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/decide`)
+      .set("Cookie", vera)
+      .send({ decision: "approved" })
+      .expect(403);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/quorum`)
+      .set("Cookie", vera)
+      .send({ required: 2 })
+      .expect(403);
+  });
+
+  it("refuses a quorum nobody could ever satisfy", async () => {
+    const approval = await transferApproval(anna);
+    await request(app)
+      .post(`/api/crew/approvals/${approval.id}/quorum`)
+      .set("Cookie", anna)
+      .send({ required: 99 })
+      .expect(400);
+  });
+});

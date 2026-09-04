@@ -129,6 +129,11 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     accept: vi.fn().mockResolvedValue({ task: task({ status: "done" }) }),
     revise: vi.fn().mockResolvedValue({ task: task({ status: "ready" }) }),
     decide: vi.fn().mockResolvedValue({ approval: {} }),
+    setQuorum: vi.fn().mockResolvedValue({ tally: { required: 2 } }),
+    // Signed out by default, which is the pre-identity installation the
+    // majority of these tests describe. A test that cares about "my vote"
+    // overrides it with a real account.
+    authStatus: vi.fn().mockResolvedValue({ bootstrap: true, authenticated: false, user: null }),
     runEvents: vi.fn().mockResolvedValue({ events: [] }),
     task: vi.fn().mockResolvedValue({ task: task(), runs: [], audit: [], blockers: [], blocking: [] }),
     runtimes: vi.fn().mockResolvedValue({ runtimes: [runtimeInfo()] }),
@@ -3494,5 +3499,200 @@ describe("agent detail lists what this post may reach for", () => {
   it("says plainly when an agent may use nothing", async () => {
     const dialog = await openAgent(makeClient());
     expect(await within(dialog).findByTestId("agent-tools-line")).toHaveTextContent("Kein Werkzeug freigegeben.");
+  });
+});
+
+describe("four eyes on a dangerous approval", () => {
+  function transfer(over: Partial<Approval> = {}): Approval {
+    return {
+      id: "apr_1",
+      approval_type: "bank_transfer",
+      summary: "10.000 EUR an Lieferant",
+      risk_level: "high",
+      impact: "",
+      rollback_plan: "",
+      status: "pending",
+      task_id: "task_1",
+      created_at: Date.now(),
+      ...over,
+    };
+  }
+
+  const signedInAs = (id: string) =>
+    vi.fn().mockResolvedValue({
+      bootstrap: false,
+      authenticated: true,
+      user: { id, email: "anna@example.com", display_name: "Anna", role: "owner", status: "active" },
+    });
+
+  it("says nothing about quorums when one person decides — the ordinary case", async () => {
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({
+        approvals: [
+          transfer({
+            tally: {
+              approvals: 0,
+              rejections: 0,
+              required: 1,
+              satisfied: false,
+              blocked: false,
+              outstanding: 1,
+              selfApproved: false,
+            },
+            reviews: [],
+          }),
+        ],
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = await screen.findByTestId("approval-apr_1");
+    // No vote counter, and the button still says what it always said.
+    expect(within(card).queryByTestId("quorum-apr_1")).not.toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Freigeben" })).toBeInTheDocument();
+    // The way to ask for a second pair of eyes is here, per approval.
+    expect(within(card).getByTestId("require-two-apr_1")).toBeInTheDocument();
+  });
+
+  it("shows where the vote stands and who has already looked", async () => {
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({
+        approvals: [
+          transfer({
+            tally: {
+              approvals: 1,
+              rejections: 0,
+              required: 2,
+              satisfied: false,
+              blocked: false,
+              outstanding: 1,
+              selfApproved: false,
+            },
+            reviews: [
+              {
+                id: "dec_1",
+                approval_id: "apr_1",
+                reviewer_id: "usr_bob",
+                reviewer_label: "Bob",
+                verdict: "approved",
+                reason: "Betrag stimmt",
+                reviewed_at: Date.now(),
+              },
+            ],
+          }),
+        ],
+      }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const quorum = await screen.findByTestId("quorum-apr_1");
+    expect(quorum).toHaveTextContent("1 von 2 Zustimmungen");
+    // Singular, because German notices. "es fehlt noch 1 Zustimmungen" is the
+    // kind of sentence that makes an owner trust the rest of the screen less.
+    expect(quorum).toHaveTextContent("es fehlt noch 1 Zustimmung");
+    expect(quorum).not.toHaveTextContent("1 Zustimmungen");
+    // The colleague is named, not shown as usr_bob — that is the whole point
+    // of asking a second person to look.
+    expect(quorum).toHaveTextContent("Bob: Betrag stimmt");
+
+    // Anna has not voted, so she still can, and the verb is the honest one:
+    // her click agrees, it does not release.
+    const card = screen.getByTestId("approval-apr_1");
+    expect(within(card).getByRole("button", { name: "Zustimmen" })).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Freigeben" })).not.toBeInTheDocument();
+  });
+
+  it("takes the buttons away from somebody who has already voted", async () => {
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({
+        approvals: [
+          transfer({
+            tally: {
+              approvals: 1,
+              rejections: 0,
+              required: 2,
+              satisfied: false,
+              blocked: false,
+              outstanding: 1,
+              selfApproved: false,
+            },
+            reviews: [
+              {
+                id: "dec_1",
+                approval_id: "apr_1",
+                reviewer_id: "usr_anna",
+                reviewer_label: "Anna",
+                verdict: "approved",
+                reason: "",
+                reviewed_at: Date.now(),
+              },
+            ],
+          }),
+        ],
+      }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = await screen.findByTestId("approval-apr_1");
+    // Gone rather than disabled: a second click is not a second reviewer, and
+    // a greyed-out button invites the click that produces the refusal.
+    expect(within(card).getByTestId("voted-apr_1")).toHaveTextContent("Deine Stimme ist abgegeben");
+    expect(within(card).queryByRole("button", { name: "Zustimmen" })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Ablehnen" })).not.toBeInTheDocument();
+    // Her own row reads "du", so she can see which of the two voices is hers.
+    expect(within(card).getByTestId("quorum-apr_1")).toHaveTextContent("du");
+  });
+
+  it("never offers another yes next to a rejection", async () => {
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({
+        approvals: [
+          transfer({
+            tally: {
+              approvals: 1,
+              rejections: 1,
+              required: 2,
+              satisfied: false,
+              blocked: true,
+              outstanding: 0,
+              selfApproved: false,
+            },
+            reviews: [
+              {
+                id: "dec_2",
+                approval_id: "apr_1",
+                reviewer_id: "usr_bob",
+                reviewer_label: "Bob",
+                verdict: "rejected",
+                reason: "IBAN stimmt nicht",
+                reviewed_at: Date.now(),
+              },
+            ],
+          }),
+        ],
+      }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const quorum = await screen.findByTestId("quorum-apr_1");
+    expect(quorum).toHaveTextContent("abgelehnt");
+    // A rejection is terminal. "Es fehlt noch 1 Zustimmung" beside it would
+    // suggest one more yes could still save the transfer.
+    expect(quorum).not.toHaveTextContent("es fehlt noch");
+  });
+
+  it("asks for four eyes on a single approval, not as a global setting", async () => {
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = await screen.findByTestId("approval-apr_1");
+    await userEvent.setup().click(within(card).getByTestId("require-two-apr_1"));
+    await waitFor(() => expect(client.setQuorum).toHaveBeenCalledWith("apr_1", 2));
   });
 });

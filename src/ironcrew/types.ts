@@ -128,6 +128,39 @@ export interface Message {
   created_at: number;
 }
 
+/**
+ * Where a vote on one approval stands.
+ *
+ * `satisfied` and `blocked` are both computed server-side rather than left to
+ * the client to derive from the three counts. The precedence between them is
+ * not obvious — a rejection outranks any number of approvals — and a UI that
+ * got it wrong would show "freigegeben" next to a refusal.
+ */
+export interface ApprovalTally {
+  approvals: number;
+  rejections: number;
+  required: number;
+  satisfied: boolean;
+  blocked: boolean;
+  outstanding: number;
+  selfApproved: boolean;
+}
+
+export interface ApprovalReview {
+  id: string;
+  approval_id: string;
+  reviewer_id: string;
+  verdict: "approved" | "rejected";
+  reason: string;
+  reviewed_at: number;
+  /**
+   * A name a colleague recognises, resolved server-side. Falls back to the
+   * account id — a deleted account is still evidence, and an id is at least
+   * traceable, where "Unbekannt" is not.
+   */
+  reviewer_label?: string;
+}
+
 export interface Approval {
   id: string;
   approval_type: string;
@@ -138,6 +171,14 @@ export interface Approval {
   status: string;
   task_id: string | null;
   created_at: number;
+  /**
+   * Optional because the list endpoint attaches them and other places that
+   * hand back a bare approval row do not. A missing tally means "quorum of
+   * one, nobody has voted" — which is what an approval without reviews is —
+   * and the panel renders nothing extra rather than an empty vote counter.
+   */
+  tally?: ApprovalTally;
+  reviews?: ApprovalReview[];
 }
 
 export type NotificationSeverity = "info" | "warning" | "critical";

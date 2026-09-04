@@ -19,6 +19,12 @@ import { RunStore } from "../runtime/run-store.ts";
 import { appendAuditEvent, type ActorType } from "../domain/audit.ts";
 import { canTransition, deriveAgentStatus, type TaskStatus } from "../domain/task-state.ts";
 import { ApprovalEngine } from "../policy/approval-policy.ts";
+import {
+  ApprovalReviewStore,
+  type ApprovalReviewRow,
+  type ApprovalTally,
+  type ReviewVerdict,
+} from "../domain/approval-review-store.ts";
 import { BudgetEngine } from "../policy/budget-engine.ts";
 import { SandboxGrantStore } from "../domain/sandbox-grant-store.ts";
 import { GoalStore } from "../domain/goal-store.ts";
@@ -168,6 +174,22 @@ export interface HumanActor {
   actorId?: string;
 }
 
+/**
+ * What came of one human's verdict: the vote itself, where the tally now
+ * stands, the approval as it looks afterwards, and whether that verdict was
+ * the one that settled it.
+ *
+ * `decided: false` with a non-null approval is the normal "one of two, one
+ * still needed" case — not an error, and the caller must say so rather than
+ * reporting a failure.
+ */
+export interface ApprovalReviewOutcome {
+  review: ApprovalReviewRow;
+  tally: ApprovalTally;
+  approval: ApprovalRow;
+  decided: boolean;
+}
+
 export function humanActor(opts: HumanActor): string {
   return opts.actorId ?? "ceo";
 }
@@ -176,6 +198,7 @@ export class CompanyOrchestrator {
   readonly tasks: TaskStore;
   readonly runs: RunStore;
   readonly approvals: ApprovalEngine;
+  readonly approvalReviews: ApprovalReviewStore;
   readonly budgets: BudgetEngine;
   readonly sandboxGrants: SandboxGrantStore;
   readonly goals: GoalStore;
@@ -227,6 +250,7 @@ export class CompanyOrchestrator {
     this.tasks = new TaskStore(db);
     this.runs = new RunStore(db);
     this.approvals = new ApprovalEngine(db);
+    this.approvalReviews = new ApprovalReviewStore(db);
     this.sandboxGrants = new SandboxGrantStore(db);
     this.budgets = new BudgetEngine(db);
     this.goals = new GoalStore(db);
@@ -1324,11 +1348,85 @@ export class CompanyOrchestrator {
   }
 
   /**
+   * One human's verdict on a pending approval, and — if that verdict settles
+   * it — the decision itself.
+   *
+   * WHY THE VOTE AND THE DECISION ARE THE SAME CALL
+   *
+   * They could have been two: `POST /reviews` to vote, and something else to
+   * "close" the approval once enough votes are in. That shape has a failure
+   * mode that is easy to reach and hard to notice — a quorum that is reached
+   * and then sits there, because whatever was supposed to notice it did not
+   * run. An approval that everybody has agreed to and that is still blocking
+   * a task is indistinguishable, from the board, from one nobody has looked
+   * at. So the tally is evaluated on the write that changes it, and the
+   * approval settles in the same transaction-shaped moment as the vote that
+   * settled it.
+   *
+   * The two directions are deliberately asymmetric, per migration 0023:
+   *
+   *   N approvals are needed to proceed.  ONE rejection stops it, now.
+   *
+   * A reviewer who has spotted that the destination IBAN is wrong must not
+   * have to wait for a colleague to agree before the payment stops.
+   *
+   * At the default quorum of 1 — which is every approval this installation
+   * has ever raised — the first approval satisfies the tally and this behaves
+   * exactly as `decideApproval` did before the quorum existed. Nothing about
+   * the single-operator box changes.
+   */
+  reviewApproval(
+    companyId: string,
+    approvalId: string,
+    verdict: ReviewVerdict,
+    reason = "",
+    opts: HumanActor = {},
+  ): ApprovalReviewOutcome | null {
+    const reviewerId = humanActor(opts);
+
+    const pending = this.approvals.get(approvalId);
+    // Same "null" contract as before: unknown, or belonging to another
+    // company, or no longer pending. A caller cannot tell those apart, and
+    // deliberately so — an answer that distinguished them would confirm the
+    // existence of an approval the caller may not see.
+    if (!pending || pending.company_id !== companyId || pending.status !== "pending") return null;
+
+    // Throws `ApprovalReviewError` on a second vote from the same person, and
+    // that is the whole four-eyes guarantee: a refreshed tab is not a second
+    // reviewer. The route turns it into a 409.
+    const review = this.approvalReviews.record({ approvalId, reviewerId, verdict, reason });
+    const tally = this.approvalReviews.tally(approvalId);
+
+    // Not yet: enough people have not yet said yes, and nobody has said no.
+    // The approval stays pending, the task stays parked, and the caller is
+    // told how many voices are still missing.
+    if (!tally.blocked && !tally.satisfied) {
+      return { review, tally, approval: this.approvals.get(approvalId) ?? pending, decided: false };
+    }
+
+    const decision = tally.blocked ? "rejected" : "approved";
+    const approval = this.decideApproval(companyId, approvalId, decision, reason, opts);
+    // `decideApproval` returns null only if the approval stopped being
+    // pending between the two reads. The review is already recorded and is
+    // still the truth about what this person said, so it is returned rather
+    // than swallowed.
+    if (!approval) return { review, tally, approval: pending, decided: false };
+
+    return { review, tally, approval, decided: true };
+  }
+
+  /**
    * Decide a pending approval and, unlike calling `this.approvals.decide()`
    * directly, also leave a durable business record of it: a decision-log
    * entry (distinct from the audit chain — see decision-store.ts) and the
    * matching notification cleared from the inbox. Returns null exactly when
    * `approvals.decide()` would (already decided / does not exist).
+   *
+   * This writes `crew_approvals.status` without consulting the quorum, and is
+   * therefore not the route an owner's click should take — `reviewApproval`
+   * is. It stays public because two callers legitimately bypass the vote:
+   * `reviewApproval` itself, once a tally has authorised the decision, and
+   * `decideChangeProposal`, where the proposal's own gate has already run.
    */
   decideApproval(
     companyId: string,

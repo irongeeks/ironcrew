@@ -13,6 +13,7 @@ import type {
   Agent,
   AgentTool,
   Approval,
+  ApprovalTally,
   AuthStatus,
   BusinessPackSummary,
   CrewSession,
@@ -188,8 +189,14 @@ export const api = {
   removeDependency: (taskId: string, dependsOnId: string) =>
     send<{ blockers: Task[] }>(`/tasks/${taskId}/dependencies/${dependsOnId}`, "DELETE"),
   approvals: () => get<{ approvals: Approval[] }>("/approvals"),
+  // The server answers 202 when the vote was recorded but the quorum is not
+  // yet met, and 200 when it settled the approval. `send` treats both as
+  // success, so the caller reads `approval.status` (or the tally) to know
+  // which happened rather than the status code.
   decide: (id: string, decision: "approved" | "rejected", reason?: string) =>
-    send<{ approval: Approval }>(`/approvals/${id}/decide`, "POST", { decision, reason }),
+    send<{ approval: Approval; tally: ApprovalTally }>(`/approvals/${id}/decide`, "POST", { decision, reason }),
+  setQuorum: (id: string, required: number) =>
+    send<{ tally: ApprovalTally }>(`/approvals/${id}/quorum`, "POST", { required }),
   dashboard: () => get<Dashboard>("/dashboard"),
   runEvents: (runId: string) => get<{ events: RunEvent[] }>(`/runs/${runId}/events`),
   runtimes: () => get<{ runtimes: RuntimeInfo[] }>("/runtimes"),

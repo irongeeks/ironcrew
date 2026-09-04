@@ -24,6 +24,7 @@ import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
 import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
 import { ApprovalRequiredError } from "../policy/approval-policy.ts";
+import { ApprovalReviewError, MAX_REQUIRED_APPROVALS } from "../domain/approval-review-store.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
 import { InvalidTransitionError, TASK_STATUSES } from "../domain/task-state.ts";
 import { TaskDependencyError } from "../domain/task-store.ts";
@@ -72,6 +73,13 @@ const reviewSchema = z.object({ note: z.string().max(5000).optional() });
 const revisionSchema = z.object({ reason: z.string().min(1).max(5000) });
 const taskStatusSchema = z.object({ status: z.enum(TASK_STATUSES), reason: z.string().max(2000).optional() });
 const taskDependencySchema = z.object({ dependsOnId: z.string().min(1).max(200) });
+const quorumSchema = z.object({
+  // The upper bound lives in the store (a quorum nobody can satisfy is a
+  // deadlock dressed as diligence); repeated here so a typo is refused at the
+  // edge with a field name attached rather than as a domain error.
+  required: z.number().int().min(1).max(MAX_REQUIRED_APPROVALS),
+});
+
 const decisionSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
   reason: z.string().max(5000).optional(),
@@ -357,6 +365,15 @@ function sendDomainError(res: Response, err: unknown): boolean {
       approvalId: err.approvalId,
       approvalType: err.approvalType,
     });
+    return true;
+  }
+  if (err instanceof ApprovalReviewError) {
+    // Covers the second vote from one person, a vote on an approval that has
+    // already been decided, and an out-of-range quorum. All of them are the
+    // caller asking for something that cannot be, so 409 rather than 500 —
+    // and the message is the store's German sentence, which already explains
+    // itself to whoever is looking at the screen.
+    res.status(409).json({ error: "invalid_approval_review", message: err.message });
     return true;
   }
   if (err instanceof BudgetExceededError) {
@@ -1106,10 +1123,75 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   // --- approvals ----------------------------------------------------------
 
+  /**
+   * Reviews with a name attached.
+   *
+   * `crew_approval_reviews.reviewer_id` is a `usr_…`, which is the right
+   * thing to store — an account can be renamed, and the audit chain must not
+   * change when it is. It is the wrong thing to *show*: "hat bereits
+   * bewertet: usr_0f432eb5…" tells the second reviewer nothing about who
+   * looked at this before them, which is the entire question they are asking.
+   * Resolved here rather than in the client so the UI does not have to fetch
+   * the account list to render a decision panel — and so a viewer, who may
+   * read reviews but not the user directory, still sees names.
+   */
+  function withReviewerNames(approvalId: string) {
+    return orchestrator.approvalReviews.listFor(approvalId).map((review) => {
+      const user = review.reviewer_id.startsWith("usr_") ? auth.users.get(review.reviewer_id) : null;
+      return {
+        ...review,
+        // Falls back to the id, never to "Unbekannt": a deleted account is
+        // still evidence, and an id is at least traceable.
+        reviewer_label: user ? user.display_name || user.email : review.reviewer_id,
+      };
+    });
+  }
+
   app.get(
     `${base}/approvals`,
     wrap((_req, res) => {
-      res.json({ approvals: orchestrator.approvals.listPending(companyId) });
+      // Each pending approval carries its own vote alongside it. A UI that had
+      // to fetch the tally per row would either make N requests or show the
+      // quorum late, and "late" here means an owner pressing a button on a
+      // gate somebody else already closed.
+      const approvals = orchestrator.approvals.listPending(companyId).map((approval) => ({
+        ...approval,
+        tally: orchestrator.approvalReviews.tally(approval.id),
+        reviews: withReviewerNames(approval.id),
+      }));
+      res.json({ approvals });
+    }),
+  );
+
+  app.get(
+    `${base}/approvals/:id/reviews`,
+    wrap((req, res) => {
+      const approval = orchestrator.approvals.get(param(req, "id"));
+      if (!approval || approval.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      // Readable by any signed-in user, not only an owner: who has already
+      // looked at a dangerous change is exactly what the second reviewer
+      // needs to know before adding their own name to it.
+      res.json({
+        approval,
+        tally: orchestrator.approvalReviews.tally(approval.id),
+        reviews: withReviewerNames(approval.id),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/approvals/:id/quorum`,
+    ownerOnly,
+    wrap((req, res) => {
+      const { required } = quorumSchema.parse(req.body ?? {});
+      const tally = orchestrator.approvalReviews.setRequiredApprovals(param(req, "id"), required, {
+        actorId: actorOf(req).actorId,
+      });
+      broadcast("crew_approval_quorum_changed", { approvalId: param(req, "id"), required: tally.required });
+      res.json({ tally });
     }),
   );
 
@@ -1118,13 +1200,29 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     ownerOnly,
     wrap((req, res) => {
       const { decision, reason } = decisionSchema.parse(req.body ?? {});
-      const approval = orchestrator.decideApproval(companyId, param(req, "id"), decision, reason ?? "", actorOf(req));
-      if (!approval) {
+      // Goes through the vote, not around it. At the default quorum of 1 the
+      // first verdict settles the approval and this behaves exactly as it did
+      // before quorums existed; at 2 it records one voice and says how many
+      // are still missing.
+      const outcome = orchestrator.reviewApproval(companyId, param(req, "id"), decision, reason ?? "", actorOf(req));
+      if (!outcome) {
         res.status(409).json({ error: "already_decided", message: "This approval is no longer pending." });
         return;
       }
-      broadcast("crew_approval_decided", { approvalId: approval.id, status: approval.status });
-      res.json({ approval });
+      if (!outcome.decided) {
+        // 202: taken, and not yet acted upon. A 200 here would let a UI
+        // report "freigegeben" for a change that is still waiting for a
+        // second human — the one thing this whole feature exists to prevent.
+        broadcast("crew_approval_reviewed", {
+          approvalId: outcome.approval.id,
+          approvals: outcome.tally.approvals,
+          required: outcome.tally.required,
+        });
+        res.status(202).json({ approval: outcome.approval, tally: outcome.tally, review: outcome.review });
+        return;
+      }
+      broadcast("crew_approval_decided", { approvalId: outcome.approval.id, status: outcome.approval.status });
+      res.json({ approval: outcome.approval, tally: outcome.tally, review: outcome.review });
     }),
   );
 

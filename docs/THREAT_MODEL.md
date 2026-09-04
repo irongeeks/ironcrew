@@ -606,6 +606,58 @@ adapters live in the control plane's environment, not in a vault — the same
 argument that moved MCP credentials to SecretRefs (T-18) applies here and has
 not been made yet.
 
+### T-21 — One compromised owner account decides everything — **High**
+
+Identity (T-19) gave the installation accounts, roles and a name in the audit
+log. It did not change how many people it takes to open a gate: one. Every
+approval this system has ever raised — a sandbox elevation (T-01), a payment,
+a Tier-0 change on a customer's network — was one click by one account. So
+whoever holds that account holds every gate the product has, and there is no
+step at which a second human would have noticed. The same single point applies
+without an attacker: the one owner reads a summary wrong at 23:40, or is on
+holiday when the decision cannot wait.
+
+**Mitigation.**
+
+1. **A quorum per approval, not per installation.** `required_approvals` lives
+   on the approval row. A company-wide two-person rule would make every
+   routine approval wait for somebody with nothing to add, and would be
+   switched off within a fortnight — including for the payment. The quorum is
+   raised on the request that deserves it (`POST /approvals/:id/quorum`, owner
+   only), and only while it is still pending: changing what a decision
+   required _after_ it was taken would rewrite history in the one place that
+   must not be rewritable.
+2. **Four eyes are structurally four eyes.** `crew_approval_reviews` carries
+   `UNIQUE (approval_id, reviewer_id)`. A double submit, a retried request or
+   a refreshed tab cannot satisfy a two-person rule alone — the database
+   refuses it, and the API answers 409 rather than letting the second click
+   through.
+3. **One rejection is decisive, and needs no quorum of its own.** A reviewer
+   who has spotted the wrong destination IBAN stops the payment immediately,
+   whatever the approval count already stood at. Requiring agreement to act is
+   prudence; requiring agreement to refrain is a defect, and would mean a
+   dangerous change proceeding because the colleague who would have agreed was
+   on holiday.
+4. **The tally is recomputed, never latched.** There is no "quorum reached"
+   flag, so a rejection arriving after the second approval blocks just as
+   firmly as one arriving before it. No window exists in which the gate has
+   been declared open and can no longer be shut.
+5. **Each reviewer is named individually in the audit chain.** Every verdict
+   appends with that person's own `usr_…`; `approval.quorum_reached` lists who
+   agreed. An investigation can ask "who waved this through" and get people,
+   not an account shared by a role.
+
+**Residual risk.** Nothing raises the quorum automatically. An approval only
+needs two people if somebody — or some future code path — asked for two, and
+today that is a human pressing a button on the approval card. A rule such as
+"every `bank_transfer` above an amount needs two" would need the amount as a
+number the approval does not carry, and deriving it from the summary text
+would be a gate that fails open on a formatting change. There is also still no
+second factor behind either account (T-19), so two stolen sessions defeat a
+quorum of two; and an installation with one owner cannot satisfy a quorum of
+two at all, which is a deadlock rather than a compromise but is just as
+stopping — the ceiling of five exists so a typo cannot create one silently.
+
 ## Non-negotiable defaults
 
 | Setting                     | Value                                                                        |

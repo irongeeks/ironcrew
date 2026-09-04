@@ -173,9 +173,15 @@ export class ApprovalReviewStore {
 
     // Checked here for the readable message; the UNIQUE index is what actually
     // decides, so a concurrent double submit still loses (see the catch).
+    //
+    // "Du", not the reviewer's id: only the person themselves can trigger
+    // their own duplicate — `reviewerId` comes from the session, never from
+    // the request body — so the one human who will ever read this sentence is
+    // its subject. Naming them would mean showing a `usr_…` to the account it
+    // belongs to, which reads as a system error rather than an explanation.
     if (this.byReviewer(approval.id, reviewerId)) {
       throw new ApprovalReviewError(
-        `„${reviewerId}“ hat diese Freigabe bereits bewertet. Ein zweiter Klick ist kein zweiter Prüfer.`,
+        "Du hast diese Freigabe bereits bewertet. Ein zweiter Klick ist kein zweiter Prüfer.",
       );
     }
 
@@ -196,7 +202,7 @@ export class ApprovalReviewStore {
       // duplicate vote is a bad request, not a broken server.
       if (this.byReviewer(approval.id, reviewerId)) {
         throw new ApprovalReviewError(
-          `„${reviewerId}“ hat diese Freigabe bereits bewertet. Ein zweiter Klick ist kein zweiter Prüfer.`,
+          "Du hast diese Freigabe bereits bewertet. Ein zweiter Klick ist kein zweiter Prüfer.",
         );
       }
       throw err;

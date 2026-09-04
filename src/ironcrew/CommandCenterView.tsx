@@ -216,6 +216,12 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [showOrgChart, setShowOrgChart] = useState(false);
+  /**
+   * Who is signed in, so the panel can tell "your vote" from "somebody
+   * else's". Null on a pre-identity installation, where there is exactly one
+   * human and the question does not arise.
+   */
+  const [myUserId, setMyUserId] = useState<string | null>(null);
 
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [secretProviders, setSecretProviders] = useState<SecretProviderStatus[]>([]);
@@ -414,7 +420,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
   const refresh = useCallback(async () => {
     try {
-      const [a, t, c, ap, d, p, n, dec] = await Promise.all([
+      const [a, t, c, ap, d, p, n, dec, who] = await Promise.all([
         client.agents(),
         client.tasks(),
         client.chat(),
@@ -423,6 +429,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
         client.projects(),
         client.notifications(),
         client.decisions(),
+        // Refreshed with everything else rather than once at mount: a session
+        // can end mid-shift, and a panel that still thinks it knows who you
+        // are would hide the vote buttons from the next person to sign in.
+        client.authStatus().catch(() => null),
       ]);
       setAgents(a.agents);
       setTasks(t.tasks);
@@ -433,6 +443,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
       setNotifications(n.notifications);
       setUnreadCount(n.unreadCount);
       setDecisions(dec.decisions);
+      setMyUserId(who?.user?.id ?? null);
       setError(null);
     } catch (err) {
       // Never fail silently — an unreachable control plane is information.
@@ -2239,32 +2250,99 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
           {approvals.length > 0 && (
             <>
               <h2 className="ic-section-title">Entscheidungen</h2>
-              {approvals.map((approval) => (
-                <div key={approval.id} className="ic-approval" data-testid={`approval-${approval.id}`}>
-                  <div className="ic-approval-type">{approval.approval_type}</div>
-                  <div className="ic-approval-summary">{approval.summary}</div>
-                  <div className="ic-approval-actions">
-                    <button
-                      type="button"
-                      className="ic-btn"
-                      data-variant="decision"
-                      disabled={busy}
-                      onClick={() => act(() => client.decide(approval.id, "approved"))}
-                    >
-                      Freigeben
-                    </button>
-                    <button
-                      type="button"
-                      className="ic-btn"
-                      data-variant="danger"
-                      disabled={busy}
-                      onClick={() => act(() => client.decide(approval.id, "rejected"))}
-                    >
-                      Ablehnen
-                    </button>
+              {approvals.map((approval) => {
+                const tally = approval.tally;
+                // A quorum of one is the ordinary case and needs no words: an
+                // owner deciding alone should see the same two buttons they
+                // always saw, not a vote counter that reads "1 von 1".
+                const quorum = tally && tally.required > 1 ? tally : null;
+                const mine = myUserId ? (approval.reviews ?? []).find((r) => r.reviewer_id === myUserId) : undefined;
+                return (
+                  <div key={approval.id} className="ic-approval" data-testid={`approval-${approval.id}`}>
+                    <div className="ic-approval-type">{approval.approval_type}</div>
+                    <div className="ic-approval-summary">{approval.summary}</div>
+
+                    {quorum && (
+                      <div className="ic-approval-quorum" data-testid={`quorum-${approval.id}`}>
+                        <strong>
+                          {quorum.approvals} von {quorum.required} Zustimmungen
+                        </strong>
+                        {quorum.blocked ? (
+                          // Said plainly, and never together with an
+                          // "outstanding" count: a rejection is terminal, and
+                          // "es fehlt noch 1" next to it would read as though
+                          // one more yes could still save the change.
+                          <span className="ic-approval-blocked"> — abgelehnt, das war’s</span>
+                        ) : (
+                          <span>
+                            {" "}
+                            — es fehlt noch {quorum.outstanding}{" "}
+                            {quorum.outstanding === 1 ? "Zustimmung" : "Zustimmungen"}
+                          </span>
+                        )}
+                        <ul className="ic-approval-reviews">
+                          {(approval.reviews ?? []).map((review) => (
+                            <li key={review.id} data-verdict={review.verdict}>
+                              {review.verdict === "approved" ? "✓" : "✕"}{" "}
+                              {review.reviewer_id === myUserId ? "du" : (review.reviewer_label ?? review.reviewer_id)}
+                              {review.reason ? `: ${review.reason}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="ic-approval-actions">
+                      {mine ? (
+                        // The buttons are gone, not merely disabled: a second
+                        // click is not a second reviewer, and a greyed-out
+                        // button invites the click that produces the 409.
+                        <span className="ic-approval-voted" data-testid={`voted-${approval.id}`}>
+                          Deine Stimme ist abgegeben ({mine.verdict === "approved" ? "zugestimmt" : "abgelehnt"}).
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="ic-btn"
+                            data-variant="decision"
+                            disabled={busy}
+                            onClick={() => act(() => client.decide(approval.id, "approved"))}
+                          >
+                            {quorum ? "Zustimmen" : "Freigeben"}
+                          </button>
+                          <button
+                            type="button"
+                            className="ic-btn"
+                            data-variant="danger"
+                            disabled={busy}
+                            onClick={() => act(() => client.decide(approval.id, "rejected"))}
+                          >
+                            Ablehnen
+                          </button>
+                        </>
+                      )}
+                      {!quorum && !mine && (
+                        // Raising the bar is deliberately a per-approval act,
+                        // not a setting: a company-wide two-person rule makes
+                        // every routine approval wait for somebody with
+                        // nothing to add, and gets switched off within a
+                        // fortnight — including for the bank transfer.
+                        <button
+                          type="button"
+                          className="ic-btn"
+                          data-variant="ghost"
+                          disabled={busy}
+                          data-testid={`require-two-${approval.id}`}
+                          onClick={() => act(() => client.setQuorum(approval.id, 2))}
+                        >
+                          Vier Augen verlangen
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </>
           )}
 
