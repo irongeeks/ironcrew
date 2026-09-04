@@ -145,7 +145,7 @@ their size:
 
 ## Phase 4 — Business packs
 
-Shipped (`docs/BUSINESS_PACKS.md`). Five packs, six read-only integrations,
+Shipped (`docs/BUSINESS_PACKS.md`). Five packs, seven read-only integrations,
 and a pack framework whose three rules are the interesting part: reuse never
 overwrites, registering is not granting, and a routine does not start itself.
 
@@ -156,7 +156,13 @@ overwrites, registering is not granting, and a routine does not start itself.
   integrations, and the pack says so: `web.search` and the browser tools are
   already built in.
 - **Finance (DE)** — incoming invoices, receivables, receipt matching, cash
-  forecast, UStVA preparation; Lexware Office read-only.
+  forecast, UStVA preparation; Lexware Office **or** sevDesk, both read-only.
+  A German small business keeps its books in one or the other, essentially
+  never both, and which one was decided long before IronCrew arrived — so the
+  pack declares both and the environment decides which adapter is built. The
+  two are deliberately not merged behind one abstract `bookkeeping.invoice`
+  key: a grant against "whichever system happens to be configured" would change
+  meaning on the day of a migration, when both tenants are briefly live.
 - **Legal (DE)** — contract analysis, clause comparison, deadlines. No tools,
   no integrations: contracts already arrive through attachments.
 - **Knowledge** — archivist and researcher; Paperless-ngx and Nextcloud
@@ -181,8 +187,8 @@ What Phase 4 deliberately does **not** contain, and why:
   to protect.
 - **No M365/Entra or Drive adapter.** Both are large OAuth surfaces rather
   than an API key, and an OAuth app registration is a decision an operator
-  makes once with consequences — worth its own piece of work rather than a
-  sixth adapter written the same afternoon.
+  makes once with consequences — worth its own piece of work rather than an
+  eighth adapter written the same afternoon.
 - **Not verified against live systems.** Every adapter is written against the
   vendor's published API with tests over the request it builds; none has run
   against a real Proxmox cluster or Lexware tenant from this repository. Same

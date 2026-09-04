@@ -858,6 +858,22 @@
   color: var(--ic-text-dim);
 }
 
+/* The one block on this surface meant to be typed into a .env file rather
+   than skimmed: same inset ground as .ic-pre, but the cyan rule and the
+   undimmed text of .ic-note, because it is an instruction, not an excerpt. */
+.ic-env-block {
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  background: var(--ic-bg-inset);
+  border-left: 2px solid var(--ic-cyan-dim);
+  font-family: var(--ic-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ic-text);
+}
+
 /* Red: a conflict is a refusal, not a partial success — nothing was written. */
 .ic-conflict {
   padding: 8px 10px;

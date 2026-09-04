@@ -349,9 +349,36 @@ next section.
 **A smoke test, if you want one beyond the checks above.** `pnpm run test:api`
 runs the server unit suite against the checkout — it does not touch your
 database and does not need the service running, so it is safe to run on the box
-after an upgrade. `pnpm run openapi:check` verifies the shipped contract still
-matches the routes. `pnpm run test:e2e:smoke` exists but drives a browser
-against a dev server and is not meant for a production host.
+after an upgrade. `pnpm run test:e2e:smoke` exists but drives a browser against
+a dev server and is not meant for a production host.
+
+**`pnpm run openapi:check` is not a post-upgrade gate, and should not be used
+as one.** What it actually does, in this order:
+
+1. Re-serialises `docs/openapi.json` and fails (exit 1) if the file on disk
+   differs — a formatting and normalisation check on the committed spec.
+2. Validates the spec against the OpenAPI schema. It prints
+   `validated 34 operations`, and 34 is all there is: the spec describes 25
+   paths, **none of them under `/api/crew`**. The entire IronCrew control
+   plane — approvals, routines, packs, audit, the scheduler — is absent from
+   it.
+3. Statically greps `server/modules/routes/` for `.get("…")`-shaped calls and
+   compares them against the spec. It reports roughly `197 in code but missing
+   from spec` and prints the first fifty. That number is **information, not a
+   failure**: the command exits 0 with it. (`server/ironcrew/api/routes.ts` is
+   not in the scanned directory at all, so those routes are counted by
+   neither side.)
+
+So a green `openapi:check` tells you the committed spec file is well-formed and
+unmodified. It tells you nothing about whether the routes your build serves
+match what a client expects, because the shipped contract does not describe
+them. Reading its output as "the API is intact after the upgrade" is exactly
+the wrong conclusion. There is a `--strict` flag that turns the drift report
+into a non-zero exit, but nothing in `package.json` passes it and turning it on
+today would fail on all 197.
+
+The check that does catch a changed API surface is the functional one: step 5
+above, plus the Command Center actually loading.
 
 ## Version skew: the runner is a separate process
 
@@ -533,27 +560,19 @@ Written down rather than described as if they worked.
    `sudo cmp deploy/ironcrew-runner.service /etc/systemd/system/ironcrew-runner.service`
    and copy it over if it differs.
 
-4. **Nothing calls the audit shipper.** `AuditShipper` and both sinks are
-   implemented and tested, but no scheduler job constructs one, no environment
-   variable configures a sink, and no route exposes its status. The module's own
-   header says it is written for `scheduler/crew-jobs.ts`; it is not registered
-   there. Off-box audit preservation is therefore a library in this build, not a
-   feature — treat `docs/THREAT_MODEL.md`'s note that off-box shipping "would
-   close this" as still open.
-
-5. **There is no pre-start migration check in the unit.**
+4. **There is no pre-start migration check in the unit.**
    `ironcrew-migrate.mjs check` was written for exactly that
    (`ExecStartPre=`), and its exit codes are documented as a contract, but
    `deploy/ironcrew.service` does not use it. The protection against "old code,
    new database" therefore only exists if you run the command yourself, as
    step 4 and the rollback section tell you to.
 
-6. **No version is recorded in the database.** `schema_migrations` records
+5. **No version is recorded in the database.** `schema_migrations` records
    schema versions; nothing records which application version last opened the
    file. `check` infers a rollback from unknown migration versions, which works
    only when the rollback crossed a migration. A code-only rollback leaves no
    trace at all.
 
-7. **`deploy/README.md` still describes backups as "stop the service and `tar`
+6. **`deploy/README.md` still describes backups as "stop the service and `tar`
    the data directory".** That predates `scripts/ironcrew-backup.mjs` and its
    online snapshot. Follow `BACKUP.md`.

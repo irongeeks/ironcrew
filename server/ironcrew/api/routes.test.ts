@@ -2594,6 +2594,51 @@ describe("the audit chain leaving the box", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  it("reports a gap without anybody having to press a button", async () => {
+    // A gap is what a deletion looks like: rows missing below the next entry
+    // waiting to ship. It used to be computed only during a drain, so the
+    // scheduler logged it every tick while the page an operator actually
+    // opens said nothing. A signal that needs a click is a signal nobody
+    // gets.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-gap-"));
+    orchestrator.registerAuditShipper(
+      new AuditShipper({ db, sink: new FileAuditSink({ filePath: path.join(dir, "a.ndjson") }) }),
+    );
+    await request(app).post("/api/crew/goals").send({ title: "Ziel" }).expect(201);
+
+    const clean = await request(app).get("/api/crew/audit/shipping").expect(200);
+    expect(clean.body.gapDetected).toBe(false);
+
+    // Somebody removes the earliest entry.
+    const first = db.prepare("SELECT MIN(seq) AS seq FROM crew_audit_events WHERE company_id = ?").get(companyId) as {
+      seq: number;
+    };
+    db.prepare("DELETE FROM crew_audit_events WHERE company_id = ? AND seq = ?").run(companyId, first.seq);
+
+    const after = await request(app).get("/api/crew/audit/shipping").expect(200);
+    expect(after.body.gapDetected).toBe(true);
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not cry gap on an installation with nothing waiting", async () => {
+    // Everything shipped, nothing pending: with no next entry there is
+    // nothing to be missing between. Reporting a gap here would teach people
+    // to ignore the one field that must never be ignored.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-nogap-"));
+    orchestrator.registerAuditShipper(
+      new AuditShipper({ db, sink: new FileAuditSink({ filePath: path.join(dir, "a.ndjson") }) }),
+    );
+    await request(app).post("/api/crew/goals").send({ title: "Ziel" }).expect(201);
+    await request(app).post("/api/crew/audit/shipping/run").expect(200);
+
+    const res = await request(app).get("/api/crew/audit/shipping").expect(200);
+    expect(res.body.pending).toBe(0);
+    expect(res.body.gapDetected).toBe(false);
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it("never puts the collector's token in the status", async () => {
     orchestrator.registerAuditShipper(
       new AuditShipper({

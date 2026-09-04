@@ -934,6 +934,15 @@ export type AuditShippingStatus =
       cursor: number;
       /** Entries still waiting. The number that actually matters. */
       pending: number;
+      /**
+       * Rows are missing between the cursor and the next entry waiting.
+       *
+       * Optional so an older server that does not report it renders as
+       * before. Reported on the status, not only after a drain: it is the
+       * shape a deletion leaves, and a signal that needs a button press is a
+       * signal nobody gets.
+       */
+      gapDetected?: boolean;
     };
 
 export const AUDIT_SINK_LABEL: Record<string, string> = {

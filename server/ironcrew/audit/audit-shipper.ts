@@ -484,6 +484,33 @@ export class AuditShipper {
     return this.sink.kind;
   }
 
+  /**
+   * Whether rows are missing between the cursor and the next entry waiting.
+   *
+   * The same check `shipNewEntries` performs, answerable without shipping
+   * anything, and that difference matters: a gap is the single most alarming
+   * thing this module can report — it is the shape a deletion leaves — and
+   * until now it was only ever computed during a drain. The scheduler saw it
+   * every tick and logged it; the status endpoint never mentioned it, so an
+   * operator could only discover it by pressing "übertragen" on a page that
+   * gave them no reason to. A signal that needs a click is a signal nobody
+   * gets.
+   *
+   * False when nothing is waiting: with no next entry there is nothing to be
+   * missing between, and reporting a gap on an idle installation would train
+   * people to ignore the one field that must never be ignored.
+   */
+  gapAhead(companyId: string): boolean {
+    const fromSeq = this.cursor(companyId);
+    const next = oneRow<{ seq: number }>(
+      this.db.prepare("SELECT MIN(seq) AS seq FROM crew_audit_events WHERE company_id = ? AND seq > ?"),
+      companyId,
+      fromSeq,
+    );
+    if (!next || next.seq === null || next.seq === undefined) return false;
+    return Number(next.seq) !== fromSeq + 1;
+  }
+
   /** Last seq known to be off-box. 0 means "nothing has ever shipped". */
   cursor(companyId: string): number {
     const row = oneRow<{ value: string }>(
