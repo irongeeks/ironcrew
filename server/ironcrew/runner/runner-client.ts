@@ -18,19 +18,26 @@
  * `run.cancelled` first.
  *
  * The transport is injected as a plain duplex-ish pair rather than a socket,
- * so the tests drive the real code with no filesystem and no ports.
+ * so the tests drive the real code with no filesystem and no ports. The
+ * connection and its handshake live in runner-session.ts, shared with the MCP
+ * client.
  */
 
 import { newId } from "../domain/ids.ts";
 import {
-  decodeMessage,
   encodeMessage,
-  LineDecoder,
   RunnerProtocolError,
   RUNNER_PROTOCOL_VERSION,
   toWireContext,
   type ServerMessage,
 } from "./protocol.ts";
+import {
+  nextMessage,
+  openSession,
+  RunnerUnavailableError,
+  type RunnerConnection,
+  type Session,
+} from "./runner-session.ts";
 import type {
   AgentRuntime,
   AuthStatus,
@@ -41,14 +48,7 @@ import type {
   RuntimeHealth,
 } from "../runtime/run-events.ts";
 
-/** What a transport must provide. A net.Socket satisfies this; so does a fake. */
-export interface RunnerConnection {
-  write(data: string): void;
-  on(event: "data", listener: (chunk: Buffer | string) => void): void;
-  on(event: "close", listener: () => void): void;
-  on(event: "error", listener: (err: Error) => void): void;
-  destroy(): void;
-}
+export { RunnerUnavailableError, type RunnerConnection } from "./runner-session.ts";
 
 export interface RunnerRuntimeOptions {
   /** The runtime type this instance stands in for, e.g. "claude". */
@@ -64,20 +64,6 @@ export interface RunnerRuntimeOptions {
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60_000;
-
-export class RunnerUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "RunnerUnavailableError";
-  }
-}
-
-/** A connection plus its line decoder, with the handshake already done. */
-interface Session {
-  connection: RunnerConnection;
-  lines: AsyncIterableIterator<string>;
-  close(): void;
-}
 
 export class RunnerRuntime implements AgentRuntime {
   readonly id: string;
@@ -98,112 +84,17 @@ export class RunnerRuntime implements AgentRuntime {
     this.idleTimeoutMs = opts.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   }
 
-  /**
-   * Opens a connection and completes the handshake.
-   *
-   * One connection per request rather than a long-lived shared one: a runner
-   * restart then costs the next request a reconnect instead of silently
-   * breaking every future one, and there is no shared state to get out of
-   * sync between two processes that update independently.
-   */
-  private async open(): Promise<Session> {
-    let connection: RunnerConnection;
-    try {
-      connection = await this.connectFn();
-    } catch (err) {
-      throw new RunnerUnavailableError(`Runner nicht erreichbar: ${err instanceof Error ? err.message : String(err)}`);
-    }
-
-    const decoder = new LineDecoder();
-    const queue: string[] = [];
-    let resolveNext: (() => void) | null = null;
-    let closed = false;
-    let failure: Error | null = null;
-
-    const wake = () => {
-      const resolve = resolveNext;
-      resolveNext = null;
-      resolve?.();
-    };
-
-    connection.on("data", (chunk) => {
-      try {
-        queue.push(...decoder.push(chunk));
-      } catch (err) {
-        failure = err instanceof Error ? err : new Error(String(err));
-        closed = true;
-      }
-      wake();
+  private open(): Promise<Session> {
+    return openSession({
+      connect: this.connectFn,
+      token: this.token,
+      requestTimeoutMs: this.requestTimeoutMs,
+      requireRuntime: this.type,
     });
-    connection.on("close", () => {
-      closed = true;
-      wake();
-    });
-    connection.on("error", (err) => {
-      failure = err;
-      closed = true;
-      wake();
-    });
-
-    async function* lines(): AsyncIterableIterator<string> {
-      for (;;) {
-        while (queue.length > 0) yield queue.shift()!;
-        if (failure) throw failure;
-        if (closed) return;
-        await new Promise<void>((resolve) => {
-          resolveNext = resolve;
-        });
-      }
-    }
-
-    const session: Session = {
-      connection,
-      lines: lines(),
-      close: () => {
-        closed = true;
-        wake();
-        connection.destroy();
-      },
-    };
-
-    connection.write(encodeMessage({ v: RUNNER_PROTOCOL_VERSION, kind: "hello", token: this.token }));
-
-    const greeting = await this.nextMessage(session, this.requestTimeoutMs);
-    if (!greeting || greeting.kind !== "hello-ok") {
-      session.close();
-      throw new RunnerUnavailableError(
-        greeting?.kind === "error" ? `Runner lehnte die Verbindung ab: ${greeting.message}` : "Runner grüßte nicht.",
-      );
-    }
-    if (!greeting.runtimes.includes(this.type)) {
-      session.close();
-      // Better here than as a confusing failure inside a run: the runner is
-      // reachable, it simply cannot do this job.
-      throw new RunnerUnavailableError(
-        `Der Runner kennt die Laufzeit "${this.type}" nicht (verfügbar: ${greeting.runtimes.join(", ") || "keine"}).`,
-      );
-    }
-    return session;
   }
 
-  private async nextMessage(session: Session, timeoutMs: number): Promise<ServerMessage | null> {
-    let timer: NodeJS.Timeout | undefined;
-    try {
-      const line = await Promise.race([
-        session.lines.next(),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new RunnerUnavailableError("Der Runner antwortete nicht rechtzeitig.")),
-            timeoutMs,
-          );
-          timer.unref?.();
-        }),
-      ]);
-      if (line.done) return null;
-      return decodeMessage(line.value) as ServerMessage;
-    } finally {
-      clearTimeout(timer);
-    }
+  private nextMessage(session: Session, timeoutMs: number): Promise<ServerMessage | null> {
+    return nextMessage(session, timeoutMs);
   }
 
   /** One request, one reply. Used for the three cheap status probes. */

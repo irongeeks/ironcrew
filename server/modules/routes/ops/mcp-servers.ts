@@ -79,7 +79,8 @@ export function registerMcpServerRoutes(ctx: RuntimeContext): void {
             mcpManager.registerAll(ctx.connectorRegistry);
           }
         } catch {
-          // Connection failed — server is saved but not connected
+          // Saved but not connected. The reason is not dropped: the manager
+          // keeps it, so it is in the status below and survives a page reload.
         }
       }
 
@@ -133,7 +134,7 @@ export function registerMcpServerRoutes(ctx: RuntimeContext): void {
             mcpManager.registerAll(ctx.connectorRegistry);
           }
         } catch {
-          // saved but not connected
+          // Saved but not connected — the manager keeps the reason.
         }
       }
 

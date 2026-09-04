@@ -40,6 +40,7 @@ import {
   type ServerMessage,
 } from "./protocol.ts";
 import type { AgentRuntime, RunContext } from "../runtime/run-events.ts";
+import type { McpHost } from "./mcp-host.ts";
 
 const log = logger.child({ module: "ironcrew-runner" });
 
@@ -57,6 +58,11 @@ export interface RunnerServerOptions {
   token: string;
   /** Every job's workspace must live under this directory. */
   workspaceRoot: string;
+  /**
+   * Where MCP servers run. Absent means this runner does not host them, and
+   * says so instead of failing in a way that looks like a missing server.
+   */
+  mcp?: McpHost;
 }
 
 /** Constant-time token comparison — a wrong guess must not leak its length. */
@@ -71,11 +77,13 @@ export class RunnerServer {
   private readonly runtimes = new Map<string, AgentRuntime>();
   private readonly token: string;
   private readonly workspaceRoot: string;
+  private readonly mcp: McpHost | undefined;
 
   constructor(opts: RunnerServerOptions) {
     for (const runtime of opts.runtimes) this.runtimes.set(runtime.type, runtime);
     this.token = opts.token;
     this.workspaceRoot = path.resolve(opts.workspaceRoot);
+    this.mcp = opts.mcp;
   }
 
   get runtimeTypes(): string[] {
@@ -183,6 +191,44 @@ export class RunnerServer {
     });
   }
 
+  /**
+   * The MCP half of the protocol.
+   *
+   * Separate from the runtime half because these messages carry no
+   * `runtimeType`: an MCP server is not a runtime, and forcing one in to
+   * reuse the lookup would mean inventing a fake value on both sides.
+   */
+  private async dispatchMcp(
+    message: Extract<ClientMessage, { kind: "mcp-connect" | "mcp-call" | "mcp-disconnect" }>,
+    send: (m: ServerMessage) => void,
+    fail: (id: string, message: string) => void,
+  ): Promise<void> {
+    if (!this.mcp) {
+      fail(message.id, "Dieser Runner betreibt keine MCP-Server.");
+      return;
+    }
+
+    try {
+      if (message.kind === "mcp-connect") {
+        const tools = await this.mcp.connect(message.config);
+        send({ v: RUNNER_PROTOCOL_VERSION, kind: "result", id: message.id, value: { tools } });
+        return;
+      }
+      if (message.kind === "mcp-call") {
+        const result = await this.mcp.call(message.server, message.tool, message.input ?? {});
+        send({ v: RUNNER_PROTOCOL_VERSION, kind: "result", id: message.id, value: result });
+        return;
+      }
+      await this.mcp.disconnect(message.server);
+      send({ v: RUNNER_PROTOCOL_VERSION, kind: "result", id: message.id, value: null });
+    } catch (err) {
+      // The message may name a vault item and a key, which is exactly what an
+      // operator needs to fix it — and, by mcp-secrets.ts's rule, never a
+      // value.
+      fail(message.id, err instanceof Error ? err.message : String(err));
+    }
+  }
+
   private async dispatch(
     message: ClientMessage,
     send: (m: ServerMessage) => void,
@@ -193,6 +239,11 @@ export class RunnerServer {
 
     if (message.kind === "cancel") {
       running.get(message.id)?.abort();
+      return;
+    }
+
+    if (message.kind === "mcp-connect" || message.kind === "mcp-call" || message.kind === "mcp-disconnect") {
+      await this.dispatchMcp(message, send, fail);
       return;
     }
 

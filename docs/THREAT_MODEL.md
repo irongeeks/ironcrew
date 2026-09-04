@@ -490,6 +490,49 @@ run agent work. What it cannot do is _take_ the credentials. That is a real
 reduction, not an elimination, and it is the honest description: the runner
 bounds the blast radius, it does not remove the trust.
 
+### T-18 — MCP credentials in the settings table — **High**
+
+An MCP server is configured with an `env` (stdio) or `headers` (HTTP) map, and
+in practice that is where its API key goes: a GitHub token, a Jira password, a
+customer's API credential. Those configs live in the `settings` table as JSON.
+A literal value there is a plaintext credential in the database — the exact
+thing this document forbids everywhere else, arriving through a config form.
+
+It cannot be fixed by resolving the reference in the control plane. That only
+moves the plaintext from the database into the memory of the process that
+parses mail, accepts chat messages and serves an HTTP API — the process T-17
+exists to keep credential-free.
+
+**Mitigation.**
+
+1. **A value is either a literal or a reference.** `{"$secret": {"provider",
+"itemRef", "field"}}` names where the secret lives. A reference is not
+   sensitive: it may be stored, logged and shown in the UI.
+2. **The runner resolves it, and the runner runs the server.** A config
+   carrying references is started on the runner, as its own OS user, against
+   its own vault session. `mcp-connect` sends the config with its references
+   intact; the control plane receives tools and tool results
+   (`docs/RUNNER_PROTOCOL.md`).
+3. **Without a runner it is refused, by name.** The control-plane connector
+   has no resolver, so it fails before starting anything, with a message
+   naming `IRONCREW_RUNNER_SOCKET`. A config that silently started with a
+   reference object stringified into an environment variable would surface
+   hours later as an authentication error nobody could trace back.
+4. **A failed resolution names the key and the vault item, never the value.**
+   An error message is the one place a secret leaks without anyone noticing —
+   it travels into logs, into the UI, and often into a bug report.
+5. **The resolved values live as long as the connection.** A disconnected
+   connector holding one is a leak waiting for a heap dump; stopping the
+   daemon stops every MCP server it started.
+
+**Residual risk.** The MCP server itself receives the credential — that is the
+point of it — so a malicious or compromised MCP server still has what it was
+given. What changes is that neither the database nor the control plane ever
+holds it, and revoking the vault item is enough to end its access at the next
+start. Servers configured with literals are unchanged and still run inline:
+this bounds where credentials may live, it does not stop an operator from
+pasting one in.
+
 ## Non-negotiable defaults
 
 | Setting                     | Value                                                                        |
@@ -507,3 +550,4 @@ bounds the blast radius, it does not remove the trust.
 | Sandbox grant lifetime      | ≤ 4 hours, tied to an approval                                               |
 | Background execution        | only delegated work is enqueued; `inbox` tasks never are (T-16)              |
 | CLI credentials             | held by the runner's own OS user; the control plane never sees one (T-17)    |
+| MCP credentials             | references in the config; resolved by the runner at start (T-18)             |

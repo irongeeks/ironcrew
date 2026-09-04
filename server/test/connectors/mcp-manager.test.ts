@@ -264,3 +264,71 @@ describe("McpManager", () => {
     });
   });
 });
+
+describe("McpManager — where a server runs", () => {
+  const withSecret = {
+    name: "github",
+    transport: "stdio" as const,
+    command: "npx",
+    env: { GITHUB_TOKEN: { $secret: { provider: "vaultwarden" as const, itemRef: "GitHub MCP" } } },
+    enabled: true,
+    autoConnect: true,
+    timeout_ms: 30_000,
+  };
+  const plain = { ...withSecret, name: "files", env: { NODE_ENV: "production" } };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marks a server whose credentials are references as needing the runner", () => {
+    const manager = new McpManager();
+    manager.addServer(withSecret);
+    manager.addServer(plain);
+
+    expect(manager.getServerStatus("github")?.needsRunner).toBe(true);
+    expect(manager.getServerStatus("files")?.needsRunner).toBe(false);
+  });
+
+  it("builds connections through the injected factory, so a runner-backed one is possible", async () => {
+    const built: string[] = [];
+    const manager = new McpManager({
+      createConnector: (config) => {
+        built.push(config.name);
+        return {
+          name: `mcp:${config.name}`,
+          capabilities: [],
+          connect: async () => {},
+          disconnect: async () => {},
+          execute: async () => ({ status: "success" as const, artifacts: [] }),
+          testConnection: async () => ({ ok: true, message: "" }),
+          getStatus: () => ({ name: config.name, transport: config.transport, connected: true, tools: [] }),
+        };
+      },
+    });
+    manager.addServer(withSecret);
+    await manager.connectServer("github");
+
+    expect(built).toEqual(["github"]);
+    expect(manager.getServerStatus("github")?.connected).toBe(true);
+  });
+
+  it("keeps the reason a connection failed, so a reload still explains the red dot", async () => {
+    const manager = new McpManager({
+      createConnector: (config) => ({
+        name: `mcp:${config.name}`,
+        capabilities: [],
+        connect: async () => {
+          throw new Error("Start it through the IronCrew runner (IRONCREW_RUNNER_SOCKET)");
+        },
+        disconnect: async () => {},
+        execute: async () => ({ status: "success" as const, artifacts: [] }),
+        testConnection: async () => ({ ok: true, message: "" }),
+        getStatus: () => ({ name: config.name, transport: config.transport, connected: false, tools: [] }),
+      }),
+    });
+    manager.addServer(withSecret);
+
+    await expect(manager.connectServer("github")).rejects.toThrow();
+    expect(manager.getServerStatus("github")?.error).toContain("IRONCREW_RUNNER_SOCKET");
+    expect(manager.getServerStatus("github")?.connected).toBe(false);
+  });
+});

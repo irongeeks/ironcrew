@@ -110,6 +110,10 @@ export class RunnerDaemon {
     if (!listener) return;
 
     await new Promise<void>((resolve) => listener.close(() => resolve()));
+    // MCP servers outlive a single connection on purpose (mcp-host.ts), so
+    // stopping the daemon is the only thing that stops them. Left running,
+    // they would hold a credential the vault has already been told to forget.
+    await this.opts.mcp?.closeAll();
     // The socket file outlives the listener; leaving it behind would make the
     // next start think another daemon is running until it probes.
     if (fs.existsSync(this.socketPath)) {

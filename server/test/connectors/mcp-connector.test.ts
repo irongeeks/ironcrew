@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { McpConnector } from "../../connectors/built-in/mcp/mcp-connector.ts";
 import type { McpServerConfig } from "../../connectors/built-in/mcp/mcp-config.ts";
 
@@ -27,6 +30,12 @@ vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
 
 vi.mock("@modelcontextprotocol/sdk/client/sse.js", () => ({
   SSEClientTransport: vi.fn().mockImplementation(() => ({
+    close: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
+  StreamableHTTPClientTransport: vi.fn().mockImplementation(() => ({
     close: vi.fn().mockResolvedValue(undefined),
   })),
 }));
@@ -102,7 +111,59 @@ describe("McpConnector", () => {
 
     it("throws if url is missing for SSE", async () => {
       const connector = new McpConnector(makeSseConfig({ url: undefined }));
-      await expect(connector.connect()).rejects.toThrow(/SSE transport requires a url/);
+      await expect(connector.connect()).rejects.toThrow(/sse transport requires a url/);
+    });
+  });
+
+  describe("connect (streamable HTTP)", () => {
+    it("uses the streamable HTTP transport, not the SSE one", async () => {
+      const connector = new McpConnector(makeSseConfig({ transport: "http", url: "http://localhost:3001/mcp" }));
+      await connector.connect();
+
+      expect(connector.connected).toBe(true);
+      expect(StreamableHTTPClientTransport).toHaveBeenCalledTimes(1);
+      expect(SSEClientTransport).not.toHaveBeenCalled();
+      const [url] = vi.mocked(StreamableHTTPClientTransport).mock.calls[0]!;
+      expect(url.toString()).toBe("http://localhost:3001/mcp");
+    });
+
+    it("throws if url is missing for http", async () => {
+      const connector = new McpConnector(makeSseConfig({ transport: "http", url: undefined }));
+      await expect(connector.connect()).rejects.toThrow(/http transport requires a url/);
+    });
+  });
+
+  describe("credentials", () => {
+    it("refuses to start a server whose credentials are SecretRefs, and names the runner", async () => {
+      const connector = new McpConnector(
+        makeStdioConfig({ env: { TOKEN: { $secret: { provider: "vaultwarden", itemRef: "GitHub MCP" } } } }),
+      );
+      await expect(connector.connect()).rejects.toThrow(/IRONCREW_RUNNER_SOCKET/);
+      expect(StdioClientTransport).not.toHaveBeenCalled();
+    });
+
+    it("resolves SecretRefs when a vault is available, and passes only values to the transport", async () => {
+      const connector = new McpConnector(
+        makeStdioConfig({
+          env: { NODE_ENV: "production", TOKEN: { $secret: { provider: "vaultwarden", itemRef: "GitHub MCP" } } },
+        }),
+        { resolveSecret: async () => "ghp_real" },
+      );
+      await connector.connect();
+
+      const [options] = vi.mocked(StdioClientTransport).mock.calls[0]!;
+      expect(options.env).toEqual({ NODE_ENV: "production", TOKEN: "ghp_real" });
+      expect(connector.resolvedSecretValues).toEqual(["ghp_real"]);
+    });
+
+    it("drops the resolved values on disconnect", async () => {
+      const connector = new McpConnector(
+        makeStdioConfig({ env: { TOKEN: { $secret: { provider: "vaultwarden", itemRef: "GitHub MCP" } } } }),
+        { resolveSecret: async () => "ghp_real" },
+      );
+      await connector.connect();
+      await connector.disconnect();
+      expect(connector.resolvedSecretValues).toEqual([]);
     });
   });
 

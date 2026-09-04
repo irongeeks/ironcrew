@@ -207,6 +207,73 @@ describe("McpServerConfigSchema", () => {
       }
     });
   });
+
+  describe("streamable HTTP transport", () => {
+    it("accepts http with a url", () => {
+      const result = McpServerConfigSchema.safeParse({
+        name: "gateway",
+        transport: "http",
+        url: "http://localhost:3001/mcp",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("fails http without a url — the same rule as sse", () => {
+      const result = McpServerConfigSchema.safeParse({ name: "gateway", transport: "http" });
+      expect(result.success).toBe(false);
+    });
+
+    it("blocks the cloud metadata endpoint over http, not only over sse", () => {
+      const result = McpServerConfigSchema.safeParse({
+        name: "meta",
+        transport: "http",
+        url: "http://169.254.169.254/latest/meta-data/",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("credentials as references", () => {
+    it("accepts a SecretRef as an env value", () => {
+      const result = McpServerConfigSchema.safeParse({
+        name: "github",
+        transport: "stdio",
+        command: "npx",
+        env: { GITHUB_TOKEN: { $secret: { provider: "vaultwarden", itemRef: "GitHub MCP", field: "password" } } },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts a SecretRef as a header value", () => {
+      const result = McpServerConfigSchema.safeParse({
+        name: "gateway",
+        transport: "http",
+        url: "http://localhost:3001/mcp",
+        headers: { Authorization: { $secret: { provider: "protonpass", itemRef: "share:item" } } },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects an unknown provider rather than storing it as an opaque object", () => {
+      const result = McpServerConfigSchema.safeParse({
+        name: "github",
+        transport: "stdio",
+        command: "npx",
+        env: { GITHUB_TOKEN: { $secret: { provider: "sticky-note", itemRef: "GitHub MCP" } } },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("still accepts a literal, because not every env value is a credential", () => {
+      const result = McpServerConfigSchema.safeParse({
+        name: "github",
+        transport: "stdio",
+        command: "npx",
+        env: { NODE_ENV: "production" },
+      });
+      expect(result.success).toBe(true);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

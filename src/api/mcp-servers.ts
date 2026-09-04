@@ -5,24 +5,49 @@ export interface McpServerTool {
   description?: string;
 }
 
+export type McpTransport = "stdio" | "sse" | "http";
+
+/**
+ * A credential named rather than spelled out.
+ *
+ * Mirrors server/connectors/built-in/mcp/mcp-secrets.ts: a value here is
+ * either a literal (fine for NODE_ENV) or a pointer into a vault. A server
+ * configured with pointers is started by the runner, which is the only
+ * process with a vault session — hence `needsRunner` on the status.
+ */
+export interface McpSecretRefValue {
+  $secret: {
+    provider: "vaultwarden" | "protonpass" | "keychain";
+    itemRef: string;
+    field?: string;
+  };
+}
+
+export type McpConfigValue = string | McpSecretRefValue;
+
+export function isMcpSecretRef(value: McpConfigValue | undefined): value is McpSecretRefValue {
+  return typeof value === "object" && value !== null && "$secret" in value;
+}
+
 export interface McpServerStatus {
   name: string;
   label?: string;
-  transport: "stdio" | "sse";
+  transport: McpTransport;
   connected: boolean;
   tools: McpServerTool[];
   error?: string;
+  needsRunner?: boolean;
 }
 
 export interface McpServerConfig {
   name: string;
   label?: string;
-  transport: "stdio" | "sse";
+  transport: McpTransport;
   command?: string;
   args?: string[];
-  env?: Record<string, string>;
+  env?: Record<string, McpConfigValue>;
   url?: string;
-  headers?: Record<string, string>;
+  headers?: Record<string, McpConfigValue>;
   enabled: boolean;
   autoConnect: boolean;
   timeout_ms: number;

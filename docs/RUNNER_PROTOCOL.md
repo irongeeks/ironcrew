@@ -28,11 +28,11 @@ never receives an OAuth token
 
 ## Transports
 
-| Mode            | Status      | Use                                                     |
-| --------------- | ----------- | ------------------------------------------------------- |
-| `embedded`      | implemented | local development; runtime in the control plane process |
-| `native-daemon` | implemented | Linux/macOS; a dedicated OS user owns the CLI logins    |
-| `remote-daemon` | design      | VPS, server tank, isolated customer networks            |
+| Mode            | Status      | Use                                                                          |
+| --------------- | ----------- | ---------------------------------------------------------------------------- |
+| `embedded`      | implemented | local development; runtime in the control plane process                      |
+| `native-daemon` | implemented | Linux/macOS; a dedicated OS user owns the CLI logins and the MCP credentials |
+| `remote-daemon` | design      | VPS, server tank, isolated customer networks                                 |
 
 ### Switching between them
 
@@ -72,6 +72,44 @@ primary control, and is compared in constant time.
   reads as "this runner cannot do that" rather than as a mysterious failure
   inside a run.
 - **A wrong token**, without revealing its length.
+
+### MCP servers on the runner
+
+An MCP server is usually a process with an API key in its environment. That
+key must not live in the control plane's database — so the server runs on the
+runner too, and the protocol carries three more messages for it:
+
+| Message          | Direction | Purpose                                             |
+| ---------------- | --------- | --------------------------------------------------- |
+| `mcp-connect`    | → runner  | start (or restart) a server; answers with its tools |
+| `mcp-call`       | → runner  | run one tool; answers with the connector result     |
+| `mcp-disconnect` | → runner  | stop it                                             |
+
+`mcp-connect` sends the **stored config, references intact**. A config value
+may be either a literal or a pointer into a vault:
+
+```json
+{ "$secret": { "provider": "vaultwarden", "itemRef": "GitHub MCP", "field": "password" } }
+```
+
+A pointer is not a credential, so it may be stored, logged and shown in the
+UI. The runner resolves it as its own OS user, against its own vault session,
+immediately before starting the server. The value is never sent back: the
+control plane sees tools and tool results, and nothing else.
+
+Which side runs a given server is decided by the config, not by a setting: a
+server whose values are all literals runs inline as before; one that
+references the vault runs on the runner, and says so (`needsRunner` in its
+status) rather than failing later as an authentication error. Without a
+runner configured, starting such a server is refused with a message that
+names `IRONCREW_RUNNER_SOCKET` — an operator should not have to guess that
+the missing piece is a daemon.
+
+The servers are **daemon-scoped, not connection-scoped**. The control plane
+opens one connection per request, so a server tied to a connection would be
+spawned and killed for every tool call. They stop on `mcp-disconnect` or when
+the daemon stops — which is also what keeps a credential from outliving the
+vault entry it came from.
 
 ### What always happens
 

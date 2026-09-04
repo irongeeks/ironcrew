@@ -1,8 +1,8 @@
 /**
- * Both halves of the runner, wired to each other through a fake socket pair.
+ * Both halves of the runner, wired to each other through a fake socket pair
+ * (__fixtures__/socket-pair.ts).
  *
- * No filesystem, no ports — the transport is the only thing faked, so
- * everything under test is the code that will run in production. The
+ * The
  * properties that matter are the unhappy ones: a run must always end, a
  * dropped connection must cancel what it started, and a job must never touch
  * a workspace outside the runner's root.
@@ -12,8 +12,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { RunnerServer, type RunnerSocket } from "./runner-server.ts";
-import { RunnerRuntime, RunnerUnavailableError, type RunnerConnection } from "./runner-client.ts";
+import { RunnerServer } from "./runner-server.ts";
+import { socketPair } from "./__fixtures__/socket-pair.ts";
+import { RunnerRuntime, RunnerUnavailableError } from "./runner-client.ts";
 import { StubRuntime, stubEvent } from "../runtime/__fixtures__/stub-runtime.ts";
 import type { RunContext, RunEvent, RunInput } from "../runtime/run-events.ts";
 
@@ -25,47 +26,6 @@ beforeEach(() => {
 });
 
 afterEach(() => fs.rmSync(workspaceRoot, { recursive: true, force: true }));
-
-/**
- * A pair of ends that write into each other, standing in for a socket.
- * Delivery is deferred by a microtask, so ordering matches a real stream.
- */
-function socketPair(): { client: RunnerConnection; server: RunnerSocket; dropClient(): void } {
-  type Listener = (arg: never) => void;
-  const listeners = { client: new Map<string, Listener[]>(), server: new Map<string, Listener[]>() };
-  let open = true;
-
-  const emit = (side: "client" | "server", event: string, arg?: unknown) => {
-    for (const listener of listeners[side].get(event) ?? []) (listener as (a: unknown) => void)(arg);
-  };
-  const on = (side: "client" | "server") => (event: string, listener: Listener) => {
-    const bucket = listeners[side].get(event) ?? [];
-    bucket.push(listener);
-    listeners[side].set(event, bucket);
-  };
-  const close = () => {
-    if (!open) return;
-    open = false;
-    queueMicrotask(() => {
-      emit("client", "close");
-      emit("server", "close");
-    });
-  };
-
-  return {
-    client: {
-      write: (data) => open && queueMicrotask(() => emit("server", "data", data)),
-      on: on("client") as RunnerConnection["on"],
-      destroy: close,
-    },
-    server: {
-      write: (data) => open && queueMicrotask(() => emit("client", "data", data)),
-      on: on("server") as RunnerSocket["on"],
-      destroy: close,
-    },
-    dropClient: close,
-  };
-}
 
 class ScriptedRuntime extends StubRuntime {
   constructor(

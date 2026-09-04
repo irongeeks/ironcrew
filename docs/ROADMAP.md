@@ -102,20 +102,23 @@ Requested mid-stream and built with the same standard (domain → orchestrator
 - **OpenRouter runtime** — shipped. The first runtime that is not a CLI; the
   vendor policy is enforced inside it, because one key reaches hundreds of
   models from dozens of vendors.
+- **Native runner daemon** — shipped (`docs/RUNNER_PROTOCOL.md`). CLI logins
+  live with the runner's own OS user; the control plane never holds one.
+- **MCP secret injection in the runner** — shipped. An MCP server's `env` and
+  `headers` may name a vault item instead of carrying a value, and the runner
+  resolves it at start (T-18). Doing it in the control plane would only have
+  moved the plaintext from the database into the process that must not hold
+  it.
+- **MCP streamable-HTTP transport** — shipped alongside it, since it is the
+  same config path and the same header credentials. `sse` still works;
+  servers deployed against the older transport should not need a redeploy to
+  upgrade IronCrew.
 
 Still open, and each needs its own decision rather than a checkbox:
 
-- **Native runner daemon** (`docs/RUNNER_PROTOCOL.md`) — the largest remaining
-  piece and the one everything else waits on. Today CLI runtimes run inside
-  the service process, which is why `deploy/ironcrew.service` has to move
-  `HOME` to `/var/lib/ironcrew` for CLI credentials to work at all. A runner
-  would let each CLI login stay with its own OS user, and would be the right
-  place for the two MCP items below.
-- **MCP secret injection in the runner, and streamable-HTTP transport** — both
-  belong to the runner daemon; doing them in the control plane would put
-  secrets exactly where the threat model says they must not be.
 - **Antigravity (`agy`)** — a CLI adapter, blocked on nothing but the adapter
-  itself.
+  itself. Not written blind: the adapter contract is small, but an adapter
+  verified against no binary is a guess with tests around it.
 
 ## Phase 4 — Business packs
 

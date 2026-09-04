@@ -29,6 +29,8 @@
  */
 
 import type { RunEvent, RunInput, RuntimeCapabilities, RuntimeHealth, AuthStatus } from "../runtime/run-events.ts";
+import type { McpServerConfig } from "../../connectors/built-in/mcp/mcp-config.ts";
+import type { ConnectorCapability, ConnectorExecuteResult } from "../../connectors/connector-interface.ts";
 
 export const RUNNER_PROTOCOL_VERSION = 1;
 
@@ -55,17 +57,39 @@ export interface WireRunContext {
   redactValues?: readonly string[];
 }
 
+/**
+ * What the control plane learns about an MCP server it started on the runner.
+ *
+ * Tools, and nothing else. Not the environment it was started with, not the
+ * headers it sends — those hold the credentials, and the whole point of
+ * running the server over there is that they stay over there.
+ */
+export interface McpConnectResult {
+  tools: ConnectorCapability[];
+}
+
 export type ClientMessage =
   | { v: number; kind: "hello"; token: string }
   | { v: number; kind: "capabilities"; id: string; runtimeType: string }
   | { v: number; kind: "health"; id: string; runtimeType: string }
   | { v: number; kind: "auth"; id: string; runtimeType: string }
   | { v: number; kind: "start"; id: string; runtimeType: string; input: RunInput; context: WireRunContext }
-  | { v: number; kind: "cancel"; id: string; runId: string };
+  | { v: number; kind: "cancel"; id: string; runId: string }
+  // MCP servers whose credentials are SecretRefs run on the runner, because
+  // that is where a vault session exists (mcp-secrets.ts). The config crosses
+  // the wire with its references intact — a reference is not a secret.
+  | { v: number; kind: "mcp-connect"; id: string; config: McpServerConfig }
+  | { v: number; kind: "mcp-call"; id: string; server: string; tool: string; input: Record<string, unknown> }
+  | { v: number; kind: "mcp-disconnect"; id: string; server: string };
 
 export type ServerMessage =
   | { v: number; kind: "hello-ok"; runtimes: string[] }
-  | { v: number; kind: "result"; id: string; value: RuntimeCapabilities | RuntimeHealth | AuthStatus | null }
+  | {
+      v: number;
+      kind: "result";
+      id: string;
+      value: RuntimeCapabilities | RuntimeHealth | AuthStatus | McpConnectResult | ConnectorExecuteResult | null;
+    }
   | { v: number; kind: "event"; id: string; event: RunEvent }
   | { v: number; kind: "end"; id: string }
   | { v: number; kind: "error"; id: string; message: string };

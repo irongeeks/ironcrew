@@ -11,6 +11,8 @@ import { ConnectorRegistry } from "./connectors/registry.ts";
 import { comfyuiConnector } from "./connectors/built-in/comfyui/connector.ts";
 import { webSearchConnector } from "./connectors/built-in/web-search/connector.ts";
 import { McpManager } from "./connectors/built-in/mcp/mcp-manager.ts";
+import { McpConnector } from "./connectors/built-in/mcp/mcp-connector.ts";
+import { configHasSecretRefs } from "./connectors/built-in/mcp/mcp-secrets.ts";
 import { loadNodeTypes } from "./node-types/node-type-loader.ts";
 
 import { DIST_DIR, IS_PRODUCTION } from "./config/runtime.ts";
@@ -42,6 +44,7 @@ import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
 import net from "node:net";
 import { OpenRouterRuntime } from "./ironcrew/runtime/openrouter-runtime.ts";
 import { RunnerRuntime } from "./ironcrew/runner/runner-client.ts";
+import { RunnerMcpConnector } from "./ironcrew/runner/runner-mcp-client.ts";
 import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
 import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
@@ -209,8 +212,41 @@ connectorRegistry.registerConnector(webSearchConnector);
   }
 }
 
+// ── The runner, if one is configured ──
+//
+// Computed here rather than at the CLI-runtime block below, because the MCP
+// manager needs it first. One place decides whether a runner exists; both
+// users read it.
+const runnerTransport = process.env.IRONCREW_RUNNER_SOCKET
+  ? {
+      socketPath: process.env.IRONCREW_RUNNER_SOCKET,
+      token: process.env.IRONCREW_RUNNER_TOKEN ?? "",
+      connect: (): Promise<net.Socket> =>
+        new Promise<net.Socket>((resolve, reject) => {
+          const socket = net.connect(process.env.IRONCREW_RUNNER_SOCKET!);
+          socket.setEncoding("utf-8");
+          socket.once("connect", () => resolve(socket));
+          socket.once("error", reject);
+        }),
+    }
+  : null;
+
 // ── MCP server connections ──
-const mcpManager = new McpManager();
+//
+// A server whose credentials are SecretRefs is started on the runner, not
+// here: resolving a vault item in this process would move the plaintext out
+// of the database and straight into the memory of the one process that is
+// meant to hold no credentials at all (mcp-secrets.ts, T-17). Everything else
+// still runs inline, so a plain filesystem MCP server needs no runner.
+//
+// Both kinds arrive at the connector registry as the same `Connector`, under
+// the same `mcp:<name>`, so tool grants keep working either way.
+const mcpManager = new McpManager({
+  createConnector: (config) => {
+    if (!runnerTransport || !configHasSecretRefs(config)) return new McpConnector(config);
+    return new RunnerMcpConnector({ config, token: runnerTransport.token, connect: runnerTransport.connect });
+  },
+});
 mcpManager.loadFromSettings(db);
 await mcpManager.connectAll();
 mcpManager.registerAll(connectorRegistry);
@@ -342,24 +378,18 @@ if (process.env.OPENROUTER_API_KEY) {
 //
 // Either way the orchestrator sees the same AgentRuntime contract and cannot
 // tell the difference — that is what makes the security property free.
-if (process.env.IRONCREW_RUNNER_SOCKET) {
-  const socketPath = process.env.IRONCREW_RUNNER_SOCKET;
-  const runnerToken = process.env.IRONCREW_RUNNER_TOKEN ?? "";
-  const connect = () =>
-    new Promise<net.Socket>((resolve, reject) => {
-      const socket = net.connect(socketPath);
-      socket.setEncoding("utf-8");
-      socket.once("connect", () => resolve(socket));
-      socket.once("error", reject);
-    });
-
+if (runnerTransport) {
   for (const adapter of adapterRegistry.list()) {
     if (!isCliAdapter(adapter)) continue;
     ironCrewOrchestrator.registerRuntime(
-      new RunnerRuntime({ runtimeType: adapter.providerType, token: runnerToken, connect }),
+      new RunnerRuntime({
+        runtimeType: adapter.providerType,
+        token: runnerTransport.token,
+        connect: runnerTransport.connect,
+      }),
     );
   }
-  logger.info({ socketPath }, "CLI runtimes are served by the runner daemon");
+  logger.info({ socketPath: runnerTransport.socketPath }, "CLI runtimes are served by the runner daemon");
 } else {
   for (const adapter of adapterRegistry.list()) {
     if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));

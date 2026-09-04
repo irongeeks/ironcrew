@@ -1,11 +1,23 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Connector, ConnectorCapability, ConnectorExecuteResult } from "../../connector-interface.ts";
 import type { McpServerConfig } from "./mcp-config.ts";
+import { configHasSecretRefs, materializeMcpConfig, type ResolvedValueMap } from "./mcp-secrets.ts";
+import type { SecretRef } from "../../../ironcrew/secrets/secret-ref.ts";
 import { logger } from "../../../observability/logger.ts";
 
 const log = logger.child({ module: "connectors" });
+
+export interface McpConnectorOptions {
+  /**
+   * Fetches one secret from a vault. Absent in the control plane on purpose:
+   * a config whose credentials are SecretRefs can then only be started where
+   * a resolver exists, which is the runner (see mcp-secrets.ts).
+   */
+  resolveSecret?: (ref: SecretRef) => Promise<string>;
+}
 
 /**
  * A Connector implementation that wraps a single MCP server connection.
@@ -16,14 +28,22 @@ export class McpConnector implements Connector {
   capabilities: ConnectorCapability[] = [];
 
   private client: Client | null = null;
-  private transport: StdioClientTransport | SSEClientTransport | null = null;
+  private transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport | null = null;
   private config: McpServerConfig;
+  private readonly resolveSecret?: (ref: SecretRef) => Promise<string>;
   private _connected = false;
   private _error: string | undefined;
+  /** The values fetched for the current connection, for redaction by the caller. */
+  private secretValues: string[] = [];
 
-  constructor(config: McpServerConfig) {
+  constructor(config: McpServerConfig, options: McpConnectorOptions = {}) {
     this.config = config;
+    this.resolveSecret = options.resolveSecret;
     this.name = `mcp:${config.name}`;
+  }
+
+  get resolvedSecretValues(): readonly string[] {
+    return this.secretValues;
   }
 
   get connected(): boolean {
@@ -41,13 +61,15 @@ export class McpConnector implements Connector {
     this._error = undefined;
 
     try {
+      const { env, headers } = await this.materialize();
       this.client = new Client({ name: "octooffice", version: "2.7.0" });
 
       if (this.config.transport === "stdio") {
         if (!this.config.command) {
           throw new Error(`MCP server "${this.config.name}": stdio transport requires a command`);
         }
-        // Security audit: always log stdio spawns for visibility
+        // Security audit: always log stdio spawns for visibility. The env is
+        // deliberately absent from this line — it is where the credentials are.
         log.warn(
           { server: this.config.name, command: this.config.command, args: this.config.args ?? [] },
           "spawning stdio MCP server",
@@ -55,16 +77,18 @@ export class McpConnector implements Connector {
         this.transport = new StdioClientTransport({
           command: this.config.command,
           args: this.config.args,
-          env: this.config.env as Record<string, string> | undefined,
+          env,
         });
       } else {
         if (!this.config.url) {
-          throw new Error(`MCP server "${this.config.name}": SSE transport requires a url`);
+          throw new Error(`MCP server "${this.config.name}": ${this.config.transport} transport requires a url`);
         }
-        const sseUrl = new URL(this.config.url);
-        this.transport = new SSEClientTransport(sseUrl, {
-          requestInit: this.config.headers ? { headers: this.config.headers as Record<string, string> } : undefined,
-        });
+        const url = new URL(this.config.url);
+        const requestInit = headers ? { headers } : undefined;
+        this.transport =
+          this.config.transport === "http"
+            ? new StreamableHTTPClientTransport(url, { requestInit })
+            : new SSEClientTransport(url, { requestInit });
       }
 
       await this.client.connect(this.transport);
@@ -77,6 +101,33 @@ export class McpConnector implements Connector {
       this._error = err instanceof Error ? err.message : String(err);
       throw err;
     }
+  }
+
+  /**
+   * Turns the stored config's SecretRefs into the values a transport needs.
+   *
+   * Without a resolver this refuses rather than starting the server with a
+   * reference object stringified into an environment variable — which would
+   * fail later as an authentication error nobody could trace back to here.
+   */
+  private async materialize(): Promise<{ env?: ResolvedValueMap; headers?: ResolvedValueMap }> {
+    this.secretValues = [];
+    if (!this.resolveSecret) {
+      if (configHasSecretRefs(this.config)) {
+        throw new Error(
+          `MCP server "${this.config.name}" stores its credentials as SecretRefs, and this process has no vault ` +
+            "access. Start it through the IronCrew runner (IRONCREW_RUNNER_SOCKET), which resolves them as its own user.",
+        );
+      }
+      return {
+        env: this.config.env as ResolvedValueMap | undefined,
+        headers: this.config.headers as ResolvedValueMap | undefined,
+      };
+    }
+
+    const { config, secretValues } = await materializeMcpConfig(this.config, this.resolveSecret);
+    this.secretValues = secretValues;
+    return { env: config.env, headers: config.headers };
   }
 
   /**
@@ -225,6 +276,10 @@ export class McpConnector implements Connector {
     this.transport = null;
     this._connected = false;
     this.capabilities = [];
+    // Resolved credentials live exactly as long as the connection that needed
+    // them; a disconnected connector holding one is a leak waiting for a heap
+    // dump.
+    this.secretValues = [];
   }
 
   /**
@@ -233,7 +288,7 @@ export class McpConnector implements Connector {
   getStatus(): {
     name: string;
     label?: string;
-    transport: "stdio" | "sse";
+    transport: "stdio" | "sse" | "http";
     connected: boolean;
     tools: Array<{ name: string; description?: string }>;
     error?: string;

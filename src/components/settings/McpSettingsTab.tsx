@@ -9,6 +9,7 @@ import {
   disconnectMcpServer,
   type McpServerStatus,
   type McpServerConfig,
+  type McpConfigValue,
 } from "../../api/mcp-servers";
 
 interface McpSettingsTabProps {
@@ -27,6 +28,52 @@ const EMPTY_CONFIG: McpServerConfig = {
   timeout_ms: 30_000,
 };
 
+/**
+ * One credential row in the form.
+ *
+ * `mode` decides what is stored: a literal string, or a pointer into a vault
+ * (see server/connectors/built-in/mcp/mcp-secrets.ts). A server configured
+ * with pointers can only be started by the runner — that is not a limitation
+ * to hide, it is the reason the option exists, so the form says so.
+ */
+interface CredentialRow {
+  key: string;
+  mode: "literal" | "secret";
+  value: string;
+  provider: "vaultwarden" | "protonpass" | "keychain";
+  itemRef: string;
+  field: string;
+}
+
+const EMPTY_CREDENTIAL: CredentialRow = {
+  key: "",
+  mode: "secret",
+  value: "",
+  provider: "vaultwarden",
+  itemRef: "",
+  field: "",
+};
+
+/** Rows → the map the API expects. Rows without a key are simply not there. */
+export function credentialsToMap(rows: CredentialRow[]): Record<string, McpConfigValue> | undefined {
+  const map: Record<string, McpConfigValue> = {};
+  for (const row of rows) {
+    const key = row.key.trim();
+    if (!key) continue;
+    map[key] =
+      row.mode === "literal"
+        ? row.value
+        : {
+            $secret: {
+              provider: row.provider,
+              itemRef: row.itemRef.trim(),
+              ...(row.field.trim() ? { field: row.field.trim() } : {}),
+            },
+          };
+  }
+  return Object.keys(map).length > 0 ? map : undefined;
+}
+
 export default function McpSettingsTab({ t }: McpSettingsTabProps) {
   const [servers, setServers] = useState<McpServerStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +84,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
   const [expandedServer, setExpandedServer] = useState<string | null>(null);
   const [argsText, setArgsText] = useState("");
+  const [credentials, setCredentials] = useState<CredentialRow[]>([]);
   const [addError, setAddError] = useState<string | null>(null);
 
   const loadServers = useCallback(async () => {
@@ -59,17 +107,23 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
     setSaving(true);
     setAddError(null);
     try {
-      const config = {
+      const map = credentialsToMap(credentials);
+      const config: McpServerConfig = {
         ...draft,
         args: argsText
           .split("\n")
           .map((s) => s.trim())
           .filter(Boolean),
+        // stdio servers take an environment, HTTP ones take headers — the
+        // same rows, put where that transport reads them.
+        ...(draft.transport === "stdio" ? { env: map } : { headers: map }),
       };
-      await addMcpServer(config);
+      const res = await addMcpServer(config);
+      if (res.ok === false) throw new Error(res.error ?? "Speichern fehlgeschlagen");
       setAddMode(false);
       setDraft({ ...EMPTY_CONFIG });
       setArgsText("");
+      setCredentials([]);
       await loadServers();
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err));
@@ -233,10 +287,11 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
                 color: "var(--th-text-primary)",
               }}
               value={draft.transport}
-              onChange={(e) => setDraft((d) => ({ ...d, transport: e.target.value as "stdio" | "sse" }))}
+              onChange={(e) => setDraft((d) => ({ ...d, transport: e.target.value as McpServerConfig["transport"] }))}
             >
               <option value="stdio">stdio</option>
-              <option value="sse">SSE / HTTP</option>
+              <option value="http">HTTP (streamable)</option>
+              <option value="sse">SSE (älter)</option>
             </select>
           </div>
 
@@ -301,6 +356,146 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
             </div>
           )}
 
+          {/* Credentials — literal, or a pointer into a vault */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium" style={{ color: "var(--th-text-secondary)" }}>
+                {draft.transport === "stdio"
+                  ? t({
+                      ko: "환경 변수",
+                      en: "Environment variables",
+                      ja: "環境変数",
+                      zh: "Environment variables",
+                      de: "Umgebungsvariablen",
+                    })
+                  : t({ ko: "헤더", en: "Headers", ja: "ヘッダー", zh: "Headers", de: "Header" })}
+              </label>
+              <button
+                onClick={() => setCredentials((rows) => [...rows, { ...EMPTY_CREDENTIAL }])}
+                className="rounded px-2 py-0.5 text-xs transition-colors hover:opacity-80"
+                style={{ color: "var(--th-text-secondary)" }}
+              >
+                +
+              </button>
+            </div>
+
+            {credentials.map((row, index) => {
+              const update = (patch: Partial<CredentialRow>) =>
+                setCredentials((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+              return (
+                <div key={index} className="flex flex-wrap items-center gap-1.5">
+                  <input
+                    className="rounded border px-2 py-1 text-xs font-mono"
+                    style={{
+                      borderColor: "var(--th-border)",
+                      background: "var(--th-bg-primary)",
+                      color: "var(--th-text-primary)",
+                      width: "10rem",
+                    }}
+                    placeholder={draft.transport === "stdio" ? "GITHUB_TOKEN" : "Authorization"}
+                    value={row.key}
+                    onChange={(e) => update({ key: e.target.value })}
+                  />
+                  <select
+                    className="rounded border px-2 py-1 text-xs"
+                    style={{
+                      borderColor: "var(--th-border)",
+                      background: "var(--th-bg-primary)",
+                      color: "var(--th-text-primary)",
+                    }}
+                    value={row.mode}
+                    onChange={(e) => update({ mode: e.target.value as CredentialRow["mode"] })}
+                  >
+                    <option value="secret">
+                      {t({ ko: "금고", en: "Vault", ja: "金庫", zh: "Vault", de: "Tresor" })}
+                    </option>
+                    <option value="literal">{t({ ko: "값", en: "Value", ja: "値", zh: "Value", de: "Wert" })}</option>
+                  </select>
+
+                  {row.mode === "literal" ? (
+                    <input
+                      className="flex-1 rounded border px-2 py-1 text-xs font-mono"
+                      style={{
+                        borderColor: "var(--th-border)",
+                        background: "var(--th-bg-primary)",
+                        color: "var(--th-text-primary)",
+                      }}
+                      placeholder="production"
+                      value={row.value}
+                      onChange={(e) => update({ value: e.target.value })}
+                    />
+                  ) : (
+                    <>
+                      <select
+                        className="rounded border px-2 py-1 text-xs"
+                        style={{
+                          borderColor: "var(--th-border)",
+                          background: "var(--th-bg-primary)",
+                          color: "var(--th-text-primary)",
+                        }}
+                        value={row.provider}
+                        onChange={(e) => update({ provider: e.target.value as CredentialRow["provider"] })}
+                      >
+                        <option value="vaultwarden">Vaultwarden</option>
+                        <option value="protonpass">Proton Pass</option>
+                        <option value="keychain">Keychain</option>
+                      </select>
+                      <input
+                        className="flex-1 rounded border px-2 py-1 text-xs font-mono"
+                        style={{
+                          borderColor: "var(--th-border)",
+                          background: "var(--th-bg-primary)",
+                          color: "var(--th-text-primary)",
+                          minWidth: "8rem",
+                        }}
+                        placeholder={t({
+                          ko: "항목",
+                          en: "Item",
+                          ja: "アイテム",
+                          zh: "Item",
+                          de: "Eintrag im Tresor",
+                        })}
+                        value={row.itemRef}
+                        onChange={(e) => update({ itemRef: e.target.value })}
+                      />
+                      <input
+                        className="rounded border px-2 py-1 text-xs font-mono"
+                        style={{
+                          borderColor: "var(--th-border)",
+                          background: "var(--th-bg-primary)",
+                          color: "var(--th-text-primary)",
+                          width: "7rem",
+                        }}
+                        placeholder="password"
+                        value={row.field}
+                        onChange={(e) => update({ field: e.target.value })}
+                      />
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => setCredentials((rows) => rows.filter((_, i) => i !== index))}
+                    className="rounded px-1.5 py-1 text-xs text-red-400 transition-colors hover:opacity-80"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+
+            {credentials.some((row) => row.mode === "secret") && (
+              <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
+                {t({
+                  ko: "금고 참조를 사용하는 서버는 러너에서 시작됩니다.",
+                  en: "A server that references the vault is started by the runner — the control plane never sees the value.",
+                  ja: "金庫を参照するサーバーはランナーで起動します。",
+                  zh: "A server that references the vault is started by the runner.",
+                  de: "Ein Server mit Tresor-Verweis wird vom Runner gestartet — die Steuerebene sieht den Wert nie.",
+                })}
+              </p>
+            )}
+          </div>
+
           {addError && (
             <div className="rounded px-2 py-1 text-xs" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
               {addError}
@@ -360,6 +555,21 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
               <span className="text-xs font-mono" style={{ color: "var(--th-text-secondary)" }}>
                 {server.transport}
               </span>
+              {server.needsRunner && (
+                <span
+                  className="rounded px-1.5 py-0.5 text-xs"
+                  style={{ background: "rgba(59,130,246,0.12)", color: "var(--th-accent, #3b82f6)" }}
+                  title={t({
+                    ko: "이 서버는 러너에서 실행됩니다",
+                    en: "Credentials come from the vault, so this server runs on the runner",
+                    ja: "このサーバーはランナーで動作します",
+                    zh: "This server runs on the runner",
+                    de: "Zugangsdaten kommen aus dem Tresor — dieser Server läuft auf dem Runner",
+                  })}
+                >
+                  Runner
+                </span>
+              )}
               {server.tools.length > 0 && (
                 <span className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
                   ({server.tools.length} tools)
