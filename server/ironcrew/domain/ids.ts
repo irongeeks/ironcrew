@@ -38,6 +38,8 @@ export type IdPrefix =
   | "vsl"
   | "tal"
   | "xevt"
+  | "chg"
+  | "chgf"
   | "turn"
   | "action"
   | "corr";

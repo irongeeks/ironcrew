@@ -15,6 +15,7 @@ import { migration as crewMarketplaces } from "../../modules/bootstrap/migration
 import { migration as crewVesselsTalents } from "../../modules/bootstrap/migrations/0011-crew-vessels-talents.ts";
 import { migration as crewAgentRunLock } from "../../modules/bootstrap/migrations/0012-crew-agent-run-lock.ts";
 import { migration as crewExternalEvents } from "../../modules/bootstrap/migrations/0013-crew-external-events.ts";
+import { migration as crewChangeProposals } from "../../modules/bootstrap/migrations/0014-crew-change-proposals.ts";
 import { newId } from "./ids.ts";
 
 export function createTestDb(): DatabaseSync {
@@ -32,6 +33,7 @@ export function createTestDb(): DatabaseSync {
   crewVesselsTalents.up(db);
   crewAgentRunLock.up(db);
   crewExternalEvents.up(db);
+  crewChangeProposals.up(db);
   return db;
 }
 

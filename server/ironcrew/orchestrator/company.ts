@@ -61,6 +61,13 @@ import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-re
 import { AgentLockStore } from "../domain/agent-lock-store.ts";
 import { ExternalEventStore } from "../domain/external-event-store.ts";
 import {
+  ChangeProposalStore,
+  ChangeProposalError,
+  type ApplyResult,
+  type ChangeProposalRow,
+  type ProposedFile,
+} from "../domain/change-proposal-store.ts";
+import {
   MarketplaceStore,
   MarketplaceMutationError,
   type MarketplaceInstallRow,
@@ -124,6 +131,7 @@ export class CompanyOrchestrator {
   readonly marketplaces: MarketplaceStore;
   readonly agentLocks: AgentLockStore;
   readonly externalEvents: ExternalEventStore;
+  readonly changeProposals: ChangeProposalStore;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -163,6 +171,7 @@ export class CompanyOrchestrator {
     this.marketplaces = new MarketplaceStore(db);
     this.agentLocks = new AgentLockStore(db);
     this.externalEvents = new ExternalEventStore(db);
+    this.changeProposals = new ChangeProposalStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -912,6 +921,124 @@ export class CompanyOrchestrator {
     const removed = entryType === "mcp" ? await this.installer.uninstallMcp(name) : this.installer.uninstallSkill(name);
     const hadRecord = this.marketplaces.removeInstall(companyId, entryType, name, actor);
     return removed || hadRecord;
+  }
+
+  // --- change proposals: file edits an owner sees before they happen -------
+  //
+  // A proposal and its approval are created together and decided together.
+  // They are two halves of one thing: a proposal without an approval is a
+  // change nobody gated, and an approval without a proposal is a decision
+  // about nothing. Keeping them in step here is what stops either half
+  // drifting out of the other's reach.
+
+  /**
+   * An agent proposes file changes. Nothing is written; an approval request
+   * is raised and the owner decides.
+   */
+  proposeChanges(
+    companyId: string,
+    input: {
+      title: string;
+      workspacePath: string;
+      files: ProposedFile[];
+      summary?: string;
+      taskId?: string | null;
+      runId?: string | null;
+      agentId?: string | null;
+    },
+  ): { proposal: ChangeProposalRow; approvalId: string } {
+    const approval = this.approvals.request(
+      companyId,
+      {
+        approvalType: "file_change",
+        requestedBy: input.agentId ?? "agent",
+        summary: input.title,
+        riskLevel: "high",
+        impact: `${input.files.length} Datei(en) in ${input.workspacePath}`,
+        rollbackPlan: "Die Freigabe verweigern; ohne Freigabe wird nichts geschrieben.",
+        // Paths, never contents: an approval summary an owner skims should
+        // say what would be touched, and the contents are one click away.
+        proposedAction: input.files.map((f) => `${f.operation}: ${f.path}`).join("\n"),
+      },
+      { taskId: input.taskId ?? null, runId: input.runId ?? null },
+    );
+
+    const proposal = this.changeProposals.create({
+      companyId,
+      title: input.title,
+      workspacePath: input.workspacePath,
+      files: input.files,
+      summary: input.summary,
+      taskId: input.taskId ?? null,
+      runId: input.runId ?? null,
+      agentId: input.agentId ?? null,
+      approvalId: approval.id,
+    });
+
+    this.notifyDecisionNeeded(companyId, approval.id, input.title, input.files.length);
+    return { proposal, approvalId: approval.id };
+  }
+
+  /**
+   * The owner decides. The approval and the proposal move together, so the
+   * two can never disagree about whether a change was authorised.
+   */
+  decideChangeProposal(
+    companyId: string,
+    proposalId: string,
+    decision: "approved" | "rejected",
+    opts: { reason?: string } = {},
+  ): ChangeProposalRow | null {
+    const proposal = this.changeProposals.get(proposalId);
+    if (!proposal || proposal.company_id !== companyId) return null;
+
+    if (proposal.approval_id) {
+      this.approvals.decide(proposal.approval_id, decision, "ceo", opts.reason ?? "");
+    }
+    return this.changeProposals.decide(proposalId, decision, { actorType: "owner", actorId: "ceo", ...opts });
+  }
+
+  /**
+   * Writes an approved proposal.
+   *
+   * The approval is re-read here rather than trusted from the proposal row:
+   * a decision that was reversed, expired or cancelled after the proposal was
+   * marked approved must stop the write, and the approval is where that
+   * lives.
+   */
+  applyChangeProposal(companyId: string, proposalId: string): ApplyResult {
+    const proposal = this.changeProposals.get(proposalId);
+    if (!proposal || proposal.company_id !== companyId) {
+      throw new ChangeProposalError(`Proposal "${proposalId}" does not exist.`);
+    }
+
+    if (proposal.approval_id) {
+      const approval = this.approvals.get(proposal.approval_id);
+      if (!approval || approval.status !== "approved") {
+        throw new ChangeProposalError(
+          `The approval for "${proposalId}" is ${approval?.status ?? "missing"}, so nothing may be written.`,
+        );
+      }
+    }
+
+    return this.changeProposals.apply(proposalId, { actorType: "owner", actorId: "ceo" });
+  }
+
+  /** A file change waiting on the owner reaches the decision inbox and every channel. */
+  private notifyDecisionNeeded(companyId: string, approvalId: string, title: string, fileCount: number): void {
+    const notification = this.notifications.create({
+      companyId,
+      kind: "approval_required",
+      severity: "warning",
+      title: `Dateiänderung wartet auf Freigabe: ${title}`,
+      body: `${fileCount} Datei(en). Ohne Freigabe wird nichts geschrieben.`,
+    });
+    this.fanOutNotification(companyId, {
+      title: notification.title,
+      body: notification.body,
+      severity: notification.severity,
+    });
+    void approvalId;
   }
 
   /** What is installed right now, with where each thing came from. */

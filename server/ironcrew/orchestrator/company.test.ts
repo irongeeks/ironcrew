@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { createTestDb } from "../domain/test-db.ts";
 import { CompanyOrchestrator } from "./company.ts";
@@ -1924,5 +1926,97 @@ describe("agent run lock — one agent never has two runs in flight", () => {
     // A crashed run that kept its lease would park the agent until the lease
     // expired — half an hour of an agent doing nothing.
     expect(orc.agentLocks.isLocked(agentId)).toBe(false);
+  });
+});
+
+describe("change proposals — an owner sees file edits before they happen", () => {
+  let workspace: string;
+
+  beforeEach(() => {
+    workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-orc-ws-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  });
+
+  function propose(title = "Konfiguration anpassen") {
+    return orc.proposeChanges(companyId, {
+      title,
+      workspacePath: workspace,
+      files: [{ path: "config.yaml", operation: "create", content: "port: 9090" }],
+      agentId: orc.getAgent(companyId, "cto")!.id,
+    });
+  }
+
+  it("raises an approval alongside the proposal, and writes nothing yet", () => {
+    const { proposal, approvalId } = propose();
+
+    expect(proposal.status).toBe("pending");
+    expect(proposal.approval_id).toBe(approvalId);
+    expect(fs.existsSync(path.join(workspace, "config.yaml"))).toBe(false);
+
+    const approval = orc.approvals.get(approvalId)!;
+    expect(approval.approval_type).toBe("file_change");
+    expect(approval.status).toBe("pending");
+    // The summary says what would be touched; the contents are one click away.
+    expect(approval.proposed_action).toContain("create: config.yaml");
+  });
+
+  it("puts the decision in front of the owner", () => {
+    propose();
+    const pending = orc.notifications.list(companyId).filter((n) => n.kind === "approval_required");
+    expect(pending.length).toBeGreaterThan(0);
+    expect(pending[0].title).toContain("Dateiänderung wartet auf Freigabe");
+  });
+
+  it("moves the approval and the proposal together", () => {
+    const { proposal, approvalId } = propose();
+
+    orc.decideChangeProposal(companyId, proposal.id, "approved");
+
+    // The two halves must never disagree about whether a change was authorised.
+    expect(orc.changeProposals.get(proposal.id)!.status).toBe("approved");
+    expect(orc.approvals.get(approvalId)!.status).toBe("approved");
+  });
+
+  it("writes only after the approval is approved", () => {
+    const { proposal } = propose();
+    expect(() => orc.applyChangeProposal(companyId, proposal.id)).toThrow();
+
+    orc.decideChangeProposal(companyId, proposal.id, "approved");
+    const result = orc.applyChangeProposal(companyId, proposal.id);
+
+    expect(result.applied).toEqual(["config.yaml"]);
+    expect(fs.readFileSync(path.join(workspace, "config.yaml"), "utf-8")).toBe("port: 9090");
+  });
+
+  it("re-reads the approval rather than trusting the proposal row", () => {
+    const { proposal, approvalId } = propose();
+    orc.decideChangeProposal(companyId, proposal.id, "approved");
+
+    // A decision reversed after the proposal was marked approved must still
+    // stop the write — the approval is where authorisation lives.
+    db.prepare("UPDATE crew_approvals SET status = 'cancelled' WHERE id = ?").run(approvalId);
+
+    expect(() => orc.applyChangeProposal(companyId, proposal.id)).toThrow(/nothing may be written/);
+    expect(fs.existsSync(path.join(workspace, "config.yaml"))).toBe(false);
+  });
+
+  it("rejecting stops the change for good", () => {
+    const { proposal, approvalId } = propose();
+    orc.decideChangeProposal(companyId, proposal.id, "rejected", { reason: "zu riskant" });
+
+    expect(orc.approvals.get(approvalId)!.status).toBe("rejected");
+    expect(() => orc.applyChangeProposal(companyId, proposal.id)).toThrow();
+    expect(fs.existsSync(path.join(workspace, "config.yaml"))).toBe(false);
+  });
+
+  it("does not reach into another company's proposal", () => {
+    const { proposal } = propose();
+    const other = orc.seedCompany({ name: "Other", slug: "other-cp", crew, departments });
+
+    expect(orc.decideChangeProposal(other, proposal.id, "approved")).toBeNull();
+    expect(() => orc.applyChangeProposal(other, proposal.id)).toThrow(/does not exist/);
   });
 });
