@@ -39,7 +39,9 @@ import { SearxngProvider } from "./ironcrew/search/searxng-provider.ts";
 import { BraveProvider } from "./ironcrew/search/brave-provider.ts";
 import { buildCrewJobs, intervalsFromEnv, schedulerEnabled } from "./ironcrew/scheduler/crew-jobs.ts";
 import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
+import net from "node:net";
 import { OpenRouterRuntime } from "./ironcrew/runtime/openrouter-runtime.ts";
+import { RunnerRuntime } from "./ironcrew/runner/runner-client.ts";
 import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
 import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
@@ -329,8 +331,39 @@ if (process.env.OPENROUTER_API_KEY) {
     }),
   );
 }
-for (const adapter of adapterRegistry.list()) {
-  if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
+// CLI runtimes: in this process, or in the runner.
+//
+// With IRONCREW_RUNNER_SOCKET set, every CLI runtime is a RunnerRuntime that
+// forwards to the daemon — which is the arrangement the threat model wants,
+// because the CLI logins then live with the runner's own OS user and this
+// process never holds one (docs/RUNNER_PROTOCOL.md, T-05). Without it they
+// run inline, which is simpler and is why the shipped systemd unit has to
+// move HOME to /var/lib/ironcrew for CLI credentials to work at all.
+//
+// Either way the orchestrator sees the same AgentRuntime contract and cannot
+// tell the difference — that is what makes the security property free.
+if (process.env.IRONCREW_RUNNER_SOCKET) {
+  const socketPath = process.env.IRONCREW_RUNNER_SOCKET;
+  const runnerToken = process.env.IRONCREW_RUNNER_TOKEN ?? "";
+  const connect = () =>
+    new Promise<net.Socket>((resolve, reject) => {
+      const socket = net.connect(socketPath);
+      socket.setEncoding("utf-8");
+      socket.once("connect", () => resolve(socket));
+      socket.once("error", reject);
+    });
+
+  for (const adapter of adapterRegistry.list()) {
+    if (!isCliAdapter(adapter)) continue;
+    ironCrewOrchestrator.registerRuntime(
+      new RunnerRuntime({ runtimeType: adapter.providerType, token: runnerToken, connect }),
+    );
+  }
+  logger.info({ socketPath }, "CLI runtimes are served by the runner daemon");
+} else {
+  for (const adapter of adapterRegistry.list()) {
+    if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
+  }
 }
 // Secret providers: same unconditional-wrapping posture as runtimes above —
 // GET /api/crew/secret-providers (the Settings UI's provider status panel)

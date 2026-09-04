@@ -445,6 +445,51 @@ delay before legitimate work starts — there is no setting that gives both.
 - Supply-chain attacks on npm dependencies beyond the existing lockfile,
   `pnpm.overrides` and gitleaks configuration.
 
+### T-17 — The control plane holding the owner's CLI logins — **High**
+
+The official CLI runtimes authenticate as the owner. Claude Code, Codex and
+the rest keep their credentials under `$HOME`, and a process that can run them
+can read them.
+
+Until the runner existed, that process was the control plane — the same one
+that parses incoming mail, accepts chat messages from paired strangers,
+installs skills from marketplaces and serves an HTTP API. Every one of those
+is an ingress, and each is one bug away from the account that pays for the
+models and can act as the owner elsewhere. It is also why
+`deploy/ironcrew.service` has to move `HOME` to `/var/lib/ironcrew`: without
+that, `ProtectHome=true` would leave the service with no usable home at all,
+and the alternative (`ProtectHome=read-only`) would hand it every credential,
+SSH key and browser profile on the machine.
+
+**Mitigation.** The runner is a separate trust domain, not a separate module.
+
+1. **Its own OS user, its own home, its own unit.** `ironcrew-runner` holds
+   the CLI logins under `/var/lib/ironcrew-runner`. The control plane's
+   account cannot read them — the operating system enforces that, not a
+   convention in this codebase.
+2. **The socket's permissions are the access control.** `0660`, owned by the
+   runner user, group-shared with the service user. A localhost TCP port
+   would be reachable by every process on the box, including anything an
+   agent itself starts, which would make the separation decorative. The
+   shared token is defence in depth and is compared in constant time.
+3. **No token ever crosses the wire.** The protocol carries capabilities,
+   health, `AuthStatus` and normalised events. `AuthStatus` is booleans and a
+   non-identifying hint by contract, and the runner rebuilds it field by field
+   before sending — so a future field that carried a secret would have to be
+   added deliberately, in the one place that is about leaving the trust
+   domain.
+4. **The runner refuses a workspace outside its root**, checked with
+   `realpath` rather than a string prefix. A runner that trusted the path it
+   was handed would turn a bug in the control plane into arbitrary file
+   access under the account that holds the credentials — which is the exact
+   thing this entry exists to prevent, arriving by the back door.
+
+**Residual risk.** The runner still executes whatever the control plane asks
+it to, so a compromised control plane can still spend the owner's tokens and
+run agent work. What it cannot do is _take_ the credentials. That is a real
+reduction, not an elimination, and it is the honest description: the runner
+bounds the blast radius, it does not remove the trust.
+
 ## Non-negotiable defaults
 
 | Setting                     | Value                                                                        |
@@ -461,3 +506,4 @@ delay before legitimate work starts — there is no setting that gives both.
 | Agent file writes           | approved proposal, path-contained, hash-checked, all-or-nothing (T-15)       |
 | Sandbox grant lifetime      | ≤ 4 hours, tied to an approval                                               |
 | Background execution        | only delegated work is enqueued; `inbox` tasks never are (T-16)              |
+| CLI credentials             | held by the runner's own OS user; the control plane never sees one (T-17)    |
