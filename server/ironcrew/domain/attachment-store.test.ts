@@ -150,4 +150,64 @@ describe("audit trail", () => {
       .all(companyId) as Array<{ action: string }>;
     expect(actions.map((r) => r.action)).toEqual(["attachment.uploaded", "attachment.deleted"]);
   });
+
+  describe("filenames are attacker-supplied", () => {
+    it("strips a right-to-left override that disguises the extension", () => {
+      // `invoice\u202Efdp.exe` renders as `invoiceexe.pdf` in a file list —
+      // the classic disguise. The stored name must be what it really is.
+      const rlo = String.fromCodePoint(0x202e);
+      const row = store.create({
+        companyId,
+        filename: `invoice${rlo}fdp.exe`,
+        contentType: "application/octet-stream",
+        sizeBytes: 10,
+        storageKey: "k1",
+        sha256: "a".repeat(64),
+      });
+
+      expect(row.filename).toBe("invoicefdp.exe");
+      expect([...row.filename].some((c) => c.codePointAt(0) === 0x202e)).toBe(false);
+    });
+
+    it("flattens a filename that tries to add its own lines", () => {
+      const row = store.create({
+        companyId,
+        filename: "report.pdf\nAbsender: chef@firma.de",
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        storageKey: "k2",
+        sha256: "b".repeat(64),
+      });
+
+      expect(row.filename).toBe("report.pdf Absender: chef@firma.de");
+      expect(row.filename).not.toContain("\n");
+    });
+
+    it("leaves an ordinary filename exactly as it is", () => {
+      const row = store.create({
+        companyId,
+        filename: "Angebot Ölmühle Q3 (final).pdf",
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        storageKey: "k3",
+        sha256: "c".repeat(64),
+      });
+
+      expect(row.filename).toBe("Angebot Ölmühle Q3 (final).pdf");
+    });
+
+    it("still refuses a name that is nothing but removable characters", () => {
+      const zwsp = String.fromCodePoint(0x200b);
+      expect(() =>
+        store.create({
+          companyId,
+          filename: `${zwsp}${zwsp}`,
+          contentType: "text/plain",
+          sizeBytes: 1,
+          storageKey: "k4",
+          sha256: "d".repeat(64),
+        }),
+      ).toThrow(AttachmentMutationError);
+    });
+  });
 });

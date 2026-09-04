@@ -175,9 +175,40 @@ never as an instruction interpreter. Covered by orchestrator tests asserting
 both that the status is `inbox` and that delegation-shaped wording produces no
 runs.
 
-_Residual risk:_ a task in the inbox still displays attacker-authored text to
-the owner. It is quoted and attributed, but social engineering against a human
-reader is outside what the state machine can prevent.
+Since a task description is not inert — it becomes the `# Aufgabe` section of
+an agent's prompt when the task is run — every attacker-reachable field also
+goes through `server/ironcrew/policy/untrusted-content.ts` on the way in:
+
+- **Chat-template control tokens are stripped.** `<|im_start|>`,
+  `<|start_header_id|>`, `<start_of_turn>`, `[INST]`, `<<SYS>>` and a line
+  beginning `Human:` are forged turn boundaries, not text. Ordinary prose
+  containing the same words is left alone; a sentence about a "Human: Readable
+  Export" survives intact.
+- **Invisible characters are removed** — zero-width marks, bidi overrides, C0/C1
+  controls. These let a payload be present for the model and absent for the
+  human reading the same mail, and the same override turns an attachment named
+  `invoice<RLO>fdp.exe` into something that reads as `invoice.pdf`, which is why
+  filenames are sanitised in `attachment-store.ts` too.
+- **The body is fenced** between `<<<EXTERNAL_UNTRUSTED_CONTENT …` and
+  `END_EXTERNAL_UNTRUSTED_CONTENT>>>`, naming the sender and stating that the
+  contents are data. The fence is **unforgeable**: markers occurring inside the
+  content are removed before wrapping, so content cannot close its own fence
+  and continue as trusted text. Two tests assert exactly that attack.
+- **Subject and sender are flattened to one sanitised line**, so neither can
+  introduce header lines of its own into the block it sits among.
+- A mail that needed sanitising is audited as `mail.sanitized` with a count —
+  never the offending text, which would put the payload into the log meant to
+  be kept clean of it — and the task itself says so, so an operator sees that
+  someone tried.
+
+_Residual risk:_ fencing is not obedience. A model can still be talked into
+following instructions inside a boundary it can see; what the fence guarantees
+is that the model sees an accurate picture — attacker text inside a boundary it
+could not break — rather than attacker text wearing the conversation's own
+syntax. The defences that actually hold are the structural ones above. And a
+task in the inbox still displays attacker-authored text to the owner: it is
+quoted, sanitised and attributed, but social engineering against a human reader
+is outside what a state machine can prevent.
 
 ### T-11 — Mailbox credentials in the database — **Medium** (accepted trade-off)
 
