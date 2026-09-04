@@ -56,6 +56,19 @@ import type {
   MailProvider,
   OutgoingMail,
 } from "../mail/mail-provider.ts";
+import {
+  MarketplaceStore,
+  MarketplaceMutationError,
+  type MarketplaceInstallRow,
+  type MarketplaceRow,
+} from "../domain/marketplace-store.ts";
+import {
+  MarketplaceSourceError,
+  type MarketplaceEntry,
+  type MarketplaceKind,
+  type MarketplaceSource,
+} from "../marketplace/marketplace-source.ts";
+import { MarketplaceInstaller, type InstallOptions, type InstallResult } from "../marketplace/marketplace-installer.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -115,10 +128,13 @@ export class CompanyOrchestrator {
   readonly meetings: MeetingStore;
   readonly memories: MemoryStore;
   readonly mailboxes: MailboxStore;
+  readonly marketplaces: MarketplaceStore;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
   private readonly mailProviders = new Map<MailboxKind, MailProvider>();
+  private readonly marketplaceSources = new Map<MarketplaceKind, MarketplaceSource>();
+  private marketplaceInstallerInstance: MarketplaceInstaller | null = null;
   private attachmentStorageInstance: AttachmentStorage | null = null;
   private tailscaleProviderInstance: TailscaleProvider | null = null;
 
@@ -149,6 +165,7 @@ export class CompanyOrchestrator {
     this.meetings = new MeetingStore(db);
     this.memories = new MemoryStore(db);
     this.mailboxes = new MailboxStore(db);
+    this.marketplaces = new MarketplaceStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -713,6 +730,165 @@ export class CompanyOrchestrator {
       body: notification.body,
       severity: notification.severity,
     });
+  }
+
+  // --- marketplaces: skills and MCP servers from outside this machine ------
+  //
+  // Reading a source and installing from it are deliberately separate. A
+  // source is third-party JSON that can change between two page loads, so
+  // entries are fetched live and never cached as installable commands; only
+  // what an admin actually installed is recorded, with its provenance.
+  //
+  // The installer is where the trust boundary sits (see
+  // marketplace-installer.ts): the allowlist, the schema, and the rule that
+  // installing a skill writes Markdown and never executes anything.
+
+  /** Mirrors registerMailProvider(): one adapter per marketplace kind. */
+  registerMarketplaceSource(source: MarketplaceSource): void {
+    this.marketplaceSources.set(source.kind, source);
+  }
+
+  listMarketplaceKinds(): MarketplaceKind[] {
+    return [...this.marketplaceSources.keys()];
+  }
+
+  /**
+   * Supplies the installer. Set at boot with the real MCP manager and skills
+   * directory; tests register one writing into a temp dir. Mirrors
+   * registerTailscaleProvider() — no orchestrator constructor argument grows
+   * for something most callers never touch.
+   */
+  registerMarketplaceInstaller(installer: MarketplaceInstaller): void {
+    this.marketplaceInstallerInstance = installer;
+  }
+
+  private get installer(): MarketplaceInstaller {
+    if (!this.marketplaceInstallerInstance) {
+      throw new MarketplaceMutationError("No marketplace installer is configured on this server.");
+    }
+    return this.marketplaceInstallerInstance;
+  }
+
+  private marketplaceOf(companyId: string, marketplaceId: string): MarketplaceRow {
+    const source = this.marketplaces.get(marketplaceId);
+    if (!source || source.company_id !== companyId) {
+      throw new MarketplaceMutationError(`Marketplace "${marketplaceId}" does not exist.`);
+    }
+    return source;
+  }
+
+  private sourceFor(kind: MarketplaceKind): MarketplaceSource {
+    const source = this.marketplaceSources.get(kind);
+    if (!source) throw new MarketplaceMutationError(`No "${kind}" marketplace adapter is registered on this server.`);
+    return source;
+  }
+
+  /**
+   * Reads a source and returns what it offers. The outcome is recorded on the
+   * row either way — a source that has been broken for a week should say so
+   * in the UI without anyone having to click it again.
+   */
+  async browseMarketplace(companyId: string, marketplaceId: string): Promise<MarketplaceEntry[]> {
+    const source = this.marketplaceOf(companyId, marketplaceId);
+    const adapter = this.sourceFor(source.kind);
+    try {
+      const entries = await adapter.fetchEntries({
+        id: source.id,
+        kind: source.kind,
+        name: source.name,
+        url: source.url,
+      });
+      this.marketplaces.recordSync(source.id, { entryCount: entries.length });
+      return entries;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.marketplaces.recordSync(source.id, { error: message });
+      throw err instanceof MarketplaceSourceError ? err : new MarketplaceSourceError(message, source.kind);
+    }
+  }
+
+  /** Browses every enabled source, reporting per-source failures rather than throwing. */
+  async browseAllMarketplaces(
+    companyId: string,
+  ): Promise<Array<{ marketplace: MarketplaceRow; entries: MarketplaceEntry[]; error: string }>> {
+    const results: Array<{ marketplace: MarketplaceRow; entries: MarketplaceEntry[]; error: string }> = [];
+    for (const source of this.marketplaces.list(companyId)) {
+      if (source.enabled !== 1) continue;
+      try {
+        const entries = await this.browseMarketplace(companyId, source.id);
+        results.push({ marketplace: this.marketplaces.get(source.id) ?? source, entries, error: "" });
+      } catch (err) {
+        results.push({
+          marketplace: this.marketplaces.get(source.id) ?? source,
+          entries: [],
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Installs one entry from a source. The entry is re-fetched from the source
+   * by id rather than taken from the request: what the admin approved in the
+   * UI must be what the source actually offers now, not a payload a caller
+   * composed.
+   */
+  async installFromMarketplace(
+    companyId: string,
+    marketplaceId: string,
+    entryId: string,
+    options: InstallOptions = {},
+    actor: { actorType?: "owner" | "agent" | "system"; actorId?: string } = {},
+  ): Promise<{ install: MarketplaceInstallRow; result: InstallResult }> {
+    const source = this.marketplaceOf(companyId, marketplaceId);
+    const entries = await this.browseMarketplace(companyId, marketplaceId);
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) {
+      throw new MarketplaceMutationError(`"${entryId}" is not offered by "${source.name}" (any more).`);
+    }
+
+    const result =
+      entry.type === "mcp"
+        ? await this.installer.installMcp(entry, options)
+        : await this.installer.installSkill(entry, options);
+
+    const install = this.marketplaces.recordInstall({
+      companyId,
+      marketplaceId: source.id,
+      entryId: entry.id,
+      entryType: entry.type,
+      name: result.name,
+      version: entry.version,
+      sourceUrl: entry.sourceUrl,
+      manifest: entry,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+    });
+
+    return { install, result };
+  }
+
+  /**
+   * Removes an installed artefact and its provenance row. The artefact is
+   * removed first: a record saying "installed" next to nothing on disk is a
+   * lie, while an orphaned server with no record is merely untidy and
+   * visible in the MCP settings.
+   */
+  async uninstallFromMarketplace(
+    companyId: string,
+    entryType: "mcp" | "skill",
+    name: string,
+    actor: { actorType?: "owner" | "agent" | "system"; actorId?: string } = {},
+  ): Promise<boolean> {
+    const removed = entryType === "mcp" ? await this.installer.uninstallMcp(name) : this.installer.uninstallSkill(name);
+    const hadRecord = this.marketplaces.removeInstall(companyId, entryType, name, actor);
+    return removed || hadRecord;
+  }
+
+  /** What is installed right now, with where each thing came from. */
+  marketplaceInstalls(companyId: string): MarketplaceInstallRow[] {
+    return this.marketplaces.installs(companyId);
   }
 
   /**
