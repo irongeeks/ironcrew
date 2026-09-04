@@ -41,6 +41,7 @@ import { ProxmoxAdapter } from "./ironcrew/packs/integrations/proxmox.ts";
 import { TacticalRmmAdapter } from "./ironcrew/packs/integrations/tactical-rmm.ts";
 import { UnifiAdapter } from "./ironcrew/packs/integrations/unifi.ts";
 import { LexwareOfficeAdapter } from "./ironcrew/packs/integrations/lexware-office.ts";
+import { AuditShipper, FileAuditSink, HttpAuditSink } from "./ironcrew/audit/audit-shipper.ts";
 import { SevdeskAdapter } from "./ironcrew/packs/integrations/sevdesk.ts";
 import { PaperlessAdapter } from "./ironcrew/packs/integrations/paperless-ngx.ts";
 import { NextcloudAdapter } from "./ironcrew/packs/integrations/nextcloud.ts";
@@ -539,6 +540,48 @@ const ironCrewApi = registerIronCrewRoutes(app, {
   orchestrator: ironCrewOrchestrator,
   scheduler: () => ironCrewScheduler,
 });
+
+// The audit chain, carried off the box.
+//
+// An append-only hash chain proves nobody edited the record. It cannot prove
+// nobody *deleted* it — whoever owns the box owns the file, and a chain that
+// only exists on the machine it describes is a chain an attacker can replace
+// wholesale with a shorter, quieter one. So a copy leaves, continuously, to
+// somewhere the box's own credentials do not reach.
+//
+// Off by default and configured by presence, like every other integration
+// here. IRONCREW_AUDIT_SINK names which; nothing is inferred from a stray URL,
+// because an operator who set the variable and mistyped the value deserves a
+// refusal rather than a silently disabled control.
+const auditSinkKind = (process.env.IRONCREW_AUDIT_SINK ?? "").trim().toLowerCase();
+if (auditSinkKind === "file") {
+  const filePath = process.env.IRONCREW_AUDIT_FILE?.trim();
+  if (!filePath) {
+    // Loud, and not a fallback to "off": a half-configured audit sink that
+    // quietly ships nothing is worse than none, because somebody believes
+    // they have a copy.
+    throw new Error("IRONCREW_AUDIT_SINK=file requires IRONCREW_AUDIT_FILE to name the target file.");
+  }
+  ironCrewOrchestrator.registerAuditShipper(
+    new AuditShipper({ db, sink: new FileAuditSink({ filePath }), cursorNamespace: "file" }),
+  );
+} else if (auditSinkKind === "http") {
+  const url = process.env.IRONCREW_AUDIT_URL?.trim();
+  if (!url) {
+    throw new Error("IRONCREW_AUDIT_SINK=http requires IRONCREW_AUDIT_URL to name the collector endpoint.");
+  }
+  ironCrewOrchestrator.registerAuditShipper(
+    new AuditShipper({
+      db,
+      // The token travels in a header inside the sink and nowhere else. It is
+      // read here and never logged, never echoed by the status route.
+      sink: new HttpAuditSink({ url, bearerToken: process.env.IRONCREW_AUDIT_TOKEN }),
+      cursorNamespace: "http",
+    }),
+  );
+} else if (auditSinkKind !== "" && auditSinkKind !== "off") {
+  throw new Error(`IRONCREW_AUDIT_SINK="${auditSinkKind}" is not a sink kind. Use "file", "http", or leave it unset.`);
+}
 
 // Business-pack integrations: registered only when their environment says so.
 //

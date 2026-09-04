@@ -6,6 +6,9 @@ import { CompanyOrchestrator } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { configDir, loadCrewConfig, loadDepartmentConfig } from "../domain/crew-config.ts";
 import { buildCrewJobs, DEFAULT_INTERVALS, intervalsFromEnv, schedulerEnabled } from "./crew-jobs.ts";
+import fs from "node:fs";
+import os from "node:os";
+import { AuditShipper, FileAuditSink } from "../audit/audit-shipper.ts";
 
 let db: DatabaseSync;
 let orc: CompanyOrchestrator;
@@ -34,6 +37,13 @@ function job(name: string, over: Parameters<typeof buildCrewJobs>[0] | null = nu
 describe("the four jobs", () => {
   it("covers queue, routines, mail, chat and housekeeping", () => {
     expect(jobs().map((j) => j.name)).toEqual(["run-queue", "routines", "mailboxes", "messengers", "sweep"]);
+  });
+
+  it("adds no audit-ship job when nobody configured a sink", () => {
+    // Not a job that reports "nothing to do" every minute for the life of the
+    // installation: GET /scheduler is a list of what this service is actually
+    // doing, and a permanent no-op in it teaches people to stop reading it.
+    expect(jobs().map((j) => j.name)).not.toContain("audit-ship");
   });
 
   it("uses the documented defaults, and lets each be overridden", () => {
@@ -191,5 +201,75 @@ describe("sweep also keeps the queue table from growing forever", () => {
 
     await job("sweep", { orchestrator: orc, companyId, queueRetentionMs: 1000 }).run();
     expect(orc.runRequests.get(finished.id)).toBeNull();
+  });
+});
+
+describe("carrying the audit chain off the box", () => {
+  let dir: string;
+  let target: string;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-ship-job-"));
+    target = path.join(dir, "audit.ndjson");
+  });
+
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  function withSink() {
+    orc.registerAuditShipper(new AuditShipper({ db, sink: new FileAuditSink({ filePath: target }) }));
+    return { orchestrator: orc, companyId };
+  }
+
+  it("appears once a sink is registered, at the documented interval", () => {
+    const opts = withSink();
+    expect(jobs(opts).map((j) => j.name)).toContain("audit-ship");
+    expect(job("audit-ship", opts).intervalMs).toBe(DEFAULT_INTERVALS.auditShipMs);
+  });
+
+  it("actually moves entries off the box when it runs", async () => {
+    const opts = withSink();
+    orc.goals.create({ companyId, title: "Umsatz verdoppeln" });
+
+    await job("audit-ship", opts).run();
+
+    const lines = fs.readFileSync(target, "utf8").trim().split("\n");
+    expect(lines.length).toBeGreaterThan(0);
+    // The whole point is that the *chain* leaves, not a summary of it: each
+    // line carries the hashes that make the copy verifiable on its own.
+    expect(JSON.parse(lines[0]!)).toMatchObject({ company_id: companyId });
+    expect(JSON.parse(lines[0]!)).toHaveProperty("entry_hash");
+    expect(orc.auditShipper!.pending(companyId)).toBe(0);
+  });
+
+  it("is safe to run twice in a row — the second tick ships nothing", async () => {
+    const opts = withSink();
+    orc.goals.create({ companyId, title: "Umsatz verdoppeln" });
+
+    await job("audit-ship", opts).run();
+    const afterFirst = fs.readFileSync(target, "utf8");
+    await job("audit-ship", opts).run();
+
+    // The cursor, not the file, is what stops the second run. A shipper that
+    // re-sent everything each tick would fill an archive with duplicates and
+    // look like it was working.
+    expect(fs.readFileSync(target, "utf8")).toBe(afterFirst);
+  });
+
+  it("does not throw when the sink is broken, so one bad tick cannot stop the loop", async () => {
+    // A directory where the file should be: every write fails, permanently.
+    fs.mkdirSync(target);
+    orc.registerAuditShipper(new AuditShipper({ db, sink: new FileAuditSink({ filePath: target }) }));
+    orc.goals.create({ companyId, title: "Umsatz verdoppeln" });
+
+    await expect(job("audit-ship", { orchestrator: orc, companyId }).run()).resolves.toBeUndefined();
+    // Nothing shipped, and nothing lost: the backlog is still there for the
+    // next tick, which is the direction that keeps the archive complete.
+    expect(orc.auditShipper!.cursor(companyId)).toBe(0);
+    expect(orc.auditShipper!.pending(companyId)).toBeGreaterThan(0);
+  });
+
+  it("takes its interval from the environment like the others", () => {
+    expect(intervalsFromEnv({ IRONCREW_SCHEDULER_AUDIT_SHIP_SECONDS: "300" }).auditShipMs).toBe(300_000);
+    expect(intervalsFromEnv({ IRONCREW_SCHEDULER_AUDIT_SHIP_SECONDS: "nonsense" }).auditShipMs).toBeUndefined();
   });
 });

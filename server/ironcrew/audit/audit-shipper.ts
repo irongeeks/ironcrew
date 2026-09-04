@@ -224,13 +224,33 @@ export class HttpAuditSink implements AuditSink {
       body: toNdjson(entries),
     });
     if (!res.ok) {
-      // The body is the collector's, not ours; still truncated and redacted,
-      // because it ends up in the settings UI and an echoed request header
-      // would otherwise put our own token on screen.
-      const body = redactText((await res.text()).slice(0, 300));
+      // The body is the collector's, not ours, so it is truncated and passed
+      // through the shared redactor — and then through `withoutOwnToken`,
+      // which is the part that is not optional.
+      //
+      // `redactText` knows the shapes of *known* credentials. It cannot know
+      // that this particular string is our bearer token, so a collector that
+      // echoes the Authorization header into its error body (Lexware Office
+      // documents doing exactly that on a 403, and it is not the only one)
+      // would put our token into an error that the scheduler logs at warn
+      // every minute and the settings page shows on screen. Found by running
+      // it against a collector that echoed, not by reading the code.
+      const body = this.withoutOwnToken(redactText((await res.text()).slice(0, 300)));
       return { accepted: 0, error: `HTTP ${res.status}${body ? `: ${body}` : ""}` };
     }
     return { accepted: entries.length };
+  }
+
+  /**
+   * Removes this sink's own bearer token from text on its way out.
+   *
+   * Applied to everything that can carry remote or system text: a response
+   * body, and a transport error, since a failing proxy can put the request
+   * headers into its message just as readily as a collector can.
+   */
+  private withoutOwnToken(text: string): string {
+    if (!this.bearerToken) return text;
+    return text.split(this.bearerToken).join("«entfernt»");
   }
 
   async testConnection(): Promise<SinkConnectionStatus> {
@@ -248,7 +268,10 @@ export class HttpAuditSink implements AuditSink {
       }
       return { ok: true, message: "Audit-Ziel erreichbar." };
     } catch (err) {
-      return { ok: false, message: `Audit-Ziel nicht erreichbar: ${redactText(errorMessage(err))}` };
+      return {
+        ok: false,
+        message: `Audit-Ziel nicht erreichbar: ${this.withoutOwnToken(redactText(errorMessage(err)))}`,
+      };
     }
   }
 }

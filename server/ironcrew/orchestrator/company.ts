@@ -19,6 +19,7 @@ import { RunStore } from "../runtime/run-store.ts";
 import { appendAuditEvent, type ActorType } from "../domain/audit.ts";
 import { canTransition, deriveAgentStatus, type TaskStatus } from "../domain/task-state.ts";
 import { ApprovalEngine } from "../policy/approval-policy.ts";
+import type { AuditShipper } from "../audit/audit-shipper.ts";
 import {
   ApprovalReviewStore,
   type ApprovalReviewRow,
@@ -226,6 +227,16 @@ export class CompanyOrchestrator {
   /** Business-pack integrations, keyed by the pack definition's integration key. */
   private readonly packIntegrations = new Map<string, PackIntegrationAdapter>();
   private packInstaller?: PackInstaller;
+  /**
+   * Where the audit chain is copied to, when an operator configured one.
+   *
+   * Optional in exactly the way the pack integrations are optional: absent
+   * means "nobody configured a sink", and the API reports that rather than
+   * showing a switch with nothing behind it. Registered by the composition
+   * root, never constructed here — this class must not decide where a
+   * company's audit log is allowed to go.
+   */
+  private auditShipperInstance: AuditShipper | null = null;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -2725,6 +2736,24 @@ export class CompanyOrchestrator {
   get packs(): PackInstaller {
     this.packInstaller ??= new PackInstaller(this.db, this);
     return this.packInstaller;
+  }
+
+  /**
+   * Registers the off-box copy of the audit chain.
+   *
+   * One shipper, not a list. Two sinks would need two cursors — the shipper
+   * has a `cursorNamespace` for exactly that — but nothing yet asks for two,
+   * and a list here would invite the mistake the namespace exists to prevent:
+   * two shippers sharing a cursor, each seeing only the entries the other had
+   * not already claimed, leaving a hole in both copies.
+   */
+  registerAuditShipper(shipper: AuditShipper): void {
+    this.auditShipperInstance = shipper;
+  }
+
+  /** Null when nobody configured a sink. */
+  get auditShipper(): AuditShipper | null {
+    return this.auditShipperInstance;
   }
 
   registerPackIntegration(adapter: PackIntegrationAdapter): void {

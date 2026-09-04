@@ -13,6 +13,7 @@ import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts
 import { UNTRUSTED_OPEN } from "../policy/untrusted-content.ts";
 import { SearchProviderError } from "../search/search-provider.ts";
 import type { ProposedFile } from "../domain/change-proposal-store.ts";
+import { AuditShipper, FileAuditSink, HttpAuditSink } from "../audit/audit-shipper.ts";
 
 let db: DatabaseSync;
 let app: Express;
@@ -2548,5 +2549,98 @@ describe("routines over HTTP (a timer that produces visible work)", () => {
     await request(app).post("/api/crew/routines/rtn_nope/run").expect(404);
     await request(app).post("/api/crew/routines/rtn_nope/enabled").send({ enabled: true }).expect(404);
     await request(app).delete("/api/crew/routines/rtn_nope").expect(404);
+  });
+});
+
+describe("the audit chain leaving the box", () => {
+  it("says plainly that no sink is configured, rather than 404", async () => {
+    // An operator on this page is asking "is my audit log leaving this
+    // machine?". A 404 answers a different question.
+    const res = await request(app).get("/api/crew/audit/shipping").expect(200);
+    expect(res.body.configured).toBe(false);
+    expect(res.body.message).toMatch(/Kein Ziel konfiguriert/);
+  });
+
+  it("refuses a probe and a manual run when there is nothing to probe", async () => {
+    await request(app).post("/api/crew/audit/shipping/test").expect(409);
+    await request(app).post("/api/crew/audit/shipping/run").expect(409);
+  });
+
+  it("reports the cursor and the backlog once a sink is registered", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-audit-"));
+    const target = path.join(dir, "audit.ndjson");
+    orchestrator.registerAuditShipper(new AuditShipper({ db, sink: new FileAuditSink({ filePath: target }) }));
+
+    // Anything at all writes audit entries.
+    await request(app).post("/api/crew/goals").send({ title: "Umsatz verdoppeln" }).expect(201);
+
+    const before = await request(app).get("/api/crew/audit/shipping").expect(200);
+    expect(before).toMatchObject({ body: { configured: true, sink: "file", cursor: 0 } });
+    expect(before.body.pending).toBeGreaterThan(0);
+
+    const run = await request(app).post("/api/crew/audit/shipping/run").expect(200);
+    expect(run.body.ok).toBe(true);
+    expect(run.body.shipped).toBe(before.body.pending);
+
+    const after = await request(app).get("/api/crew/audit/shipping").expect(200);
+    expect(after.body.pending).toBe(0);
+    expect(after.body.cursor).toBe(run.body.cursorSeq);
+
+    // The entries really are on the other side, one NDJSON line each.
+    const lines = fs.readFileSync(target, "utf8").trim().split("\n");
+    expect(lines).toHaveLength(run.body.shipped);
+    expect(JSON.parse(lines[0]!)).toHaveProperty("entry_hash");
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("never puts the collector's token in the status", async () => {
+    orchestrator.registerAuditShipper(
+      new AuditShipper({
+        db,
+        sink: new HttpAuditSink({ url: "http://collector.invalid/ingest", bearerToken: "sk-audit-secret-token" }),
+      }),
+    );
+    const res = await request(app).get("/api/crew/audit/shipping").expect(200);
+    expect(JSON.stringify(res.body)).not.toContain("sk-audit-secret-token");
+
+    // And not in the failure message either — that is where a token usually
+    // escapes, via an echoed request or an error carrying the whole config.
+    const probe = await request(app).post("/api/crew/audit/shipping/test").expect(200);
+    expect(probe.body.ok).toBe(false);
+    expect(JSON.stringify(probe.body)).not.toContain("sk-audit-secret-token");
+  });
+});
+
+describe("the dashboard does not re-hash the audit chain on every poll", () => {
+  it("serves a cached verification and says how old it is", async () => {
+    const first = await request(app).get("/api/crew/dashboard").expect(200);
+    expect(first.body.auditChainValid).toBe(true);
+    expect(typeof first.body.auditChainCheckedAt).toBe("number");
+
+    // Written between the two polls. A dashboard that verified live would
+    // move the timestamp; a cached one holds it, which is the whole point —
+    // the check is linear in an ever-growing table and must not run on a
+    // poll an open Command Center repeats every few seconds.
+    await request(app).post("/api/crew/goals").send({ title: "noch ein Ziel" }).expect(201);
+    const second = await request(app).get("/api/crew/dashboard").expect(200);
+    expect(second.body.auditChainCheckedAt).toBe(first.body.auditChainCheckedAt);
+  });
+
+  it("still verifies for real when somebody actually asks, and refreshes the cache", async () => {
+    const before = await request(app).get("/api/crew/dashboard").expect(200);
+    // Guarantees the two timestamps cannot collide inside one millisecond,
+    // which would make the assertion below pass for the wrong reason.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    // GET /audit is a deliberate act, not a poll, so it verifies every row.
+    const audit = await request(app).get("/api/crew/audit").expect(200);
+    expect(audit.body.chain.valid).toBe(true);
+    expect(audit.body.chain.checked).toBeGreaterThan(0);
+
+    // And it refreshes what the dashboard beside it reports: somebody who
+    // just asked the question directly must not then see a stale answer.
+    const after = await request(app).get("/api/crew/dashboard").expect(200);
+    expect(after.body.auditChainCheckedAt).toBeGreaterThan(before.body.auditChainCheckedAt);
   });
 });

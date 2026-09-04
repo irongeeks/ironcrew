@@ -656,3 +656,68 @@ describe("FileAuditSink", () => {
     expect(status.message).toContain("nicht beschreibbar");
   });
 });
+
+describe("a collector that echoes the token back", () => {
+  const TOKEN = "sk-audit-supersecret-token";
+
+  /**
+   * Not a hypothetical. Lexware Office's documented 403 body echoes the
+   * `Authorization` header back, and it is not the only vendor that does. A
+   * failing sink is logged at warn on every tick it stays broken and its
+   * message reaches the settings page, so a token in that message is a token
+   * in the log file and on somebody's screen — every minute, until it is
+   * fixed.
+   *
+   * `redactText` cannot catch this: it knows the shapes of known credentials,
+   * and it has no way to know that this particular string is our bearer token.
+   * Removing our own token is therefore the sink's own job. Found by running
+   * the shipper against a collector that echoed, not by reading the code.
+   */
+  it("never puts its own bearer token into a shipping error", async () => {
+    appendN(db, companyId, 2);
+    const { impl } = fakeFetch(() => ({
+      status: 401,
+      body: `Unauthorized. Received header: Bearer ${TOKEN}`,
+    }));
+    const shipper = new AuditShipper({
+      db,
+      sink: new HttpAuditSink({ url: "https://archive.example/audit", bearerToken: TOKEN, fetchImpl: impl }),
+    });
+
+    const result = await shipper.shipNewEntries(companyId);
+    expect(result.ok).toBe(false);
+    expect(result.error).toBeTruthy();
+    expect(result.error).not.toContain(TOKEN);
+    // Still says what went wrong. A redaction that ate the whole message
+    // would trade one problem for another.
+    expect(result.error).toContain("401");
+    // And nothing moved: a refused batch is retried, never counted.
+    expect(shipper.cursor(companyId)).toBe(0);
+  });
+
+  it("never puts it into a transport error either", async () => {
+    // A proxy that puts the request headers into its own failure message.
+    const impl = (async () => {
+      throw new Error(`connect ECONNREFUSED while sending Authorization: Bearer ${TOKEN}`);
+    }) as unknown as typeof fetch;
+
+    const status = await new HttpAuditSink({
+      url: "https://archive.example/audit",
+      bearerToken: TOKEN,
+      fetchImpl: impl,
+    }).testConnection();
+
+    expect(status.ok).toBe(false);
+    expect(status.message).not.toContain(TOKEN);
+  });
+
+  it("leaves the collector's message alone when there is no token to remove", async () => {
+    appendN(db, companyId, 1);
+    const { impl } = fakeFetch(() => ({ status: 503, body: "queue full, try later" }));
+    const result = await new AuditShipper({
+      db,
+      sink: new HttpAuditSink({ url: "https://archive.example/audit", fetchImpl: impl }),
+    }).shipNewEntries(companyId);
+    expect(result.error).toContain("queue full, try later");
+  });
+});

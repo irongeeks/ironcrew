@@ -240,6 +240,13 @@ export interface Dashboard {
   approvalsPending: number;
   budgets: Array<{ budget: { scope_type: string; limit_micros: number }; spentMicros: number; state: string }>;
   auditChainValid: boolean;
+  /**
+   * When that answer was taken. The dashboard serves a cached verification
+   * (the chain is re-hashed end to end, which is linear in an ever-growing
+   * table and must not happen on every poll), so the panel says how old the
+   * answer is rather than implying it is live.
+   */
+  auditChainCheckedAt?: number;
 }
 
 export interface Department {

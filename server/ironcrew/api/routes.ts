@@ -2725,14 +2725,116 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   // --- governance surfaces ------------------------------------------------
 
+  /**
+   * The last chain verification, and when it was taken.
+   *
+   * `verifyAuditChain()` recomputes every hash in `crew_audit_events` for the
+   * company — necessarily, since a chain is only sound end to end. That is
+   * fine for a deliberate act and ruinous for a poll: the load test measured
+   * the dashboard at 8 ms with 820 audit rows and 39 ms with 5,420, linear in
+   * a table that only ever grows, while an open Command Center asks for the
+   * dashboard on every refresh. A year-old installation would re-hash
+   * hundreds of thousands of rows several times a minute, for a number nobody
+   * is watching change.
+   *
+   * So the dashboard reads a cached answer no older than this TTL, and says
+   * how old it is instead of pretending it is live. `GET /audit` still
+   * verifies for real on every call, because that request *is* somebody
+   * asking the question.
+   *
+   * Worth being clear about what a full verification is even worth: it
+   * catches an edit that did not fix the hashes. An attacker who owns the box
+   * can recompute the whole chain, and no amount of local verification would
+   * notice. That is what the off-box copy is for (docs/AUDIT_SHIPPING.md) —
+   * which makes re-hashing on a timer a poor trade at any interval.
+   */
+  const CHAIN_CACHE_TTL_MS = 60_000;
+  let chainCache: { at: number; result: ReturnType<typeof verifyAuditChain> } | null = null;
+
+  function cachedChainCheck(): { at: number; result: ReturnType<typeof verifyAuditChain> } {
+    const now = Date.now();
+    if (!chainCache || now - chainCache.at >= CHAIN_CACHE_TTL_MS) {
+      chainCache = { at: now, result: verifyAuditChain(db, companyId) };
+    }
+    return chainCache;
+  }
+
   app.get(
     `${base}/audit`,
     wrap((req, res) => {
       const limit = Math.min(Number(req.query.limit ?? 100), 1000);
+      // Verified for real, and the cache refreshed from it: somebody asking
+      // this question directly should not then see a stale answer on the
+      // dashboard beside it.
+      chainCache = { at: Date.now(), result: verifyAuditChain(db, companyId) };
       res.json({
         events: listAuditEvents(db, companyId, { limit }),
-        chain: verifyAuditChain(db, companyId),
+        chain: chainCache.result,
       });
+    }),
+  );
+
+  /**
+   * Where the off-box copy of the audit chain stands.
+   *
+   * Reports "not configured" rather than 404 when no sink was registered: an
+   * operator looking at this page is asking "is my audit log leaving this
+   * machine?", and a 404 answers a different question. Readable by any
+   * signed-in user — how far behind the archive is, is not a secret, and the
+   * one thing that *is* (the collector's token) never appears here.
+   */
+  app.get(
+    `${base}/audit/shipping`,
+    wrap((_req, res) => {
+      const shipper = orchestrator.auditShipper;
+      if (!shipper) {
+        res.json({
+          configured: false,
+          message:
+            "Kein Ziel konfiguriert. Ohne Kopie ausser Haus kann eine Übernahme dieses Rechners die eigene Spur löschen.",
+        });
+        return;
+      }
+      res.json({
+        configured: true,
+        sink: shipper.sinkKind,
+        cursor: shipper.cursor(companyId),
+        pending: shipper.pending(companyId),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/audit/shipping/test`,
+    ownerOnly,
+    wrap(async (_req, res) => {
+      const shipper = orchestrator.auditShipper;
+      if (!shipper) {
+        res.status(409).json({ error: "not_configured", message: "Kein Audit-Ziel konfiguriert." });
+        return;
+      }
+      // 200 with ok:false, like the secret-provider probe: "the collector is
+      // unreachable right now" is a status a page displays, not a failure of
+      // the request that asked.
+      res.json(await shipper.testConnection());
+    }),
+  );
+
+  app.post(
+    `${base}/audit/shipping/run`,
+    ownerOnly,
+    wrap(async (_req, res) => {
+      const shipper = orchestrator.auditShipper;
+      if (!shipper) {
+        res.status(409).json({ error: "not_configured", message: "Kein Audit-Ziel konfiguriert." });
+        return;
+      }
+      // The scheduler ships on its own; this is for the operator who has just
+      // fixed the collector and wants to watch the backlog drain rather than
+      // wonder whether the next tick will work.
+      const result = await shipper.drain(companyId);
+      broadcast("crew_audit_shipped", { shipped: result.shipped, pending: result.pending });
+      res.json(result);
     }),
   );
 
@@ -2808,7 +2910,11 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         },
         approvalsPending: orchestrator.approvals.listPending(companyId).length,
         budgets: orchestrator.budgets.status(companyId),
-        auditChainValid: verifyAuditChain(db, companyId).valid,
+        // Cached, deliberately — see `cachedChainCheck`. `auditChainCheckedAt`
+        // travels with it so the panel can say how old the answer is instead
+        // of implying it was taken just now.
+        auditChainValid: cachedChainCheck().result.valid,
+        auditChainCheckedAt: cachedChainCheck().at,
       });
     }),
   );
