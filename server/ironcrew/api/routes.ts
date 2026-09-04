@@ -56,6 +56,7 @@ import { TalentMutationError, SENIORITY_LEVELS } from "../domain/talent-store.ts
 import { RunRequestError, RUN_REQUEST_STATUSES } from "../domain/run-request-store.ts";
 import type { JobStatus } from "../scheduler/scheduler.ts";
 import { ToolMutationError } from "../domain/tool-store.ts";
+import { RoutineMutationError } from "../domain/routine-store.ts";
 import { SearchProviderError } from "../search/search-provider.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
@@ -214,6 +215,20 @@ const createMarketplaceSchema = z.object({
 // The kind decides how the URL is parsed, so it stays fixed for the life of
 // a source — changing it would silently reinterpret the same URL.
 const updateMarketplaceSchema = createMarketplaceSchema.partial().omit({ kind: true });
+
+const createRoutineSchema = z.object({
+  name: z.string().min(1).max(200),
+  instruction: z.string().min(1).max(20000),
+  intervalMinutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(60 * 24 * 31),
+  agentId: z.string().min(1).max(200).nullish(),
+  projectId: z.string().min(1).max(200).nullish(),
+  enabled: z.boolean().optional(),
+});
+const updateRoutineSchema = createRoutineSchema.omit({ enabled: true }).partial();
 
 const grantToolSchema = z
   .object({
@@ -457,6 +472,10 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof RunRequestError) {
     res.status(409).json({ error: "invalid_run_request_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof RoutineMutationError) {
+    res.status(400).json({ error: "invalid_routine_mutation", message: err.message });
     return true;
   }
   if (err instanceof ToolMutationError) {
@@ -2329,6 +2348,89 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       res.json({ provider: result.provider, results: result.results, prompt: result.prompt });
+    }),
+  );
+
+  // --- routines: recurring work that leaves a trace -------------------------
+  //
+  // Firing a routine is not an action endpoint. It creates a task, so the
+  // owner sees on the board exactly what a timer asked for — the alternative,
+  // a scheduler that quietly does things, is invisible to the board, the
+  // approval gates, the budget engine and the audit log alike.
+
+  app.get(
+    `${base}/routines`,
+    wrap((_req, res) => {
+      res.json({ routines: orchestrator.routines.list(companyId) });
+    }),
+  );
+
+  app.post(
+    `${base}/routines`,
+    wrap((req, res) => {
+      const input = createRoutineSchema.parse(req.body ?? {});
+      const routine = orchestrator.routines.create({ companyId, ...input }, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_routine_changed", { routineId: routine.id });
+      res.status(201).json({ routine });
+    }),
+  );
+
+  app.patch(
+    `${base}/routines/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.routines.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const patch = updateRoutineSchema.parse(req.body ?? {});
+      const routine = orchestrator.routines.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_routine_changed", { routineId: existing.id });
+      res.json({ routine });
+    }),
+  );
+
+  app.post(
+    `${base}/routines/:id/enabled`,
+    wrap((req, res) => {
+      const existing = orchestrator.routines.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { enabled } = toolEnabledSchema.parse(req.body ?? {});
+      const routine = orchestrator.routines.setEnabled(existing.id, enabled, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_routine_changed", { routineId: existing.id, enabled });
+      res.json({ routine });
+    }),
+  );
+
+  app.delete(
+    `${base}/routines/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.routines.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.routines.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_routine_changed", { routineId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  /** The operator's "do it now". Produces the same visible task the timer would. */
+  app.post(
+    `${base}/routines/:id/run`,
+    wrap((req, res) => {
+      const task = orchestrator.runRoutineNow(companyId, param(req, "id"));
+      if (!task) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_task_changed", { taskId: task.id, status: task.status });
+      broadcast("crew_routine_changed", { routineId: param(req, "id") });
+      res.status(201).json({ task });
     }),
   );
 

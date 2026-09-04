@@ -1642,6 +1642,13 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     setShowTools(true);
     setToolErrors({});
     setWaiverToolId(null);
+    // A refusal or a hit list from the last time this dialog was open says
+    // nothing about the query nobody has typed yet.
+    setSearchHits(null);
+    setSearchDenied(null);
+    setSearchApprovalId(null);
+    setSearchUnreachable(null);
+    setSearchFailure(null);
     void actWith(
       async () => {
         // Talents are not in the main poll, and a grant that names one has to

@@ -32,8 +32,8 @@ function job(name: string, over: Parameters<typeof buildCrewJobs>[0] | null = nu
 }
 
 describe("the four jobs", () => {
-  it("covers queue, mail, chat and housekeeping", () => {
-    expect(jobs().map((j) => j.name)).toEqual(["run-queue", "mailboxes", "messengers", "sweep"]);
+  it("covers queue, routines, mail, chat and housekeeping", () => {
+    expect(jobs().map((j) => j.name)).toEqual(["run-queue", "routines", "mailboxes", "messengers", "sweep"]);
   });
 
   it("uses the documented defaults, and lets each be overridden", () => {

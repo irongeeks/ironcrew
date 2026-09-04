@@ -19,6 +19,8 @@ const log = logger.child({ module: "ironcrew-scheduler" });
 export interface CrewJobIntervals {
   /** How often to turn queued run requests into runs. */
   runQueueMs: number;
+  /** How often to check whether a routine is due. */
+  routineMs: number;
   /** How often to ask mailboxes whose own interval elapsed for new mail. */
   mailboxMs: number;
   /** How often to fetch new chat messages. */
@@ -31,6 +33,10 @@ export const DEFAULT_INTERVALS: CrewJobIntervals = {
   // Short: this is the latency between "the EA delegated something" and "an
   // agent starts on it", which is the responsiveness a person actually feels.
   runQueueMs: 15_000,
+  // A minute is the finest interval a routine can have, so checking more
+  // often than that would only burn cycles; checking less often would make
+  // "every 5 minutes" mean something else.
+  routineMs: 60_000,
   // The mailbox rows carry their own poll interval and `listPollable` honours
   // it; this only decides how often that question gets asked, so it can be
   // frequent without meaning "poll every mailbox every minute".
@@ -85,6 +91,19 @@ export function buildCrewJobs(opts: CrewJobOptions): ScheduledJob[] {
           broadcast("crew_run_queue_changed", result);
           broadcast("crew_task_changed", {});
         }
+      },
+    },
+    {
+      name: "routines",
+      intervalMs: intervals.routineMs,
+      async run() {
+        const result = orchestrator.runDueRoutines(companyId);
+        if (result.fired === 0) return;
+        log.info({ fired: result.fired }, "routines fired");
+        broadcast("crew_routine_changed", { fired: result.fired });
+        // Each firing is a real task on the board — that is the point of a
+        // routine producing work rather than performing it.
+        for (const task of result.tasks) broadcast("crew_task_changed", { taskId: task.id });
       },
     },
     {
@@ -173,9 +192,11 @@ export function intervalsFromEnv(env: NodeJS.ProcessEnv = process.env): Partial<
   const mail = seconds("IRONCREW_SCHEDULER_MAIL_SECONDS");
   const messenger = seconds("IRONCREW_SCHEDULER_MESSENGER_SECONDS");
   const sweep = seconds("IRONCREW_SCHEDULER_SWEEP_SECONDS");
+  const routine = seconds("IRONCREW_SCHEDULER_ROUTINE_SECONDS");
   if (queue !== undefined) overrides.runQueueMs = queue;
   if (mail !== undefined) overrides.mailboxMs = mail;
   if (messenger !== undefined) overrides.messengerMs = messenger;
   if (sweep !== undefined) overrides.sweepMs = sweep;
+  if (routine !== undefined) overrides.routineMs = routine;
   return overrides;
 }

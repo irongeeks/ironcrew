@@ -2473,3 +2473,80 @@ describe("web search over HTTP", () => {
     await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "" }).expect(400);
   });
 });
+
+describe("routines over HTTP (a timer that produces visible work)", () => {
+  async function createRoutine(over: Record<string, unknown> = {}) {
+    const res = await request(app)
+      .post("/api/crew/routines")
+      .send({
+        name: "Backup prüfen",
+        instruction: "Bitte prüfe, ob das nächtliche Backup durchgelaufen ist.",
+        intervalMinutes: 60,
+        ...over,
+      })
+      .expect(201);
+    return res.body.routine;
+  }
+
+  it("creates one without firing it", async () => {
+    const routine = await createRoutine();
+    expect(routine.enabled).toBe(1);
+    expect(routine.next_run_at).toBeGreaterThan(Date.now());
+    // Creating a routine must not start a run, or adjusting the form would.
+    expect((await request(app).get("/api/crew/tasks")).body.tasks).toHaveLength(0);
+  });
+
+  it("refuses a routine that would have nothing to do", async () => {
+    await request(app).post("/api/crew/routines").send({ name: "x", instruction: "", intervalMinutes: 60 }).expect(400);
+    await request(app).post("/api/crew/routines").send({ name: "x", instruction: "y", intervalMinutes: 0 }).expect(400);
+  });
+
+  it("reports a duplicate name as a bad request with the reason", async () => {
+    await createRoutine();
+    const res = await request(app)
+      .post("/api/crew/routines")
+      .send({ name: "Backup prüfen", instruction: "y", intervalMinutes: 60 })
+      .expect(400);
+    expect(res.body.error).toBe("invalid_routine_mutation");
+    expect(res.body.message).toMatch(/bereits/);
+  });
+
+  it("runs one on demand and hands back the task it produced", async () => {
+    const routine = await createRoutine();
+    const res = await request(app).post(`/api/crew/routines/${routine.id}/run`).expect(201);
+
+    // The deliverable is a task on the board, not a silent action.
+    expect(res.body.task.description).toContain("Backup");
+    expect(res.body.task.created_by).toBe(`routine:${routine.id}`);
+    expect(broadcasts.map((b) => b.type)).toContain("crew_task_changed");
+  });
+
+  it("edits and pauses", async () => {
+    const routine = await createRoutine();
+
+    const patched = await request(app)
+      .patch(`/api/crew/routines/${routine.id}`)
+      .send({ intervalMinutes: 15 })
+      .expect(200);
+    expect(patched.body.routine.interval_minutes).toBe(15);
+
+    const paused = await request(app)
+      .post(`/api/crew/routines/${routine.id}/enabled`)
+      .send({ enabled: false })
+      .expect(200);
+    expect(paused.body.routine.enabled).toBe(0);
+  });
+
+  it("deletes", async () => {
+    const routine = await createRoutine();
+    await request(app).delete(`/api/crew/routines/${routine.id}`).expect(200);
+    expect((await request(app).get("/api/crew/routines")).body.routines).toHaveLength(0);
+  });
+
+  it("404s for a routine that does not exist", async () => {
+    await request(app).patch("/api/crew/routines/rtn_nope").send({ name: "x" }).expect(404);
+    await request(app).post("/api/crew/routines/rtn_nope/run").expect(404);
+    await request(app).post("/api/crew/routines/rtn_nope/enabled").send({ enabled: true }).expect(404);
+    await request(app).delete("/api/crew/routines/rtn_nope").expect(404);
+  });
+});

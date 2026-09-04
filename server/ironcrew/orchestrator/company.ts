@@ -65,6 +65,7 @@ import { VesselStore, VesselMutationError } from "../domain/vessel-store.ts";
 import { TalentStore, TalentMutationError } from "../domain/talent-store.ts";
 import { RunRequestStore, type RunRequestRow } from "../domain/run-request-store.ts";
 import { ToolStore, type ToolDecision } from "../domain/tool-store.ts";
+import { RoutineStore, type RoutineRow } from "../domain/routine-store.ts";
 import {
   wrapSearchResults,
   type SearchProvider,
@@ -175,6 +176,7 @@ export class CompanyOrchestrator {
   readonly talents: TalentStore;
   readonly runRequests: RunRequestStore;
   readonly tools: ToolStore;
+  readonly routines: RoutineStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly searchProviders = new Map<string, SearchProvider>();
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
@@ -222,6 +224,7 @@ export class CompanyOrchestrator {
     this.talents = new TalentStore(db);
     this.runRequests = new RunRequestStore(db);
     this.tools = new ToolStore(db);
+    this.routines = new RoutineStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -2256,6 +2259,137 @@ export class CompanyOrchestrator {
     });
 
     return (this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined) ?? null;
+  }
+
+  // --- routines: recurring work that leaves a trace -------------------------
+
+  /**
+   * Fires every routine that is due, turning each into an ordinary task.
+   *
+   * A routine deliberately does not act. It asks — in the owner's own words,
+   * on a timer — and everything after that is the normal path: the EA
+   * triages it, an approval gate stops it if it is sensitive, the budget
+   * engine sees the spend, and the board shows it. A scheduler that performed
+   * actions directly would be invisible to all four.
+   *
+   * The limit is per tick, not per routine: a company whose routines all come
+   * due at once should produce a queue, not a stampede.
+   */
+  runDueRoutines(
+    companyId: string,
+    opts: { limit?: number; now?: number } = {},
+  ): {
+    fired: number;
+    tasks: TaskRow[];
+  } {
+    const limit = Math.max(1, opts.limit ?? 10);
+    const now = opts.now ?? Date.now();
+    const tasks: TaskRow[] = [];
+
+    for (let i = 0; i < limit; i++) {
+      const routine = this.routines.claimDue(companyId, now);
+      if (!routine) break;
+      tasks.push(this.taskFromRoutine(companyId, routine, now));
+    }
+
+    return { fired: tasks.length, tasks };
+  }
+
+  /** Fires one routine now, whatever its schedule says. The operator's "do it now". */
+  runRoutineNow(companyId: string, routineId: string): TaskRow | null {
+    const routine = this.routines.get(routineId);
+    if (!routine || routine.company_id !== companyId) return null;
+    return this.taskFromRoutine(companyId, routine, Date.now());
+  }
+
+  private taskFromRoutine(companyId: string, routine: RoutineRow, now: number): TaskRow {
+    const correlationId = newCorrelationId();
+    const classification = triage(routine.instruction);
+
+    // The routine's own text, not a summary of it: an operator reading the
+    // task should see exactly what they asked for, and the EA should triage
+    // the same words it would have triaged from the chat.
+    // Created `ready`, exactly as handleCeoMessage creates a request the owner
+    // typed — a routine is the owner asking on a timer, so it enters the
+    // board through the same door and the same legal transitions.
+    const task = this.tasks.create({
+      companyId,
+      title: `Routine: ${routine.name}`,
+      description: routine.instruction,
+      status: "ready",
+      projectId: routine.project_id,
+      riskLevel: classification.riskLevel,
+      sensitive: classification.sensitive,
+      createdBy: `routine:${routine.id}`,
+      correlationId,
+    });
+    this.routines.recordTask(routine.id, task.id);
+
+    appendAuditEvent(this.db, {
+      companyId,
+      actorType: "system",
+      actorId: `routine:${routine.id}`,
+      action: "routine.fired",
+      entityType: "routine",
+      entityId: routine.id,
+      taskId: task.id,
+      correlationId,
+      details: { name: routine.name, firedAt: now },
+    });
+
+    // A sensitive routine is parked behind an approval exactly like a
+    // sensitive request typed into the chat — a timer must not be a way to
+    // skip the gate.
+    if (classification.sensitive) {
+      const approval = this.approvals.request(
+        companyId,
+        {
+          approvalType: this.approvalTypeFor(routine.instruction),
+          requestedBy: `routine:${routine.id}`,
+          summary: `Freigabe erforderlich für Routine: ${routine.name}`,
+          riskLevel: "high",
+          impact: "Wiederkehrende Aktion mit rechtlicher oder finanzieller Wirkung.",
+          proposedAction: routine.instruction,
+        },
+        { taskId: task.id, correlationId },
+      );
+      this.notifyApprovalRequested(companyId, approval);
+      this.tasks.transition(task.id, "approval_required", {
+        reason: "sensitive routine awaiting owner approval",
+        actorType: "system",
+        actorId: `routine:${routine.id}`,
+        correlationId,
+      });
+      return this.tasks.get(task.id)!;
+    }
+
+    // Otherwise it is delegated and queued like anything else the owner asks
+    // for, so it actually runs rather than sitting in the inbox.
+    const agent = routine.agent_id
+      ? (this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(routine.agent_id) as AgentRow | undefined)
+      : this.pickAgent(companyId, classification);
+
+    if (agent) {
+      // assigned, then back to ready: the same two steps delegation takes, so
+      // the scheduler's atomic claim stays the thing that grants the work.
+      this.tasks.transition(task.id, "assigned", {
+        assignedAgentId: agent.id,
+        reason: `angelegt von Routine "${routine.name}"`,
+        actorType: "system",
+        actorId: `routine:${routine.id}`,
+        correlationId,
+      });
+      this.tasks.transition(task.id, "ready", {
+        reason: "queued for execution",
+        actorType: "system",
+        actorId: `routine:${routine.id}`,
+        correlationId,
+      });
+      this.enqueueRun(companyId, task.id, { requestedBy: `routine:${routine.id}` });
+    }
+
+    this.syncAgentStatuses(companyId);
+    return this.tasks.get(task.id)!;
   }
 
   // --- tools: what an agent may reach for ----------------------------------

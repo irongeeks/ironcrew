@@ -123,3 +123,53 @@ POST   /api/crew/search                     { agentId, query, … }
 kein Weg an einer Freigabe vorbei, die du nicht erteilt hast. Antworten: `200`
 mit Treffern, `403` wenn der Agent es nicht darf, `202` mit `approvalId` wenn du
 die Suche freigabepflichtig gemacht hast.
+
+## Routinen
+
+Wiederkehrende Arbeit — täglich das Backup prüfen, montags den Wochenbericht
+anstoßen. Die eine Regel, um die es geht:
+
+> **Eine Routine tut nichts. Sie legt eine Aufgabe an.**
+
+Sie fragt, in deinen eigenen Worten und auf einen Timer, und ab da ist es
+gewöhnliche Arbeit: auf dem Board sichtbar, durch dieselben Freigabe-Gates,
+gegen dieselben Budgets, unter demselben Agent-Lock.
+
+Ein Scheduler, der still Dinge _tut_, ist einer, den niemand prüfen, budgetieren
+oder anhalten kann. Der Besitzer sieht nicht, was lief; die Kostenrechnung
+erfährt nichts von den Ausgaben; und der erste Hinweis auf eine fehlgeleitete
+Routine ist meistens der Schaden.
+
+Konkret heißt das:
+
+- Eine Routine mit sensiblem Auftrag („überweise …") landet in
+  `approval_required` — genau wie derselbe Satz im Chat. Ein Timer ist kein Weg
+  am Gate vorbei.
+- Jede Auslösung steht als `routine.fired` im Audit-Log, mit der erzeugten
+  Aufgabe verknüpft. „Was hat diese Routine eigentlich gemacht" ist ein Klick.
+- `next_run_at` wird im selben Statement wie der Claim vorgerückt, also können
+  zwei überlappende Scheduler-Ticks dieselbe Routine nicht doppelt auslösen.
+
+Zwei Verhaltensweisen, die man sonst als Fehler wahrnimmt:
+
+- **Anlegen löst nicht sofort aus.** Sonst würde jedes Anpassen des Intervalls
+  einen Lauf starten.
+- **Fortsetzen nach einer Pause löst nicht sofort aus.** Eine für eine Woche
+  pausierte Routine, die beim Fortsetzen sofort feuert, war nie gemeint.
+
+Intervalle sind Minuten, kein Cron. „Alle vier Stunden" ist damit gesagt; „jeden
+Montag" ist ein Kalenderproblem, das dieses Produkt noch nicht hat — und ein
+Cron-Parser wäre heute eine Abhängigkeit und eine Parsing-Fläche für ein
+Feature, das niemand verlangt hat.
+
+```
+GET    /api/crew/routines
+POST   /api/crew/routines            { name, instruction, intervalMinutes, agentId?, projectId? }
+PATCH  /api/crew/routines/:id
+POST   /api/crew/routines/:id/enabled { enabled }
+POST   /api/crew/routines/:id/run     jetzt auslösen — erzeugt dieselbe sichtbare Aufgabe
+DELETE /api/crew/routines/:id
+```
+
+Der Scheduler-Job heißt `routines` und läuft standardmäßig minütlich
+(`IRONCREW_SCHEDULER_ROUTINE_SECONDS`).

@@ -42,6 +42,7 @@ export type IdPrefix =
   | "chgf"
   | "pair"
   | "rreq"
+  | "rtn"
   | "usr"
   | "sess"
   | "tool"
