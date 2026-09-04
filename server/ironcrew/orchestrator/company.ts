@@ -955,6 +955,18 @@ export class CompanyOrchestrator {
   }
 
   /**
+   * Reachability of one inbound channel.
+   *
+   * Deliberately never polls to answer: a poll consumes the cursor, so a
+   * "does this work" click would swallow messages nobody has seen yet.
+   */
+  async testMessengerChannel(kind: string): Promise<{ ok: boolean; message: string }> {
+    const channel = this.messengerChannels.get(kind);
+    if (!channel) return { ok: false, message: `No "${kind}" messenger channel is registered on this server.` };
+    return channel.testConnection();
+  }
+
+  /**
    * Polls one channel and acts on whatever is allowed to act.
    *
    * Every message is recorded in the external event log first, so a redelivery
@@ -964,13 +976,14 @@ export class CompanyOrchestrator {
   async pollMessengerChannel(
     companyId: string,
     kind: string,
-  ): Promise<{ received: number; handled: number; pairingPrompts: number }> {
+  ): Promise<{ received: number; handled: number; pairingPrompts: number; taskIds: string[] }> {
     const channel = this.messengerChannels.get(kind);
     if (!channel) throw new Error(`No "${kind}" messenger channel is registered on this server.`);
 
     const messages = await channel.poll();
     let handled = 0;
     let pairingPrompts = 0;
+    const taskIds: string[] = [];
 
     for (const message of messages) {
       const seen = this.externalEvents.record({
@@ -987,12 +1000,15 @@ export class CompanyOrchestrator {
       if (!seen.isNew) continue;
 
       const outcome = await this.handleInboundMessage(companyId, kind, channel, message);
-      if (outcome === "handled") handled++;
-      if (outcome === "pairing") pairingPrompts++;
-      this.externalEvents.markHandled(seen.event.id, `messenger:${kind}`, { taskId: null });
+      if (outcome.result === "handled") handled++;
+      if (outcome.result === "pairing") pairingPrompts++;
+      if (outcome.taskId) taskIds.push(outcome.taskId);
+      // The task id is what makes a replay useful later: an operator looking
+      // at a replayed event can see what the first delivery already produced.
+      this.externalEvents.markHandled(seen.event.id, `messenger:${kind}`, { taskId: outcome.taskId });
     }
 
-    return { received: messages.length, handled, pairingPrompts };
+    return { received: messages.length, handled, pairingPrompts, taskIds };
   }
 
   private async handleInboundMessage(
@@ -1000,7 +1016,7 @@ export class CompanyOrchestrator {
     kind: string,
     channel: MessengerChannel,
     message: InboundMessage,
-  ): Promise<"handled" | "pairing" | "ignored"> {
+  ): Promise<{ result: "handled" | "pairing" | "ignored"; taskId: string | null }> {
     const decision = this.messengerPairings.resolve({
       companyId,
       channelKind: kind,
@@ -1013,19 +1029,19 @@ export class CompanyOrchestrator {
       // A blocked sender gets nothing at all — not even the courtesy of
       // knowing they are blocked, which would only tell them to try from
       // another account.
-      if (decision.reason === "blocked") return "ignored";
+      if (decision.reason === "blocked") return { result: "ignored", taskId: null };
 
       await channel.reply(
         message.chatId,
         `IronCrew: Dieser Zugang ist noch nicht freigegeben. Code für die Freigabe: ${decision.pairing?.pairing_code ?? "—"}`,
       );
-      return "pairing";
+      return { result: "pairing", taskId: null };
     }
 
     if (decision.allow === "ceo") {
       const result = this.handleCeoMessage(companyId, message.text);
       await channel.reply(message.chatId, result.reply);
-      return "handled";
+      return { result: "handled", taskId: result.task?.id ?? null };
     }
 
     // A guest is a stranger with a name. Same treatment as incoming mail:
@@ -1037,7 +1053,7 @@ export class CompanyOrchestrator {
     const classification = triage(message.text);
     const agent = this.pickAgent(companyId, classification);
 
-    this.tasks.create({
+    const task = this.tasks.create({
       companyId,
       title: `Chat: ${sanitiseLine(message.text, 80) || "(ohne Text)"}`,
       description: [
@@ -1054,7 +1070,7 @@ export class CompanyOrchestrator {
     });
 
     await channel.reply(message.chatId, "IronCrew: Deine Nachricht liegt im Eingang und wird gesichtet.");
-    return "handled";
+    return { result: "handled", taskId: task.id };
   }
 
   /** The owner accepts a pending pairing, choosing what authority it carries. */
