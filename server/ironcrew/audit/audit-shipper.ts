@@ -454,6 +454,38 @@ export function auditShipperCursorKey(companyId: string, namespace = "default"):
   return `ironcrew.audit_shipper.cursor.${namespace}.${companyId}`;
 }
 
+/**
+ * Settings key holding the last attempt's outcome for one company.
+ *
+ * Persisted, not held in memory, and that is the whole point. A sink that has
+ * been refusing since 06:00 is exactly the situation in which the process is
+ * most likely to have been restarted — and an in-memory health record would
+ * come back clean, telling an operator "no error" about a collector that has
+ * not accepted an entry all day. The backlog would be the only hint, and a
+ * backlog looks the same whether it is one minute or one week old.
+ */
+export function auditShipperHealthKey(companyId: string, namespace = "default"): string {
+  return `ironcrew.audit_shipper.health.${namespace}.${companyId}`;
+}
+
+/**
+ * What the last attempt did. Every field is optional because a shipper that
+ * has never run has no history, and inventing zeroes for it would read as
+ * "attempted, succeeded, nothing to do".
+ */
+export interface AuditShipperHealth {
+  /** When a drain last ran at all, successful or not. */
+  lastAttemptAt?: number;
+  /** When entries last actually left the machine. */
+  lastSuccessAt?: number;
+  /** Redacted message from the last failure, absent once one succeeds. */
+  lastError?: string;
+  /** When that failure happened. */
+  lastErrorAt?: number;
+  /** Consecutive failures. A number that keeps climbing is the alarm. */
+  consecutiveFailures?: number;
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -523,6 +555,54 @@ export class AuditShipper {
     // Falling back to 0 re-ships, which is duplicates; trusting garbage could
     // skip, which is a hole.
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+
+  /**
+   * The last attempt's outcome. Empty when the shipper has never run.
+   *
+   * A corrupt record reads as "no history" rather than throwing: this is
+   * reported on a status page, and a health field that can break the page it
+   * appears on is worse than one that admits it knows nothing.
+   */
+  health(companyId: string): AuditShipperHealth {
+    const row = oneRow<{ value: string }>(
+      this.db.prepare("SELECT value FROM settings WHERE key = ?"),
+      auditShipperHealthKey(companyId, this.namespace),
+    );
+    if (!row) return {};
+    try {
+      const parsed: unknown = JSON.parse(row.value);
+      return parsed && typeof parsed === "object" ? (parsed as AuditShipperHealth) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Records what an attempt did.
+   *
+   * A success clears `lastError` outright rather than leaving it beside a
+   * fresh `lastSuccessAt`: an error that survives the recovery would have an
+   * operator chasing a collector that started working again an hour ago.
+   */
+  private setHealth(companyId: string, outcome: { ok: boolean; error?: string; shipped: number; now: number }): void {
+    const previous = this.health(companyId);
+    const next: AuditShipperHealth = outcome.ok
+      ? {
+          lastAttemptAt: outcome.now,
+          lastSuccessAt: outcome.shipped > 0 ? outcome.now : previous.lastSuccessAt,
+          consecutiveFailures: 0,
+        }
+      : {
+          lastAttemptAt: outcome.now,
+          lastSuccessAt: previous.lastSuccessAt,
+          lastError: outcome.error,
+          lastErrorAt: outcome.now,
+          consecutiveFailures: (previous.consecutiveFailures ?? 0) + 1,
+        };
+    this.db
+      .prepare("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .run(auditShipperHealthKey(companyId, this.namespace), JSON.stringify(next));
   }
 
   private setCursor(companyId: string, seq: number): void {
@@ -597,6 +677,13 @@ export class AuditShipper {
     const batch = this.readBatch(companyId, fromSeq);
 
     if (batch.length === 0) {
+      // An idle tick is still an attempt, and recording it is what lets the
+      // status distinguish "healthy, nothing to do" from "nothing has ever
+      // run". Without it a correctly working installation with an empty queue
+      // would report "no shipping run yet" forever, which reads as broken.
+      // It costs one row upsert a minute and buys the proof that the loop is
+      // alive.
+      this.setHealth(companyId, { ok: true, shipped: 0, now: Date.now() });
       return { ok: true, shipped: 0, fromSeq, cursorSeq: fromSeq, pending: 0, gapDetected: false };
     }
 
@@ -622,6 +709,13 @@ export class AuditShipper {
 
     const error =
       accepted < batch.length ? redactText(outcome.error ?? "Audit-Ziel hat den Batch abgelehnt.") : undefined;
+
+    this.setHealth(companyId, {
+      ok: accepted === batch.length,
+      error,
+      shipped: accepted,
+      now: Date.now(),
+    });
 
     return {
       ok: accepted === batch.length,

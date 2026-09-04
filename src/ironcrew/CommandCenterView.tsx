@@ -99,6 +99,7 @@ import {
   type ToolGrantScope,
   type ToolWithGrants,
   type Vessel,
+  MAX_QUORUM,
 } from "./types.ts";
 
 function formatTime(ts: number): string {
@@ -226,6 +227,14 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
    * human and the question does not arise.
    */
   const [myUserId, setMyUserId] = useState<string | null>(null);
+  /**
+   * How many approvals the owner is about to demand, per approval.
+   *
+   * Local and unsent until the button is pressed: raising a quorum is
+   * irreversible (it can never be lowered again), so the number is chosen
+   * first and committed deliberately, not on every keystroke of a select.
+   */
+  const [quorumChoice, setQuorumChoice] = useState<Record<string, number>>({});
 
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [secretProviders, setSecretProviders] = useState<SecretProviderStatus[]>([]);
@@ -2397,16 +2406,45 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                         // every routine approval wait for somebody with
                         // nothing to add, and gets switched off within a
                         // fortnight — including for the bank transfer.
-                        <button
-                          type="button"
-                          className="ic-btn"
-                          data-variant="ghost"
-                          disabled={busy}
-                          data-testid={`require-two-${approval.id}`}
-                          onClick={() => act(() => client.setQuorum(approval.id, 2))}
-                        >
-                          Vier Augen verlangen
-                        </button>
+                        //
+                        // The picker defaults to 2 and the button is one
+                        // click, because two is what nearly every case wants
+                        // and the control must not tax the common path to
+                        // serve the rare one. Three or more exists because the
+                        // store allows it and a Tier-0 change on a customer's
+                        // network is a real reason to want it — it was simply
+                        // unreachable from here before.
+                        <>
+                          <label className="ic-quorum-pick">
+                            <span className="ic-quorum-pick-label">Zustimmungen</span>
+                            <select
+                              value={quorumChoice[approval.id] ?? 2}
+                              disabled={busy}
+                              data-testid={`quorum-choice-${approval.id}`}
+                              onChange={(e) =>
+                                setQuorumChoice((prev) => ({ ...prev, [approval.id]: Number(e.target.value) }))
+                              }
+                            >
+                              {Array.from({ length: MAX_QUORUM - 1 }, (_, i) => i + 2).map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            className="ic-btn"
+                            data-variant="ghost"
+                            disabled={busy}
+                            data-testid={`require-two-${approval.id}`}
+                            onClick={() => act(() => client.setQuorum(approval.id, quorumChoice[approval.id] ?? 2))}
+                          >
+                            {(quorumChoice[approval.id] ?? 2) === 2
+                              ? "Vier Augen verlangen"
+                              : `${quorumChoice[approval.id]} Zustimmungen verlangen`}
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -5712,6 +5750,49 @@ IRONCREW_AUDIT_TOKEN=…`}
                 the shape a deletion leaves — and it used to be visible only to
                 whoever happened to press "Jetzt übertragen".
               */}
+              {/*
+                How the last attempt went. The backlog alone cannot tell an
+                operator whether it is a minute or a week old, and the sink
+                has been logging its failures to a file nobody reads.
+              */}
+              {auditShipping?.configured === true &&
+                (auditShipping.health?.lastError !== undefined ? (
+                  <div className="ic-warn" data-testid="audit-shipping-health">
+                    <strong>
+                      Das Ziel nimmt nichts an
+                      {(auditShipping.health.consecutiveFailures ?? 0) > 1
+                        ? ` — ${auditShipping.health.consecutiveFailures} Versuche in Folge`
+                        : ""}
+                      .
+                    </strong>{" "}
+                    {auditShipping.health.lastError}
+                    {auditShipping.health.lastErrorAt !== undefined && (
+                      <> (zuletzt {new Date(auditShipping.health.lastErrorAt).toLocaleString("de-DE")})</>
+                    )}
+                    {auditShipping.health.lastSuccessAt !== undefined ? (
+                      <>
+                        {" "}
+                        Zuletzt erfolgreich übertragen:{" "}
+                        {new Date(auditShipping.health.lastSuccessAt).toLocaleString("de-DE")}.
+                      </>
+                    ) : (
+                      <> Es wurde noch nie etwas übertragen.</>
+                    )}
+                  </div>
+                ) : auditShipping.health?.lastSuccessAt !== undefined ? (
+                  <p className="ic-note" data-testid="audit-shipping-health">
+                    Zuletzt übertragen: {new Date(auditShipping.health.lastSuccessAt).toLocaleString("de-DE")}.
+                  </p>
+                ) : auditShipping.health?.lastAttemptAt !== undefined ? (
+                  <p className="ic-note" data-testid="audit-shipping-health">
+                    Der letzte Lauf hatte nichts zu übertragen.
+                  </p>
+                ) : (
+                  <p className="ic-note" data-testid="audit-shipping-health">
+                    Noch kein Übertragungslauf. Der Scheduler startet den ersten innerhalb einer Minute.
+                  </p>
+                ))}
+
               {auditShipping?.configured === true && auditShipping.gapDetected === true && (
                 <div className="ic-conflict" data-testid="audit-shipping-gap-status">
                   <strong>Lücke in der Audit-Kette.</strong> Zwischen dem zuletzt übertragenen Eintrag und dem nächsten

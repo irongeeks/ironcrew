@@ -146,6 +146,19 @@ export interface ApprovalTally {
   selfApproved: boolean;
 }
 
+/**
+ * How many approvals this UI will offer to demand.
+ *
+ * The server is the authority — `MAX_REQUIRED_APPROVALS` in
+ * `approval-review-store.ts`, enforced again by the route's zod schema — so a
+ * value out of range is refused there, not merely absent here. This constant
+ * exists only so the picker does not offer a number that is going to bounce.
+ *
+ * The ceiling is not arbitrary: a quorum larger than the number of people who
+ * could ever satisfy it is a deadlock dressed as diligence.
+ */
+export const MAX_QUORUM = 5;
+
 export interface ApprovalReview {
   id: string;
   approval_id: string;
@@ -943,6 +956,18 @@ export type AuditShippingStatus =
        * signal nobody gets.
        */
       gapDetected?: boolean;
+      /**
+       * How the last attempt went. Optional so an older server renders as
+       * before, and every field inside is optional because a shipper that has
+       * never run has no history to report.
+       */
+      health?: {
+        lastAttemptAt?: number;
+        lastSuccessAt?: number;
+        lastError?: string;
+        lastErrorAt?: number;
+        consecutiveFailures?: number;
+      };
     };
 
 export const AUDIT_SINK_LABEL: Record<string, string> = {

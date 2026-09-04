@@ -682,6 +682,29 @@
   color: var(--ic-red);
   opacity: 1;
 }
+/* The quorum picker sits with the button that commits it, and stays visually
+   quieter than the approve/reject pair above — asking for more eyes is a
+   deliberate step, not the primary action on the card. */
+.ic-quorum-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ic-text-dim);
+}
+.ic-quorum-pick select {
+  background: var(--ic-bg-inset);
+  color: var(--ic-text);
+  border: 1px solid var(--ic-line-strong);
+  border-radius: var(--ic-radius);
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 11px;
+}
+.ic-quorum-pick-label {
+  opacity: 0.8;
+}
+
 .ic-approval-voted {
   font-size: 11px;
   opacity: 0.8;

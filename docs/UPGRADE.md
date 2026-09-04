@@ -317,15 +317,21 @@ database came through the upgrade unaltered — every audited row is hashed into
 a chain, so a changed byte breaks it:
 
 ```bash
-curl -s -H "Authorization: Bearer $TOKEN" localhost:8790/api/crew/dashboard | grep auditChainValid
+node scripts/ironcrew-verify-audit.mjs --db /var/lib/ironcrew/data/ironcrew.sqlite
 ```
 
-`GET /api/crew/audit` returns the full `chain` object, including the sequence
-number of the first broken link. The Command Center's dashboard shows the same
-flag.
+This opens the database read-only, verifies the chain for **every** company and
+needs no running service, so it can be run before the upgraded build is started
+— exit code 0 means every chain is intact, 2 means a chain is broken or a
+number is missing from the `seq` sequence. `--json` for a monitoring check.
+
+With the service running, `GET /api/crew/audit` returns the same `chain` object,
+including the sequence number of the first broken link, and the Command Center's
+dashboard shows the flag.
 
 Note that `pnpm run audit:verify` does **not** answer this question — it
-verifies a different chain, in a log file. See [Known gaps](#known-gaps).
+verifies a different chain, in a log file. The database chain is
+`pnpm run audit:verify:db`. See [Known gaps](#known-gaps).
 
 **5. The integrations still reach the systems they name.** Installed business
 packs declare integrations, and each has a probe that makes one real call:
@@ -540,16 +546,25 @@ Written down rather than described as if they worked.
    file is honest — it says the database has no `schema_migrations` — but the
    failure mode of `apply` is not explained by its message.
 
-2. **`pnpm run audit:verify` does not verify the database audit chain.** It
-   runs `scripts/verify-security-audit-log.mjs`, which checks a separate
-   hash chain in `$LOGS_DIR/security-audit.ndjson`. `BACKUP.md` step 4 presents
-   it as the check on a restored database; it is not. Worse, logs are
-   deliberately excluded from backups, so after a restore onto a fresh machine
-   the command exits 1 with `log file not found`. The `crew_audit_events` chain
-   has **no offline CLI** — `verifyAuditChain()` is reachable only through
-   `GET /api/crew/audit` and `GET /api/crew/dashboard`, which means the server
-   must be running, which means you have already started the build you were
-   trying to verify first.
+2. **Closed, with one limit that remains.** The `crew_audit_events` chain now
+   has an offline CLI: `scripts/ironcrew-verify-audit.mjs`
+   (`pnpm run audit:verify:db`). It opens the database read-only, calls the
+   product's own `verifyAuditChain()` — not a second copy of the hashing — for
+   every company in `crew_companies`, and exits 2 if a chain is broken or the
+   `seq` sequence has a hole. No server needed, so a restored database can be
+   checked before the build that would open it is started. `BACKUP.md` step 4
+   and step 4 above now point at it.
+
+   `pnpm run audit:verify` still verifies the other chain, the NDJSON file under
+   `$LOGS_DIR` — that remains a real check, just not this one, and it still
+   exits 1 with `log file not found` on a machine that only has a restored
+   database. The two names are one character apart; read the one in the runbook.
+
+   What remains, and cannot be fixed by a verifier: entries removed from the
+   **end** of a chain leave neither a broken link nor a hole in `seq`. The chain
+   proves that the rows which are there have not been edited, not that no row is
+   missing after the last one. Detecting that needs a second copy — an older
+   backup, or the entry count from a previous run — to compare against.
 
 3. **`scripts/install-service.sh` cannot install the runner unit.**
    `SERVICE_NAME` is hardcoded to `ironcrew` and there is no flag to select the

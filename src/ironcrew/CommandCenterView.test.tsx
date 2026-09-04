@@ -3694,6 +3694,60 @@ describe("four eyes on a dangerous approval", () => {
     expect(quorum).not.toHaveTextContent("es fehlt noch");
   });
 
+  it("lets an owner demand more than two, which the store always allowed", async () => {
+    // The button used to send a hardcoded 2. The store accepts up to
+    // MAX_REQUIRED_APPROVALS, so three reviewers on a Tier-0 change was a
+    // capability the product had and the screen did not expose.
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+    const user = userEvent.setup();
+
+    const card = await screen.findByTestId("approval-apr_1");
+    await user.selectOptions(within(card).getByTestId("quorum-choice-apr_1"), "3");
+    // The label follows the number, so the button never claims "four eyes"
+    // while about to demand three.
+    const button = within(card).getByTestId("require-two-apr_1");
+    expect(button.textContent).toBe("3 Zustimmungen verlangen");
+
+    await user.click(button);
+    await waitFor(() => expect(client.setQuorum).toHaveBeenCalledWith("apr_1", 3));
+  });
+
+  it("keeps two eyes to a single click", async () => {
+    // The common case must not pay for the rare one: the picker starts at 2,
+    // so demanding four eyes is still one press with nothing to choose.
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = await screen.findByTestId("approval-apr_1");
+    expect((within(card).getByTestId("quorum-choice-apr_1") as HTMLSelectElement).value).toBe("2");
+    await userEvent.setup().click(within(card).getByTestId("require-two-apr_1"));
+    await waitFor(() => expect(client.setQuorum).toHaveBeenCalledWith("apr_1", 2));
+  });
+
+  it("offers nothing the server would refuse", async () => {
+    const client = makeClient({
+      approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
+      authStatus: signedInAs("usr_anna"),
+    });
+    render(<CommandCenterView client={client} />);
+
+    const card = await screen.findByTestId("approval-apr_1");
+    const options = Array.from(
+      (within(card).getByTestId("quorum-choice-apr_1") as HTMLSelectElement).options,
+      (o) => o.value,
+    );
+    // A quorum of 1 is not "fewer eyes", it is the default — offering it here
+    // would look like a way to lower one, which the store refuses outright.
+    expect(options).toEqual(["2", "3", "4", "5"]);
+  });
+
   it("asks for four eyes on a single approval, not as a global setting", async () => {
     const client = makeClient({
       approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
@@ -3919,5 +3973,79 @@ describe("a gap is visible without pressing anything", () => {
 
     await screen.findByTestId("audit-shipping-run");
     expect(screen.queryByTestId("audit-shipping-gap-status")).toBeNull();
+  });
+});
+
+describe("the audit copy says whether it is healthy, not just how far behind", () => {
+  /**
+   * A backlog is a number; it looks the same whether it is one minute or one
+   * week old. The shipper was already logging every failure at warn — into a
+   * file nobody reads — while the page an operator opens showed a count and
+   * invited them to press a button to find out.
+   */
+  const configured = (over: Record<string, unknown> = {}) => ({
+    configured: true,
+    sink: "http",
+    cursor: 40,
+    pending: 17,
+    gapDetected: false,
+    ...over,
+  });
+
+  async function openPanel(status: Record<string, unknown>) {
+    const client = makeClient({ auditShipping: vi.fn().mockResolvedValue(status) });
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
+    return screen.findByTestId("audit-shipping-health");
+  }
+
+  it("names a failing collector, how long it has been failing, and when it last worked", async () => {
+    const health = await openPanel(
+      configured({
+        health: {
+          lastAttemptAt: Date.parse("2026-09-04T09:00:00Z"),
+          lastSuccessAt: Date.parse("2026-09-04T06:00:00Z"),
+          lastError: "HTTP 503: queue full",
+          lastErrorAt: Date.parse("2026-09-04T09:00:00Z"),
+          consecutiveFailures: 34,
+        },
+      }),
+    );
+    expect(health.textContent).toMatch(/nimmt nichts an/);
+    // The count is what turns "it failed" into "it has been failing".
+    expect(health.textContent).toMatch(/34 Versuche in Folge/);
+    expect(health.textContent).toContain("HTTP 503: queue full");
+    expect(health.textContent).toMatch(/Zuletzt erfolgreich/);
+  });
+
+  it("does not say 'last succeeded' when it never has", async () => {
+    const health = await openPanel(
+      configured({
+        health: { lastAttemptAt: 1, lastError: "connect ECONNREFUSED", lastErrorAt: 1, consecutiveFailures: 1 },
+      }),
+    );
+    expect(health.textContent).toMatch(/noch nie etwas übertragen/);
+    // One failure is a failure, not "1 Versuche in Folge".
+    expect(health.textContent).not.toMatch(/Versuche in Folge/);
+  });
+
+  it("reports a healthy sink by when it last shipped", async () => {
+    const health = await openPanel(
+      configured({ pending: 0, health: { lastAttemptAt: 2, lastSuccessAt: 2, consecutiveFailures: 0 } }),
+    );
+    expect(health.textContent).toMatch(/Zuletzt übertragen/);
+    expect(health.textContent).not.toMatch(/nimmt nichts an/);
+  });
+
+  it("says so plainly when nothing has run yet", async () => {
+    // A fresh installation must not look broken, and must not look healthy
+    // either — nothing has been proven yet.
+    const health = await openPanel(configured({ health: {} }));
+    expect(health.textContent).toMatch(/Noch kein Übertragungslauf/);
+  });
+
+  it("renders against an older server that reports no health at all", async () => {
+    const health = await openPanel(configured());
+    expect(health.textContent).toMatch(/Noch kein Übertragungslauf/);
   });
 });

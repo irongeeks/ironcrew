@@ -48,6 +48,7 @@
     "arch:map": "node scripts/generate-architecture-report.mjs",
     "preflight:public": "bash scripts/preflight-public.sh",
     "audit:verify": "node scripts/verify-security-audit-log.mjs",
+    "audit:verify:db": "node scripts/ironcrew-verify-audit.mjs",
     "test:comm:llm": "node scripts/qa/llm-comm-test.mjs",
     "test:comm:oauth": "node scripts/qa/oauth-comm-test.mjs",
     "test:comm:api": "node scripts/qa/api-comm-test.mjs",
