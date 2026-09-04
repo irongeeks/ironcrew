@@ -37,6 +37,10 @@ export type IdPrefix =
   | "mki"
   | "vsl"
   | "tal"
+  | "xevt"
+  | "chg"
+  | "chgf"
+  | "pair"
   | "turn"
   | "action"
   | "corr";

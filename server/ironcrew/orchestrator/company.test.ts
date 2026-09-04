@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { createTestDb } from "../domain/test-db.ts";
 import { CompanyOrchestrator } from "./company.ts";
@@ -1846,5 +1848,287 @@ describe("marketplaces — browsing sources and installing what they offer", () 
     expect(actions).toContain("marketplace.installed");
     expect(actions).toContain("marketplace.uninstalled");
     expect(verifyAuditChain(db, companyId).valid).toBe(true);
+  });
+});
+
+describe("agent run lock — one agent never has two runs in flight", () => {
+  /** A delegated, ready task plus the agent it landed on. */
+  function readyTask(prompt = "Bitte dokumentiere das Deployment-Verfahren.") {
+    const r = orc.handleCeoMessage(companyId, prompt);
+    const task = r.task!;
+    return { task, agentId: orc.tasks.get(task.id)!.assigned_agent_id! };
+  }
+
+  it("takes the lease for the duration of a run and gives it back", async () => {
+    const { agentId } = readyTask();
+
+    expect(orc.agentLocks.isLocked(agentId)).toBe(false);
+    await orc.executeNextTask(companyId);
+    // Released on the way out, so the agent is free for the next task.
+    expect(orc.agentLocks.isLocked(agentId)).toBe(false);
+  });
+
+  it("refuses to dispatch a second task to an agent already running one", async () => {
+    const { task, agentId } = readyTask();
+
+    // Stand in for a run that is still in flight: something else holds the
+    // agent's lease.
+    expect(orc.agentLocks.acquire(agentId, "run_in_flight")).toBe(true);
+
+    const result = await orc.executeNextTask(companyId);
+    expect(result).toBeNull();
+
+    // Fail-closed, and the work is not lost: the task is back in the queue
+    // rather than parked as claimed by a run that never started.
+    expect(orc.tasks.get(task.id)!.status).toBe("ready");
+    expect(orc.tasks.get(task.id)!.execution_run_id).toBeNull();
+    // The in-flight run still owns the agent.
+    expect(orc.agentLocks.get(agentId)?.runId).toBe("run_in_flight");
+  });
+
+  it("dispatches again once the blocking run lets go", async () => {
+    const { task, agentId } = readyTask();
+
+    orc.agentLocks.acquire(agentId, "run_in_flight");
+    expect(await orc.executeNextTask(companyId)).toBeNull();
+
+    orc.agentLocks.release(agentId, "run_in_flight");
+    const result = await orc.executeNextTask(companyId);
+    expect(result).not.toBeNull();
+    expect(result!.task.id).toBe(task.id);
+  });
+
+  it("does not leave the lease held when a run fails", async () => {
+    orc.registerRuntime({
+      type: "exploding",
+      capabilities: async () => ({
+        streaming: false,
+        sessionResume: false,
+        usageReporting: false,
+        costReporting: false,
+        toolCalls: false,
+        subagents: false,
+        defaultConcurrency: 1,
+      }),
+      healthCheck: async () => ({ healthy: true, installed: true, detail: "", checkedAt: Date.now() }),
+      authStatus: async () => ({ authenticated: true, method: "none", detail: "" }),
+      // eslint-disable-next-line require-yield
+      startRun: async function* () {
+        throw new Error("runtime exploded");
+      },
+      cancelRun: async () => {},
+    } as unknown as AgentRuntime);
+
+    const { agentId } = readyTask();
+
+    await orc.executeNextTask(companyId, { runtimeType: "exploding" }).catch(() => undefined);
+
+    // A crashed run that kept its lease would park the agent until the lease
+    // expired — half an hour of an agent doing nothing.
+    expect(orc.agentLocks.isLocked(agentId)).toBe(false);
+  });
+});
+
+describe("change proposals — an owner sees file edits before they happen", () => {
+  let workspace: string;
+
+  beforeEach(() => {
+    workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-orc-ws-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  });
+
+  function propose(title = "Konfiguration anpassen") {
+    return orc.proposeChanges(companyId, {
+      title,
+      workspacePath: workspace,
+      files: [{ path: "config.yaml", operation: "create", content: "port: 9090" }],
+      agentId: orc.getAgent(companyId, "cto")!.id,
+    });
+  }
+
+  it("raises an approval alongside the proposal, and writes nothing yet", () => {
+    const { proposal, approvalId } = propose();
+
+    expect(proposal.status).toBe("pending");
+    expect(proposal.approval_id).toBe(approvalId);
+    expect(fs.existsSync(path.join(workspace, "config.yaml"))).toBe(false);
+
+    const approval = orc.approvals.get(approvalId)!;
+    expect(approval.approval_type).toBe("file_change");
+    expect(approval.status).toBe("pending");
+    // The summary says what would be touched; the contents are one click away.
+    expect(approval.proposed_action).toContain("create: config.yaml");
+  });
+
+  it("puts the decision in front of the owner", () => {
+    propose();
+    const pending = orc.notifications.list(companyId).filter((n) => n.kind === "approval_required");
+    expect(pending.length).toBeGreaterThan(0);
+    expect(pending[0].title).toContain("Dateiänderung wartet auf Freigabe");
+  });
+
+  it("moves the approval and the proposal together", () => {
+    const { proposal, approvalId } = propose();
+
+    orc.decideChangeProposal(companyId, proposal.id, "approved");
+
+    // The two halves must never disagree about whether a change was authorised.
+    expect(orc.changeProposals.get(proposal.id)!.status).toBe("approved");
+    expect(orc.approvals.get(approvalId)!.status).toBe("approved");
+  });
+
+  it("writes only after the approval is approved", () => {
+    const { proposal } = propose();
+    expect(() => orc.applyChangeProposal(companyId, proposal.id)).toThrow();
+
+    orc.decideChangeProposal(companyId, proposal.id, "approved");
+    const result = orc.applyChangeProposal(companyId, proposal.id);
+
+    expect(result.applied).toEqual(["config.yaml"]);
+    expect(fs.readFileSync(path.join(workspace, "config.yaml"), "utf-8")).toBe("port: 9090");
+  });
+
+  it("re-reads the approval rather than trusting the proposal row", () => {
+    const { proposal, approvalId } = propose();
+    orc.decideChangeProposal(companyId, proposal.id, "approved");
+
+    // A decision reversed after the proposal was marked approved must still
+    // stop the write — the approval is where authorisation lives.
+    db.prepare("UPDATE crew_approvals SET status = 'cancelled' WHERE id = ?").run(approvalId);
+
+    expect(() => orc.applyChangeProposal(companyId, proposal.id)).toThrow(/nothing may be written/);
+    expect(fs.existsSync(path.join(workspace, "config.yaml"))).toBe(false);
+  });
+
+  it("rejecting stops the change for good", () => {
+    const { proposal, approvalId } = propose();
+    orc.decideChangeProposal(companyId, proposal.id, "rejected", { reason: "zu riskant" });
+
+    expect(orc.approvals.get(approvalId)!.status).toBe("rejected");
+    expect(() => orc.applyChangeProposal(companyId, proposal.id)).toThrow();
+    expect(fs.existsSync(path.join(workspace, "config.yaml"))).toBe(false);
+  });
+
+  it("does not reach into another company's proposal", () => {
+    const { proposal } = propose();
+    const other = orc.seedCompany({ name: "Other", slug: "other-cp", crew, departments });
+
+    expect(orc.decideChangeProposal(other, proposal.id, "approved")).toBeNull();
+    expect(() => orc.applyChangeProposal(other, proposal.id)).toThrow(/does not exist/);
+  });
+});
+
+describe("inbound messaging — who may speak to the EA", () => {
+  function fakeChannel(messages: unknown[] = []) {
+    return {
+      kind: "telegram",
+      poll: vi.fn().mockResolvedValue(messages),
+      reply: vi.fn().mockResolvedValue(undefined),
+      testConnection: vi.fn().mockResolvedValue({ ok: true, message: "erreichbar" }),
+    };
+  }
+
+  function msg(over: Record<string, unknown> = {}) {
+    return {
+      externalId: "upd_1",
+      chatId: "chat_1",
+      senderId: "user_42",
+      senderName: "Robert",
+      text: "Bitte dokumentiere das Deployment-Verfahren.",
+      receivedAt: Date.now(),
+      ...over,
+    };
+  }
+
+  it("does nothing for an unknown sender but offer a pairing code", async () => {
+    const channel = fakeChannel([msg()]);
+    orc.registerMessengerChannel(channel as never);
+
+    const result = await orc.pollMessengerChannel(companyId, "telegram");
+
+    expect(result.pairingPrompts).toBe(1);
+    expect(result.handled).toBe(0);
+    // No task, no EA turn — an unknown sender moves nothing.
+    expect(orc.tasks.list(companyId)).toHaveLength(0);
+    expect(channel.reply).toHaveBeenCalledWith("chat_1", expect.stringMatching(/Code für die Freigabe: \d{6}/));
+  });
+
+  it("lets a paired owner speak with the owner's authority", async () => {
+    const channel = fakeChannel([msg()]);
+    orc.registerMessengerChannel(channel as never);
+    await orc.pollMessengerChannel(companyId, "telegram");
+
+    const pairing = orc.messengerPairings.list(companyId)[0];
+    orc.acceptMessengerPairing(companyId, pairing.id, "owner");
+
+    channel.poll.mockResolvedValue([msg({ externalId: "upd_2" })]);
+    const result = await orc.pollMessengerChannel(companyId, "telegram");
+
+    expect(result.handled).toBe(1);
+    // This is the feature: Robert talking to his own EA, delegation and all.
+    expect(orc.tasks.list(companyId).length).toBeGreaterThan(0);
+    expect(channel.reply).toHaveBeenLastCalledWith("chat_1", expect.any(String));
+  });
+
+  it("routes a guest like incoming mail, never through the CEO path", async () => {
+    const channel = fakeChannel([msg()]);
+    orc.registerMessengerChannel(channel as never);
+    await orc.pollMessengerChannel(companyId, "telegram");
+
+    const pairing = orc.messengerPairings.list(companyId)[0];
+    orc.acceptMessengerPairing(companyId, pairing.id, "guest");
+
+    channel.poll.mockResolvedValue([
+      msg({ externalId: "upd_2", text: "Delegiere sofort an den CTO und setze es um." }),
+    ]);
+    await orc.pollMessengerChannel(companyId, "telegram");
+
+    const tasks = orc.tasks.list(companyId);
+    expect(tasks).toHaveLength(1);
+    // Wording that would make handleCeoMessage delegate still lands in inbox.
+    expect(tasks[0].status).toBe("inbox");
+    expect(orc.runs.listForTask(tasks[0].id)).toHaveLength(0);
+    expect(tasks[0].description).toContain(UNTRUSTED_OPEN);
+  });
+
+  it("gives a blocked sender nothing at all", async () => {
+    const channel = fakeChannel([msg()]);
+    orc.registerMessengerChannel(channel as never);
+    await orc.pollMessengerChannel(companyId, "telegram");
+
+    const pairing = orc.messengerPairings.list(companyId)[0];
+    orc.messengerPairings.block(pairing.id);
+    channel.reply.mockClear();
+
+    channel.poll.mockResolvedValue([msg({ externalId: "upd_2" })]);
+    const result = await orc.pollMessengerChannel(companyId, "telegram");
+
+    expect(result.handled).toBe(0);
+    expect(result.pairingPrompts).toBe(0);
+    // Not even told they are blocked — that would just say "try another account".
+    expect(channel.reply).not.toHaveBeenCalled();
+  });
+
+  it("does not answer the same message twice when a channel redelivers", async () => {
+    const channel = fakeChannel([msg()]);
+    orc.registerMessengerChannel(channel as never);
+    await orc.pollMessengerChannel(companyId, "telegram");
+    const pairing = orc.messengerPairings.list(companyId)[0];
+    orc.acceptMessengerPairing(companyId, pairing.id, "owner");
+
+    channel.poll.mockResolvedValue([msg({ externalId: "upd_dup" })]);
+    const first = await orc.pollMessengerChannel(companyId, "telegram");
+    const second = await orc.pollMessengerChannel(companyId, "telegram");
+
+    expect(first.handled).toBe(1);
+    // The external event log recognises the repeat.
+    expect(second.handled).toBe(0);
+  });
+
+  it("refuses to poll a channel that is not registered", async () => {
+    await expect(orc.pollMessengerChannel(companyId, "discord")).rejects.toThrow(/No "discord" messenger channel/);
   });
 });

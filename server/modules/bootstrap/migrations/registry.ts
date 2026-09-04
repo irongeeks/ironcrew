@@ -14,9 +14,13 @@ import { migration as m0008CrewMeetings } from "./0008-crew-meetings.ts";
 import { migration as m0009CrewMailboxes } from "./0009-crew-mailboxes.ts";
 import { migration as m0010CrewMarketplaces } from "./0010-crew-marketplaces.ts";
 import { migration as m0011CrewVesselsTalents } from "./0011-crew-vessels-talents.ts";
+import { migration as m0012CrewAgentRunLock } from "./0012-crew-agent-run-lock.ts";
+import { migration as m0013CrewExternalEvents } from "./0013-crew-external-events.ts";
+import { migration as m0014CrewChangeProposals } from "./0014-crew-change-proposals.ts";
+import { migration as m0015CrewMessengerPairings } from "./0015-crew-messenger-pairings.ts";
 
 // Import future migrations here:
-// import { migration as m0012 } from "./0012-example.ts";
+// import { migration as m0016 } from "./0016-example.ts";
 
 /**
  * Entry in the registry — pairs each Migration with the on-disk filename that
@@ -41,6 +45,10 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0009-crew-mailboxes.ts", migration: m0009CrewMailboxes },
   { filename: "0010-crew-marketplaces.ts", migration: m0010CrewMarketplaces },
   { filename: "0011-crew-vessels-talents.ts", migration: m0011CrewVesselsTalents },
+  { filename: "0012-crew-agent-run-lock.ts", migration: m0012CrewAgentRunLock },
+  { filename: "0013-crew-external-events.ts", migration: m0013CrewExternalEvents },
+  { filename: "0014-crew-change-proposals.ts", migration: m0014CrewChangeProposals },
+  { filename: "0015-crew-messenger-pairings.ts", migration: m0015CrewMessengerPairings },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

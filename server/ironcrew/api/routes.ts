@@ -48,6 +48,9 @@ import {
 import { MarketplaceMutationError, MARKETPLACE_KINDS } from "../domain/marketplace-store.ts";
 import { MarketplaceSourceError } from "../marketplace/marketplace-source.ts";
 import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts";
+import { MessengerPairingError, PAIRING_ROLES } from "../domain/messenger-pairing-store.ts";
+import { MessengerChannelError } from "../notify/messenger-channel.ts";
+import { ChangeProposalError, CHANGE_PROPOSAL_STATUSES } from "../domain/change-proposal-store.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -206,6 +209,21 @@ const createMarketplaceSchema = z.object({
 // a source — changing it would silently reinterpret the same URL.
 const updateMarketplaceSchema = createMarketplaceSchema.partial().omit({ kind: true });
 
+const acceptPairingSchema = z.object({ role: z.enum(PAIRING_ROLES) });
+const changeProposalDecisionSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  reason: z.string().max(5000).optional(),
+});
+const listChangeProposalsSchema = z.object({
+  status: z.enum(CHANGE_PROPOSAL_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+const listExternalEventsSchema = z.object({
+  sourceKind: z.string().max(200).optional(),
+  unhandled: z.enum(["true", "false"]).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
 const installEntrySchema = z.object({
   entryId: z.string().min(1).max(400),
   /** Values for the variables the entry declared but could not carry. */
@@ -337,6 +355,24 @@ function sendDomainError(res: Response, err: unknown): boolean {
   // launcher, an oversized skill), not a malformed request body.
   if (err instanceof MarketplaceInstallError) {
     res.status(422).json({ error: "install_refused", message: err.message });
+    return true;
+  }
+  // Pairing refusals are state answers ("this sender is blocked"), not bad
+  // requests: 409 so a UI can say what happened instead of blaming the form.
+  if (err instanceof MessengerPairingError) {
+    res.status(409).json({ error: "invalid_pairing_transition", message: err.message });
+    return true;
+  }
+  // Same split as MarketplaceSourceError: the caller was fine, the chat
+  // provider was not.
+  if (err instanceof MessengerChannelError) {
+    res.status(502).json({ error: "messenger_unreachable", message: err.message });
+    return true;
+  }
+  // Refusing to write is the feature. 409 rather than 400 because the
+  // request was well-formed and the *gate* is what said no.
+  if (err instanceof ChangeProposalError) {
+    res.status(409).json({ error: "change_proposal_refused", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -1666,6 +1702,190 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/notification-channels/:kind/send-test`,
     wrap(async (req, res) => {
       res.json(await orchestrator.sendTestNotification(param(req, "kind")));
+    }),
+  );
+
+  // --- messenger ingress (Telegram, Discord) -------------------------------
+  //
+  // The receiving half of the chat integrations. Everything here exists
+  // because inbound chat is an ingress with no identity of its own: a bot
+  // token is not a secret, so anyone who finds the bot can write to it.
+  //
+  // The interesting endpoint is /accept. Granting role "owner" is granting
+  // the ability to act as the CEO from a chat app — handleCeoMessage() can
+  // delegate work immediately — which is why it is a deliberate act by the
+  // owner in the Command Center, where they can see who is asking, and not
+  // something a first message can earn by itself.
+
+  app.get(
+    `${base}/messenger-channels`,
+    wrap(async (_req, res) => {
+      const kinds = orchestrator.listMessengerChannelKinds();
+      const channels = await Promise.all(
+        kinds.map(async (kind) => ({
+          kind,
+          registered: true,
+          ...(await orchestrator.testMessengerChannel(kind)),
+        })),
+      );
+      res.json({ channels });
+    }),
+  );
+
+  // Polling is pulled, not pushed: there is no background loop, the same way
+  // mailboxes are polled by /mailboxes/poll-due. A poll consumes the
+  // channel's cursor, so this is the only endpoint that advances it.
+  app.post(
+    `${base}/messenger-channels/:kind/poll`,
+    wrap(async (req, res) => {
+      const kind = param(req, "kind");
+      // An unconfigured channel is a missing thing, not a broken one: the
+      // operator never set TELEGRAM_BOT_TOKEN, and a 500 would send them
+      // looking for a fault in the server instead.
+      if (!orchestrator.listMessengerChannelKinds().includes(kind)) {
+        res.status(404).json({ error: "not_found", message: `No "${kind}" messenger channel is registered.` });
+        return;
+      }
+      const result = await orchestrator.pollMessengerChannel(companyId, kind);
+      if (result.received > 0) broadcast("crew_messenger_changed", { kind, ...result });
+      // A message that became a task has to reach the board without a reload,
+      // the same way /mailboxes/:id/poll announces what it created.
+      for (const taskId of result.taskIds) broadcast("crew_task_changed", { taskId });
+      res.json(result);
+    }),
+  );
+
+  app.get(
+    `${base}/messenger-pairings`,
+    wrap((_req, res) => {
+      res.json({ pairings: orchestrator.messengerPairings.list(companyId) });
+    }),
+  );
+
+  app.post(
+    `${base}/messenger-pairings/:id/accept`,
+    wrap((req, res) => {
+      const { role } = acceptPairingSchema.parse(req.body ?? {});
+      const pairing = orchestrator.acceptMessengerPairing(companyId, param(req, "id"), role);
+      if (!pairing) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_messenger_changed", { pairingId: pairing.id, role });
+      res.json({ pairing });
+    }),
+  );
+
+  // block / revoke / unblock are three different acts and stay three
+  // endpoints: "I do not want to hear from this person" is not the same as
+  // "this person should no longer speak for me", and an operator reading the
+  // audit log has to be able to tell them apart.
+  for (const action of ["block", "revoke", "unblock"] as const) {
+    app.post(
+      `${base}/messenger-pairings/:id/${action}`,
+      wrap((req, res) => {
+        const existing = orchestrator.messengerPairings.get(param(req, "id"));
+        if (!existing || existing.company_id !== companyId) {
+          res.status(404).json({ error: "not_found" });
+          return;
+        }
+        const pairing = orchestrator.messengerPairings[action](existing.id, { actorType: "owner", actorId: "ceo" });
+        broadcast("crew_messenger_changed", { pairingId: existing.id, action });
+        res.json({ pairing });
+      }),
+    );
+  }
+
+  // --- change proposals: file edits an owner sees before they happen -------
+  //
+  // The write endpoint here is /apply, and it is the only way an approved
+  // proposal reaches the disk. There is deliberately no force flag and no
+  // "apply anyway" parameter: a gate with a bypass is not a gate. A refusal
+  // comes back as 409 with the reason, and nothing was written — not even
+  // the files that would have applied cleanly.
+
+  app.get(
+    `${base}/change-proposals`,
+    wrap((req, res) => {
+      const query = listChangeProposalsSchema.parse(req.query ?? {});
+      // file_count is a projection, not a column: a list says how much a
+      // proposal touches without shipping the contents of everything it
+      // touches to draw one line.
+      const counts = orchestrator.changeProposals.fileCounts(companyId);
+      const proposals = orchestrator.changeProposals
+        .list(companyId, query)
+        .map((proposal) => ({ ...proposal, file_count: counts[proposal.id] ?? 0 }));
+      res.json({ proposals });
+    }),
+  );
+
+  app.get(
+    `${base}/change-proposals/:id`,
+    wrap((req, res) => {
+      const proposal = orchestrator.changeProposals.get(param(req, "id"));
+      if (!proposal || proposal.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({ proposal, files: orchestrator.changeProposals.files(proposal.id) });
+    }),
+  );
+
+  app.post(
+    `${base}/change-proposals/:id/decision`,
+    wrap((req, res) => {
+      const { decision, reason } = changeProposalDecisionSchema.parse(req.body ?? {});
+      const proposal = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, { reason });
+      if (!proposal) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_change_proposal_changed", { proposalId: proposal.id, status: proposal.status });
+      broadcast("crew_approval_changed", { approvalId: proposal.approval_id });
+      res.json({ proposal });
+    }),
+  );
+
+  app.post(
+    `${base}/change-proposals/:id/apply`,
+    wrap((req, res) => {
+      const result = orchestrator.applyChangeProposal(companyId, param(req, "id"));
+      broadcast("crew_change_proposal_changed", { proposalId: result.proposal.id, status: result.proposal.status });
+      res.json(result);
+    }),
+  );
+
+  // --- external events: what arrived from outside, once ---------------------
+  //
+  // The dedupe log behind mail and messenger polling. It is read-only here
+  // apart from /replay, which clears the handled marker so the next poll
+  // acts on the event again. Replay never rewrites the recorded payload:
+  // replaying an event has to mean "do this again with what actually
+  // arrived", not "do this with what someone typed later".
+
+  app.get(
+    `${base}/external-events`,
+    wrap((req, res) => {
+      const { unhandled, sourceKind, limit } = listExternalEventsSchema.parse(req.query ?? {});
+      const events =
+        unhandled === "true"
+          ? orchestrator.externalEvents.unhandled(companyId, limit ?? 100)
+          : orchestrator.externalEvents.list(companyId, { sourceKind, limit });
+      res.json({ events });
+    }),
+  );
+
+  app.post(
+    `${base}/external-events/:id/replay`,
+    wrap((req, res) => {
+      const existing = orchestrator.externalEvents.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const event = orchestrator.externalEvents.replay(existing.id);
+      broadcast("crew_external_event_changed", { eventId: existing.id, replayed: true });
+      res.json({ event });
     }),
   );
 

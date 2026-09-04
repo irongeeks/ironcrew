@@ -43,6 +43,8 @@ import { TailscaleProvider } from "./ironcrew/network/tailscale-provider.ts";
 import { ObsidianProvider } from "./ironcrew/memory/obsidian-provider.ts";
 import { DiscordChannel } from "./ironcrew/notify/discord-channel.ts";
 import { TelegramChannel } from "./ironcrew/notify/telegram-channel.ts";
+import { TelegramInboundChannel } from "./ironcrew/notify/telegram-inbound.ts";
+import { DiscordInboundChannel } from "./ironcrew/notify/discord-inbound.ts";
 import { EmailChannel } from "./ironcrew/notify/email-channel.ts";
 import { ImapProvider } from "./ironcrew/mail/imap-provider.ts";
 import { JmapProvider } from "./ironcrew/mail/jmap-provider.ts";
@@ -338,6 +340,32 @@ if (process.env.DISCORD_WEBHOOK_URL) {
 if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
   ironCrewOrchestrator.registerNotificationChannel(
     new TelegramChannel({ botToken: process.env.TELEGRAM_BOT_TOKEN, chatId: process.env.TELEGRAM_CHAT_ID }),
+  );
+}
+// Messenger channels are the *receiving* half, and they are registered from
+// their own variables rather than reusing the outbound ones on purpose.
+// Outbound Telegram needs a chat id to push at; inbound needs none, because
+// the chat a message arrived in is where the reply goes. Outbound Discord is
+// a webhook, which cannot read at all — reading needs a bot token and one
+// channel to watch. Sharing a variable between the two would mean a webhook
+// URL silently enabling an ingress, which is the opposite of what an
+// operator setting DISCORD_WEBHOOK_URL asked for.
+//
+// Registering a channel does not open the door: nothing is polled until
+// POST /api/crew/messenger-channels/:kind/poll is called, and nothing an
+// unknown sender writes is acted on until the owner pairs them
+// (docs/MESSENGER.md).
+if (process.env.TELEGRAM_BOT_TOKEN) {
+  ironCrewOrchestrator.registerMessengerChannel(
+    new TelegramInboundChannel({ botToken: process.env.TELEGRAM_BOT_TOKEN }),
+  );
+}
+if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_INBOUND_CHANNEL_ID) {
+  ironCrewOrchestrator.registerMessengerChannel(
+    new DiscordInboundChannel({
+      botToken: process.env.DISCORD_BOT_TOKEN,
+      channelId: process.env.DISCORD_INBOUND_CHANNEL_ID,
+    }),
   );
 }
 if (process.env.SMTP_HOST && process.env.SMTP_FROM && process.env.SMTP_TO) {

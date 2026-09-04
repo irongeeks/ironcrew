@@ -778,6 +778,58 @@
   color: var(--ic-text-dim);
 }
 
+/* Amber, because what it explains is a decision the CEO owns and cannot
+   delegate — handing a chat account the authority to speak as them. */
+.ic-warn {
+  padding: 8px 10px;
+  background: var(--ic-amber-glow);
+  border-left: 2px solid var(--ic-amber);
+  font-size: 11px;
+  color: var(--ic-text);
+}
+
+/* The pairing code is how the owner matches a waiting row to the person who
+   just wrote in, so it is read off a screen and typed — not skimmed. */
+.ic-code {
+  padding: 1px 8px;
+  font-family: var(--ic-mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  background: var(--ic-amber-glow);
+  border: 1px solid var(--ic-amber-dim);
+  border-radius: var(--ic-radius);
+  color: var(--ic-amber);
+}
+
+/* Proposed file content, verbatim and undiffed. It scrolls in place so a long
+   file cannot push the decision buttons out of the dialog. */
+.ic-pre {
+  width: 100%;
+  max-height: 220px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  background: var(--ic-bg-inset);
+  border: 1px solid var(--ic-line);
+  border-radius: var(--ic-radius);
+  font-family: var(--ic-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ic-text-dim);
+}
+
+/* Red: a conflict is a refusal, not a partial success — nothing was written. */
+.ic-conflict {
+  padding: 8px 10px;
+  background: var(--ic-bg-inset);
+  border-left: 2px solid var(--ic-red);
+  font-size: 11px;
+  color: var(--ic-red);
+}
+
 .ic-check {
   display: inline-flex;
   align-items: center;

@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import express, { type Express } from "express";
 import request from "supertest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { createTestDb } from "../domain/test-db.ts";
 import { registerIronCrewRoutes } from "./routes.ts";
 import { CompanyOrchestrator } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts";
+import { UNTRUSTED_OPEN } from "../policy/untrusted-content.ts";
+import type { ProposedFile } from "../domain/change-proposal-store.ts";
 
 let db: DatabaseSync;
 let app: Express;
@@ -1725,5 +1730,319 @@ describe("marketplaces over HTTP (catalog, MCP registry, Claude plugins, Git)", 
     await request(app).patch("/api/crew/marketplaces/mkt_nope").send({ name: "x" }).expect(404);
     await request(app).delete("/api/crew/marketplaces/mkt_nope").expect(404);
     await request(app).delete("/api/crew/marketplace-installs/mcp/nothing").expect(404);
+  });
+});
+
+describe("messenger ingress over HTTP (who may speak to the EA, and as whom)", () => {
+  function fakeChannel(over: Record<string, unknown> = {}) {
+    return {
+      kind: "telegram",
+      poll: async () => [],
+      reply: async () => {},
+      testConnection: async () => ({ ok: true, message: "telegram erreichbar" }),
+      ...over,
+    };
+  }
+
+  function message(over: Record<string, unknown> = {}) {
+    return {
+      externalId: "chat_1:1",
+      chatId: "chat_1",
+      senderId: "user_42",
+      senderName: "Robert",
+      text: "Bitte dokumentiere das Deployment-Verfahren.",
+      receivedAt: 1_700_000_000_000,
+      ...over,
+    };
+  }
+
+  async function pairingFromOneMessage(replies: string[] = []) {
+    orchestrator.registerMessengerChannel(
+      fakeChannel({
+        poll: async () => [message()],
+        reply: async (_chatId: string, text: string) => void replies.push(text),
+      }) as never,
+    );
+    await request(app).post("/api/crew/messenger-channels/telegram/poll").expect(200);
+    const list = await request(app).get("/api/crew/messenger-pairings").expect(200);
+    return list.body.pairings[0];
+  }
+
+  it("lists registered channels with their reachability", async () => {
+    orchestrator.registerMessengerChannel(fakeChannel() as never);
+    const res = await request(app).get("/api/crew/messenger-channels").expect(200);
+    expect(res.body.channels).toEqual([
+      { kind: "telegram", registered: true, ok: true, message: "telegram erreichbar" },
+    ]);
+  });
+
+  it("never polls to answer a reachability check — a poll would eat the cursor", async () => {
+    const poll = vi.fn().mockResolvedValue([]);
+    orchestrator.registerMessengerChannel(fakeChannel({ poll }) as never);
+    await request(app).get("/api/crew/messenger-channels").expect(200);
+    expect(poll).not.toHaveBeenCalled();
+  });
+
+  it("turns an unknown sender into a pending pairing and nothing else", async () => {
+    const replies: string[] = [];
+    const pairing = await pairingFromOneMessage(replies);
+
+    expect(pairing.status).toBe("pending");
+    expect(pairing.role).toBe("guest");
+    expect(pairing.pairing_code).toMatch(/^\d{6}$/);
+    // The stranger learns the code and nothing else happened on their behalf.
+    expect(replies[0]).toContain(pairing.pairing_code);
+    const tasks = await request(app).get("/api/crew/tasks").expect(200);
+    expect(tasks.body.tasks).toHaveLength(0);
+  });
+
+  it("grants CEO authority only when the owner says owner", async () => {
+    const pairing = await pairingFromOneMessage();
+
+    const res = await request(app)
+      .post(`/api/crew/messenger-pairings/${pairing.id}/accept`)
+      .send({ role: "owner" })
+      .expect(200);
+
+    expect(res.body.pairing.status).toBe("active");
+    expect(res.body.pairing.role).toBe("owner");
+    // The code is spent the moment it is used.
+    expect(res.body.pairing.pairing_code).toBe("");
+    expect(broadcasts.map((b) => b.type)).toContain("crew_messenger_changed");
+  });
+
+  it("refuses a role the schema does not know", async () => {
+    const pairing = await pairingFromOneMessage();
+    await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/accept`).send({ role: "admin" }).expect(400);
+    await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/accept`).send({}).expect(400);
+  });
+
+  it("reports a refused pairing as a state answer, not a bad request", async () => {
+    const pairing = await pairingFromOneMessage();
+    await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/block`).expect(200);
+
+    const res = await request(app)
+      .post(`/api/crew/messenger-pairings/${pairing.id}/accept`)
+      .send({ role: "owner" })
+      .expect(409);
+    expect(res.body.error).toBe("invalid_pairing_transition");
+  });
+
+  it("unblocks back to pending rather than restoring what was granted", async () => {
+    const pairing = await pairingFromOneMessage();
+    await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/accept`).send({ role: "owner" }).expect(200);
+    await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/block`).expect(200);
+
+    const res = await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/unblock`).expect(200);
+    expect(res.body.pairing.status).toBe("pending");
+    expect(res.body.pairing.role).toBe("guest");
+  });
+
+  it("revokes CEO authority without blocking the sender", async () => {
+    const pairing = await pairingFromOneMessage();
+    await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/accept`).send({ role: "owner" }).expect(200);
+
+    const res = await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/revoke`).expect(200);
+    expect(res.body.pairing.status).toBe("pending");
+    expect(res.body.pairing.role).toBe("guest");
+  });
+
+  it("routes a paired guest into the inbox instead of the CEO path", async () => {
+    const pairing = await pairingFromOneMessage();
+    await request(app).post(`/api/crew/messenger-pairings/${pairing.id}/accept`).send({ role: "guest" }).expect(200);
+
+    orchestrator.registerMessengerChannel(
+      fakeChannel({ poll: async () => [message({ externalId: "chat_1:2" })] }) as never,
+    );
+    await request(app).post("/api/crew/messenger-channels/telegram/poll").expect(200);
+
+    const tasks = await request(app).get("/api/crew/tasks").expect(200);
+    expect(tasks.body.tasks).toHaveLength(1);
+    expect(tasks.body.tasks[0].status).toBe("inbox");
+    // Quoted as third-party text, not handed to the model as an instruction.
+    expect(tasks.body.tasks[0].description).toContain(UNTRUSTED_OPEN);
+    expect(tasks.body.tasks[0].created_by).toBe("messenger:telegram:user_42");
+    // The board learns about it without a reload.
+    expect(broadcasts.filter((b) => b.type === "crew_task_changed")).toHaveLength(1);
+    // A guest's message never starts a run, whatever it says.
+    expect(db.prepare("SELECT COUNT(*) AS n FROM crew_runs").get()).toEqual({ n: 0 });
+  });
+
+  it("answers a redelivered message once", async () => {
+    const replies: string[] = [];
+    orchestrator.registerMessengerChannel(
+      fakeChannel({
+        poll: async () => [message()],
+        reply: async (_chatId: string, text: string) => void replies.push(text),
+      }) as never,
+    );
+
+    await request(app).post("/api/crew/messenger-channels/telegram/poll").expect(200);
+    const second = await request(app).post("/api/crew/messenger-channels/telegram/poll").expect(200);
+
+    expect(second.body).toEqual({ received: 1, handled: 0, pairingPrompts: 0, taskIds: [] });
+    expect(replies).toHaveLength(1);
+  });
+
+  it("404s a channel nobody configured, rather than blaming the server", async () => {
+    const res = await request(app).post("/api/crew/messenger-channels/discord/poll").expect(404);
+    expect(res.body.error).toBe("not_found");
+  });
+
+  it("404s every pairing endpoint for a pairing that does not exist", async () => {
+    await request(app).post("/api/crew/messenger-pairings/pair_nope/accept").send({ role: "guest" }).expect(404);
+    await request(app).post("/api/crew/messenger-pairings/pair_nope/block").expect(404);
+    await request(app).post("/api/crew/messenger-pairings/pair_nope/revoke").expect(404);
+    await request(app).post("/api/crew/messenger-pairings/pair_nope/unblock").expect(404);
+  });
+});
+
+describe("change proposals over HTTP (nothing is written before the owner says so)", () => {
+  let workspace: string;
+
+  beforeEach(() => {
+    workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-routes-ws-"));
+  });
+  afterEach(() => fs.rmSync(workspace, { recursive: true, force: true }));
+
+  function propose(files: ProposedFile[] = [{ path: "a.txt", operation: "create", content: "neu" }]) {
+    return orchestrator.proposeChanges(companyId, { title: "Konfiguration anpassen", workspacePath: workspace, files });
+  }
+
+  it("lists proposals and filters by status", async () => {
+    propose();
+    const all = await request(app).get("/api/crew/change-proposals").expect(200);
+    expect(all.body.proposals).toHaveLength(1);
+    expect(all.body.proposals[0].status).toBe("pending");
+
+    const approved = await request(app).get("/api/crew/change-proposals?status=approved").expect(200);
+    expect(approved.body.proposals).toHaveLength(0);
+  });
+
+  it("carries a file count in the list, so a row need not fetch its files", async () => {
+    propose([
+      { path: "a.txt", operation: "create", content: "A" },
+      { path: "b.txt", operation: "create", content: "B" },
+    ]);
+    const res = await request(app).get("/api/crew/change-proposals").expect(200);
+    expect(res.body.proposals[0].file_count).toBe(2);
+    // The count is a number, not the contents: a list view must not ship
+    // every proposed file to draw one line.
+    expect(JSON.stringify(res.body.proposals[0])).not.toContain('"A"');
+  });
+
+  it("returns the proposed files with the proposal", async () => {
+    const { proposal } = propose();
+    const res = await request(app).get(`/api/crew/change-proposals/${proposal.id}`).expect(200);
+    expect(res.body.files).toHaveLength(1);
+    expect(res.body.files[0].path).toBe("a.txt");
+    expect(res.body.files[0].operation).toBe("create");
+  });
+
+  it("refuses to apply a pending proposal", async () => {
+    const { proposal } = propose();
+
+    const res = await request(app).post(`/api/crew/change-proposals/${proposal.id}/apply`).expect(409);
+    expect(res.body.error).toBe("change_proposal_refused");
+    // There is no query parameter, header or body that changes this answer.
+    expect(fs.existsSync(path.join(workspace, "a.txt"))).toBe(false);
+  });
+
+  it("writes once the owner approved", async () => {
+    const { proposal } = propose();
+    await request(app)
+      .post(`/api/crew/change-proposals/${proposal.id}/decision`)
+      .send({ decision: "approved" })
+      .expect(200);
+
+    const res = await request(app).post(`/api/crew/change-proposals/${proposal.id}/apply`).expect(200);
+    expect(res.body.applied).toEqual(["a.txt"]);
+    expect(fs.readFileSync(path.join(workspace, "a.txt"), "utf-8")).toBe("neu");
+    expect(broadcasts.map((b) => b.type)).toContain("crew_change_proposal_changed");
+  });
+
+  it("reports a conflict without writing anything", async () => {
+    fs.writeFileSync(path.join(workspace, "b.txt"), "alt", "utf-8");
+    const { proposal } = propose([
+      { path: "a.txt", operation: "create", content: "A" },
+      { path: "b.txt", operation: "update", content: "B" },
+    ]);
+    await request(app)
+      .post(`/api/crew/change-proposals/${proposal.id}/decision`)
+      .send({ decision: "approved" })
+      .expect(200);
+
+    fs.writeFileSync(path.join(workspace, "b.txt"), "jemand war schneller", "utf-8");
+    const res = await request(app).post(`/api/crew/change-proposals/${proposal.id}/apply`).expect(200);
+
+    expect(res.body.applied).toEqual([]);
+    expect(res.body.conflicts).toHaveLength(1);
+    // All or nothing: the clean file was left alone too.
+    expect(fs.existsSync(path.join(workspace, "a.txt"))).toBe(false);
+  });
+
+  it("a rejected proposal stays unwritable", async () => {
+    const { proposal } = propose();
+    await request(app)
+      .post(`/api/crew/change-proposals/${proposal.id}/decision`)
+      .send({ decision: "rejected", reason: "zu riskant" })
+      .expect(200);
+
+    await request(app).post(`/api/crew/change-proposals/${proposal.id}/apply`).expect(409);
+  });
+
+  it("refuses a decision the schema does not know", async () => {
+    const { proposal } = propose();
+    await request(app)
+      .post(`/api/crew/change-proposals/${proposal.id}/decision`)
+      .send({ decision: "applied" })
+      .expect(400);
+  });
+
+  it("404s for a proposal that does not exist", async () => {
+    await request(app).get("/api/crew/change-proposals/chg_nope").expect(404);
+    await request(app).post("/api/crew/change-proposals/chg_nope/decision").send({ decision: "approved" }).expect(404);
+    await request(app).post("/api/crew/change-proposals/chg_nope/apply").expect(409);
+  });
+});
+
+describe("external events over HTTP (recorded once, replayable)", () => {
+  function record(over: Record<string, unknown> = {}) {
+    return orchestrator.externalEvents.record({
+      companyId,
+      sourceKind: "messenger:telegram",
+      sourceId: "chat_1",
+      externalId: "chat_1:1",
+      eventType: "message",
+      payload: { text: "hallo" },
+      ...over,
+    });
+  }
+
+  it("lists what arrived, and can list only what is unhandled", async () => {
+    const a = record();
+    record({ externalId: "chat_1:2" });
+    orchestrator.externalEvents.markHandled(a.event.id, "messenger:telegram");
+
+    const all = await request(app).get("/api/crew/external-events").expect(200);
+    expect(all.body.events).toHaveLength(2);
+
+    const open = await request(app).get("/api/crew/external-events?unhandled=true").expect(200);
+    expect(open.body.events).toHaveLength(1);
+    expect(open.body.events[0].external_id).toBe("chat_1:2");
+  });
+
+  it("replay clears the handled marker but never rewrites the payload", async () => {
+    const { event } = record();
+    orchestrator.externalEvents.markHandled(event.id, "messenger:telegram");
+
+    const res = await request(app).post(`/api/crew/external-events/${event.id}/replay`).expect(200);
+    expect(res.body.event.handled_at).toBeNull();
+    expect(JSON.parse(res.body.event.payload_json).text).toBe("hallo");
+    expect(broadcasts.map((b) => b.type)).toContain("crew_external_event_changed");
+  });
+
+  it("404s for an event that does not exist", async () => {
+    await request(app).post("/api/crew/external-events/xevt_nope/replay").expect(404);
   });
 });

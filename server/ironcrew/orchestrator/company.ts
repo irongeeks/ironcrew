@@ -58,6 +58,17 @@ import type {
 } from "../mail/mail-provider.ts";
 import { sanitiseLine, wrapUntrusted } from "../policy/untrusted-content.ts";
 import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-resolution.ts";
+import { AgentLockStore } from "../domain/agent-lock-store.ts";
+import { ExternalEventStore } from "../domain/external-event-store.ts";
+import { MessengerPairingStore, type PairingRole } from "../domain/messenger-pairing-store.ts";
+import type { InboundMessage, MessengerChannel } from "../notify/messenger-channel.ts";
+import {
+  ChangeProposalStore,
+  ChangeProposalError,
+  type ApplyResult,
+  type ChangeProposalRow,
+  type ProposedFile,
+} from "../domain/change-proposal-store.ts";
 import {
   MarketplaceStore,
   MarketplaceMutationError,
@@ -120,6 +131,11 @@ export class CompanyOrchestrator {
   readonly memories: MemoryStore;
   readonly mailboxes: MailboxStore;
   readonly marketplaces: MarketplaceStore;
+  readonly agentLocks: AgentLockStore;
+  readonly externalEvents: ExternalEventStore;
+  readonly changeProposals: ChangeProposalStore;
+  readonly messengerPairings: MessengerPairingStore;
+  private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -157,6 +173,10 @@ export class CompanyOrchestrator {
     this.memories = new MemoryStore(db);
     this.mailboxes = new MailboxStore(db);
     this.marketplaces = new MarketplaceStore(db);
+    this.agentLocks = new AgentLockStore(db);
+    this.externalEvents = new ExternalEventStore(db);
+    this.changeProposals = new ChangeProposalStore(db);
+    this.messengerPairings = new MessengerPairingStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -906,6 +926,276 @@ export class CompanyOrchestrator {
     const removed = entryType === "mcp" ? await this.installer.uninstallMcp(name) : this.installer.uninstallSkill(name);
     const hadRecord = this.marketplaces.removeInstall(companyId, entryType, name, actor);
     return removed || hadRecord;
+  }
+
+  // --- inbound messaging: the EA's other direction -------------------------
+  //
+  // Until now IronCrew could tell you about an approval but you could not
+  // answer it. This closes the loop — and because it is a new ingress, the
+  // first question about every message is not what it says but who sent it.
+  //
+  // Three outcomes, decided by MessengerPairingStore and nothing else:
+  //
+  //   unknown/pending/blocked  a pairing prompt, and nothing else happens
+  //   guest                    routed exactly like incoming mail: an `inbox`
+  //                            task, quoted as third-party content (T-10)
+  //   owner                    reaches handleCeoMessage(), i.e. speaks with
+  //                            the owner's authority
+  //
+  // The last one is the feature, and also the risk: handleCeoMessage() can
+  // delegate work immediately. It is reachable only through a pairing the
+  // owner accepted as `owner` in the Command Center, having seen who asked.
+
+  registerMessengerChannel(channel: MessengerChannel): void {
+    this.messengerChannels.set(channel.kind, channel);
+  }
+
+  listMessengerChannelKinds(): string[] {
+    return [...this.messengerChannels.keys()];
+  }
+
+  /**
+   * Reachability of one inbound channel.
+   *
+   * Deliberately never polls to answer: a poll consumes the cursor, so a
+   * "does this work" click would swallow messages nobody has seen yet.
+   */
+  async testMessengerChannel(kind: string): Promise<{ ok: boolean; message: string }> {
+    const channel = this.messengerChannels.get(kind);
+    if (!channel) return { ok: false, message: `No "${kind}" messenger channel is registered on this server.` };
+    return channel.testConnection();
+  }
+
+  /**
+   * Polls one channel and acts on whatever is allowed to act.
+   *
+   * Every message is recorded in the external event log first, so a redelivery
+   * — which both Telegram and Discord can produce — is recognised rather than
+   * answered twice.
+   */
+  async pollMessengerChannel(
+    companyId: string,
+    kind: string,
+  ): Promise<{ received: number; handled: number; pairingPrompts: number; taskIds: string[] }> {
+    const channel = this.messengerChannels.get(kind);
+    if (!channel) throw new Error(`No "${kind}" messenger channel is registered on this server.`);
+
+    const messages = await channel.poll();
+    let handled = 0;
+    let pairingPrompts = 0;
+    const taskIds: string[] = [];
+
+    for (const message of messages) {
+      const seen = this.externalEvents.record({
+        companyId,
+        sourceKind: `messenger:${kind}`,
+        sourceId: message.chatId,
+        externalId: message.externalId,
+        eventType: "message",
+        payload: { text: message.text, senderId: message.senderId, senderName: message.senderName },
+        occurredAt: message.receivedAt,
+      });
+      // A repeat was already answered once; answering again would double every
+      // task the first delivery produced.
+      if (!seen.isNew) continue;
+
+      const outcome = await this.handleInboundMessage(companyId, kind, channel, message);
+      if (outcome.result === "handled") handled++;
+      if (outcome.result === "pairing") pairingPrompts++;
+      if (outcome.taskId) taskIds.push(outcome.taskId);
+      // The task id is what makes a replay useful later: an operator looking
+      // at a replayed event can see what the first delivery already produced.
+      this.externalEvents.markHandled(seen.event.id, `messenger:${kind}`, { taskId: outcome.taskId });
+    }
+
+    return { received: messages.length, handled, pairingPrompts, taskIds };
+  }
+
+  private async handleInboundMessage(
+    companyId: string,
+    kind: string,
+    channel: MessengerChannel,
+    message: InboundMessage,
+  ): Promise<{ result: "handled" | "pairing" | "ignored"; taskId: string | null }> {
+    const decision = this.messengerPairings.resolve({
+      companyId,
+      channelKind: kind,
+      chatId: message.chatId,
+      senderId: message.senderId,
+      displayName: message.senderName,
+    });
+
+    if (decision.allow === "none") {
+      // A blocked sender gets nothing at all — not even the courtesy of
+      // knowing they are blocked, which would only tell them to try from
+      // another account.
+      if (decision.reason === "blocked") return { result: "ignored", taskId: null };
+
+      await channel.reply(
+        message.chatId,
+        `IronCrew: Dieser Zugang ist noch nicht freigegeben. Code für die Freigabe: ${decision.pairing?.pairing_code ?? "—"}`,
+      );
+      return { result: "pairing", taskId: null };
+    }
+
+    if (decision.allow === "ceo") {
+      const result = this.handleCeoMessage(companyId, message.text);
+      await channel.reply(message.chatId, result.reply);
+      return { result: "handled", taskId: result.task?.id ?? null };
+    }
+
+    // A guest is a stranger with a name. Same treatment as incoming mail:
+    // an `inbox` task, never the CEO path.
+    const wrapped = wrapUntrusted(message.text, {
+      source: `${kind}:${sanitiseLine(message.senderName) || message.senderId}`,
+      kind: "Chat-Nachricht",
+    });
+    const classification = triage(message.text);
+    const agent = this.pickAgent(companyId, classification);
+
+    const task = this.tasks.create({
+      companyId,
+      title: `Chat: ${sanitiseLine(message.text, 80) || "(ohne Text)"}`,
+      description: [
+        `Eingegangen über ${kind} von ${sanitiseLine(message.senderName) || message.senderId}.`,
+        "",
+        wrapped.text,
+      ].join("\n"),
+      status: "inbox",
+      riskLevel: classification.riskLevel,
+      sensitive: classification.sensitive,
+      assignedAgentId: agent?.id ?? null,
+      createdBy: `messenger:${kind}:${message.senderId}`,
+      correlationId: newCorrelationId(),
+    });
+
+    await channel.reply(message.chatId, "IronCrew: Deine Nachricht liegt im Eingang und wird gesichtet.");
+    return { result: "handled", taskId: task.id };
+  }
+
+  /** The owner accepts a pending pairing, choosing what authority it carries. */
+  acceptMessengerPairing(companyId: string, pairingId: string, role: PairingRole) {
+    const pairing = this.messengerPairings.get(pairingId);
+    if (!pairing || pairing.company_id !== companyId) return null;
+    return this.messengerPairings.accept(pairingId, role, { actorType: "owner", actorId: "ceo" });
+  }
+
+  // --- change proposals: file edits an owner sees before they happen -------
+  //
+  // A proposal and its approval are created together and decided together.
+  // They are two halves of one thing: a proposal without an approval is a
+  // change nobody gated, and an approval without a proposal is a decision
+  // about nothing. Keeping them in step here is what stops either half
+  // drifting out of the other's reach.
+
+  /**
+   * An agent proposes file changes. Nothing is written; an approval request
+   * is raised and the owner decides.
+   */
+  proposeChanges(
+    companyId: string,
+    input: {
+      title: string;
+      workspacePath: string;
+      files: ProposedFile[];
+      summary?: string;
+      taskId?: string | null;
+      runId?: string | null;
+      agentId?: string | null;
+    },
+  ): { proposal: ChangeProposalRow; approvalId: string } {
+    const approval = this.approvals.request(
+      companyId,
+      {
+        approvalType: "file_change",
+        requestedBy: input.agentId ?? "agent",
+        summary: input.title,
+        riskLevel: "high",
+        impact: `${input.files.length} Datei(en) in ${input.workspacePath}`,
+        rollbackPlan: "Die Freigabe verweigern; ohne Freigabe wird nichts geschrieben.",
+        // Paths, never contents: an approval summary an owner skims should
+        // say what would be touched, and the contents are one click away.
+        proposedAction: input.files.map((f) => `${f.operation}: ${f.path}`).join("\n"),
+      },
+      { taskId: input.taskId ?? null, runId: input.runId ?? null },
+    );
+
+    const proposal = this.changeProposals.create({
+      companyId,
+      title: input.title,
+      workspacePath: input.workspacePath,
+      files: input.files,
+      summary: input.summary,
+      taskId: input.taskId ?? null,
+      runId: input.runId ?? null,
+      agentId: input.agentId ?? null,
+      approvalId: approval.id,
+    });
+
+    this.notifyDecisionNeeded(companyId, approval.id, input.title, input.files.length);
+    return { proposal, approvalId: approval.id };
+  }
+
+  /**
+   * The owner decides. The approval and the proposal move together, so the
+   * two can never disagree about whether a change was authorised.
+   */
+  decideChangeProposal(
+    companyId: string,
+    proposalId: string,
+    decision: "approved" | "rejected",
+    opts: { reason?: string } = {},
+  ): ChangeProposalRow | null {
+    const proposal = this.changeProposals.get(proposalId);
+    if (!proposal || proposal.company_id !== companyId) return null;
+
+    if (proposal.approval_id) {
+      this.approvals.decide(proposal.approval_id, decision, "ceo", opts.reason ?? "");
+    }
+    return this.changeProposals.decide(proposalId, decision, { actorType: "owner", actorId: "ceo", ...opts });
+  }
+
+  /**
+   * Writes an approved proposal.
+   *
+   * The approval is re-read here rather than trusted from the proposal row:
+   * a decision that was reversed, expired or cancelled after the proposal was
+   * marked approved must stop the write, and the approval is where that
+   * lives.
+   */
+  applyChangeProposal(companyId: string, proposalId: string): ApplyResult {
+    const proposal = this.changeProposals.get(proposalId);
+    if (!proposal || proposal.company_id !== companyId) {
+      throw new ChangeProposalError(`Proposal "${proposalId}" does not exist.`);
+    }
+
+    if (proposal.approval_id) {
+      const approval = this.approvals.get(proposal.approval_id);
+      if (!approval || approval.status !== "approved") {
+        throw new ChangeProposalError(
+          `The approval for "${proposalId}" is ${approval?.status ?? "missing"}, so nothing may be written.`,
+        );
+      }
+    }
+
+    return this.changeProposals.apply(proposalId, { actorType: "owner", actorId: "ceo" });
+  }
+
+  /** A file change waiting on the owner reaches the decision inbox and every channel. */
+  private notifyDecisionNeeded(companyId: string, approvalId: string, title: string, fileCount: number): void {
+    const notification = this.notifications.create({
+      companyId,
+      kind: "approval_required",
+      severity: "warning",
+      title: `Dateiänderung wartet auf Freigabe: ${title}`,
+      body: `${fileCount} Datei(en). Ohne Freigabe wird nichts geschrieben.`,
+    });
+    this.fanOutNotification(companyId, {
+      title: notification.title,
+      body: notification.body,
+      severity: notification.severity,
+    });
+    void approvalId;
   }
 
   /** What is installed right now, with where each thing came from. */
@@ -1836,6 +2126,27 @@ export class CompanyOrchestrator {
       return null;
     }
 
+    // One agent, one run. The task claim above stops two workers taking the
+    // same task; this stops two *different* tasks being dispatched to the
+    // same agent, which would have them share one workspace, one CLI session
+    // and one budget — and each would clear the pre-dispatch budget gate
+    // without seeing the other's spend.
+    //
+    // Fail-closed: no lease, no run. The task goes back to `ready` rather
+    // than sitting claimed by a run that never happened, so it is picked up
+    // again as soon as the agent is free.
+    if (!this.agentLocks.acquire(agentId, run.id)) {
+      this.tasks.releaseLock(candidate.id, run.id);
+      this.tasks.transition(claimed.id, "ready", {
+        reason: "agent busy with another run",
+        actorType: "system",
+        actorId: "scheduler",
+        correlationId: claimed.correlation_id,
+      });
+      this.runs.setStatus(run.id, "cancelled");
+      return null;
+    }
+
     this.tasks.transition(claimed.id, "running", {
       reason: "run started",
       actorType: "agent",
@@ -1936,6 +2247,9 @@ export class CompanyOrchestrator {
     }
 
     this.tasks.releaseLock(candidate.id, run.id);
+    // Guarded on run.id, so a run whose lease already expired and was taken
+    // over cannot free the new owner's lock on its way out.
+    this.agentLocks.release(agentId, run.id);
 
     const current = this.tasks.get(candidate.id)!;
     const target: TaskStatus = failed ? "failed" : waiting ? "waiting" : "review";

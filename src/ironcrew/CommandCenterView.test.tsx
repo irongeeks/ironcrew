@@ -7,6 +7,8 @@ import type {
   Agent,
   Approval,
   Attachment,
+  ChangeProposal,
+  ChangeProposalFile,
   Dashboard,
   Decision,
   Department,
@@ -22,6 +24,8 @@ import type {
   MemoryProviderStatus,
   MemoryRef,
   Message,
+  MessengerChannelStatus,
+  MessengerPairing,
   Milestone,
   Notification,
   NotificationChannelStatus,
@@ -187,6 +191,17 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     marketplaceEntries: vi.fn().mockResolvedValue({ entries: [] }),
     installFromMarketplace: vi.fn(),
     uninstallFromMarketplace: vi.fn(),
+    messengerChannels: vi.fn().mockResolvedValue({ channels: [] }),
+    pollMessengerChannel: vi.fn(),
+    messengerPairings: vi.fn().mockResolvedValue({ pairings: [] }),
+    acceptMessengerPairing: vi.fn(),
+    blockMessengerPairing: vi.fn(),
+    revokeMessengerPairing: vi.fn(),
+    unblockMessengerPairing: vi.fn(),
+    changeProposals: vi.fn().mockResolvedValue({ proposals: [] }),
+    changeProposal: vi.fn(),
+    decideChangeProposal: vi.fn(),
+    applyChangeProposal: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -2252,5 +2267,340 @@ describe("marketplaces (skills and MCP servers from outside this machine)", () =
     await userEvent.setup().click(await within(dialog).findByTestId("marketplace-delete-mkt_1"));
 
     expect(deleteMarketplace).toHaveBeenCalledWith("mkt_1");
+  });
+});
+
+function messengerChannelStatus(over: Partial<MessengerChannelStatus> = {}): MessengerChannelStatus {
+  return { kind: "telegram", registered: true, ok: true, message: "Bot erreichbar.", ...over };
+}
+
+function pairing(over: Partial<MessengerPairing> = {}): MessengerPairing {
+  return {
+    id: "pair_1",
+    channel_kind: "telegram",
+    chat_id: "4711",
+    sender_id: "tg:99",
+    display_name: "Robert",
+    role: "guest",
+    status: "pending",
+    pairing_code: "418302",
+    code_expires_at: Date.now() + 600_000,
+    paired_at: null,
+    last_seen_at: Date.now(),
+    ...over,
+  };
+}
+
+describe("messenger (who may speak to the executive assistant, and as whom)", () => {
+  async function openDialog(client: Client) {
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-messenger"));
+    return await screen.findByRole("dialog", { name: "Messenger" });
+  }
+
+  it("shows a waiting sender with the code the owner has to match", async () => {
+    const dialog = await openDialog(
+      makeClient({ messengerPairings: vi.fn().mockResolvedValue({ pairings: [pairing()] }) }),
+    );
+
+    const row = await within(dialog).findByTestId("pairing-pair_1");
+    expect(row).toHaveTextContent("Robert");
+    expect(row).toHaveTextContent("Telegram");
+    // The code is how the owner tells this stranger from the next one.
+    expect(within(dialog).getByTestId("pairing-code-pair_1")).toHaveTextContent("418302");
+    expect(within(dialog).getByTestId("pairing-status-pair_1")).toHaveTextContent("wartet auf Freigabe");
+    expect(within(dialog).getByTestId("pairing-accept-owner-pair_1")).toBeInTheDocument();
+    expect(within(dialog).getByTestId("pairing-accept-guest-pair_1")).toBeInTheDocument();
+  });
+
+  it("says what the CEO role actually hands over, next to the button", async () => {
+    const dialog = await openDialog(
+      makeClient({ messengerPairings: vi.fn().mockResolvedValue({ pairings: [pairing()] }) }),
+    );
+
+    const hint = await within(dialog).findByTestId("pairing-role-hint-pair_1");
+    expect(hint).toHaveTextContent("spricht über den Chat als Sie");
+    expect(hint).toHaveTextContent("Fremdinhalt");
+  });
+
+  it("granting the CEO role sends role owner", async () => {
+    const acceptMessengerPairing = vi.fn().mockResolvedValue({ pairing: pairing({ status: "active", role: "owner" }) });
+    const client = makeClient({
+      messengerPairings: vi.fn().mockResolvedValue({ pairings: [pairing()] }),
+      acceptMessengerPairing,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("pairing-accept-owner-pair_1"));
+
+    expect(acceptMessengerPairing).toHaveBeenCalledWith("pair_1", "owner");
+  });
+
+  it("granting guest sends role guest", async () => {
+    const acceptMessengerPairing = vi.fn().mockResolvedValue({ pairing: pairing({ status: "active" }) });
+    const client = makeClient({
+      messengerPairings: vi.fn().mockResolvedValue({ pairings: [pairing()] }),
+      acceptMessengerPairing,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("pairing-accept-guest-pair_1"));
+
+    expect(acceptMessengerPairing).toHaveBeenCalledWith("pair_1", "guest");
+  });
+
+  it("a blocked sender can only be unblocked", async () => {
+    const unblockMessengerPairing = vi.fn().mockResolvedValue({ pairing: pairing() });
+    const client = makeClient({
+      messengerPairings: vi.fn().mockResolvedValue({ pairings: [pairing({ status: "blocked", pairing_code: "" })] }),
+      unblockMessengerPairing,
+    });
+    const dialog = await openDialog(client);
+
+    expect(await within(dialog).findByTestId("pairing-unblock-pair_1")).toBeInTheDocument();
+    expect(within(dialog).queryByTestId("pairing-accept-owner-pair_1")).not.toBeInTheDocument();
+    expect(within(dialog).queryByTestId("pairing-accept-guest-pair_1")).not.toBeInTheDocument();
+    expect(within(dialog).queryByTestId("pairing-block-pair_1")).not.toBeInTheDocument();
+    expect(within(dialog).queryByTestId("pairing-revoke-pair_1")).not.toBeInTheDocument();
+
+    await userEvent.setup().click(within(dialog).getByTestId("pairing-unblock-pair_1"));
+    expect(unblockMessengerPairing).toHaveBeenCalledWith("pair_1");
+  });
+
+  it("an active sender shows its role and can be revoked", async () => {
+    const revokeMessengerPairing = vi.fn().mockResolvedValue({ pairing: pairing() });
+    const client = makeClient({
+      messengerPairings: vi
+        .fn()
+        .mockResolvedValue({ pairings: [pairing({ status: "active", role: "owner", pairing_code: "" })] }),
+      revokeMessengerPairing,
+    });
+    const dialog = await openDialog(client);
+
+    expect(await within(dialog).findByTestId("pairing-role-pair_1")).toHaveTextContent("Chef");
+    expect(within(dialog).queryByTestId("pairing-code-pair_1")).not.toBeInTheDocument();
+    expect(within(dialog).queryByTestId("pairing-accept-owner-pair_1")).not.toBeInTheDocument();
+
+    await userEvent.setup().click(within(dialog).getByTestId("pairing-revoke-pair_1"));
+    expect(revokeMessengerPairing).toHaveBeenCalledWith("pair_1");
+  });
+
+  it("falls back to the sender id when the sender gave no name", async () => {
+    const dialog = await openDialog(
+      makeClient({ messengerPairings: vi.fn().mockResolvedValue({ pairings: [pairing({ display_name: "" })] }) }),
+    );
+
+    expect(await within(dialog).findByTestId("pairing-pair_1")).toHaveTextContent("tg:99");
+  });
+
+  it("renders a sender-chosen name as text, never as markup", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        messengerPairings: vi
+          .fn()
+          .mockResolvedValue({ pairings: [pairing({ display_name: "<img src=x onerror=alert(1)>" })] }),
+      }),
+    );
+
+    const row = await within(dialog).findByTestId("pairing-pair_1");
+    expect(row).toHaveTextContent("<img src=x onerror=alert(1)>");
+    expect(row.querySelector("img")).toBeNull();
+  });
+
+  it("shows channel status and polls one on demand", async () => {
+    const pollMessengerChannel = vi.fn().mockResolvedValue({ received: 3, handled: 1, pairingPrompts: 2 });
+    const client = makeClient({
+      messengerChannels: vi.fn().mockResolvedValue({
+        channels: [messengerChannelStatus(), messengerChannelStatus({ kind: "discord", registered: false, ok: false })],
+      }),
+      pollMessengerChannel,
+    });
+    const dialog = await openDialog(client);
+
+    expect(await within(dialog).findByTestId("messenger-channel-telegram")).toHaveTextContent("verfügbar");
+    expect(within(dialog).getByTestId("messenger-channel-discord")).toHaveTextContent("nicht registriert");
+    // Polling consumes the cursor, so a channel that is not even registered
+    // must not offer the button as if it would work.
+    expect(within(dialog).getByTestId("messenger-poll-discord")).toBeDisabled();
+
+    await userEvent.setup().click(within(dialog).getByTestId("messenger-poll-telegram"));
+    expect(pollMessengerChannel).toHaveBeenCalledWith("telegram");
+    expect(await within(dialog).findByTestId("messenger-poll-result-telegram")).toHaveTextContent(
+      "3 empfangen · 1 bearbeitet · 2 wartet auf Freigabe",
+    );
+  });
+
+  it("shows an empty state when nobody has written", async () => {
+    const dialog = await openDialog(makeClient());
+    expect(await within(dialog).findByText("Bisher hat niemand geschrieben.")).toBeInTheDocument();
+  });
+});
+
+function changeProposal(over: Partial<ChangeProposal> = {}): ChangeProposal {
+  return {
+    id: "cpr_1",
+    title: "Backup-Skript härten",
+    summary: "Setzt set -euo pipefail",
+    status: "pending",
+    workspace_path: "/srv/acme",
+    file_count: 1,
+    agent_id: "agt_1",
+    created_at: Date.now(),
+    applied_at: null,
+    ...over,
+  };
+}
+
+function changeProposalFile(over: Partial<ChangeProposalFile> = {}): ChangeProposalFile {
+  return {
+    id: "cpf_1",
+    path: "scripts/backup.sh",
+    operation: "update",
+    content: "#!/usr/bin/env bash\nset -euo pipefail\n",
+    expected_sha256: "abc123",
+    applied_sha256: "",
+    ...over,
+  };
+}
+
+describe("change proposals (nothing is written until the CEO approves)", () => {
+  async function openDialog(client: Client) {
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-change-proposals"));
+    return await screen.findByRole("dialog", { name: "Änderungsfreigaben" });
+  }
+
+  it("a pending proposal offers a decision and no way to apply it", async () => {
+    const dialog = await openDialog(
+      makeClient({ changeProposals: vi.fn().mockResolvedValue({ proposals: [changeProposal()] }) }),
+    );
+
+    const row = await within(dialog).findByTestId("proposal-cpr_1");
+    expect(row).toHaveTextContent("Backup-Skript härten");
+    expect(row).toHaveTextContent("/srv/acme");
+    expect(within(dialog).getByTestId("proposal-status-cpr_1")).toHaveTextContent("wartet auf Freigabe");
+    expect(within(dialog).getByTestId("proposal-approve-cpr_1")).toBeInTheDocument();
+    expect(within(dialog).getByTestId("proposal-reject-cpr_1")).toBeInTheDocument();
+    // Not a disabled button — an unapproved proposal has no apply action at all.
+    expect(within(dialog).queryByTestId("proposal-apply-cpr_1")).not.toBeInTheDocument();
+  });
+
+  it("approves a proposal", async () => {
+    const decideChangeProposal = vi.fn().mockResolvedValue({ proposal: changeProposal({ status: "approved" }) });
+    const client = makeClient({
+      changeProposals: vi.fn().mockResolvedValue({ proposals: [changeProposal()] }),
+      decideChangeProposal,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("proposal-approve-cpr_1"));
+
+    expect(decideChangeProposal).toHaveBeenCalledWith("cpr_1", "approved", undefined);
+  });
+
+  it("rejects with the reason typed next to the button", async () => {
+    const decideChangeProposal = vi.fn().mockResolvedValue({ proposal: changeProposal({ status: "rejected" }) });
+    const client = makeClient({
+      changeProposals: vi.fn().mockResolvedValue({ proposals: [changeProposal()] }),
+      decideChangeProposal,
+    });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    await user.type(await within(dialog).findByTestId("proposal-reason-cpr_1"), "Pfad gehört nicht uns");
+    await user.click(within(dialog).getByTestId("proposal-reject-cpr_1"));
+
+    expect(decideChangeProposal).toHaveBeenCalledWith("cpr_1", "rejected", "Pfad gehört nicht uns");
+  });
+
+  it("shows each proposed file with its operation and content", async () => {
+    const changeProposalFn = vi.fn().mockResolvedValue({
+      proposal: changeProposal(),
+      files: [changeProposalFile(), changeProposalFile({ id: "cpf_2", path: "old.sh", operation: "delete" })],
+    });
+    const client = makeClient({
+      changeProposals: vi.fn().mockResolvedValue({ proposals: [changeProposal({ file_count: 2 })] }),
+      changeProposal: changeProposalFn,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("proposal-open-cpr_1"));
+
+    expect(changeProposalFn).toHaveBeenCalledWith("cpr_1");
+    const file = await within(dialog).findByTestId("proposal-file-cpf_1");
+    expect(file).toHaveTextContent("scripts/backup.sh");
+    expect(file).toHaveTextContent("ändern");
+    expect(within(dialog).getByTestId("proposal-file-content-cpf_1")).toHaveTextContent("set -euo pipefail");
+    // A delete has nothing to show, so it shows nothing rather than an empty box.
+    expect(within(dialog).getByTestId("proposal-file-cpf_2")).toHaveTextContent("löschen");
+    expect(within(dialog).queryByTestId("proposal-file-content-cpf_2")).not.toBeInTheDocument();
+  });
+
+  it("applies an approved proposal", async () => {
+    const applyChangeProposal = vi.fn().mockResolvedValue({
+      proposal: changeProposal({ status: "applied" }),
+      applied: ["scripts/backup.sh"],
+      conflicts: [],
+    });
+    const client = makeClient({
+      changeProposals: vi.fn().mockResolvedValue({ proposals: [changeProposal({ status: "approved" })] }),
+      applyChangeProposal,
+    });
+    const dialog = await openDialog(client);
+
+    expect(within(dialog).queryByTestId("proposal-approve-cpr_1")).not.toBeInTheDocument();
+    await userEvent.setup().click(await within(dialog).findByTestId("proposal-apply-cpr_1"));
+
+    expect(applyChangeProposal).toHaveBeenCalledWith("cpr_1");
+    expect(await within(dialog).findByTestId("proposal-apply-result-cpr_1")).toHaveTextContent("1 Datei geschrieben.");
+  });
+
+  it("a conflict says which file, why, and that nothing was written", async () => {
+    const applyChangeProposal = vi.fn().mockResolvedValue({
+      proposal: changeProposal({ status: "failed" }),
+      applied: [],
+      conflicts: [{ path: "scripts/backup.sh", reason: "Datei seit dem Vorschlag geändert" }],
+    });
+    const client = makeClient({
+      changeProposals: vi.fn().mockResolvedValue({ proposals: [changeProposal({ status: "approved" })] }),
+      applyChangeProposal,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("proposal-apply-cpr_1"));
+
+    const conflicts = await within(dialog).findByTestId("proposal-conflicts-cpr_1");
+    expect(conflicts).toHaveTextContent("scripts/backup.sh");
+    expect(conflicts).toHaveTextContent("Datei seit dem Vorschlag geändert");
+    // Apply is all-or-nothing — a partial write would be the worse outcome.
+    expect(within(dialog).getByTestId("proposal-apply-result-cpr_1")).toHaveTextContent(
+      "Nichts geschrieben — der Arbeitsordner ist unverändert.",
+    );
+  });
+
+  it("filters by status", async () => {
+    const changeProposals = vi.fn().mockResolvedValue({ proposals: [changeProposal()] });
+    const dialog = await openDialog(makeClient({ changeProposals }));
+
+    expect(changeProposals).toHaveBeenCalledWith(undefined);
+    await userEvent.setup().selectOptions(within(dialog).getByTestId("proposal-status-filter"), "pending");
+    await waitFor(() => expect(changeProposals).toHaveBeenCalledWith("pending"));
+  });
+
+  it("lists the ones still waiting on a decision first", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        changeProposals: vi.fn().mockResolvedValue({
+          proposals: [
+            changeProposal({ id: "cpr_applied", status: "applied", created_at: Date.now() }),
+            changeProposal({ id: "cpr_pending", status: "pending", created_at: Date.now() - 60_000 }),
+          ],
+        }),
+      }),
+    );
+
+    await within(dialog).findByTestId("proposal-cpr_pending");
+    const rows = within(dialog).getAllByTestId(/^proposal-cpr_/);
+    expect(rows[0]).toHaveAttribute("data-testid", "proposal-cpr_pending");
+  });
+
+  it("shows an empty state when there is nothing to decide", async () => {
+    const dialog = await openDialog(makeClient());
+    expect(await within(dialog).findByText("Kein Änderungsvorschlag.")).toBeInTheDocument();
   });
 });
