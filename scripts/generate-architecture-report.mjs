@@ -4,6 +4,22 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+/**
+ * The database file, resolved the way the server resolves it.
+ *
+ * `ironcrew.sqlite` is the name; an installation older than the rename from
+ * OctoOffice still has `octooffice.sqlite`, which `server/config/runtime.ts`
+ * adopts read-only. A script that hardcoded either name would open the wrong
+ * file on half the installations out there — and reading an empty database
+ * produces a confident, wrong report rather than an error.
+ */
+function resolveDbPath(root) {
+  const preferred = path.join(root, "ironcrew.sqlite");
+  const legacy = path.join(root, "octooffice.sqlite");
+  if (!fs.existsSync(preferred) && fs.existsSync(legacy)) return legacy;
+  return preferred;
+}
+
 const repoRoot = process.cwd();
 const outputDir = path.join(repoRoot, "docs", "architecture");
 
@@ -312,7 +328,7 @@ function roleRank(role) {
 }
 
 function readOrgData() {
-  const dbPath = path.join(repoRoot, "octooffice.sqlite");
+  const dbPath = resolveDbPath(repoRoot);
   if (!fs.existsSync(dbPath)) return [];
 
   let db;
@@ -535,7 +551,7 @@ flowchart LR
   subgraph Backend
     B1["server/index.ts"] --> B2["Express REST API"]
     B1 --> B3["WebSocket Server"]
-    B1 --> B4["SQLite (octooffice.sqlite)"]
+    B1 --> B4["SQLite (ironcrew.sqlite)"]
     B1 --> B5["Git Worktree + CLI Process"]
   end
 

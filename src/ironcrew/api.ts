@@ -14,6 +14,9 @@ import type {
   AgentTool,
   Approval,
   ApprovalTally,
+  AuditShipResult,
+  AuditShippingStatus,
+  AuditSinkProbe,
   AuthStatus,
   BusinessPackSummary,
   CrewSession,
@@ -517,4 +520,15 @@ export const api = {
   drainRunQueue: (limit?: number) => send<RunQueueDrainResult>("/run-queue/drain", "POST", { limit }),
   scheduler: () => get<SchedulerStatus>("/scheduler"),
   runSchedulerJob: (name: string) => send<{ job: SchedulerJob }>(`/scheduler/${encodeURIComponent(name)}/run`, "POST"),
+
+  // --- audit shipping: the copy that leaves the machine ---------------------
+  //
+  // The status is readable by anyone signed in — how far behind the archive is
+  // is not a secret — while the probe and the drain are owner-only and answer
+  // 403 to everyone else. `testAuditShipping` resolves with `ok: false` when
+  // the collector is unreachable: that is a status, not a failed request, and
+  // only a 409 (no sink configured) or a 403 rejects here.
+  auditShipping: () => get<AuditShippingStatus>("/audit/shipping"),
+  testAuditShipping: () => send<AuditSinkProbe>("/audit/shipping/test", "POST"),
+  runAuditShipping: () => send<AuditShipResult>("/audit/shipping/run", "POST"),
 };

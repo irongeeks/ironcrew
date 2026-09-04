@@ -18,15 +18,35 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = path.join(__dirname, "..", "templates", "AGENTS-ironcrew.md");
-// These markers keep their pre-rename spelling deliberately. They are not
-// branding: they are how this script finds the block it wrote into somebody's
-// AGENTS.md on a previous run, and that file is on their disk, unchanged, with
-// the old words in it. Rename them and the block is no longer found, so setup
-// prepends a second copy instead of updating the first — every run adding
-// another. `server/modules/routes/ops/setup-status.ts` matches the same string.
-// Changing this needs a migration that rewrites existing files, not an edit.
-const START_MARKER = "<!-- BEGIN octooffice orchestration rules -->";
-const END_MARKER = "<!-- END octooffice orchestration rules -->";
+// The markers that delimit the block this script owns inside somebody's
+// AGENTS.md — and the migration that lets them be renamed at all.
+//
+// These are not branding, they are a key. An installation that ran setup
+// before the rename has the OLD words sitting in its AGENTS.md right now. If
+// this script only knew the new spelling it would fail to find that block,
+// prepend a second copy, and add another on every subsequent run. If it only
+// knew the old one, the old name would live on in every file it writes.
+//
+// So it writes the new markers and recognises both. The first run after the
+// rename finds the legacy block, replaces it with the new one, and the old
+// spelling is gone from that file for good — a migration, not a rename.
+// `server/modules/routes/ops/setup-status.ts` recognises both for the same
+// reason, or it would report a perfectly good installation as un-configured.
+const START_MARKER = "<!-- BEGIN ironcrew orchestration rules -->";
+const END_MARKER = "<!-- END ironcrew orchestration rules -->";
+const LEGACY_START_MARKER = "<!-- BEGIN octooffice orchestration rules -->";
+const LEGACY_END_MARKER = "<!-- END octooffice orchestration rules -->";
+
+/** The marker pair present in `content`, or null when there is no block. */
+function findMarkers(content) {
+  if (content.includes(START_MARKER) && content.includes(END_MARKER)) {
+    return { start: START_MARKER, end: END_MARKER };
+  }
+  if (content.includes(LEGACY_START_MARKER) && content.includes(LEGACY_END_MARKER)) {
+    return { start: LEGACY_START_MARKER, end: LEGACY_END_MARKER };
+  }
+  return null;
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -111,9 +131,10 @@ export function injectAgentsRules({ port, agentsPath } = {}) {
   }
 
   // Check if already installed — offer update
-  if (existingContent.includes(START_MARKER) && existingContent.includes(END_MARKER)) {
-    const startIdx = existingContent.indexOf(START_MARKER);
-    const endIdx = existingContent.indexOf(END_MARKER) + END_MARKER.length;
+  const found = findMarkers(existingContent);
+  if (found) {
+    const startIdx = existingContent.indexOf(found.start);
+    const endIdx = existingContent.indexOf(found.end) + found.end.length;
     const before = existingContent.slice(0, startIdx);
     const after = existingContent.slice(endIdx);
     const newContent = before + templateContent + after;

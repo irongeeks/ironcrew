@@ -1,4 +1,4 @@
-<!-- BEGIN octooffice orchestration rules -->
+<!-- BEGIN ironcrew orchestration rules -->
 
 # IronCrew Orchestration Rules
 
@@ -523,4 +523,5 @@ When processing `$` or `#` commands, the response to the user must be **minimal 
 
 ---
 
-<!-- END octooffice orchestration rules -->
+<!-- END ironcrew orchestration rules -->
+

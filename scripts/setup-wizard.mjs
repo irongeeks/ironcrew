@@ -292,7 +292,7 @@ function writeSetupJson({ companyName, ceoName, defaultProvider }) {
 
 async function main() {
   console.log(C.bold("\n╔══════════════════════════════════════╗"));
-  console.log(C.bold("║   IronCrew Interactive Setup     ║"));
+  console.log(C.bold("║      IronCrew Interactive Setup      ║"));
   console.log(C.bold("╚══════════════════════════════════════╝"));
 
   const cliArgs = parseArgs();

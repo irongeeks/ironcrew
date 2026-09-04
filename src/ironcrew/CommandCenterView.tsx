@@ -14,6 +14,7 @@ import "./command-center.css";
 import { api, serverErrorCode, serverMessage } from "./api.ts";
 import {
   AGENT_STATUS_LABEL,
+  AUDIT_SINK_LABEL,
   BOARD_COLUMNS,
   CHANGE_OPERATION_LABEL,
   CHANGE_PROPOSAL_STATUS_LABEL,
@@ -42,6 +43,9 @@ import {
   type AgentTool,
   type Approval,
   type Attachment,
+  type AuditShipResult,
+  type AuditShippingStatus,
+  type AuditSinkProbe,
   type ChangeApplyConflict,
   type ChangeProposal,
   type ChangeProposalFile,
