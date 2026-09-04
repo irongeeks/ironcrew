@@ -49,31 +49,33 @@ It never imports `runtimeContext`. The consequences are concrete:
 
 ## Module map
 
-| Path                                            | Responsibility                                                    |
-| ----------------------------------------------- | ----------------------------------------------------------------- |
-| `server/ironcrew/domain/task-state.ts`          | Task and agent state machines. Pure, no I/O.                      |
-| `server/ironcrew/domain/task-store.ts`          | Task persistence, atomic claiming, dependencies, orphan recovery. |
-| `server/ironcrew/domain/audit.ts`               | Append-only hash-chained audit log.                               |
-| `server/ironcrew/domain/crew-config.ts`         | Persona / role / policy separation and its enforcement.           |
-| `server/ironcrew/domain/sql.ts`                 | Typed row helpers for `node:sqlite`.                              |
-| `server/ironcrew/policy/vendor-policy.ts`       | Which models and providers may be used.                           |
-| `server/ironcrew/policy/runtime-permissions.ts` | CLI permission modes and sandbox grants.                          |
-| `server/ironcrew/policy/approval-policy.ts`     | Approval requests and the blocking gate.                          |
-| `server/ironcrew/policy/budget-engine.ts`       | Budget scopes, thresholds, pre- and post-spend enforcement.       |
-| `server/ironcrew/runtime/run-events.ts`         | Normalised run protocol and `AgentRuntime`.                       |
-| `server/ironcrew/runtime/run-store.ts`          | Run and event persistence, redaction, sequencing.                 |
-| `server/ironcrew/runtime/mock-runtime.ts`       | MockRuntime.                                                      |
-| `server/ironcrew/orchestrator/triage.ts`        | EA message classification and routing.                            |
-| `server/ironcrew/orchestrator/company.ts`       | The CEO → EA → task → run → review flow, plus every provider registry (secrets, memory, notification channels) and their fan-out/dispatch logic. |
-| `server/ironcrew/api/routes.ts`                 | REST surface under `/api/crew`.                                   |
-| `server/ironcrew/security/redaction.ts`         | Secret redaction for logs, events and streams.                    |
-| `server/ironcrew/domain/meeting-store.ts`       | Meetings — moderator, bounded rounds, budget (`docs/UPSTREAM_ANALYSIS.md`'s anti-god-object design). |
-| `server/ironcrew/memory/`                       | `MemoryProvider` contract + `ObsidianProvider` (a real vault of markdown files) — the first memory backend. |
-| `server/ironcrew/secrets/`                      | `SecretProvider` contract + Vaultwarden/Proton Pass — a `SecretRef` never carries a value. |
-| `server/ironcrew/notify/`                       | `NotificationChannel` contract + Discord/Telegram/email — best-effort fan-out for the decision inbox. |
-| `server/ironcrew/network/tailscale-provider.ts` | Tailscale/Headscale status (`tailscale status --json`).           |
-| `server/ironcrew/domain/remote-worker-store.ts` | SSH-over-tailnet worker registry for Tier0/customer networks.     |
-| `src/ironcrew/`                                 | Command Center UI.                                                |
+| Path                                            | Responsibility                                                                                                                                                                                             |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/ironcrew/domain/task-state.ts`          | Task and agent state machines. Pure, no I/O.                                                                                                                                                               |
+| `server/ironcrew/domain/task-store.ts`          | Task persistence, atomic claiming, dependencies, orphan recovery.                                                                                                                                          |
+| `server/ironcrew/domain/audit.ts`               | Append-only hash-chained audit log.                                                                                                                                                                        |
+| `server/ironcrew/domain/crew-config.ts`         | Persona / role / policy separation and its enforcement.                                                                                                                                                    |
+| `server/ironcrew/domain/sql.ts`                 | Typed row helpers for `node:sqlite`.                                                                                                                                                                       |
+| `server/ironcrew/policy/vendor-policy.ts`       | Which models and providers may be used.                                                                                                                                                                    |
+| `server/ironcrew/policy/runtime-permissions.ts` | CLI permission modes and sandbox grants.                                                                                                                                                                   |
+| `server/ironcrew/policy/approval-policy.ts`     | Approval requests and the blocking gate.                                                                                                                                                                   |
+| `server/ironcrew/policy/budget-engine.ts`       | Budget scopes, thresholds, pre- and post-spend enforcement.                                                                                                                                                |
+| `server/ironcrew/runtime/run-events.ts`         | Normalised run protocol and `AgentRuntime`.                                                                                                                                                                |
+| `server/ironcrew/runtime/run-store.ts`          | Run and event persistence, redaction, sequencing.                                                                                                                                                          |
+| `server/ironcrew/runtime/mock-runtime.ts`       | MockRuntime.                                                                                                                                                                                               |
+| `server/ironcrew/orchestrator/triage.ts`        | EA message classification and routing.                                                                                                                                                                     |
+| `server/ironcrew/orchestrator/company.ts`       | The CEO → EA → task → run → review flow, plus every provider registry (secrets, memory, notification channels, mail providers, marketplace sources) and their fan-out/dispatch logic.                      |
+| `server/ironcrew/api/routes.ts`                 | REST surface under `/api/crew`.                                                                                                                                                                            |
+| `server/ironcrew/security/redaction.ts`         | Secret redaction for logs, events and streams.                                                                                                                                                             |
+| `server/ironcrew/domain/meeting-store.ts`       | Meetings — moderator, bounded rounds, budget (`docs/UPSTREAM_ANALYSIS.md`'s anti-god-object design).                                                                                                       |
+| `server/ironcrew/memory/`                       | `MemoryProvider` contract + `ObsidianProvider` (a real vault of markdown files) — the first memory backend.                                                                                                |
+| `server/ironcrew/secrets/`                      | `SecretProvider` contract + Vaultwarden/Proton Pass — a `SecretRef` never carries a value.                                                                                                                 |
+| `server/ironcrew/mail/`                         | `MailProvider` contract + IMAP, JMAP, Microsoft 365 and Gmail. Mailboxes are granted to agents n:n; incoming mail becomes an `inbox` task, never a CEO message (docs/MAIL.md).                             |
+| `server/ironcrew/marketplace/`                  | `MarketplaceSource` contract + catalog, MCP registry, Claude-Code plugin and Git adapters, plus the installer that is the trust boundary between third-party JSON and this machine (docs/MARKETPLACES.md). |
+| `server/ironcrew/notify/`                       | `NotificationChannel` contract + Discord/Telegram/email — best-effort fan-out for the decision inbox.                                                                                                      |
+| `server/ironcrew/network/tailscale-provider.ts` | Tailscale/Headscale status (`tailscale status --json`).                                                                                                                                                    |
+| `server/ironcrew/domain/remote-worker-store.ts` | SSH-over-tailnet worker registry for Tier0/customer networks.                                                                                                                                              |
+| `src/ironcrew/`                                 | Command Center UI.                                                                                                                                                                                         |
 
 ## Key invariants
 
@@ -164,8 +166,9 @@ See `IMPLEMENTATION_STATUS.md` for the exhaustive, test-backed list. In
 short: `CliAdapterRuntime` now drives real CLI runtimes end-to-end (Phase
 1.5), and Phase 2's Company OS — goals, projects, Kanban, dependencies, the
 decision inbox, the org chart, bounded meetings, an Obsidian `MemoryProvider`,
-and Discord/Telegram/email notification fan-out — is built and tested. What
-remains: the MCP registry, a tool registry with risk-classed approvals, a
-native runner daemon (so the control plane and the runtime stop sharing a
-process), and the business packs (MSP, Web Agency, Finance, Legal,
+and Discord/Telegram/email notification fan-out — is built and tested, as are
+mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants) and marketplaces for
+skills and MCP servers. What remains: a tool registry with risk-classed
+approvals, a native runner daemon (so the control plane and the runtime stop
+sharing a process), and the business packs (MSP, Web Agency, Finance, Legal,
 Knowledge) — all Phase 3+.

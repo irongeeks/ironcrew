@@ -16,7 +16,7 @@ is enforced in the backend rather than hidden in the UI.
 > alongside MockRuntime, and goals, projects, Kanban, meetings, an Obsidian
 > memory, and Discord/Telegram/email notifications are all built and tested —
 > 3,600+ tests across the server and client suites. A live task run through
-> an *authenticated* CLI login is still the operator's own manual step (no
+> an _authenticated_ CLI login is still the operator's own manual step (no
 > CLI login exists in this development environment). See
 > [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for an honest,
 > test-backed breakdown of what is and is not built.
