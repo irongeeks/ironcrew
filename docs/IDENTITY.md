@@ -167,9 +167,20 @@ POST /api/crew/approvals/:id/quorum   { required: 2 }     owner only
 ```
 
 In the Command Center that is the **„Vier Augen verlangen“** button on the
-approval card. It only appears while the approval is still at a quorum of one
-and nobody has voted — raising the bar after a decision would rewrite what that
-decision required, which is the one thing the audit chain must never allow.
+approval card, which appears while the approval is still at a quorum of one and
+nobody has voted.
+
+The API enforces that independently, and it has to: a control whose only
+constraint lives in a React component is a control anybody can send a request
+around. **A quorum can only ever go up.** Lowering it is refused — otherwise
+the compromised owner account this whole feature guards against (T-21) would
+need exactly one extra request to undo it. Changing it once somebody has voted
+is refused, and changing it after the decision is refused, which would rewrite
+what that decision required.
+
+Lowering a quorum demanded in error is therefore not an API operation. Reject
+the approval and raise a new one: both acts stay in the chain, where a silent
+correction would leave neither.
 
 Every approval that predates this feature keeps `required_approvals = 1` and
 behaves exactly as it did before. Nothing about the single-operator box
@@ -264,6 +275,14 @@ So the status code carries the difference:
 pedantry: a UI that read it as success would tell the owner the transfer is
 released while it is still waiting for a second human, which is the one thing
 this whole feature exists to prevent.
+
+**`POST /api/crew/change-proposals/:id/decision` answers the same way, and for
+the same reason.** A file-change proposal raises an ordinary approval, so an
+owner can demand four eyes on a deploy script touching a customer's Tier 0.
+That route used to decide the approval directly, which made the quorum
+decorative on exactly the change type that most deserves it. It now goes
+through the vote like everything else, and answers `202` while the second
+reviewer is still missing.
 
 ## Reading the vote
 

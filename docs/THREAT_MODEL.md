@@ -619,30 +619,51 @@ holiday when the decision cannot wait.
 
 **Mitigation.**
 
-1. **A quorum per approval, not per installation.** `required_approvals` lives
-   on the approval row. A company-wide two-person rule would make every
-   routine approval wait for somebody with nothing to add, and would be
-   switched off within a fortnight — including for the payment. The quorum is
-   raised on the request that deserves it (`POST /approvals/:id/quorum`, owner
-   only), and only while it is still pending: changing what a decision
-   required _after_ it was taken would rewrite history in the one place that
-   must not be rewritable.
+1. **A quorum per approval, not per installation, and it only ever goes up.**
+   `required_approvals` lives on the approval row. A company-wide two-person
+   rule would make every routine approval wait for somebody with nothing to
+   add, and would be switched off within a fortnight — including for the
+   payment. The quorum is raised on the request that deserves it
+   (`POST /approvals/:id/quorum`, owner only).
+
+   Three refusals, and the first exists because a security review over this
+   branch demonstrated its absence end to end: **a quorum cannot be lowered.**
+   The threat here is one compromised owner account, so if that same account
+   could send `{ required: 1 }` and then approve, the mitigation would cost an
+   attacker exactly one extra request, and the chain would record it
+   afterwards — detection, not prevention. It also cannot be changed once
+   anybody has voted (that moves the goalposts under the people already
+   counted), nor after the decision (that rewrites what the decision required,
+   in the one place that must not be rewritable). Lowering a quorum set in
+   error is deliberately not an API operation: the approval can be rejected
+   and raised again, which leaves both acts in the chain where a silent
+   correction would leave neither.
+
 2. **Four eyes are structurally four eyes.** `crew_approval_reviews` carries
    `UNIQUE (approval_id, reviewer_id)`. A double submit, a retried request or
    a refreshed tab cannot satisfy a two-person rule alone — the database
    refuses it, and the API answers 409 rather than letting the second click
    through.
-3. **One rejection is decisive, and needs no quorum of its own.** A reviewer
+3. **Every path to a decision goes through the vote.** The same review found
+   `decideChangeProposal` calling `approvals.decide()` directly, so an owner
+   could demand four eyes on a deploy script, watch the panel confirm
+   "0 von 2", approve alone and write the files — with the tally still
+   reporting `outstanding: 2` afterwards. It now goes through `reviewApproval`
+   like every other verdict. The rule this restates is T-15's: a gate with a
+   bypass is not a gate, and a bypass justified by "this caller's own gate has
+   already run" deserves the question _which_ gate — because here the answer
+   was this one.
+4. **One rejection is decisive, and needs no quorum of its own.** A reviewer
    who has spotted the wrong destination IBAN stops the payment immediately,
    whatever the approval count already stood at. Requiring agreement to act is
    prudence; requiring agreement to refrain is a defect, and would mean a
    dangerous change proceeding because the colleague who would have agreed was
    on holiday.
-4. **The tally is recomputed, never latched.** There is no "quorum reached"
+5. **The tally is recomputed, never latched.** There is no "quorum reached"
    flag, so a rejection arriving after the second approval blocks just as
    firmly as one arriving before it. No window exists in which the gate has
    been declared open and can no longer be shut.
-5. **Each reviewer is named individually in the audit chain.** Every verdict
+6. **Each reviewer is named individually in the audit chain.** Every verdict
    appends with that person's own `usr_…`; `approval.quorum_reached` lists who
    agreed. An investigation can ask "who waved this through" and get people,
    not an account shared by a role.

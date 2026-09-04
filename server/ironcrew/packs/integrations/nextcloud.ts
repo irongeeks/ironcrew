@@ -86,6 +86,7 @@ import {
   type IntegrationStatus,
   type PackIntegrationAdapter,
 } from "../pack-integration.ts";
+import { sanitiseLine, stripControlTokens, wrapUntrusted } from "../../policy/untrusted-content.ts";
 
 export interface NextcloudAdapterOptions extends HttpIntegrationOptions {
   /** The Nextcloud login name (the uid), not the display name. */
@@ -99,7 +100,15 @@ export interface NextcloudAdapterOptions extends HttpIntegrationOptions {
 }
 
 export interface NextcloudEntry {
-  /** The last path segment, decoded — "Angebot Müller.md", not "%20M%C3%BC". */
+  /**
+   * The last path segment, decoded — "Angebot Müller.md", not "%20M%C3%BC" —
+   * and passed through `sanitiseLine()`.
+   *
+   * A file name is attacker-controlled text: whoever can drop a file in the
+   * folder chooses it, and Nextcloud folders are shared with customers by
+   * design. A name carrying a newline and a fabricated instruction would
+   * otherwise reach a model's context looking like a line of the prompt.
+   */
   name: string;
   /** Path relative to the user's files root, always leading-slash. */
   path: string;
@@ -303,7 +312,19 @@ export class NextcloudAdapter implements PackIntegrationAdapter {
     // `fatal: false` on purpose: a document in Latin-1 would otherwise throw
     // instead of coming back with a few replacement characters, and a mostly
     // readable document is worth more to a reader than an exception.
-    return new TextDecoder("utf-8").decode(bytes);
+    const text = new TextDecoder("utf-8").decode(bytes);
+
+    // Stripped at ingress, as the Paperless adapter does and as this file's
+    // header already claimed before the code did. A file in a shared folder
+    // was written by whoever put it there — often a customer — so it is
+    // untrusted by construction, and a document containing the fence's own
+    // closing marker must not be able to end a fence a caller later puts
+    // around it (T-02).
+    //
+    // Stripped here, fenced by `wrapNextcloudFile()`: the adapter must not
+    // build prompt text, and a caller that wants the raw file to render in a
+    // UI must not be forced through a fence.
+    return stripControlTokens(text).text;
   }
 
   /**
@@ -421,7 +442,7 @@ export class NextcloudAdapter implements PackIntegrationAdapter {
     return {
       // The root of the account has no last segment; the account name is the
       // only honest thing to call it.
-      name: segments.length > 0 ? (segments[segments.length - 1] as string) : this.username,
+      name: sanitiseLine(segments.length > 0 ? (segments[segments.length - 1] as string) : this.username),
       path,
       // A folder carries no `d:getcontentlength` at all, and the property may
       // also be reported in a 404 propstat. "Absent" is not "zero bytes".
@@ -733,4 +754,17 @@ function text(value: unknown): string | undefined {
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * A downloaded file, fenced for a prompt.
+ *
+ * The mirror of `wrapPaperlessDocument()`, and offered for the same reason:
+ * `downloadText()` strips control tokens, which stops the content closing a
+ * fence, but only a fence says *where these sentences came from*. A model —
+ * and an operator reading the transcript later — has to be able to see that
+ * nobody at this company wrote them.
+ */
+export function wrapNextcloudFile(path: string, content: string): string {
+  return wrapUntrusted(content, { kind: "Datei aus Nextcloud", source: sanitiseLine(path) }).text;
 }

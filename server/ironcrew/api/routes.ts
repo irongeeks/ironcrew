@@ -1161,11 +1161,20 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       // to fetch the tally per row would either make N requests or show the
       // quorum late, and "late" here means an owner pressing a button on a
       // gate somebody else already closed.
-      const approvals = orchestrator.approvals.listPending(companyId).map((approval) => ({
-        ...approval,
-        tally: orchestrator.approvalReviews.tally(approval.id),
-        reviews: withReviewerNames(approval.id),
-      }));
+      // Bounded. Each row now costs a tally, a review list and a name lookup
+      // per reviewer, and `listPending` has no limit of its own — approvals
+      // are raised by agents on risky actions, so the list is not
+      // operator-sized by construction. A decision inbox showing the oldest
+      // 200 is a decision inbox; one that pages the whole backlog on every
+      // poll is a load generator.
+      const approvals = orchestrator.approvals
+        .listPending(companyId)
+        .slice(0, 200)
+        .map((approval) => ({
+          ...approval,
+          tally: orchestrator.approvalReviews.tally(approval.id),
+          reviews: withReviewerNames(approval.id),
+        }));
       res.json({ approvals });
     }),
   );
@@ -2116,17 +2125,31 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     ownerOnly,
     wrap((req, res) => {
       const { decision, reason } = changeProposalDecisionSchema.parse(req.body ?? {});
-      const proposal = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, {
+      const outcome = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, {
         reason,
         ...actorOf(req),
       });
-      if (!proposal) {
+      if (!outcome) {
         res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { proposal, tally } = outcome;
+      if (!outcome.decided) {
+        // 202, as on the approvals route and for the same reason: the vote is
+        // recorded, the proposal is still pending, and nothing has been
+        // written. A 200 here would let the panel report a deploy script as
+        // approved while it waits for a second human.
+        broadcast("crew_approval_reviewed", {
+          approvalId: proposal.approval_id,
+          approvals: tally?.approvals ?? 0,
+          required: tally?.required ?? 1,
+        });
+        res.status(202).json({ proposal, tally });
         return;
       }
       broadcast("crew_change_proposal_changed", { proposalId: proposal.id, status: proposal.status });
       broadcast("crew_approval_changed", { approvalId: proposal.approval_id });
-      res.json({ proposal });
+      res.json({ proposal, tally });
     }),
   );
 
@@ -2454,8 +2477,16 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     }),
   );
 
+  // Owner only. Disabling a tool is how an owner takes a capability away —
+  // pack uninstall disables the pack's tools and deliberately keeps the
+  // grants, so that an owner who reinstalls does not have to re-grant
+  // everything. The consequence is that re-enabling restores every surviving
+  // grant at a stroke, which makes this the same kind of act as granting one:
+  // an operator flipping it back would undo an owner's decision without ever
+  // touching a grant.
   app.post(
     `${base}/tools/:id/enabled`,
+    ownerOnly,
     wrap((req, res) => {
       const existing = orchestrator.tools.get(param(req, "id"));
       if (!existing || existing.company_id !== companyId) {

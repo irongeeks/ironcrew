@@ -28,12 +28,13 @@ let db: DatabaseSync;
 let app: Express;
 let companyId: string;
 let auth: CrewAuth;
+let orchestrator: CompanyOrchestrator;
 
 beforeEach(() => {
   db = createTestDb();
   app = express();
   app.use(express.json());
-  const orchestrator = new CompanyOrchestrator(db);
+  orchestrator = new CompanyOrchestrator(db);
   orchestrator.registerRuntime(new MockRuntime({ responseText: "fertig" }));
   const api = registerIronCrewRoutes(app, { db, orchestrator });
   companyId = api.companyId;
@@ -828,5 +829,74 @@ describe("signing in through a directory", () => {
       .expect(302);
     // The local account decides whether it may be used, not the directory.
     expect(res.headers.location).toBe("/?oidc_error=account_unavailable");
+  });
+});
+
+describe("guards the security review checked", () => {
+  it("does not let an operator re-enable a tool an owner disabled", async () => {
+    await seedUser("anna@example.com", "owner");
+    await seedUser("olli@example.com", "operator");
+    const owner = await login("anna@example.com");
+    const operator = await login("olli@example.com");
+
+    // Tools are registered by the composition root and by pack installs, not
+    // over HTTP, so this is how one comes into existence.
+    const toolId = orchestrator.tools.register({
+      companyId,
+      key: "custom.read",
+      label: "Etwas lesen",
+      riskClass: "read",
+    }).id;
+
+    // Disabling is how an owner takes a capability away — pack uninstall does
+    // exactly this and deliberately keeps the grants, so re-enabling restores
+    // every surviving grant at a stroke. An operator flipping it back would
+    // undo an owner's decision without ever touching a grant.
+    await request(app)
+      .post(`/api/crew/tools/${toolId}/enabled`)
+      .set("Cookie", owner)
+      .send({ enabled: false })
+      .expect(200);
+    await request(app)
+      .post(`/api/crew/tools/${toolId}/enabled`)
+      .set("Cookie", operator)
+      .send({ enabled: true })
+      .expect(403);
+    await request(app)
+      .post(`/api/crew/tools/${toolId}/enabled`)
+      .set("Cookie", owner)
+      .send({ enabled: true })
+      .expect(200);
+  });
+
+  it("refuses to lower a quorum over HTTP, and to change it once anybody voted", async () => {
+    await seedUser("anna@example.com", "owner");
+    const anna = await login("anna@example.com");
+    await request(app)
+      .post("/api/crew/chat")
+      .set("Cookie", anna)
+      .send({ body: "Bitte überweise 10.000 EUR an den Lieferanten." })
+      .expect(201);
+    const list = await request(app).get("/api/crew/approvals").set("Cookie", anna).expect(200);
+    const id = list.body.approvals[0].id;
+
+    await request(app).post(`/api/crew/approvals/${id}/quorum`).set("Cookie", anna).send({ required: 2 }).expect(200);
+    // One extra request would otherwise undo T-21's whole mitigation.
+    const lowered = await request(app)
+      .post(`/api/crew/approvals/${id}/quorum`)
+      .set("Cookie", anna)
+      .send({ required: 1 })
+      .expect(409);
+    expect(lowered.body.error).toBe("invalid_approval_review");
+    expect((await request(app).get(`/api/crew/approvals/${id}/reviews`).set("Cookie", anna)).body.tally.required).toBe(
+      2,
+    );
+
+    await request(app)
+      .post(`/api/crew/approvals/${id}/decide`)
+      .set("Cookie", anna)
+      .send({ decision: "approved" })
+      .expect(202);
+    await request(app).post(`/api/crew/approvals/${id}/quorum`).set("Cookie", anna).send({ required: 3 }).expect(409);
   });
 });

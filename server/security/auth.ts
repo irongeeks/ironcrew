@@ -217,6 +217,13 @@ export function isPublicApiPath(pathname: string): boolean {
   if (pathname === "/api/crew/auth/login") return true;
   if (pathname === "/api/crew/auth/logout") return true;
   if (pathname === "/api/crew/auth/status") return true;
+  // The directory login is the same front door by another route. Both halves
+  // of the flow are unauthenticated by definition — the person has not proved
+  // anything yet at `start`, and at `callback` they are holding the issuer's
+  // code and nothing else. Leaving them out would put the shared password in
+  // front of the sign-in that exists to retire it.
+  if (pathname === "/api/crew/auth/oidc/start") return true;
+  if (pathname === "/api/crew/auth/oidc/callback") return true;
   if (pathname === "/api/inbox") return true;
   if (pathname === "/api/openapi.json") return true;
   if (pathname === "/api/docs" || pathname.startsWith("/api/docs/")) return true;

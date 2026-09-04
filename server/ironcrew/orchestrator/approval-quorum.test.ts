@@ -20,6 +20,8 @@ import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { configDir, loadCrewConfig, loadDepartmentConfig } from "../domain/crew-config.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
 import { ApprovalReviewError } from "../domain/approval-review-store.ts";
+import fs from "node:fs";
+import os from "node:os";
 
 let db: DatabaseSync;
 let orc: CompanyOrchestrator;
@@ -36,14 +38,21 @@ const SENSITIVE = "Bitte überweise 100 EUR an den Lieferanten.";
 const ANNA = { actorId: "usr_anna" };
 const BOB = { actorId: "usr_bob" };
 
+/** A real directory, so an applied proposal has somewhere to write. */
+let workspace: string;
+
 beforeEach(() => {
+  workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-quorum-"));
   db = createTestDb();
   orc = new CompanyOrchestrator(db);
   orc.registerRuntime(new MockRuntime({ responseText: "Erledigt." }));
   companyId = orc.seedCompany({ name: "IronCrew", slug: "iron", crew, departments });
 });
 
-afterEach(() => db.close());
+afterEach(() => {
+  db.close();
+  fs.rmSync(workspace, { recursive: true, force: true });
+});
 
 function parked(required?: number) {
   const result = orc.handleCeoMessage(companyId, SENSITIVE);
@@ -165,6 +174,112 @@ describe("the quorum is a property of the approval", () => {
     const set = listAuditEvents(db, companyId, { limit: 200 }).find((e) => e.action === "approval.quorum_set")!;
     expect(set.actor_id).toBe("usr_anna");
     expect(JSON.parse(String(set.details_json))).toMatchObject({ from: 1, to: 2 });
+    expect(verifyAuditChain(db, companyId).valid).toBe(true);
+  });
+});
+
+describe("the ways a quorum was found to be bypassable", () => {
+  /**
+   * Both of these were live. A security review over this branch demonstrated
+   * each end to end against a real Express stack with two owner sessions, and
+   * these are the regressions for them. Neither is hypothetical, and neither
+   * is a corner case: the first is the exact scenario T-21 was written for.
+   */
+
+  it("cannot be undone by lowering it — that would cost an attacker one request", () => {
+    const { approval } = parked(2);
+
+    // T-21's threat is one compromised owner account deciding everything, and
+    // the per-approval quorum is its stated mitigation. If the same account
+    // could send { required: 1 } and then approve, the mitigation would be
+    // decoration: the audit chain records the change, which is detection, not
+    // prevention.
+    expect(() => orc.approvalReviews.setRequiredApprovals(approval.id, 1)).toThrow(ApprovalReviewError);
+    expect(orc.approvalReviews.tally(approval.id).required).toBe(2);
+
+    // And the gate still holds afterwards.
+    const first = orc.reviewApproval(companyId, approval.id, "approved", "", ANNA)!;
+    expect(first.decided).toBe(false);
+    expect(orc.approvals.get(approval.id)!.status).toBe("pending");
+  });
+
+  it("cannot be changed at all once somebody has voted", () => {
+    const { approval } = parked(2);
+    orc.reviewApproval(companyId, approval.id, "approved", "", ANNA);
+    // Raising it mid-vote moves the goalposts under the people already
+    // counted; lowering it is refused anyway.
+    expect(() => orc.approvalReviews.setRequiredApprovals(approval.id, 3)).toThrow(/bereits/);
+    expect(orc.approvalReviews.tally(approval.id).required).toBe(2);
+  });
+
+  it("treats a repeated demand for the same quorum as the same demand", () => {
+    const { approval } = parked();
+    orc.approvalReviews.setRequiredApprovals(approval.id, 2);
+    // A double-clicked button is one request twice, not a second demand.
+    // Refusing it would put an error in front of somebody who got what they
+    // asked for.
+    expect(() => orc.approvalReviews.setRequiredApprovals(approval.id, 2)).not.toThrow();
+    expect(orc.approvalReviews.tally(approval.id).required).toBe(2);
+  });
+
+  it("still governs a file-change proposal, which used to go around it", () => {
+    // `decideChangeProposal` called `approvals.decide()` directly, so an
+    // owner could demand four eyes on a deploy script, watch the panel
+    // confirm "0 von 2", approve alone and write the files. A gate with a
+    // bypass is not a gate (T-15).
+    const { proposal, approvalId } = orc.proposeChanges(companyId, {
+      title: "Deploy-Skript ändern",
+      workspacePath: workspace,
+      files: [{ path: "deploy.sh", operation: "create", content: "#!/bin/sh\necho neu\n" }],
+    });
+    orc.approvalReviews.setRequiredApprovals(approvalId, 2);
+
+    const alone = orc.decideChangeProposal(companyId, proposal.id, "approved", { reason: "sieht gut aus", ...ANNA })!;
+    expect(alone.decided).toBe(false);
+    expect(alone.tally).toMatchObject({ approvals: 1, required: 2, outstanding: 1 });
+    expect(orc.changeProposals.get(proposal.id)!.status).toBe("pending");
+    expect(orc.approvals.get(approvalId)!.status).toBe("pending");
+    // And the write is still refused, which is T-15's second line of defence.
+    expect(() => orc.applyChangeProposal(companyId, proposal.id, ANNA)).toThrow(/pending|nichts/i);
+
+    const second = orc.decideChangeProposal(companyId, proposal.id, "approved", { reason: "geprüft", ...BOB })!;
+    expect(second.decided).toBe(true);
+    expect(orc.changeProposals.get(proposal.id)!.status).toBe("approved");
+    expect(orc.approvals.get(approvalId)!.status).toBe("approved");
+  });
+
+  it("lets one reviewer stop a file change, whatever the count stood at", () => {
+    const { proposal, approvalId } = orc.proposeChanges(companyId, {
+      title: "Deploy-Skript ändern",
+      workspacePath: workspace,
+      files: [{ path: "deploy.sh", operation: "create", content: "#!/bin/sh\necho neu\n" }],
+    });
+    orc.approvalReviews.setRequiredApprovals(approvalId, 2);
+
+    orc.decideChangeProposal(companyId, proposal.id, "approved", { ...ANNA });
+    const no = orc.decideChangeProposal(companyId, proposal.id, "rejected", { reason: "löscht Prod", ...BOB })!;
+
+    expect(no.decided).toBe(true);
+    expect(orc.changeProposals.get(proposal.id)!.status).toBe("rejected");
+    expect(() => orc.applyChangeProposal(companyId, proposal.id, ANNA)).toThrow();
+  });
+
+  it("records each reviewer of a file change individually", () => {
+    const { proposal, approvalId } = orc.proposeChanges(companyId, {
+      title: "Deploy-Skript ändern",
+      workspacePath: workspace,
+      files: [{ path: "deploy.sh", operation: "create", content: "x" }],
+    });
+    orc.approvalReviews.setRequiredApprovals(approvalId, 2);
+    orc.decideChangeProposal(companyId, proposal.id, "approved", { ...ANNA });
+    orc.decideChangeProposal(companyId, proposal.id, "approved", { ...BOB });
+
+    expect(
+      orc.approvalReviews
+        .listFor(approvalId)
+        .map((r) => r.reviewer_id)
+        .sort(),
+    ).toEqual(["usr_anna", "usr_bob"]);
     expect(verifyAuditChain(db, companyId).valid).toBe(true);
   });
 });

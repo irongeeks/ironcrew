@@ -218,11 +218,25 @@ export class HttpAuditSink implements AuditSink {
 
   async ship(entries: readonly ShippedAuditEntry[]): Promise<AuditShipOutcome> {
     if (entries.length === 0) return { accepted: 0 };
-    const res = await this.fetchImpl(this.url, {
-      method: "POST",
-      headers: this.headers("application/x-ndjson"),
-      body: toNdjson(entries),
-    });
+
+    let res: Response;
+    try {
+      res = await this.fetchImpl(this.url, {
+        method: "POST",
+        headers: this.headers("application/x-ndjson"),
+        body: toNdjson(entries),
+      });
+    } catch (err) {
+      // Caught here rather than left to the shipper, which only has the
+      // pattern-based redactor. A proxy that puts the request headers into
+      // its own failure message hands us a bare token that `redactText`
+      // cannot recognise, and this message is logged at warn every tick the
+      // sink stays broken and shown by POST /audit/shipping/run.
+      // `testConnection()` already guarded its error this way; `ship()` did
+      // not, which was an oversight rather than a decision.
+      return { accepted: 0, error: this.withoutOwnToken(redactText(errorMessage(err))) };
+    }
+
     if (!res.ok) {
       // The body is the collector's, not ours, so it is truncated and passed
       // through the shared redactor — and then through `withoutOwnToken`,

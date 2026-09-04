@@ -695,6 +695,28 @@ describe("a collector that echoes the token back", () => {
     expect(shipper.cursor(companyId)).toBe(0);
   });
 
+  it("never puts it into a transport error from ship() either", async () => {
+    // testConnection() guarded this from the start; ship() did not, and its
+    // error is the one the scheduler logs at warn every tick the sink stays
+    // broken and POST /audit/shipping/run hands back to the browser.
+    appendN(db, companyId, 2);
+    const impl = (async () => {
+      throw new Error(`connect ECONNREFUSED while sending Authorization: Bearer ${TOKEN}`);
+    }) as unknown as typeof fetch;
+
+    const shipper = new AuditShipper({
+      db,
+      sink: new HttpAuditSink({ url: "https://archive.example/audit", bearerToken: TOKEN, fetchImpl: impl }),
+    });
+    const result = await shipper.shipNewEntries(companyId);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).not.toContain(TOKEN);
+    // A throw must not lose the backlog either.
+    expect(shipper.cursor(companyId)).toBe(0);
+    expect(shipper.pending(companyId)).toBe(2);
+  });
+
   it("never puts it into a transport error either", async () => {
     // A proxy that puts the request headers into its own failure message.
     const impl = (async () => {

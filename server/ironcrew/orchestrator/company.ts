@@ -184,6 +184,21 @@ export interface HumanActor {
  * still needed" case — not an error, and the caller must say so rather than
  * reporting a failure.
  */
+/**
+ * What came of a verdict on a file-change proposal.
+ *
+ * `decided: false` means the vote was recorded and the quorum is not yet met:
+ * the proposal is still pending and nothing has been written. A caller that
+ * reported that as success would tell an owner a deploy script is approved
+ * while it waits for a second human.
+ */
+export interface ChangeProposalDecision {
+  proposal: ChangeProposalRow;
+  /** Null when the proposal carries no approval — nothing to count. */
+  tally: ApprovalTally | null;
+  decided: boolean;
+}
+
 export interface ApprovalReviewOutcome {
   review: ApprovalReviewRow;
   tally: ApprovalTally;
@@ -1252,15 +1267,45 @@ export class CompanyOrchestrator {
     proposalId: string,
     decision: "approved" | "rejected",
     opts: { reason?: string } & HumanActor = {},
-  ): ChangeProposalRow | null {
+  ): ChangeProposalDecision | null {
     const proposal = this.changeProposals.get(proposalId);
     if (!proposal || proposal.company_id !== companyId) return null;
 
     const actorId = humanActor(opts);
+
+    // Through the vote, not around it.
+    //
+    // A file-change proposal raises an ordinary `crew_approvals` row, so it
+    // appears in the approvals list and an owner can demand four eyes on it —
+    // a deploy script touching a customer's Tier 0 is exactly the case T-21
+    // names. This method used to call `approvals.decide()` directly, which
+    // meant the panel could show "0 von 2" while a single owner approved the
+    // proposal and wrote the files. A gate with a bypass is not a gate
+    // (T-15), and the bypass was justified in a comment claiming "the
+    // proposal's own gate has already run" — circular, because this approval
+    // *is* the proposal's gate.
     if (proposal.approval_id) {
-      this.approvals.decide(proposal.approval_id, decision, actorId, opts.reason ?? "");
+      const outcome = this.reviewApproval(companyId, proposal.approval_id, decision, opts.reason ?? "", opts);
+      // Null means the approval is no longer pending — decided, expired or
+      // cancelled by another path. The proposal is not moved on the strength
+      // of a vote that was not recorded.
+      if (!outcome) return null;
+      if (!outcome.decided) {
+        // Recorded, and not yet enough. The proposal stays pending, nothing
+        // is written, and the caller is told how many voices are missing so
+        // it can say so rather than reporting a decision.
+        return { proposal, tally: outcome.tally, decided: false };
+      }
     }
-    return this.changeProposals.decide(proposalId, decision, { ...opts, actorType: "owner", actorId });
+
+    const decided = this.changeProposals.decide(proposalId, decision, { ...opts, actorType: "owner", actorId });
+    return decided
+      ? {
+          proposal: decided,
+          tally: proposal.approval_id ? this.approvalReviews.tally(proposal.approval_id) : null,
+          decided: true,
+        }
+      : null;
   }
 
   /**
@@ -1434,10 +1479,14 @@ export class CompanyOrchestrator {
    * `approvals.decide()` would (already decided / does not exist).
    *
    * This writes `crew_approvals.status` without consulting the quorum, and is
-   * therefore not the route an owner's click should take — `reviewApproval`
-   * is. It stays public because two callers legitimately bypass the vote:
-   * `reviewApproval` itself, once a tally has authorised the decision, and
-   * `decideChangeProposal`, where the proposal's own gate has already run.
+   * therefore not the route any human's click should take — `reviewApproval`
+   * is, and `decideChangeProposal` goes through it too.
+   *
+   * It stays public for exactly one caller: `reviewApproval` itself, once a
+   * tally has authorised the decision. A second caller was added here once,
+   * with a comment explaining why its gate had already run; it had not, and
+   * the result was a quorum the UI displayed and nothing enforced. If you are
+   * about to add a third, you are about to do that again.
    */
   decideApproval(
     companyId: string,

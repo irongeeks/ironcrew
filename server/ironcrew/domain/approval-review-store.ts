@@ -337,12 +337,30 @@ export class ApprovalReviewStore {
   }
 
   /**
-   * Raises (or lowers) the quorum on a single approval.
+   * Raises the quorum on a single approval. It only ever goes up.
    *
    * The column belongs to this feature, so its writer lives here rather than
-   * in `ApprovalEngine`. Only while the approval is pending: changing what a
-   * decision required *after* it was taken would rewrite history in the one
-   * place that must not be rewritable.
+   * in `ApprovalEngine`. Three refusals, and the first two are the ones that
+   * make the control worth having:
+   *
+   * **It cannot be lowered.** T-21's threat is one compromised owner account
+   * deciding everything, and the per-approval quorum is its stated mitigation.
+   * If the same account could send `{ required: 1 }` and then approve, the
+   * mitigation would cost an attacker exactly one extra request — and the
+   * audit chain would show it afterwards, which is detection, not prevention.
+   * A quorum that can be undone by the party it constrains is decoration.
+   *
+   * **It cannot be changed once anybody has voted.** Raising the bar
+   * mid-vote would move the goalposts under the people already counted;
+   * lowering it is refused anyway. Whoever wants four eyes asks for them
+   * before the first reviewer looks.
+   *
+   * **It cannot be changed after the decision**, which would rewrite what
+   * that decision required in the one place that must not be rewritable.
+   *
+   * Lowering a quorum set in error therefore is not an API operation. That is
+   * deliberate: the approval can be rejected and raised again, which leaves
+   * both acts in the chain, where a silent correction would leave neither.
    */
   setRequiredApprovals(
     approvalId: string,
@@ -361,6 +379,28 @@ export class ApprovalReviewStore {
     }
     if (approval.status !== "pending") {
       throw new ApprovalReviewError("Über diese Freigabe wurde bereits entschieden.");
+    }
+
+    const current = Math.max(1, Math.trunc(approval.required_approvals ?? 1));
+    if (required < current) {
+      throw new ApprovalReviewError(
+        `Diese Freigabe verlangt bereits ${current} Zustimmungen. Eine einmal geforderte Vier-Augen-Prüfung ` +
+          "lässt sich nicht wieder herunterdrehen — sonst wäre sie keine.",
+      );
+    }
+    // Idempotent rather than an error: a double-clicked "Vier Augen
+    // verlangen" is the same request twice, not a second demand, and refusing
+    // it would put an error in front of somebody who got what they asked for.
+    if (required === current) return this.tally(approvalId);
+
+    const votes = this.listFor(approvalId).length;
+    if (votes > 0) {
+      throw new ApprovalReviewError(
+        votes === 1
+          ? "Es hat bereits jemand bewertet. Danach lässt sich nicht mehr ändern, wie viele Stimmen nötig sind."
+          : `Es haben bereits ${votes} Personen bewertet. Danach lässt sich nicht mehr ändern, wie viele ` +
+              "Stimmen nötig sind.",
+      );
     }
 
     this.db.prepare("UPDATE crew_approvals SET required_approvals = ? WHERE id = ?").run(required, approvalId);
