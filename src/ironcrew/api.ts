@@ -26,6 +26,12 @@ import type {
   MailboxMessageRef,
   MailMessage,
   MailProviderStatus,
+  Marketplace,
+  MarketplaceEntry,
+  MarketplaceEntryType,
+  MarketplaceInstall,
+  MarketplaceKind,
+  MarketplaceKindStatus,
   Meeting,
   MeetingActionItem,
   MeetingParticipant,
@@ -253,4 +259,25 @@ export const api = {
     send<{ ok: boolean; message: string }>(`/notification-channels/${kind}/test`, "POST"),
   sendTestNotification: (kind: string) =>
     send<{ ok: boolean; message: string }>(`/notification-channels/${kind}/send-test`, "POST"),
+
+  marketplaceKinds: () => get<{ kinds: MarketplaceKindStatus[] }>("/marketplace-kinds"),
+  marketplaces: () => get<{ marketplaces: Marketplace[]; installs: MarketplaceInstall[] }>("/marketplaces"),
+  createMarketplace: (input: { name: string; kind: MarketplaceKind; url: string; enabled?: boolean }) =>
+    send<{ marketplace: Marketplace }>("/marketplaces", "POST", input),
+  updateMarketplace: (id: string, patch: { name?: string; url?: string; enabled?: boolean }) =>
+    send<{ marketplace: Marketplace }>(`/marketplaces/${id}`, "PATCH", patch),
+  deleteMarketplace: (id: string) => send<{ ok: true }>(`/marketplaces/${id}`, "DELETE"),
+  marketplaceEntries: (id: string) =>
+    get<{ entries: MarketplaceEntry[]; marketplace: Marketplace }>(`/marketplaces/${id}/entries`),
+  installFromMarketplace: (
+    id: string,
+    input: { entryId: string; env?: Record<string, string>; headers?: Record<string, string>; name?: string },
+  ) =>
+    send<{ install: MarketplaceInstall; result: { entryType: string; name: string; location: string } }>(
+      `/marketplaces/${id}/install`,
+      "POST",
+      input,
+    ),
+  uninstallFromMarketplace: (entryType: MarketplaceEntryType, name: string) =>
+    send<{ ok: true }>(`/marketplace-installs/${entryType}/${encodeURIComponent(name)}`, "DELETE"),
 };

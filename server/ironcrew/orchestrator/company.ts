@@ -881,6 +881,12 @@ export class CompanyOrchestrator {
     name: string,
     actor: { actorType?: "owner" | "agent" | "system"; actorId?: string } = {},
   ): Promise<boolean> {
+    // Nothing recorded and no installer to ask: there is genuinely nothing
+    // here to remove, which is a plain "not found" — not a configuration
+    // complaint about a server that was never asked to install anything.
+    const recorded = this.marketplaces.findInstall(companyId, entryType, name) !== null;
+    if (!recorded && !this.marketplaceInstallerInstance) return false;
+
     const removed = entryType === "mcp" ? await this.installer.uninstallMcp(name) : this.installer.uninstallSkill(name);
     const hadRecord = this.marketplaces.removeInstall(companyId, entryType, name, actor);
     return removed || hadRecord;

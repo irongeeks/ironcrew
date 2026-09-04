@@ -45,6 +45,9 @@ import {
   MAILBOX_ACCESS_LEVELS,
   MAILBOX_KINDS,
 } from "../domain/mailbox-store.ts";
+import { MarketplaceMutationError, MARKETPLACE_KINDS } from "../domain/marketplace-store.ts";
+import { MarketplaceSourceError } from "../marketplace/marketplace-source.ts";
+import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -192,6 +195,26 @@ const grantMailboxAgentSchema = z.object({
   agentId: z.string().min(1).max(200),
   access: z.enum(MAILBOX_ACCESS_LEVELS).optional(),
 });
+const createMarketplaceSchema = z.object({
+  name: z.string().min(1).max(80),
+  kind: z.enum(MARKETPLACE_KINDS),
+  url: z.string().min(1).max(2048),
+  enabled: z.boolean().optional(),
+});
+
+// The kind decides how the URL is parsed, so it stays fixed for the life of
+// a source — changing it would silently reinterpret the same URL.
+const updateMarketplaceSchema = createMarketplaceSchema.partial().omit({ kind: true });
+
+const installEntrySchema = z.object({
+  entryId: z.string().min(1).max(400),
+  /** Values for the variables the entry declared but could not carry. */
+  env: z.record(z.string(), z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  /** Install under a different local name, e.g. to avoid a clash. */
+  name: z.string().min(1).max(80).optional(),
+});
+
 const sendMailSchema = z.object({
   to: z.array(z.string().min(1).max(320)).min(1).max(50),
   subject: z.string().min(1).max(500),
@@ -298,6 +321,22 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof MailboxMutationError) {
     res.status(400).json({ error: "invalid_mailbox_mutation", message: err.message });
+    return true;
+  }
+  if (err instanceof MarketplaceMutationError) {
+    res.status(400).json({ error: "invalid_marketplace_mutation", message: err.message });
+    return true;
+  }
+  // The request was fine; someone else's server was not. 502 says which of
+  // the two failed, where a 400 would blame the caller for a broken catalog.
+  if (err instanceof MarketplaceSourceError) {
+    res.status(502).json({ error: "marketplace_unreachable", message: err.message });
+    return true;
+  }
+  // A refused install is a policy answer about this machine (an unallowed
+  // launcher, an oversized skill), not a malformed request body.
+  if (err instanceof MarketplaceInstallError) {
+    res.status(422).json({ error: "install_refused", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -1727,6 +1766,122 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         budgets: orchestrator.budgets.status(companyId),
         auditChainValid: verifyAuditChain(db, companyId).valid,
       });
+    }),
+  );
+
+  // --- marketplaces: skills and MCP servers from outside this machine -----
+  //
+  // Browsing and installing are separate on purpose. A catalog is somebody
+  // else's JSON that can change between two page loads, so entries are read
+  // live (GET .../entries) and never cached as installable commands; only
+  // what was actually installed is stored, with its provenance.
+  //
+  // Install takes an entry *id*, never an entry body: the server re-fetches
+  // it from the source, so what lands is what that source offers now rather
+  // than a payload a caller composed.
+
+  app.get(
+    `${base}/marketplace-kinds`,
+    wrap(async (_req, res) => {
+      const registered = new Set(orchestrator.listMarketplaceKinds());
+      res.json({ kinds: MARKETPLACE_KINDS.map((kind) => ({ kind, registered: registered.has(kind) })) });
+    }),
+  );
+
+  app.get(
+    `${base}/marketplaces`,
+    wrap(async (_req, res) => {
+      res.json({
+        marketplaces: orchestrator.marketplaces.list(companyId),
+        installs: orchestrator.marketplaceInstalls(companyId),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/marketplaces`,
+    wrap(async (req, res) => {
+      const input = createMarketplaceSchema.parse(req.body ?? {});
+      const marketplace = orchestrator.marketplaces.create({ companyId, ...input });
+      broadcast("crew_marketplace_changed", { marketplaceId: marketplace.id });
+      res.status(201).json({ marketplace });
+    }),
+  );
+
+  app.patch(
+    `${base}/marketplaces/:id`,
+    wrap(async (req, res) => {
+      const existing = orchestrator.marketplaces.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found", message: "Marketplace not found" });
+        return;
+      }
+      const patch = updateMarketplaceSchema.parse(req.body ?? {});
+      const marketplace = orchestrator.marketplaces.update(existing.id, patch, {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("crew_marketplace_changed", { marketplaceId: existing.id });
+      res.json({ marketplace });
+    }),
+  );
+
+  app.delete(
+    `${base}/marketplaces/:id`,
+    wrap(async (req, res) => {
+      const existing = orchestrator.marketplaces.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found", message: "Marketplace not found" });
+        return;
+      }
+      orchestrator.marketplaces.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_marketplace_changed", { marketplaceId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.get(
+    `${base}/marketplaces/:id/entries`,
+    wrap(async (req, res) => {
+      const entries = await orchestrator.browseMarketplace(companyId, param(req, "id"));
+      res.json({ entries, marketplace: orchestrator.marketplaces.get(param(req, "id")) });
+    }),
+  );
+
+  app.post(
+    `${base}/marketplaces/:id/install`,
+    wrap(async (req, res) => {
+      const input = installEntrySchema.parse(req.body ?? {});
+      const { install, result } = await orchestrator.installFromMarketplace(
+        companyId,
+        param(req, "id"),
+        input.entryId,
+        { env: input.env, headers: input.headers, nameOverride: input.name },
+        { actorType: "owner", actorId: "ceo" },
+      );
+      broadcast("crew_marketplace_changed", { marketplaceId: param(req, "id"), installed: result.name });
+      res.status(201).json({ install, result });
+    }),
+  );
+
+  app.delete(
+    `${base}/marketplace-installs/:entryType/:name`,
+    wrap(async (req, res) => {
+      const entryType = param(req, "entryType");
+      if (entryType !== "mcp" && entryType !== "skill") {
+        res.status(400).json({ error: "invalid_request", message: 'entryType must be "mcp" or "skill"' });
+        return;
+      }
+      const removed = await orchestrator.uninstallFromMarketplace(companyId, entryType, param(req, "name"), {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      if (!removed) {
+        res.status(404).json({ error: "not_found", message: "Nothing installed under that name" });
+        return;
+      }
+      broadcast("crew_marketplace_changed", { uninstalled: param(req, "name") });
+      res.json({ ok: true });
     }),
   );
 

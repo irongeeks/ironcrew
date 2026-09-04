@@ -12,6 +12,9 @@ import type {
   Department,
   Mailbox,
   MailMessage,
+  Marketplace,
+  MarketplaceEntry,
+  MarketplaceInstall,
   Meeting,
   MeetingActionItem,
   MeetingParticipant,
@@ -176,6 +179,14 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     revokeMailboxAgent: vi.fn(),
     mailboxMessages: vi.fn().mockResolvedValue({ messages: [] }),
     pollMailbox: vi.fn(),
+    marketplaceKinds: vi.fn().mockResolvedValue({ kinds: [] }),
+    marketplaces: vi.fn().mockResolvedValue({ marketplaces: [], installs: [] }),
+    createMarketplace: vi.fn(),
+    updateMarketplace: vi.fn(),
+    deleteMarketplace: vi.fn(),
+    marketplaceEntries: vi.fn().mockResolvedValue({ entries: [] }),
+    installFromMarketplace: vi.fn(),
+    uninstallFromMarketplace: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -1974,5 +1985,272 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
 
     expect(await within(dialog).findByTestId("mail-provider-imap")).toHaveTextContent("verfügbar");
     expect(within(dialog).getByTestId("mail-provider-gmail")).toHaveTextContent("nicht registriert");
+  });
+});
+
+function marketplace(over: Partial<Marketplace> = {}): Marketplace {
+  return {
+    id: "mkt_1",
+    company_id: "cmp_1",
+    name: "acme",
+    kind: "catalog",
+    url: "https://example.com/catalog.json",
+    enabled: 1,
+    last_synced_at: null,
+    last_error: "",
+    entry_count: 0,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    ...over,
+  };
+}
+
+function marketplaceEntry(over: Partial<MarketplaceEntry> = {}): MarketplaceEntry {
+  return {
+    id: "github",
+    type: "mcp",
+    name: "github",
+    title: "GitHub",
+    description: "Repos und Issues",
+    version: "1.2.0",
+    homepage: "",
+    sourceUrl: "https://github.com/acme/mcp",
+    mcp: { transport: "stdio", command: "npx", args: ["-y", "@acme/github"] },
+    ...over,
+  };
+}
+
+function marketplaceInstall(over: Partial<MarketplaceInstall> = {}): MarketplaceInstall {
+  return {
+    id: "mki_1",
+    company_id: "cmp_1",
+    marketplace_id: "mkt_1",
+    entry_id: "github",
+    entry_type: "mcp",
+    name: "github",
+    version: "1.2.0",
+    source_url: "https://github.com/acme/mcp",
+    installed_by: "ceo",
+    manifest: "{}",
+    installed_at: Date.now(),
+    ...over,
+  };
+}
+
+describe("marketplaces (skills and MCP servers from outside this machine)", () => {
+  async function openDialog(client: Client) {
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-marketplaces"));
+    return await screen.findByRole("dialog", { name: "Marktplätze" });
+  }
+
+  it("lists sources with their kind and URL", async () => {
+    const dialog = await openDialog(
+      makeClient({ marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }) }),
+    );
+
+    const row = await within(dialog).findByTestId("marketplace-mkt_1");
+    expect(row).toHaveTextContent("acme");
+    expect(row).toHaveTextContent("Katalog (JSON)");
+    expect(row).toHaveTextContent("https://example.com/catalog.json");
+  });
+
+  it("shows empty states for sources and installs", async () => {
+    const dialog = await openDialog(makeClient());
+    expect(await within(dialog).findByText("Keine Quelle eingetragen.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Nichts installiert.")).toBeInTheDocument();
+  });
+
+  it("shows which source kinds this server actually has", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        marketplaceKinds: vi.fn().mockResolvedValue({
+          kinds: [
+            { kind: "catalog", registered: true },
+            { kind: "git", registered: false },
+          ],
+        }),
+      }),
+    );
+
+    expect(await within(dialog).findByTestId("marketplace-kind-catalog")).toHaveTextContent("verfügbar");
+    expect(within(dialog).getByTestId("marketplace-kind-git")).toHaveTextContent("nicht registriert");
+  });
+
+  it("adds a source with the URL hint matching the chosen kind", async () => {
+    const createMarketplace = vi.fn().mockResolvedValue({ marketplace: marketplace() });
+    const client = makeClient({ createMarketplace });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    expect(within(dialog).getByTestId("new-marketplace-url")).toHaveAttribute("placeholder", "https://…/catalog.json");
+    await user.selectOptions(within(dialog).getByTestId("new-marketplace-kind"), "git");
+    expect(within(dialog).getByTestId("new-marketplace-url")).toHaveAttribute(
+      "placeholder",
+      "https://github.com/owner/repo",
+    );
+
+    await user.type(within(dialog).getByTestId("new-marketplace-name"), "acme");
+    await user.type(within(dialog).getByTestId("new-marketplace-url"), "https://github.com/acme/skills");
+    await user.click(within(dialog).getByTestId("new-marketplace-submit"));
+
+    expect(createMarketplace).toHaveBeenCalledWith({
+      name: "acme",
+      kind: "git",
+      url: "https://github.com/acme/skills",
+    });
+  });
+
+  it("browses a source and shows what it offers, including the command", async () => {
+    const marketplaceEntries = vi.fn().mockResolvedValue({ entries: [marketplaceEntry()] });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      marketplaceEntries,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("marketplace-browse-mkt_1"));
+
+    expect(marketplaceEntries).toHaveBeenCalledWith("mkt_1");
+    const entry = await within(dialog).findByTestId("marketplace-entry-github");
+    expect(entry).toHaveTextContent("GitHub");
+    expect(entry).toHaveTextContent("MCP-Server");
+    // The exact command is shown before installing — an admin approves what
+    // will actually run, not just a name.
+    expect(within(dialog).getByTestId("marketplace-entry-command-github")).toHaveTextContent("npx -y @acme/github");
+  });
+
+  it("installs an entry by id", async () => {
+    const installFromMarketplace = vi.fn().mockResolvedValue({ install: marketplaceInstall(), result: {} });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      marketplaceEntries: vi.fn().mockResolvedValue({ entries: [marketplaceEntry()] }),
+      installFromMarketplace,
+    });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    await user.click(await within(dialog).findByTestId("marketplace-browse-mkt_1"));
+    await user.click(await within(dialog).findByTestId("marketplace-install-github"));
+
+    expect(installFromMarketplace).toHaveBeenCalledWith("mkt_1", { entryId: "github", env: {} });
+  });
+
+  it("asks for each variable the entry declares before installing", async () => {
+    const installFromMarketplace = vi.fn().mockResolvedValue({ install: marketplaceInstall(), result: {} });
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("ghp_real");
+    const entry = marketplaceEntry({
+      mcp: { transport: "stdio", command: "npx", args: [], env: { GITHUB_TOKEN: "" } },
+    });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      marketplaceEntries: vi.fn().mockResolvedValue({ entries: [entry] }),
+      installFromMarketplace,
+    });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    await user.click(await within(dialog).findByTestId("marketplace-browse-mkt_1"));
+    await user.click(await within(dialog).findByTestId("marketplace-install-github"));
+
+    expect(prompt).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN"), "");
+    expect(installFromMarketplace).toHaveBeenCalledWith("mkt_1", {
+      entryId: "github",
+      env: { GITHUB_TOKEN: "ghp_real" },
+    });
+    prompt.mockRestore();
+  });
+
+  it("cancelling a variable prompt installs nothing", async () => {
+    const installFromMarketplace = vi.fn();
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue(null);
+    const entry = marketplaceEntry({
+      mcp: { transport: "stdio", command: "npx", args: [], env: { GITHUB_TOKEN: "" } },
+    });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      marketplaceEntries: vi.fn().mockResolvedValue({ entries: [entry] }),
+      installFromMarketplace,
+    });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    await user.click(await within(dialog).findByTestId("marketplace-browse-mkt_1"));
+    await user.click(await within(dialog).findByTestId("marketplace-install-github"));
+
+    expect(installFromMarketplace).not.toHaveBeenCalled();
+    prompt.mockRestore();
+  });
+
+  it("shows what is installed and where it came from", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        marketplaces: vi.fn().mockResolvedValue({ marketplaces: [], installs: [marketplaceInstall()] }),
+      }),
+    );
+
+    const row = await within(dialog).findByTestId("marketplace-install-row-github");
+    expect(row).toHaveTextContent("github");
+    expect(row).toHaveTextContent("https://github.com/acme/mcp");
+  });
+
+  it("says so when an install outlives its source", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        marketplaces: vi
+          .fn()
+          .mockResolvedValue({ marketplaces: [], installs: [marketplaceInstall({ marketplace_id: null })] }),
+      }),
+    );
+
+    expect(await within(dialog).findByTestId("marketplace-install-row-github")).toHaveTextContent("Quelle entfernt");
+  });
+
+  it("uninstalls by type and name", async () => {
+    const uninstallFromMarketplace = vi.fn().mockResolvedValue({ ok: true });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [], installs: [marketplaceInstall()] }),
+      uninstallFromMarketplace,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("marketplace-uninstall-github"));
+
+    expect(uninstallFromMarketplace).toHaveBeenCalledWith("mcp", "github");
+  });
+
+  it("surfaces why a source failed to sync", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        marketplaces: vi.fn().mockResolvedValue({
+          marketplaces: [marketplace({ last_error: "502 Bad Gateway", last_synced_at: Date.now() })],
+          installs: [],
+        }),
+      }),
+    );
+
+    expect(await within(dialog).findByTestId("marketplace-error-mkt_1")).toHaveTextContent("502 Bad Gateway");
+  });
+
+  it("disables a source without removing it", async () => {
+    const updateMarketplace = vi.fn().mockResolvedValue({ marketplace: marketplace() });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      updateMarketplace,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("marketplace-enabled-mkt_1"));
+
+    expect(updateMarketplace).toHaveBeenCalledWith("mkt_1", { enabled: false });
+  });
+
+  it("removes a source", async () => {
+    const deleteMarketplace = vi.fn().mockResolvedValue({ ok: true });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      deleteMarketplace,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("marketplace-delete-mkt_1"));
+
+    expect(deleteMarketplace).toHaveBeenCalledWith("mkt_1");
   });
 });

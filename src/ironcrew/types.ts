@@ -555,3 +555,84 @@ export interface MailProviderStatus {
   kind: MailboxKind;
   registered: boolean;
 }
+
+// --- marketplaces: skills and MCP servers from outside this machine --------
+
+export type MarketplaceKind = "catalog" | "mcp-registry" | "claude-plugin" | "git";
+
+export const MARKETPLACE_KIND_LABEL: Record<MarketplaceKind, string> = {
+  catalog: "Katalog (JSON)",
+  "mcp-registry": "MCP-Registry",
+  "claude-plugin": "Claude-Code-Marktplatz",
+  git: "Git-Repository",
+};
+
+/** What an admin has to type in for each kind, in the placeholder. */
+export const MARKETPLACE_URL_HINT: Record<MarketplaceKind, string> = {
+  catalog: "https://…/catalog.json",
+  "mcp-registry": "https://registry.modelcontextprotocol.io",
+  "claude-plugin": "https://github.com/owner/plugins",
+  git: "https://github.com/owner/repo",
+};
+
+export type MarketplaceEntryType = "mcp" | "skill";
+
+export const MARKETPLACE_ENTRY_TYPE_LABEL: Record<MarketplaceEntryType, string> = {
+  mcp: "MCP-Server",
+  skill: "Skill",
+};
+
+export interface Marketplace {
+  id: string;
+  company_id: string;
+  name: string;
+  kind: MarketplaceKind;
+  url: string;
+  enabled: number;
+  last_synced_at: number | null;
+  last_error: string;
+  entry_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
+/** An offer, read live from its source — never stored locally. */
+export interface MarketplaceEntry {
+  id: string;
+  type: MarketplaceEntryType;
+  name: string;
+  title: string;
+  description: string;
+  version: string;
+  homepage: string;
+  sourceUrl: string;
+  mcp?: {
+    transport: "stdio" | "sse";
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    headers?: Record<string, string>;
+  };
+  skill?: { repo?: string; contentUrl?: string; content?: string };
+}
+
+/** What was installed, and where it came from. */
+export interface MarketplaceInstall {
+  id: string;
+  company_id: string;
+  marketplace_id: string | null;
+  entry_id: string;
+  entry_type: MarketplaceEntryType;
+  name: string;
+  version: string;
+  source_url: string;
+  installed_by: string;
+  manifest: string;
+  installed_at: number;
+}
+
+export interface MarketplaceKindStatus {
+  kind: MarketplaceKind;
+  registered: boolean;
+}
