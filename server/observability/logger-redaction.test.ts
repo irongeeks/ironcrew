@@ -16,13 +16,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { logger, getSqliteBuffer } from "./logger.ts";
 
-/** Everything written since the last check, as one searchable string. */
-function written(): string {
-  return getSqliteBuffer()
-    .map((e) => e.data)
-    .join("\n");
-}
-
 let baseline = 0;
 beforeEach(() => {
   baseline = getSqliteBuffer().length;
