@@ -20,6 +20,9 @@ import { CompanyOrchestrator } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents } from "../domain/audit.ts";
 import type { CrewAuth } from "../auth/crew-auth.ts";
+import { generateKeyPairSync, createSign } from "node:crypto";
+import { OidcProvider } from "../auth/oidc-provider.ts";
+import { OIDC_PENDING_COOKIE } from "./auth-routes.ts";
 
 let db: DatabaseSync;
 let app: Express;
@@ -553,5 +556,277 @@ describe("four eyes over HTTP", () => {
       .set("Cookie", anna)
       .send({ required: 99 })
       .expect(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Signing in through a directory
+// ---------------------------------------------------------------------------
+
+/**
+ * These drive the real Express routes against a real `OidcProvider` with a
+ * real RSA keypair and real JWS signatures. The provider's own tests cover
+ * token verification in depth; what is tested here is the part only the route
+ * layer can get wrong — the redirect out, the state of the pending login, the
+ * session that comes back, and the four ways an attacker reaches the callback.
+ */
+describe("signing in through a directory", () => {
+  const ISSUER = "https://idp.example.com";
+  const CLIENT_ID = "ironcrew";
+  const REDIRECT_URI = "https://crew.local/api/crew/auth/oidc/callback";
+
+  const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const jwk = { ...publicKey.export({ format: "jwk" }), kid: "k1", use: "sig", alg: "RS256" };
+  const b64 = (value: unknown) =>
+    Buffer.from(typeof value === "string" ? value : JSON.stringify(value)).toString("base64url");
+
+  function idToken(claims: Record<string, unknown>): string {
+    const signed = `${b64({ alg: "RS256", kid: "k1", typ: "JWT" })}.${b64(claims)}`;
+    const signer = createSign("RSA-SHA256");
+    signer.update(signed);
+    return `${signed}.${signer.sign(privateKey).toString("base64url")}`;
+  }
+
+  let issuedToken: string | null = null;
+
+  const fetchImpl = (async (url: string | URL) => {
+    const target = String(url);
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    if (target.includes("openid-configuration")) {
+      return json({
+        issuer: ISSUER,
+        authorization_endpoint: `${ISSUER}/auth`,
+        token_endpoint: `${ISSUER}/token`,
+        jwks_uri: `${ISSUER}/jwks`,
+        response_types_supported: ["code"],
+        id_token_signing_alg_values_supported: ["RS256"],
+        code_challenge_methods_supported: ["S256"],
+      });
+    }
+    if (target.includes("/jwks")) return json({ keys: [jwk] });
+    if (target.includes("/token")) return json({ id_token: issuedToken, token_type: "Bearer", access_token: "at" });
+    return new Response("{}", { status: 404 });
+  }) as unknown as typeof fetch;
+
+  let ssoApp: Express;
+  let ssoAuth: CrewAuth;
+  let provider: OidcProvider;
+
+  beforeEach(() => {
+    issuedToken = null;
+    ssoApp = express();
+    ssoApp.use(express.json());
+    const orchestrator = new CompanyOrchestrator(db);
+    orchestrator.registerRuntime(new MockRuntime({ responseText: "fertig" }));
+    provider = new OidcProvider(
+      { issuer: ISSUER, clientId: CLIENT_ID, clientSecret: "sekrit", redirectUri: REDIRECT_URI },
+      { db, fetchImpl },
+    );
+    const api = registerIronCrewRoutes(ssoApp, { db, orchestrator, oidc: provider });
+    ssoAuth = api.auth;
+  });
+
+  /** Starts a login and returns the pending handle plus the issuer's params. */
+  async function startLogin() {
+    const res = await request(ssoApp).get("/api/crew/auth/oidc/start").expect(302);
+    const cookie = (res.headers["set-cookie"] as unknown as string[]).find((c) =>
+      c.startsWith(`${OIDC_PENDING_COOKIE}=`),
+    )!;
+    const url = new URL(res.headers.location as string);
+    return { cookie: cookie.split(";")[0]!, params: url.searchParams, url };
+  }
+
+  function claims(params: URLSearchParams, over: Record<string, unknown> = {}) {
+    const now = Math.floor(Date.now() / 1000);
+    return {
+      iss: ISSUER,
+      sub: "subject-1",
+      aud: CLIENT_ID,
+      exp: now + 300,
+      iat: now,
+      nonce: params.get("nonce"),
+      email: "anna@example.com",
+      email_verified: true,
+      ...over,
+    };
+  }
+
+  it("tells the login page a directory exists, and names it", async () => {
+    await seedUser("anna@example.com", "owner");
+    const res = await request(ssoApp).get("/api/crew/auth/status").expect(200);
+    expect(res.body.oidc).toEqual({ configured: true, issuer: ISSUER });
+    // Never the client secret, and never the redirect URI's query.
+    expect(JSON.stringify(res.body)).not.toContain("sekrit");
+  });
+
+  it("reports no directory when none is configured", async () => {
+    const plain = express();
+    plain.use(express.json());
+    const orchestrator = new CompanyOrchestrator(db);
+    orchestrator.registerRuntime(new MockRuntime({ responseText: "fertig" }));
+    registerIronCrewRoutes(plain, { db, orchestrator });
+    const res = await request(plain).get("/api/crew/auth/status").expect(200);
+    expect(res.body.oidc).toEqual({ configured: false });
+    // And the routes are simply not there to be called.
+    await request(plain).get("/api/crew/auth/oidc/start").expect(404);
+  });
+
+  it("redirects to the issuer with PKCE, and keeps the verifier off the browser", async () => {
+    const { cookie, params, url } = await startLogin();
+    expect(url.origin + url.pathname).toBe(`${ISSUER}/auth`);
+    expect(params.get("response_type")).toBe("code");
+    expect(params.get("code_challenge_method")).toBe("S256");
+    expect(params.get("code_challenge")).toBeTruthy();
+    expect(params.get("state")).toBeTruthy();
+    expect(params.get("nonce")).toBeTruthy();
+
+    // The cookie is an opaque handle. Nothing in it can be swapped for
+    // another issuer, and the verifier never leaves the server.
+    const handle = cookie.split("=")[1]!;
+    expect(handle).not.toContain(params.get("code_challenge")!);
+    expect(handle).not.toContain(params.get("state")!);
+    expect(handle).not.toContain(ISSUER);
+  });
+
+  it("carries the pending cookie SameSite=Lax, or the callback would never see it", async () => {
+    // The callback arrives as a top-level navigation from the issuer's
+    // origin. A Strict cookie is not sent on one, and the login would fail
+    // with "no login in progress" every single time.
+    const res = await request(ssoApp).get("/api/crew/auth/oidc/start").expect(302);
+    const cookie = (res.headers["set-cookie"] as unknown as string[]).find((c) =>
+      c.startsWith(`${OIDC_PENDING_COOKIE}=`),
+    )!;
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("HttpOnly");
+  });
+
+  it("signs in a linked subject and hands back a real crew session", async () => {
+    const anna = await seedUser("anna@example.com", "owner");
+    provider.identities.link({ userId: anna.id, issuer: ISSUER, subject: "subject-1" });
+
+    const { cookie, params } = await startLogin();
+    issuedToken = idToken(claims(params));
+
+    const res = await request(ssoApp)
+      .get(`/api/crew/auth/oidc/callback?code=abc&state=${params.get("state")}`)
+      .set("Cookie", cookie)
+      .expect(302);
+    expect(res.headers.location).toBe("/");
+
+    const session = (res.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("ironcrew_session="))!;
+    // One kind of session in this system, whichever door you came through.
+    const whoami = await request(ssoApp).get("/api/crew/auth/status").set("Cookie", session.split(";")[0]!).expect(200);
+    expect(whoami.body.authenticated).toBe(true);
+    expect(whoami.body.user.id).toBe(anna.id);
+  });
+
+  it("refuses a subject nobody linked, and says which one so an owner can", async () => {
+    await seedUser("anna@example.com", "owner");
+    const { cookie, params } = await startLogin();
+    issuedToken = idToken(claims(params, { sub: "somebody-else" }));
+
+    const res = await request(ssoApp)
+      .get(`/api/crew/auth/oidc/callback?code=abc&state=${params.get("state")}`)
+      .set("Cookie", cookie)
+      .expect(302);
+    // The code travels; the sentence naming the issuer and the subject stays
+    // in the log, because a browser's history is not the place for it.
+    expect(res.headers.location).toBe("/?oidc_error=subject_not_linked");
+    expect(String(res.headers["set-cookie"] ?? "")).not.toContain("ironcrew_session=s");
+  });
+
+  it("cannot be replayed: the pending login is consumed by the first callback", async () => {
+    const anna = await seedUser("anna@example.com", "owner");
+    provider.identities.link({ userId: anna.id, issuer: ISSUER, subject: "subject-1" });
+
+    const { cookie, params } = await startLogin();
+    issuedToken = idToken(claims(params));
+    await request(ssoApp)
+      .get(`/api/crew/auth/oidc/callback?code=abc&state=${params.get("state")}`)
+      .set("Cookie", cookie)
+      .expect(302);
+
+    // Same cookie, same state, same token: a stolen callback URL replayed
+    // from another browser.
+    const again = await request(ssoApp)
+      .get(`/api/crew/auth/oidc/callback?code=abc&state=${params.get("state")}`)
+      .set("Cookie", cookie)
+      .expect(302);
+    expect(again.headers.location).toBe("/?oidc_error=no_login_in_progress");
+  });
+
+  it("refuses a callback with no pending login at all", async () => {
+    const res = await request(ssoApp).get("/api/crew/auth/oidc/callback?code=abc&state=whatever").expect(302);
+    expect(res.headers.location).toBe("/?oidc_error=no_login_in_progress");
+  });
+
+  it("passes the issuer's own refusal on as a code, never its text", async () => {
+    const { cookie } = await startLogin();
+    const res = await request(ssoApp)
+      .get("/api/crew/auth/oidc/callback?error=access_denied&error_description=" + encodeURIComponent("<script>x"))
+      .set("Cookie", cookie)
+      .expect(302);
+    expect(res.headers.location).toBe("/?oidc_error=provider_refused");
+    expect(res.headers.location).not.toContain("script");
+  });
+
+  it("refuses to redirect anywhere but this origin after login", async () => {
+    const anna = await seedUser("anna@example.com", "owner");
+    provider.identities.link({ userId: anna.id, issuer: ISSUER, subject: "subject-1" });
+
+    // A protocol-relative URL is how an open redirect sneaks past a naive
+    // startsWith("/"), and an open redirect on a login callback is the
+    // classic way to make a phishing link look like it came from here.
+    for (const evil of ["//evil.example/pwn", "https://evil.example", "/\\evil.example"]) {
+      const res = await request(ssoApp)
+        .get(`/api/crew/auth/oidc/start?redirectTo=${encodeURIComponent(evil)}`)
+        .expect(302);
+      const cookie = (res.headers["set-cookie"] as unknown as string[]).find((c) =>
+        c.startsWith(`${OIDC_PENDING_COOKIE}=`),
+      )!;
+      const params = new URL(res.headers.location as string).searchParams;
+      issuedToken = idToken(claims(params));
+
+      const done = await request(ssoApp)
+        .get(`/api/crew/auth/oidc/callback?code=abc&state=${params.get("state")}`)
+        .set("Cookie", cookie.split(";")[0]!)
+        .expect(302);
+      expect(done.headers.location).toBe("/");
+    }
+  });
+
+  it("keeps a same-origin redirect, which is the point of the parameter", async () => {
+    const anna = await seedUser("anna@example.com", "owner");
+    provider.identities.link({ userId: anna.id, issuer: ISSUER, subject: "subject-1" });
+
+    const res = await request(ssoApp).get("/api/crew/auth/oidc/start?redirectTo=/projekte").expect(302);
+    const cookie = (res.headers["set-cookie"] as unknown as string[]).find((c) =>
+      c.startsWith(`${OIDC_PENDING_COOKIE}=`),
+    )!;
+    const params = new URL(res.headers.location as string).searchParams;
+    issuedToken = idToken(claims(params));
+
+    const done = await request(ssoApp)
+      .get(`/api/crew/auth/oidc/callback?code=abc&state=${params.get("state")}`)
+      .set("Cookie", cookie.split(";")[0]!)
+      .expect(302);
+    expect(done.headers.location).toBe("/projekte");
+  });
+
+  it("does not let a disabled account back in through the directory", async () => {
+    const anna = await seedUser("anna@example.com", "owner");
+    await seedUser("bob@example.com", "owner"); // so the last-owner rule allows it
+    provider.identities.link({ userId: anna.id, issuer: ISSUER, subject: "subject-1" });
+    ssoAuth.users.update(anna.id, { status: "disabled" });
+
+    const { cookie, params } = await startLogin();
+    issuedToken = idToken(claims(params));
+    const res = await request(ssoApp)
+      .get(`/api/crew/auth/oidc/callback?code=abc&state=${params.get("state")}`)
+      .set("Cookie", cookie)
+      .expect(302);
+    // The local account decides whether it may be used, not the directory.
+    expect(res.headers.location).toBe("/?oidc_error=account_unavailable");
   });
 });

@@ -1070,6 +1070,14 @@ export interface AuthStatus {
   bootstrap: boolean;
   authenticated: boolean;
   user: CrewUser | null;
+  /**
+   * Whether a directory login exists at all, and which directory it is.
+   *
+   * Optional so an older server that does not report it renders exactly as
+   * before — an absent field means "no second door", which is the correct
+   * reading either way.
+   */
+  oidc?: { configured: boolean; issuer?: string };
 }
 
 export interface CrewSession {

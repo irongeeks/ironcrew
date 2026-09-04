@@ -318,12 +318,152 @@ entry marks the moment the gate could open and one the moment it was shut:
 
 ## What this is not
 
-- **Not SSO.** No OIDC, no LDAP, no SAML. A self-hosted single-operator
-  system does not need an identity provider, and adding one would add a
-  dependency that must be online for anyone to log in.
+- **Not LDAP or SAML.** OIDC exists now (see below); the other two do not.
+  Nobody has asked, and each is a second protocol with its own failure modes
+  in the one place that must not have them.
 - **Not per-object permissions.** A viewer sees everything a viewer sees.
   Splitting visibility per project would be a second permission system on top
   of the tool grants that already exist.
 - **Not a replacement for the shared password.** It still guards the rest of
   the API surface (`/api/ops`, the workflow routes), which is not part of
   IronCrew's own domain.
+
+# Signing in through a directory (OIDC)
+
+The password login stays the default and stays the fallback. What this adds is
+a second way to prove _who_, for the installation that already runs a
+directory — Authentik, in the case this was written for — where joining and
+leaving the company happens once, centrally, and where everybody's second
+factor already lives. Two places to switch an account off means one place
+somebody forgets, and the account they forget belongs to the person who left.
+
+Nothing here is Authentik-specific. It is the Authorization Code flow with
+PKCE against a generic OIDC issuer.
+
+## What it is not
+
+It is not a second kind of principal, a second role model or a second audit
+actor. An SSO login ends in exactly the row `crew_sessions` would hold after a
+password login, and `actor_id` stays the same `usr_…`. There is one kind of
+session in this system and one kind of account; a directory is a way of
+proving you are one of them.
+
+## Configuration
+
+```
+IRONCREW_OIDC_ISSUER=https://idp.intern.example/application/o/ironcrew/
+IRONCREW_OIDC_CLIENT_ID=…
+IRONCREW_OIDC_CLIENT_SECRET=…
+IRONCREW_OIDC_REDIRECT_URI=https://crew.intern.example/api/crew/auth/oidc/callback
+```
+
+Off unless `IRONCREW_OIDC_ISSUER` is set. Setting it without a client id or a
+redirect URI refuses to start rather than defaulting: a guessed redirect URI
+does not match what is registered at the issuer, so the login fails at the far
+end with a message about the client, which is a long way from the variable
+that was actually missing.
+
+The redirect URI must match what the issuer has registered, exactly. The
+discovery document's own `issuer` is canonical — Authentik's ends in a slash —
+and the configured value must agree with it modulo that trailing slash.
+
+## Who gets in — the part that matters
+
+**Default: `refuse`.** A verified `(issuer, subject)` with no row in
+`crew_oidc_identities` is refused. No account is created and nothing is matched
+on email. The refusal names the issuer and the subject in the log so an owner
+can link it in seconds — and only a code reaches the browser, because a
+subject identifier does not belong in somebody's history.
+
+That is fail-closed on purpose. An identity provider is a directory of
+everyone: staff, contractors, sometimes customers. Treating "the directory
+knows you" as "IronCrew trusts you" would hand an account in a system that
+holds the company's books to whoever the directory admin adds next.
+
+Two opt-ins exist, both set with `IRONCREW_OIDC_PROVISIONING`:
+
+- `link-verified-email` — attaches a new subject to an **existing active**
+  account when the ID token carries a matching address with
+  `email_verified: true`. It creates nothing and grants nothing, and it
+  consults the email exactly once: from the next login the subject decides. So
+  an address changing upstream — even to an owner's — does not move the
+  account.
+- `create` — creates an account at `IRONCREW_OIDC_CREATE_ROLE`, defaulting to
+  `viewer`. **`owner` is refused**, in the type and again at runtime because
+  config arrives as JSON: an owner approves irreversible acts, grants tools and
+  reads the vault, and anyone able to add a user to the directory would
+  otherwise mint one without any IronCrew owner deciding anything. An email
+  that already belongs to a local account is a refusal, never a link — that
+  would be email-matching through the back door.
+
+Both, and `create`, are additionally gated by the bootstrap rule from
+migration 0017: while `crew_users` is empty, SSO provisions nobody. The first
+owner is created deliberately, by a human, at the console.
+
+A linked identity whose account is disabled or deleted gets
+`account_unavailable`. The local account decides whether it may be used, not
+the directory.
+
+## The flow, and the four ways it is attacked
+
+```
+GET /api/crew/auth/oidc/start      → 302 to the issuer
+GET /api/crew/auth/oidc/callback   → 302 to the app, with a session cookie
+```
+
+**The login in progress lives on the server.** Between the redirect out and
+the callback back, three secrets have to survive: the PKCE verifier, the nonce
+and the state. The obvious place is a cookie, and it is the wrong one — a
+cookie is a value anything that can set cookies for this origin can replace,
+and swapping the issuer in it would make the callback exchange the code
+somewhere else entirely. Signing it would fix that and needs a signing key this
+installation does not have. So the pending login stays in memory and the
+browser carries an opaque handle. There is nothing in the cookie to tamper
+with. The cost, stated plainly: a restart mid-login loses it and the person
+starts again, and a second control-plane process would not find the handle —
+the provider's replay registry is already in-process for the same reason.
+
+**The pending cookie is `SameSite=Lax`, and that is deliberate.** The callback
+arrives as a top-level navigation from the issuer's origin, and a `Strict`
+cookie is not sent on one — the login would fail with "no login in progress"
+every single time. It holds an opaque handle to a single-use attempt, so `Lax`
+costs nothing. The session cookie it produces is still `Strict`.
+
+**Single use, whatever the outcome.** The pending login is consumed by the
+first callback that quotes its handle, so a stolen callback URL replayed from
+another browser finds nothing.
+
+**No open redirect.** `redirectTo` is only ever a path on this origin.
+`//evil.example` and `/\evil.example` are how a protocol-relative URL gets past
+a naive `startsWith("/")`, and an open redirect on a login callback is the
+classic way to make a phishing link look like it came from the real system.
+
+**ID tokens are verified for real.** Signature against the issuer's JWKS with
+one rate-limited refetch on an unknown `kid` (so key rotation works
+immediately and a forged `kid` cannot be used to hammer the IdP), plus `iss`,
+`aud`, `exp`, `iat` and `nonce`. The accepted algorithms are a whitelist:
+`none` is absent because it is the original JWT forgery, and the `HS*` family
+is absent because accepting it would let anyone holding the client secret sign
+a token as though it were the issuer's.
+
+**Nothing sensitive reaches the browser or a log.** Refusal messages carry the
+OAuth `error` code from a validated vocabulary and never `error_description`,
+a response body, a token or the code. `GET /auth/status` reports whether a
+directory is configured and names the issuer — an operator has to be able to
+see which directory this box trusts — and never the client secret.
+
+## What is deliberately not built
+
+- **No `userinfo` call, no access- or refresh-token storage.** The ID token
+  answers the only question being asked. Storing an access token would make
+  this a client of the directory's API, which is a different feature with a
+  different threat model.
+- **No RP-initiated or back-channel logout.** Signing out of IronCrew revokes
+  the IronCrew session, which is the one this system issued.
+- **No dynamic client registration**, and no configuration through the UI. The
+  issuer and the client secret arrive through the environment, reviewed like
+  every other credential.
+- **No unlinking screen yet.** `OidcIdentityStore` has `link`/`unlink` and
+  they are tested; nothing in the Command Center calls them, so linking is an
+  operator's job at the database today. That is the honest gap in this
+  feature.

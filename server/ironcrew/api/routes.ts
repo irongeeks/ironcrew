@@ -20,6 +20,7 @@ import { BUSINESS_PACKS, findPack } from "../packs/catalog.ts";
 import type { BusinessPack } from "../packs/business-pack.ts";
 import { PackMutationError } from "../packs/pack-store.ts";
 import { registerCrewAuthRoutes } from "./auth-routes.ts";
+import type { OidcProvider } from "../auth/oidc-provider.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
 import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
@@ -561,6 +562,12 @@ export interface IronCrewApiOptions {
   scheduler?: () => SchedulerHandle | null;
   /** Injectable so a test can drive the guards without a second database. */
   auth?: CrewAuth;
+  /**
+   * The directory, when an operator configured one. Absent means the password
+   * login is the only door — which is the correct default for a self-hosted
+   * single-operator box.
+   */
+  oidc?: OidcProvider | null;
 }
 
 export interface IronCrewApi {
@@ -602,7 +609,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   // same instant.
   const auth = opts.auth ?? createCrewAuth(db);
   app.use(base, auth.identify);
-  registerCrewAuthRoutes(app, { base, auth });
+  registerCrewAuthRoutes(app, { base, auth, oidc: opts.oidc ?? null });
   app.use(base, auth.requireUser);
   app.use(base, methodGuard(auth));
 

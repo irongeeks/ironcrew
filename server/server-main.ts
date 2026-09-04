@@ -42,6 +42,7 @@ import { TacticalRmmAdapter } from "./ironcrew/packs/integrations/tactical-rmm.t
 import { UnifiAdapter } from "./ironcrew/packs/integrations/unifi.ts";
 import { LexwareOfficeAdapter } from "./ironcrew/packs/integrations/lexware-office.ts";
 import { AuditShipper, FileAuditSink, HttpAuditSink } from "./ironcrew/audit/audit-shipper.ts";
+import { OidcProvider, OIDC_PROVISIONING_MODES, type OidcProvisioningMode } from "./ironcrew/auth/oidc-provider.ts";
 import { SevdeskAdapter } from "./ironcrew/packs/integrations/sevdesk.ts";
 import { PaperlessAdapter } from "./ironcrew/packs/integrations/paperless-ngx.ts";
 import { NextcloudAdapter } from "./ironcrew/packs/integrations/nextcloud.ts";
@@ -534,8 +535,59 @@ if (process.env.BRAVE_SEARCH_API_KEY) {
   ironCrewOrchestrator.registerSearchProvider(new BraveProvider({ apiKey: process.env.BRAVE_SEARCH_API_KEY }));
 }
 
+// A second way to prove who you are, when the operator already runs a
+// directory. Off unless configured: a self-hosted single-operator box does
+// not need an identity provider, and adding one would add a dependency that
+// must be online for anyone to log in.
+//
+// The password login stays regardless. The day the directory is down or
+// misconfigured is exactly the day somebody has to sign in and fix it.
+function buildOidcProvider(): OidcProvider | null {
+  const issuer = process.env.IRONCREW_OIDC_ISSUER?.trim();
+  if (!issuer) return null;
+
+  const clientId = process.env.IRONCREW_OIDC_CLIENT_ID?.trim();
+  const redirectUri = process.env.IRONCREW_OIDC_REDIRECT_URI?.trim();
+  // Refused rather than defaulted. A guessed redirect URI does not match what
+  // is registered at the issuer, so the login fails at the far end with a
+  // message about the client — which is a long way from the variable that was
+  // actually missing.
+  if (!clientId || !redirectUri) {
+    throw new Error(
+      "IRONCREW_OIDC_ISSUER is set, so IRONCREW_OIDC_CLIENT_ID and IRONCREW_OIDC_REDIRECT_URI are required.",
+    );
+  }
+
+  const rawMode = (process.env.IRONCREW_OIDC_PROVISIONING ?? "refuse").trim() as OidcProvisioningMode;
+  if (!(OIDC_PROVISIONING_MODES as readonly string[]).includes(rawMode)) {
+    throw new Error(
+      `IRONCREW_OIDC_PROVISIONING="${rawMode}" is not a mode. One of: ${OIDC_PROVISIONING_MODES.join(", ")}.`,
+    );
+  }
+
+  return new OidcProvider(
+    {
+      issuer,
+      clientId,
+      clientSecret: process.env.IRONCREW_OIDC_CLIENT_SECRET,
+      redirectUri,
+      // Default "refuse": a verified directory subject with no linked account
+      // gets a readable refusal, never an account. Anything else is an opt-in
+      // an operator makes deliberately (docs/IDENTITY.md).
+      provisioning:
+        rawMode === "create"
+          ? { mode: "create", role: (process.env.IRONCREW_OIDC_CREATE_ROLE as "operator" | "viewer") || "viewer" }
+          : { mode: rawMode },
+    },
+    { db },
+  );
+}
+
+const ironCrewOidc = buildOidcProvider();
+
 const ironCrewApi = registerIronCrewRoutes(app, {
   db,
+  oidc: ironCrewOidc,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
   orchestrator: ironCrewOrchestrator,
   scheduler: () => ironCrewScheduler,
