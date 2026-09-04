@@ -326,6 +326,7 @@ export class UnifiAdapter implements PackIntegrationAdapter {
       `${this.baseUrl}${API_PREFIX}${path}`,
       { method: "GET", headers: { "X-API-KEY": this.apiKey, Accept: "application/json" } },
       this.timeoutMs,
+      [this.apiKey],
     );
     if (!res.ok) throw this.httpError(res.status, what);
     return integrationJson<T>(res, what);

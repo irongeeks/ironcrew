@@ -231,6 +231,7 @@ export class TacticalRmmAdapter implements PackIntegrationAdapter {
         `${this.baseUrl}${path}`,
         { method: init.method ?? "GET", headers: this.headers(init.body !== undefined), body: init.body },
         this.timeoutMs,
+        [this.apiKey],
       );
     } catch (err) {
       // "fetch failed" is not something an operator can act on; the instance's

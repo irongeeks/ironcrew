@@ -379,6 +379,7 @@ export class LexwareOfficeAdapter implements PackIntegrationAdapter {
         },
       },
       this.timeoutMs,
+      [this.apiKey],
     );
 
     if (!res.ok) throw statusError(what, res.status);

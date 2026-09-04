@@ -240,6 +240,7 @@ export class ProxmoxAdapter implements PackIntegrationAdapter {
       url,
       { method: "GET", headers: { Accept: "application/json", Authorization: this.authorization() } },
       this.timeoutMs,
+      [this.tokenSecret],
     );
     if (!res.ok) {
       // Deliberately no response body: Proxmox echoes the failing request in

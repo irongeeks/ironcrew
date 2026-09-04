@@ -87,6 +87,63 @@ export function normaliseBaseUrl(baseUrl: string): string {
 }
 
 /**
+ * Describes a transport failure without handing a credential to the log.
+ *
+ * THIS IS A SECURITY BOUNDARY, NOT A FORMATTING CHOICE
+ *
+ * The obvious implementation interpolates `err.message`, and that is what
+ * this helper used to do. The flaw only becomes visible when you read all six
+ * adapters at once: three had independently grown their own scrubber to strip
+ * their credential back out of the message this helper produced, and three
+ * had not. A defence each caller must remember is a defence half the callers
+ * forget — and the half that forgot were holding a Proxmox token and a
+ * Lexware key. A `fetch` implementation, a proxy agent or an instrumentation
+ * wrapper may put the outgoing request, headers included, into its error
+ * text.
+ *
+ * So the redaction moved in here, where every adapter gets it. The adapter
+ * still declares *what* is secret, because only it knows; the helper decides
+ * *that* it is removed, because that part must not be optional.
+ *
+ * `cause.code` is preferred over the message because Node's fetch sets the
+ * message to the useless "fetch failed" and puts the answer in the cause:
+ * `ECONNREFUSED`, `ENOTFOUND`, `CERT_HAS_EXPIRED`,
+ * `DEPTH_ZERO_SELF_SIGNED_CERT` — which is exactly what an operator with a
+ * self-signed UniFi console needs to read.
+ */
+function describeTransportError(err: unknown, url: string, secrets: readonly string[]): string {
+  const cause = (err as { cause?: { code?: unknown } } | null)?.cause;
+  const code = typeof cause?.code === "string" ? cause.code : null;
+  const fallback = err instanceof Error ? err.message : String(err);
+
+  let origin = "";
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    // A malformed URL is its own problem, reported by the caller. It must not
+    // turn this message into a second failure.
+  }
+
+  const reason = redactSecrets(code ?? fallback ?? "unbekannter Transportfehler", secrets);
+  return origin ? `Nicht erreichbar (${reason}): ${origin}` : `Nicht erreichbar: ${reason}`;
+}
+
+/**
+ * Removes known secret values from a message.
+ *
+ * Longest first, so a token that contains another value's prefix cannot leave
+ * a fragment behind. Values shorter than four characters are ignored: they
+ * are not credentials, and blanking them would shred ordinary words.
+ */
+export function redactSecrets(text: string, secrets: readonly string[]): string {
+  let out = text;
+  for (const secret of [...secrets].filter((s) => s.length >= 4).sort((a, b) => b.length - a.length)) {
+    out = out.split(secret).join("«entfernt»");
+  }
+  return out;
+}
+
+/**
  * One HTTP call with a timeout, returning the raw Response.
  *
  * The timeout is an `AbortController` rather than a `Promise.race`, so a hung
@@ -99,6 +156,8 @@ export async function integrationFetch(
   url: string,
   init: RequestInit,
   timeoutMs = DEFAULT_INTEGRATION_TIMEOUT_MS,
+  /** Values that must never appear in a failure message. See above. */
+  secrets: readonly string[] = [],
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -109,9 +168,7 @@ export async function integrationFetch(
     if (err instanceof Error && err.name === "AbortError") {
       throw new PackIntegrationError(`Zeitüberschreitung nach ${timeoutMs} ms.`);
     }
-    // The host and the reason, never the request body: an outbound body may
-    // carry the very credential this message would then travel with.
-    throw new PackIntegrationError(`Nicht erreichbar: ${err instanceof Error ? err.message : String(err)}`);
+    throw new PackIntegrationError(describeTransportError(err, url, secrets));
   } finally {
     clearTimeout(timer);
   }

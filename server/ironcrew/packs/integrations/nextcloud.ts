@@ -364,7 +364,14 @@ export class NextcloudAdapter implements PackIntegrationAdapter {
    */
   private async send(url: string, init: RequestInit): Promise<Response> {
     try {
-      return await integrationFetch(this.fetchImpl, url, init, this.timeoutMs);
+      // The secrets are handed to the helper as well as scrubbed below: the
+      // helper covers every adapter uniformly, this class's own `redact`
+      // covers the paths that do not go through it. Belt and braces on the
+      // one thing that must not leak.
+      return await integrationFetch(this.fetchImpl, url, init, this.timeoutMs, [
+        this.appPassword,
+        this.authorization(),
+      ]);
     } catch (err) {
       throw this.redact(err);
     }

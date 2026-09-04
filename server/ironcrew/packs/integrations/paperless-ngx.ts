@@ -433,6 +433,7 @@ export class PaperlessAdapter implements PackIntegrationAdapter {
         },
       },
       this.timeoutMs,
+      [this.token],
     );
   }
 
