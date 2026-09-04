@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { type Application, type Container } from "pixi.js";
 import type { TiledObject } from "./office-view/TiledRenderer";
 import type { Agent, Department, ServerAllocation, ServerNode } from "../types";
@@ -9,6 +9,7 @@ import { useAgentLayer } from "./office-view/useAgentLayer";
 import { useServerLayer } from "./office-view/useServerLayer";
 import { useShadowLayer } from "./office-view/useShadowLayer";
 import { useParticleLayer } from "./office-view/useParticleLayer";
+import type { RenderTier } from "./office-view/render-quality";
 
 interface RetroOfficeViewProps {
   agents: Agent[];
@@ -49,6 +50,13 @@ export default function RetroOfficeView({
   const serverSlotsRef = useRef<Array<{ x: number; y: number; name: string }>>([]);
   const objectsRef = useRef<TiledObject[]>([]);
   const [loading, setLoading] = useState(true);
+  // What the office settled on, and why. A scene that quietly halved its own
+  // quality — or one that cannot run in this browser at all — is something
+  // the operator has to be told, not left to infer from a blank rectangle.
+  const [renderTier, setRenderTier] = useState<{ tier: RenderTier; reason: string }>({ tier: "high", reason: "" });
+  const handleRenderTier = useCallback((tier: RenderTier, reason: string) => {
+    setRenderTier({ tier, reason });
+  }, []);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
@@ -115,6 +123,7 @@ export default function RetroOfficeView({
     updateShadowsRef,
     particleLayerRef,
     updateParticlesRef,
+    handleRenderTier,
   );
 
   useAgentLayer(
@@ -133,6 +142,36 @@ export default function RetroOfficeView({
 
   return (
     <div className="w-full h-full relative" style={{ background: "var(--bg-base)" }}>
+      {renderTier.tier === "none" && !loading && (
+        <div
+          className="absolute inset-0 flex items-center justify-center z-10 p-6 text-center"
+          style={{ background: "var(--bg-base)" }}
+          data-testid="office-unavailable"
+        >
+          <div className="max-w-sm">
+            <p className="text-xs font-pixel mb-2" style={{ color: "var(--text-secondary)" }}>
+              OFFICE-ANSICHT NICHT VERFÜGBAR
+            </p>
+            <p className="text-[11px] font-mono leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {renderTier.reason}
+            </p>
+            <p className="text-[11px] font-mono leading-relaxed mt-2" style={{ color: "var(--text-muted)" }}>
+              Alle Funktionen bleiben über die Listen- und Kanban-Ansichten erreichbar.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {renderTier.reason !== "" && renderTier.tier !== "none" && (
+        <div
+          className="absolute top-2 left-2 z-10 px-2 py-1 rounded text-[10px] font-mono"
+          style={{ background: "var(--bg-base)", color: "var(--text-muted)" }}
+          data-testid="office-quality-notice"
+        >
+          {renderTier.reason}
+        </div>
+      )}
+
       {loading && (
         <div
           className="absolute inset-0 flex items-center justify-center z-10"
