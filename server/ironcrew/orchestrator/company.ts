@@ -1312,7 +1312,73 @@ export class CompanyOrchestrator {
     });
     this.notifications.markReadByApproval(companyId, approval.id);
 
+    this.settleApprovedTask(companyId, approval, decision, reason);
+
     return approval;
+  }
+
+  /**
+   * Moves the task an approval was blocking, now that the owner has decided.
+   *
+   * Without this the decision was a dead end. `handleCeoMessage` parks
+   * sensitive work at `approval_required` and returns; approving it recorded
+   * the decision, marked the notification read — and left the task parked
+   * forever. Nothing ever transitioned it, so the one path the approval gate
+   * exists for (transfers, terminations, anything legally or financially
+   * real) was the one path that could never complete.
+   *
+   * Deliberately narrow: it acts only on a task currently sitting in
+   * `approval_required`. An approval raised *during* a run leaves its task in
+   * `running` or `waiting`, and that run is still in progress — resuming it
+   * from here would start a second one. A `file_change` approval has no
+   * parked task at all; that one is applied through `applyChangeProposal`,
+   * which re-reads this same approval.
+   */
+  private settleApprovedTask(
+    companyId: string,
+    approval: ApprovalRow,
+    decision: "approved" | "rejected",
+    reason: string,
+  ): void {
+    if (!approval.task_id) return;
+    const task = this.tasks.get(approval.task_id);
+    if (!task || task.company_id !== companyId) return;
+    if (task.status !== "approval_required") return;
+
+    if (decision === "rejected") {
+      // A refused task must not linger as if it might still happen. It is
+      // cancelled, carrying the owner's reason, so the board shows a decision
+      // rather than a stall.
+      this.tasks.transition(task.id, "cancelled", {
+        reason: `Freigabe abgelehnt: ${reason || "ohne Begründung"}`,
+        actorType: "owner",
+        actorId: "ceo",
+        correlationId: task.correlation_id,
+      });
+      this.syncAgentStatuses(companyId);
+      return;
+    }
+
+    // The sensitive branch parks the task before delegation ever runs, so
+    // there is usually no agent yet. Re-deriving the classification from the
+    // stored description picks the same department the EA would have picked,
+    // rather than inventing a second rule for who does approved work.
+    const agentId = task.assigned_agent_id ?? this.pickAgent(companyId, triage(task.description))?.id ?? null;
+
+    this.tasks.transition(task.id, "ready", {
+      assignedAgentId: agentId,
+      reason: "vom Chef freigegeben",
+      actorType: "owner",
+      actorId: "ceo",
+      correlationId: task.correlation_id,
+    });
+
+    // And the intent to run becomes a row, the same as any other delegation —
+    // otherwise the approved task would sit at `ready` waiting for someone to
+    // press a button, which is the gap the run queue exists to close.
+    if (agentId) this.enqueueRun(companyId, task.id, { requestedBy: "ceo" });
+
+    this.syncAgentStatuses(companyId);
   }
 
   registerRuntime(runtime: AgentRuntime): void {
