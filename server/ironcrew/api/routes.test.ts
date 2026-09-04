@@ -11,6 +11,7 @@ import { CompanyOrchestrator } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts";
 import { UNTRUSTED_OPEN } from "../policy/untrusted-content.ts";
+import { SearchProviderError } from "../search/search-provider.ts";
 import type { ProposedFile } from "../domain/change-proposal-store.ts";
 
 let db: DatabaseSync;
@@ -2044,5 +2045,508 @@ describe("external events over HTTP (recorded once, replayable)", () => {
 
   it("404s for an event that does not exist", async () => {
     await request(app).post("/api/crew/external-events/xevt_nope/replay").expect(404);
+  });
+});
+
+describe("vessels and talents over HTTP (an agent is a pairing, not a monolith)", () => {
+  async function createVessel(over: Record<string, unknown> = {}) {
+    const res = await request(app)
+      .post("/api/crew/vessels")
+      .send({ key: "claude", runtimeProvider: "mock", timeoutMs: 60_000, maxConcurrency: 2, ...over })
+      .expect(201);
+    return res.body.vessel;
+  }
+
+  async function createTalent(over: Record<string, unknown> = {}) {
+    const res = await request(app)
+      .post("/api/crew/talents")
+      .send({ key: "cto", professionalRole: "Chief Technology Officer", ...over })
+      .expect(201);
+    return res.body.talent;
+  }
+
+  it("lists the vessels the seed derived, with the agents using each", async () => {
+    const res = await request(app).get("/api/crew/vessels").expect(200);
+    expect(res.body.vessels.length).toBeGreaterThan(0);
+    expect(res.body.vessels[0].agents.length).toBeGreaterThan(0);
+  });
+
+  it("creates, patches and deletes a vessel nobody uses", async () => {
+    const vessel = await createVessel();
+    expect(vessel.max_concurrency).toBe(2);
+
+    const patched = await request(app)
+      .patch(`/api/crew/vessels/${vessel.id}`)
+      .send({ maxConcurrency: 5, model: "claude-opus-5" })
+      .expect(200);
+    expect(patched.body.vessel.max_concurrency).toBe(5);
+    expect(patched.body.vessel.model).toBe("claude-opus-5");
+    // An omitted field is untouched, not reset.
+    expect(patched.body.vessel.timeout_ms).toBe(60_000);
+
+    await request(app).delete(`/api/crew/vessels/${vessel.id}`).expect(200);
+    expect(
+      (await request(app).get("/api/crew/vessels")).body.vessels.find((v: { id: string }) => v.id === vessel.id),
+    ).toBeUndefined();
+  });
+
+  it("refuses to delete a vessel agents still hold, and says who", async () => {
+    const inUse = (await request(app).get("/api/crew/vessels")).body.vessels[0];
+
+    const res = await request(app).delete(`/api/crew/vessels/${inUse.id}`).expect(409);
+    // The names are the whole point of the refusal — a generic "delete failed"
+    // would leave an operator guessing which agents to move first.
+    expect(res.body.message).toBeTruthy();
+    expect(res.body.error).toBe("invalid_pairing_mutation");
+  });
+
+  it("refuses a vessel key that is already taken", async () => {
+    await createVessel({ key: "doppelt" });
+    await request(app).post("/api/crew/vessels").send({ key: "doppelt", runtimeProvider: "mock" }).expect(409);
+  });
+
+  it("refuses limits that make no sense", async () => {
+    await request(app).post("/api/crew/vessels").send({ key: "a", runtimeProvider: "mock", timeoutMs: 0 }).expect(400);
+    await request(app)
+      .post("/api/crew/vessels")
+      .send({ key: "b", runtimeProvider: "mock", maxConcurrency: 0 })
+      .expect(400);
+    await request(app).post("/api/crew/vessels").send({ key: "c" }).expect(400);
+  });
+
+  it("gives a vessel no authority over what a run may do", async () => {
+    const vessel = await createVessel({ key: "sandbox-versuch" });
+
+    // A vessel that could set a permission mode would be a second route to
+    // elevation that no approval ever authorised (THREAT_MODEL T-01).
+    await request(app)
+      .patch(`/api/crew/vessels/${vessel.id}`)
+      .send({ permission_mode: "elevated", allowed_tools: ["*"], sandbox: "off" })
+      .expect(200);
+
+    const columns = db.prepare("PRAGMA table_info(crew_vessels)").all() as Array<{ name: string }>;
+    const names = columns.map((c) => c.name);
+    for (const forbidden of ["permission_mode", "allowed_tools", "sandbox", "policy_json", "grant_id"]) {
+      expect(names).not.toContain(forbidden);
+    }
+  });
+
+  it("serves the seniority list rather than making the UI guess", async () => {
+    const res = await request(app).get("/api/crew/talents/seniorities").expect(200);
+    expect(res.body.seniorities.length).toBeGreaterThan(0);
+    await request(app)
+      .post("/api/crew/talents")
+      .send({ key: "x", professionalRole: "X", seniority: "erfunden" })
+      .expect(400);
+  });
+
+  it("stores a talent's policy, persona and skills as given", async () => {
+    const talent = await createTalent({
+      key: "sre",
+      professionalRole: "Site Reliability Engineer",
+      skills: ["postmortem", "oncall"],
+      policy: { may_approve: false },
+    });
+
+    expect(JSON.parse(talent.skills_json)).toEqual(["postmortem", "oncall"]);
+    expect(JSON.parse(talent.policy_json)).toEqual({ may_approve: false });
+  });
+
+  it("rebinds an agent to a different vessel and talent", async () => {
+    const vessel = await createVessel({ key: "codex", runtimeProvider: "mock" });
+    const talent = await createTalent({ key: "architect", professionalRole: "Architect" });
+    const agent = (await request(app).get("/api/crew/agents")).body.agents[0];
+
+    const res = await request(app)
+      .post(`/api/crew/agents/${agent.id}/pairing`)
+      .send({ vesselId: vessel.id, talentId: talent.id })
+      .expect(200);
+
+    expect(res.body.agent.vesselId).toBe(vessel.id);
+    expect(res.body.agent.talentId).toBe(talent.id);
+    // The role travelled with the talent — that is the point of the split.
+    expect(res.body.agent.professionalRole).toBe("Architect");
+  });
+
+  it("changes only the half it was given", async () => {
+    const vessel = await createVessel({ key: "nur-vessel" });
+    const agent = (await request(app).get("/api/crew/agents")).body.agents[0];
+
+    const res = await request(app)
+      .post(`/api/crew/agents/${agent.id}/pairing`)
+      .send({ vesselId: vessel.id })
+      .expect(200);
+
+    expect(res.body.agent.vesselId).toBe(vessel.id);
+    expect(res.body.agent.talentId).toBe(agent.talentId);
+  });
+
+  it("refuses a pairing request that names nothing", async () => {
+    const agent = (await request(app).get("/api/crew/agents")).body.agents[0];
+    await request(app).post(`/api/crew/agents/${agent.id}/pairing`).send({}).expect(400);
+  });
+
+  it("404s for things that do not exist", async () => {
+    await request(app).patch("/api/crew/vessels/vsl_nope").send({ model: "x" }).expect(404);
+    await request(app).delete("/api/crew/vessels/vsl_nope").expect(404);
+    await request(app).patch("/api/crew/talents/tal_nope").send({ roleSummary: "x" }).expect(404);
+    await request(app).post("/api/crew/agents/agt_nope/pairing").send({ vesselId: "vsl_1" }).expect(404);
+  });
+});
+
+describe("run queue over HTTP", () => {
+  async function delegate(text = "Bitte dokumentiere das Deployment-Verfahren.") {
+    const res = await request(app).post("/api/crew/chat").send({ body: text }).expect(201);
+    return res.body.task;
+  }
+
+  it("lists what is waiting, with the task's title", async () => {
+    const task = await delegate();
+    const res = await request(app).get("/api/crew/run-queue").expect(200);
+
+    expect(res.body.requests).toHaveLength(1);
+    expect(res.body.requests[0].task_id).toBe(task.id);
+    // An operator recognises a title, not an id.
+    expect(res.body.requests[0].task_title).toBe(task.title);
+    expect(res.body.requests[0].status).toBe("queued");
+  });
+
+  it("filters by status", async () => {
+    await delegate();
+    expect((await request(app).get("/api/crew/run-queue?status=dead")).body.requests).toHaveLength(0);
+    expect((await request(app).get("/api/crew/run-queue?status=queued")).body.requests).toHaveLength(1);
+    await request(app).get("/api/crew/run-queue?status=erfunden").expect(400);
+  });
+
+  it("drains on demand, the same way the scheduler does", async () => {
+    const task = await delegate();
+
+    const res = await request(app).post("/api/crew/run-queue/drain").expect(200);
+    expect(res.body).toEqual({ claimed: 1, completed: 1, failed: 0, deferred: 0 });
+
+    const after = await request(app).get(`/api/crew/tasks/${task.id}`).expect(200);
+    expect(after.body.task.status).toBe("review");
+    expect(broadcasts.map((b) => b.type)).toContain("crew_run_queue_changed");
+  });
+
+  it("cancels a request the owner changed their mind about", async () => {
+    await delegate();
+    const queued = (await request(app).get("/api/crew/run-queue")).body.requests[0];
+
+    const res = await request(app).post(`/api/crew/run-queue/${queued.id}/cancel`).expect(200);
+    expect(res.body.request.status).toBe("cancelled");
+
+    // Cancelled means cancelled: the drain must not pick it up afterwards.
+    expect((await request(app).post("/api/crew/run-queue/drain")).body.claimed).toBe(0);
+  });
+
+  it("refuses to cancel something already finished", async () => {
+    await delegate();
+    const queued = (await request(app).get("/api/crew/run-queue")).body.requests[0];
+    await request(app).post("/api/crew/run-queue/drain").expect(200);
+
+    const res = await request(app).post(`/api/crew/run-queue/${queued.id}/cancel`).expect(409);
+    expect(res.body.error).toBe("invalid_run_request_transition");
+  });
+
+  it("404s for a request that does not exist", async () => {
+    await request(app).post("/api/crew/run-queue/rreq_nope/cancel").expect(404);
+  });
+});
+
+describe("scheduler status over HTTP", () => {
+  it("reports honestly that background work is switched off", async () => {
+    // No scheduler passed to registerIronCrewRoutes — which is exactly the
+    // IRONCREW_SCHEDULER=off case, and has to read as a configuration, not
+    // as an empty broken page.
+    const res = await request(app).get("/api/crew/scheduler").expect(200);
+    expect(res.body).toEqual({ enabled: false, jobs: [] });
+
+    const refused = await request(app).post("/api/crew/scheduler/run-queue/run").expect(409);
+    expect(refused.body.error).toBe("scheduler_disabled");
+  });
+
+  it("reports the jobs when one is attached", async () => {
+    const runNow = vi.fn().mockResolvedValue({ name: "run-queue", runs: 1 });
+    const scheduled = express();
+    scheduled.use(express.json());
+    registerIronCrewRoutes(scheduled, {
+      db,
+      orchestrator,
+      scheduler: () => ({
+        status: () => [{ name: "run-queue", intervalMs: 15_000 }] as never,
+        runNow,
+      }),
+    });
+
+    const res = await request(scheduled).get("/api/crew/scheduler").expect(200);
+    expect(res.body.enabled).toBe(true);
+    expect(res.body.jobs[0].name).toBe("run-queue");
+
+    await request(scheduled).post("/api/crew/scheduler/run-queue/run").expect(200);
+    expect(runNow).toHaveBeenCalledWith("run-queue");
+
+    await request(scheduled).post("/api/crew/scheduler/erfunden/run").expect(404);
+  });
+});
+
+describe("tools over HTTP (presence is not permission)", () => {
+  function seedTools() {
+    orchestrator.ensureBuiltinTools(companyId);
+  }
+
+  function agentId(): string {
+    return orchestrator.listAgents(companyId).find((a) => !a.is_executive_assistant)!.id;
+  }
+
+  it("lists what this server can perform, with who may use each", async () => {
+    seedTools();
+    const res = await request(app).get("/api/crew/tools").expect(200);
+
+    expect(res.body.tools.map((t: { key: string }) => t.key).sort()).toEqual([
+      "browser.external",
+      "browser.interact",
+      "browser.read",
+      "web.search",
+    ]);
+    // Registered, granted to nobody.
+    expect(res.body.tools.every((t: { grants: unknown[] }) => t.grants.length === 0)).toBe(true);
+  });
+
+  it("grants a tool to an agent", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools.find(
+      (t: { key: string }) => t.key === "web.search",
+    );
+
+    const res = await request(app).post(`/api/crew/tools/${tool.id}/grants`).send({ agentId: agentId() }).expect(201);
+    expect(res.body.grant.agent_id).toBe(agentId());
+    expect(broadcasts.map((b) => b.type)).toContain("crew_tool_changed");
+  });
+
+  it("refuses a grant that names more than one scope", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools[0];
+    await request(app)
+      .post(`/api/crew/tools/${tool.id}/grants`)
+      .send({ agentId: agentId(), projectId: "prj_1" })
+      .expect(400);
+    await request(app).post(`/api/crew/tools/${tool.id}/grants`).send({}).expect(400);
+  });
+
+  it("refuses to waive the gate on an external tool by accident", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools.find(
+      (t: { key: string }) => t.key === "browser.external",
+    );
+
+    const refused = await request(app)
+      .post(`/api/crew/tools/${tool.id}/grants`)
+      .send({ agentId: agentId(), requiresApproval: false })
+      .expect(409);
+    expect(refused.body.error).toBe("invalid_tool_mutation");
+
+    await request(app)
+      .post(`/api/crew/tools/${tool.id}/grants`)
+      .send({ agentId: agentId(), requiresApproval: false, allowUnapprovedExternal: true })
+      .expect(201);
+  });
+
+  it("revokes a grant", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools[0];
+    const grant = (await request(app).post(`/api/crew/tools/${tool.id}/grants`).send({ agentId: agentId() })).body
+      .grant;
+
+    await request(app).delete(`/api/crew/tool-grants/${grant.id}`).expect(200);
+    const after = (await request(app).get("/api/crew/tools")).body.tools.find((t: { id: string }) => t.id === tool.id);
+    expect(after.grants).toHaveLength(0);
+  });
+
+  it("switches a tool off company-wide", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools[0];
+    const res = await request(app).post(`/api/crew/tools/${tool.id}/enabled`).send({ enabled: false }).expect(200);
+    expect(res.body.tool.enabled).toBe(0);
+  });
+
+  it("answers an agent's tools per project, because a project grant is contextual", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools.find(
+      (t: { key: string }) => t.key === "web.search",
+    );
+    const project = orchestrator.projects.create({ companyId, key: "kunde", title: "Kundenprojekt" });
+    await request(app).post(`/api/crew/tools/${tool.id}/grants`).send({ projectId: project.id }).expect(201);
+
+    const outside = await request(app).get(`/api/crew/agents/${agentId()}/tools`).expect(200);
+    expect(outside.body.tools).toHaveLength(0);
+
+    const inside = await request(app).get(`/api/crew/agents/${agentId()}/tools?projectId=${project.id}`).expect(200);
+    expect(inside.body.tools.map((t: { tool: { key: string } }) => t.tool.key)).toEqual(["web.search"]);
+  });
+
+  it("404s for a tool or grant that does not exist", async () => {
+    await request(app).post("/api/crew/tools/tool_nope/grants").send({ agentId: agentId() }).expect(404);
+    await request(app).post("/api/crew/tools/tool_nope/enabled").send({ enabled: true }).expect(404);
+    await request(app).delete("/api/crew/tool-grants/tgrant_nope").expect(404);
+  });
+});
+
+describe("web search over HTTP", () => {
+  const stubProvider = {
+    kind: "stub",
+    search: async () => [
+      { title: "Treffer", url: "https://example.com/a", snippet: "Inhalt", rank: 1, publishedAt: null },
+    ],
+    testConnection: async () => ({ ok: true, message: "bereit" }),
+  };
+
+  function agentId(): string {
+    return orchestrator.listAgents(companyId).find((a) => !a.is_executive_assistant)!.id;
+  }
+
+  async function grantSearch() {
+    orchestrator.ensureBuiltinTools(companyId);
+    const tool = orchestrator.tools.byKey(companyId, "web.search")!;
+    orchestrator.tools.grant({ toolId: tool.id, agentId: agentId() });
+  }
+
+  it("reports which providers are configured", async () => {
+    orchestrator.registerSearchProvider(stubProvider as never);
+    const res = await request(app).get("/api/crew/search-providers").expect(200);
+    expect(res.body.providers).toEqual([{ kind: "stub", registered: true, ok: true, message: "bereit" }]);
+  });
+
+  it("reports an empty list rather than an error when none is configured", async () => {
+    expect((await request(app).get("/api/crew/search-providers")).body.providers).toEqual([]);
+  });
+
+  it("refuses a search for an agent with no grant", async () => {
+    orchestrator.registerSearchProvider(stubProvider as never);
+    orchestrator.ensureBuiltinTools(companyId);
+
+    // The API must not be the way around a grant an operator did not give.
+    const res = await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "x" }).expect(403);
+    expect(res.body.error).toBe("tool_denied");
+  });
+
+  it("returns results and a fenced block once granted", async () => {
+    orchestrator.registerSearchProvider(stubProvider as never);
+    await grantSearch();
+
+    const res = await request(app)
+      .post("/api/crew/search")
+      .send({ agentId: agentId(), query: "deployment" })
+      .expect(200);
+
+    expect(res.body.results).toHaveLength(1);
+    expect(res.body.prompt).toContain("EXTERNAL_UNTRUSTED_CONTENT");
+  });
+
+  it("answers 202 with the approval when an operator gated the search", async () => {
+    orchestrator.registerSearchProvider(stubProvider as never);
+    orchestrator.ensureBuiltinTools(companyId);
+    const tool = orchestrator.tools.byKey(companyId, "web.search")!;
+    orchestrator.tools.grant({ toolId: tool.id, agentId: agentId(), requiresApproval: true });
+
+    const res = await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "x" }).expect(202);
+    expect(res.body.approvalRequired).toBe(true);
+    expect(res.body.approvalId).toBeTruthy();
+  });
+
+  it("reports a provider that refused as a bad gateway, not a bad request", async () => {
+    await grantSearch();
+    orchestrator.registerSearchProvider({
+      kind: "stub",
+      search: async () => {
+        throw new SearchProviderError("SearXNG: HTTP 502");
+      },
+      testConnection: async () => ({ ok: false, message: "" }),
+    } as never);
+
+    const res = await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "x" }).expect(502);
+    expect(res.body.error).toBe("search_unreachable");
+  });
+
+  it("validates the request body", async () => {
+    await request(app).post("/api/crew/search").send({ query: "x" }).expect(400);
+    await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "" }).expect(400);
+  });
+});
+
+describe("routines over HTTP (a timer that produces visible work)", () => {
+  async function createRoutine(over: Record<string, unknown> = {}) {
+    const res = await request(app)
+      .post("/api/crew/routines")
+      .send({
+        name: "Backup prüfen",
+        instruction: "Bitte prüfe, ob das nächtliche Backup durchgelaufen ist.",
+        intervalMinutes: 60,
+        ...over,
+      })
+      .expect(201);
+    return res.body.routine;
+  }
+
+  it("creates one without firing it", async () => {
+    const routine = await createRoutine();
+    expect(routine.enabled).toBe(1);
+    expect(routine.next_run_at).toBeGreaterThan(Date.now());
+    // Creating a routine must not start a run, or adjusting the form would.
+    expect((await request(app).get("/api/crew/tasks")).body.tasks).toHaveLength(0);
+  });
+
+  it("refuses a routine that would have nothing to do", async () => {
+    await request(app).post("/api/crew/routines").send({ name: "x", instruction: "", intervalMinutes: 60 }).expect(400);
+    await request(app).post("/api/crew/routines").send({ name: "x", instruction: "y", intervalMinutes: 0 }).expect(400);
+  });
+
+  it("reports a duplicate name as a bad request with the reason", async () => {
+    await createRoutine();
+    const res = await request(app)
+      .post("/api/crew/routines")
+      .send({ name: "Backup prüfen", instruction: "y", intervalMinutes: 60 })
+      .expect(400);
+    expect(res.body.error).toBe("invalid_routine_mutation");
+    expect(res.body.message).toMatch(/bereits/);
+  });
+
+  it("runs one on demand and hands back the task it produced", async () => {
+    const routine = await createRoutine();
+    const res = await request(app).post(`/api/crew/routines/${routine.id}/run`).expect(201);
+
+    // The deliverable is a task on the board, not a silent action.
+    expect(res.body.task.description).toContain("Backup");
+    expect(res.body.task.created_by).toBe(`routine:${routine.id}`);
+    expect(broadcasts.map((b) => b.type)).toContain("crew_task_changed");
+  });
+
+  it("edits and pauses", async () => {
+    const routine = await createRoutine();
+
+    const patched = await request(app)
+      .patch(`/api/crew/routines/${routine.id}`)
+      .send({ intervalMinutes: 15 })
+      .expect(200);
+    expect(patched.body.routine.interval_minutes).toBe(15);
+
+    const paused = await request(app)
+      .post(`/api/crew/routines/${routine.id}/enabled`)
+      .send({ enabled: false })
+      .expect(200);
+    expect(paused.body.routine.enabled).toBe(0);
+  });
+
+  it("deletes", async () => {
+    const routine = await createRoutine();
+    await request(app).delete(`/api/crew/routines/${routine.id}`).expect(200);
+    expect((await request(app).get("/api/crew/routines")).body.routines).toHaveLength(0);
+  });
+
+  it("404s for a routine that does not exist", async () => {
+    await request(app).patch("/api/crew/routines/rtn_nope").send({ name: "x" }).expect(404);
+    await request(app).post("/api/crew/routines/rtn_nope/run").expect(404);
+    await request(app).post("/api/crew/routines/rtn_nope/enabled").send({ enabled: true }).expect(404);
+    await request(app).delete("/api/crew/routines/rtn_nope").expect(404);
   });
 });

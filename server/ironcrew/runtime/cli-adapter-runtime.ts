@@ -160,6 +160,23 @@ export class CliAdapterRuntime implements AgentRuntime {
     // path, so it must not skip the check it enforces.
     assertArgsMatchMode(args, context.permissionMode ?? "restricted");
 
+    // The prompt, for adapters that take it as a flag rather than on stdin
+    // (agy, openclaw). Until this existed they were spawned with no prompt at
+    // all and produced an empty run.
+    //
+    // Appended *after* the guard above on purpose: the prompt is data, and a
+    // prompt that merely mentions "--yolo" must not be mistaken for an argv
+    // token that asks for it. Nothing is shell-interpolated here — spawn gets
+    // an argv array — so the prompt cannot break out of its own slot.
+    if (this.adapter.promptDelivery === "flag") {
+      if (!this.adapter.promptFlag) {
+        throw new Error(
+          `Adapter "${this.adapter.providerType}" delivers its prompt by flag but names no flag; refusing to start a run without a prompt.`,
+        );
+      }
+      args.push(this.adapter.promptFlag, input.prompt);
+    }
+
     const channel = new AsyncEventChannel<RunEvent>();
     let seq = 0;
     /**

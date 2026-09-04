@@ -5,8 +5,8 @@ OctoOffice tables. The base schema (companies through audit events) is
 created by migration `0002-iron-crew-domain.ts`; everything since —
 milestones, secrets, attachments, remote workers, meetings, mailboxes,
 marketplaces, vessels and talents, the agent run lease, external events,
-change proposals, messenger pairings — arrived as
-additive migrations `0003`–`0015`, listed in `registry.ts` and applied in
+change proposals, messenger pairings, the run queue — arrived as
+additive migrations `0003`–`0016`, listed in `registry.ts` and applied in
 order at startup. `0006` is the one exception: it renamed every table from
 this project's original `ic_` prefix to `crew_` in place (see
 `docs/UPSTREAM_ANALYSIS.md`), which is also why this file no longer matches
@@ -25,29 +25,70 @@ Conventions:
 
 ## Tenancy and org
 
-| Table              | Purpose     | Notable columns                          |
-| ------------------ | ----------- | ---------------------------------------- |
-| `crew_companies`   | The company | `slug` (unique), `owner_name`, `locale`  |
-| `crew_departments` | Departments | unique `(company_id, key)`, `sort_order` |
-| `crew_agents`      | Agents      | see below                                |
+| Table              | Purpose              | Notable columns                          |
+| ------------------ | -------------------- | ---------------------------------------- |
+| `crew_companies`   | The company          | `slug` (unique), `owner_name`, `locale`  |
+| `crew_departments` | Departments          | unique `(company_id, key)`, `sort_order` |
+| `crew_agents`      | Agents               | see below                                |
+| `crew_vessels`     | Execution containers | migration `0011`, see below              |
+| `crew_talents`     | Capability packages  | migration `0011`, see below              |
 
-### `crew_agents` — the three-layer separation
+### `crew_agents` — Vessel × Talent placed in an org
 
-The product's central invariant is expressed structurally, in three separate
-columns that are never merged:
+An agent used to carry everything on its own row: its role, its policy, its
+persona and its runtime. Migration `0011` splits that in two, because the row
+was conflating two different things — the role "CTO" was defined once per
+agent rather than once, and an agent was welded to one runtime.
 
-| Layer             | Column                                           | Meaning                                     |
-| ----------------- | ------------------------------------------------ | ------------------------------------------- |
-| Professional role | `professional_role`, `role_summary`, `seniority` | what the agent is competent for             |
-| Policy            | `policy_json`                                    | what the agent may do — **authoritative**   |
-| Persona skin      | `persona_json`, `display_name`                   | how it looks and sounds — **cosmetic only** |
+What is left on `crew_agents` is what is genuinely the agent's own: its
+`department_id`, `display_name`, `status`, `is_executive_assistant`, the run
+lease (below) — and the pairing, `vessel_id` and `talent_id`. The moved
+columns were **dropped**, not left behind: two places claiming to say what an
+agent's role is would drift the first time someone wrote to the wrong one.
 
 `status` is one of the ten agent states and is **derived** server-side from the
 work an agent holds (`deriveAgentStatus()`), never self-reported. This is why a
 UI figure cannot disagree with the control plane.
 
+### `crew_talents` — the three-layer separation
+
+The product's central invariant is expressed structurally, in three separate
+columns that are never merged — now on the talent, so a role is defined once
+and worn by as many agents as the org needs:
+
+| Layer             | Column                                           | Meaning                                   |
+| ----------------- | ------------------------------------------------ | ----------------------------------------- |
+| Professional role | `professional_role`, `role_summary`, `seniority` | what the agent is competent for           |
+| Policy            | `policy_json`                                    | what the agent may do — **authoritative** |
+| Persona skin      | `persona_json`                                   | how it sounds — **cosmetic only**         |
+
 `policy_json` is Zod-validated on read; `may_approve` is typed as the literal
 `false`, so no configuration can grant an agent approval authority.
+`skills_json` names installed skills (`crew_marketplace_installs`) rather than
+carrying them. `seniority` is one of `chief_of_staff`, `executive`, `lead`,
+`senior`. Unique on `(company_id, key)`.
+
+### `crew_vessels` — the execution container
+
+| Column             | Default  | What it decides                                   |
+| ------------------ | -------- | ------------------------------------------------- |
+| `runtime_provider` | `mock`   | which registered `AgentRuntime` executes a run    |
+| `model`            | `''`     | model override; empty means the runtime's default |
+| `timeout_ms`       | `600000` | how long one run may take (`CHECK > 0`)           |
+| `max_retries`      | `1`      | the run queue's attempt budget, `+ 1`             |
+| `max_concurrency`  | `1`      | how many runs this vessel may have in flight      |
+
+Note what is **absent, and stays absent**: no permission mode, no sandbox
+setting, no tool allowlist. Permission modes come only from a `SandboxGrant`
+minted from an approved `ApprovalRequest` and capped at four hours
+(`THREAT_MODEL.md` T-01); a vessel column saying `elevated` would be a second
+route to elevation that no approval authorised and that never expires. A
+vessel governs how long and how often a run may take, never what it may do.
+
+Both pairings are `ON DELETE RESTRICT`. Deleting a vessel or talent agents
+still hold fails loudly rather than silently stripping them of their role or
+deleting people because a role was tidied away. See
+`docs/VESSELS_TALENTS.md`.
 
 ## Work
 
@@ -248,10 +289,10 @@ Migration `0012` adds two columns to `crew_agents` rather than a table of its
 own, matching where the task lock already lives so the two are read and
 reasoned about the same way:
 
-| Column                | Meaning                                                          |
-| --------------------- | ---------------------------------------------------------------- |
-| `run_lock_run_id`     | The run holding the lease. Release is **guarded on this id**     |
-| `run_lock_expires_at` | A lease, not a lock — an expired one is reclaimable              |
+| Column                | Meaning                                                      |
+| --------------------- | ------------------------------------------------------------ |
+| `run_lock_run_id`     | The run holding the lease. Release is **guarded on this id** |
+| `run_lock_expires_at` | A lease, not a lock — an expired one is reclaimable          |
 
 `crew_tasks` already stops two workers claiming the same task. This stops the
 other collision: two _different_ tasks dispatched to the same agent at once.
@@ -290,10 +331,10 @@ is outstanding work).
 
 ## Change proposals
 
-| Table                        | Purpose                                                             |
-| ---------------------------- | -------------------------------------------------------------------- |
-| `crew_change_proposals`      | One proposed set of file changes and its status (migration `0014`)  |
-| `crew_change_proposal_files` | Path, operation, content and hashes per file (migration `0014`)     |
+| Table                        | Purpose                                                            |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `crew_change_proposals`      | One proposed set of file changes and its status (migration `0014`) |
+| `crew_change_proposal_files` | Path, operation, content and hashes per file (migration `0014`)    |
 
 `approval_id` references `crew_approvals`: nothing reaches the disk until that
 approval is approved. `workspace_path` is the root every file must resolve
@@ -307,9 +348,9 @@ against one state of the world does not describe what would happen in another.
 
 ## Messenger pairings
 
-| Table                     | Purpose                                                                  |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `crew_messenger_pairings` | Who may talk to the EA over chat, and with what authority (`0015`)       |
+| Table                     | Purpose                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| `crew_messenger_pairings` | Who may talk to the EA over chat, and with what authority (`0015`) |
 
 `role` is authority, not a label: `owner` reaches `handleCeoMessage()` and
 speaks with the CEO's authority, `guest` is routed like incoming mail. Both
@@ -323,6 +364,40 @@ cleared to `''` on accept. `chat_id` is separate from `sender_id` because a
 channel and a person are not the same thing: several people can write in one
 Discord channel. `UNIQUE (company_id, channel_kind, sender_id)` means a second
 account is a second row, paired on its own. See `docs/MESSENGER.md`.
+
+## The run queue
+
+| Table               | Purpose                                                            |
+| ------------------- | ------------------------------------------------------------------ |
+| `crew_run_requests` | The durable intent to run a task, and every attempt at it (`0016`) |
+
+A task status says what a task _is_. It cannot say how often we have tried to
+run it, when we may try next, or which attempt failed and why — so the attempt
+gets a row of its own rather than extra columns on `crew_tasks` that only the
+scheduler understands.
+
+The partial unique index is the guarantee, not a convention:
+
+```sql
+CREATE UNIQUE INDEX idx_crew_run_requests_live
+  ON crew_run_requests(task_id) WHERE status IN ('queued','running');
+```
+
+At most one unfinished request per task. Two ingresses asking for the same
+task at once is the normal case, and the resulting double run would be exactly
+the collision the agent lock exists to prevent, one layer earlier. Finished
+rows are deliberately outside the index, so a task can be re-run — and the
+failed attempt is kept, because it is the evidence for why nothing happened.
+
+`lease_owner` / `lease_expires_at` are a **lease, not a lock**, mirroring
+`TaskStore.claim()` and the agent run lease above: the condition sits in the
+`WHERE` clause so the database decides, and a drain that crashes mid-run does
+not strand the request. `attempts` is incremented at claim time and given back
+by `defer()` when the run never started — a busy agent must not dead-letter
+healthy work. `not_before` carries the backoff; `status` is constrained by
+`CHECK` to `queued | running | done | failed | dead | cancelled`, where `dead`
+means the attempts are spent and a human has to look. See
+`docs/RUN_QUEUE.md`.
 
 ## Indexes
 
@@ -343,6 +418,16 @@ Every hot path is indexed on `(company_id, …)`:
   table are "what still needs handling" and "what is old enough to prune"
 - `idx_crew_change_proposals_company` on `(company_id, status)`, `idx_crew_change_proposals_task`
 - `idx_crew_messenger_pairings_company` on `(company_id, channel_kind, status)`
+- `idx_crew_vessels_company` on `(company_id, runtime_provider)`,
+  `idx_crew_talents_company` on `(company_id, professional_role)`,
+  `idx_crew_agents_vessel`, `idx_crew_agents_talent` — the pairing, read in
+  both directions: resolving an agent, and finding who blocks a deletion
+- `idx_crew_run_requests_live` — the partial unique index that _is_ the
+  one-live-request-per-task guarantee, not merely an optimisation
+- `idx_crew_run_requests_claimable` on
+  `(company_id, status, not_before, created_at)` — the drain's own query,
+  oldest eligible first, run every 15 seconds and therefore the one index that
+  must never be missed
 
 ## Migration policy
 

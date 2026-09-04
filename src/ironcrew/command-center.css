@@ -830,6 +830,62 @@
   color: var(--ic-red);
 }
 
+/* A queue row that will never move again on its own: `dead` means the attempts
+   are spent, so red — the same "this is a stop" signal as .ic-conflict — and a
+   dimmed ground so it reads apart from the rows a drain can still pick up. */
+.ic-queue-row[data-queue-state="dead"] {
+  border-left: 2px solid var(--ic-red);
+  padding-left: 8px;
+  background: var(--ic-bg-inset);
+}
+
+/* A tool nobody may use is a normal row; a tool that is switched off is not.
+   Disabled means the server refuses it for everyone, grants included, so the
+   row is dimmed and struck through rather than merely re-labelled — the state
+   has to be visible before the operator reads the tag that names it. */
+.ic-tool-row[data-tool-enabled="false"] {
+  opacity: 0.55;
+  border-left: 2px solid var(--ic-red);
+  padding-left: 8px;
+  background: var(--ic-bg-inset);
+}
+.ic-tool-row[data-tool-enabled="false"] .ic-milestone-title {
+  text-decoration: line-through;
+}
+/* Red, because "abgeschaltet" is a refusal and not a setting. */
+.ic-tag[data-tone="off"] {
+  border-color: var(--ic-red);
+  color: var(--ic-red);
+}
+
+/* Groups the fields of one create/edit form so a row's inline editor is
+   visibly one unit rather than controls loose among the list items. */
+.ic-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--ic-bg-inset);
+  border: 1px solid var(--ic-line);
+  border-radius: var(--ic-radius);
+}
+.ic-form-row input {
+  padding: 4px 8px;
+  background: var(--ic-bg);
+  border: 1px solid var(--ic-line-strong);
+  border-radius: var(--ic-radius);
+  color: var(--ic-text);
+  font: inherit;
+  font-size: 11px;
+}
+/* The three vessel limits are entered as plain numbers; a wide text field
+   would suggest free-form input it does not take. */
+.ic-form-row input[type="number"] {
+  width: 84px;
+}
+
 .ic-check {
   display: inline-flex;
   align-items: center;
@@ -907,4 +963,102 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* --- identity: the gate, the banner, the account panel ------------------- */
+
+.ic-identity-gate {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 60vh;
+  padding: 2rem;
+}
+
+.ic-identity-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--th-border, rgba(255, 255, 255, 0.1));
+  background: var(--th-bg-secondary, rgba(255, 255, 255, 0.03));
+  color: var(--th-text-secondary, #9aa4b2);
+}
+
+.ic-identity-banner[data-state="bootstrap"] {
+  display: block;
+}
+
+.ic-identity-banner button {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--th-border, rgba(255, 255, 255, 0.15));
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ic-identity-form {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 18rem;
+  max-width: 26rem;
+}
+
+.ic-identity-form label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--th-text-secondary, #9aa4b2);
+}
+
+.ic-identity-form input,
+.ic-identity-form select {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--th-border, rgba(255, 255, 255, 0.15));
+  border-radius: 4px;
+  background: var(--th-bg-primary, #11151c);
+  color: var(--th-text-primary, #e6edf3);
+}
+
+.ic-identity-form button[type="submit"] {
+  justify-self: start;
+  padding: 0.4rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--th-accent, #3b82f6);
+  color: #fff;
+  cursor: pointer;
+}
+
+.ic-identity-error {
+  color: #ef4444;
+  font-size: 0.8rem;
+}
+
+.ic-identity-ok {
+  color: #22c55e;
+  font-size: 0.8rem;
+}
+
+.ic-account-panel section {
+  margin-block: 1.25rem;
+}
+
+.ic-account-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.ic-account-panel td {
+  padding: 0.35rem 0.5rem;
+  border-top: 1px solid var(--th-border, rgba(255, 255, 255, 0.08));
+  vertical-align: top;
+}
+
+.ic-account-panel tr[data-status="disabled"] {
+  opacity: 0.55;
 }

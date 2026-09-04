@@ -8,10 +8,14 @@
  * the E2E test caught it.
  */
 
-import { request } from "../api/core";
+import { isApiRequestError, request } from "../api/core";
 import type {
   Agent,
+  AgentTool,
   Approval,
+  AuthStatus,
+  CrewSession,
+  CrewUser,
   Attachment,
   ChangeApplyConflict,
   ChangeProposal,
@@ -57,12 +61,24 @@ import type {
   ProjectStatus,
   RemoteWorker,
   RunEvent,
+  RunQueueDrainResult,
+  RunRequest,
+  RunRequestStatus,
   RuntimeInfo,
+  SchedulerJob,
+  SchedulerStatus,
+  SearchOutcome,
+  SearchProviderStatus,
   Secret,
   SecretProviderKind,
   SecretProviderStatus,
   TailscaleInfo,
+  Talent,
   Task,
+  Tool,
+  ToolGrant,
+  ToolWithGrants,
+  Vessel,
 } from "./types.ts";
 
 const BASE = "/api/crew";
@@ -79,7 +95,59 @@ function send<T>(path: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body
   });
 }
 
+/**
+ * The human-readable half of an `{ error, message }` failure body.
+ *
+ * The transport raises an ApiRequestError whose `.message` is the machine
+ * code (`vessel_in_use`) — right for logs, useless on screen. A refusal such
+ * as a 409 on a vessel delete carries the only text that names *which* agents
+ * still use it, so prefer the body's `message` and fall back to the code.
+ */
+export function serverMessage(err: unknown): string {
+  if (isApiRequestError(err)) {
+    const details = err.details as { message?: unknown } | null | undefined;
+    if (details && typeof details.message === "string" && details.message.trim() !== "") return details.message;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * The machine half of the same failure body.
+ *
+ * A search can fail in three ways that look identical to a human — the agent
+ * may not (403), the provider is unreachable (502), or something else broke —
+ * and only the code tells them apart. The message is what gets shown; this is
+ * what decides *where*.
+ */
+export function serverErrorCode(err: unknown): string | null {
+  return isApiRequestError(err) ? err.code : null;
+}
+
 export const api = {
+  // --- identity ---
+  //
+  // `authStatus` is the only call the UI may make before anyone is signed in.
+  // It answers whether accounts exist at all, so the gate can tell "create the
+  // first owner" apart from "log in" — without revealing who those accounts
+  // belong to.
+  authStatus: () => get<AuthStatus>("/auth/status"),
+  login: (email: string, password: string) =>
+    send<{ ok: boolean; user: CrewUser }>("/auth/login", "POST", { email, password }),
+  logout: () => send<{ ok: boolean }>("/auth/logout", "POST"),
+  ownSessions: () => get<{ sessions: CrewSession[] }>("/auth/sessions"),
+  revokeOwnSession: (id: string) => send<{ ok: boolean }>(`/auth/sessions/${id}`, "DELETE"),
+  changeOwnPassword: (currentPassword: string, newPassword: string) =>
+    send<{ ok: boolean; revokedSessions: number }>("/auth/password", "POST", { currentPassword, newPassword }),
+
+  users: () => get<{ users: CrewUser[] }>("/users"),
+  createUser: (input: { email: string; password: string; displayName?: string; role?: CrewUser["role"] }) =>
+    send<{ ok: boolean; user: CrewUser }>("/users", "POST", input),
+  updateUser: (id: string, patch: { displayName?: string; role?: CrewUser["role"]; status?: CrewUser["status"] }) =>
+    send<{ ok: boolean; user: CrewUser }>(`/users/${id}`, "PATCH", patch),
+  setUserPassword: (id: string, newPassword: string) =>
+    send<{ ok: boolean }>(`/users/${id}/password`, "POST", { newPassword }),
+  deleteUser: (id: string) => send<{ ok: boolean }>(`/users/${id}`, "DELETE"),
+
   company: () => get<{ company: { name: string }; departments: Department[] }>("/company"),
   agents: () => get<{ agents: Agent[] }>("/agents"),
   chat: () => get<{ conversationId: string; messages: Message[] }>("/chat"),
@@ -316,4 +384,108 @@ export const api = {
       `/change-proposals/${id}/apply`,
       "POST",
     ),
+
+  // --- vessels & talents ---------------------------------------------------
+  // A vessel is the execution container (runtime, model, run limits); a talent
+  // is the capability package (role, seniority, policy, persona, skills). They
+  // are separate resources on purpose, so the same talent can run elsewhere.
+  vessels: () => get<{ vessels: Vessel[] }>("/vessels"),
+  createVessel: (input: {
+    key: string;
+    label?: string;
+    runtimeProvider: string;
+    model?: string;
+    timeoutMs?: number;
+    maxRetries?: number;
+    maxConcurrency?: number;
+  }) => send<{ vessel: Vessel }>("/vessels", "POST", input),
+  updateVessel: (
+    id: string,
+    patch: {
+      label?: string;
+      runtimeProvider?: string;
+      model?: string;
+      timeoutMs?: number;
+      maxRetries?: number;
+      maxConcurrency?: number;
+    },
+  ) => send<{ vessel: Vessel }>(`/vessels/${id}`, "PATCH", patch),
+  // Refused with 409 while agents still use it — the body's `message` names
+  // them, which is why callers unwrap it with serverMessage().
+  deleteVessel: (id: string) => send<{ ok: true }>(`/vessels/${id}`, "DELETE"),
+
+  talents: () => get<{ talents: Talent[] }>("/talents"),
+  // The server owns the vocabulary of seniorities, so the dropdown asks for it
+  // rather than hardcoding a list that would drift.
+  talentSeniorities: () => get<{ seniorities: string[] }>("/talents/seniorities"),
+  createTalent: (input: {
+    key: string;
+    professionalRole: string;
+    roleSummary?: string;
+    seniority?: string;
+    policy?: unknown;
+    persona?: unknown;
+    skills?: unknown;
+  }) => send<{ talent: Talent }>("/talents", "POST", input),
+  updateTalent: (id: string, patch: { professionalRole?: string; roleSummary?: string; seniority?: string }) =>
+    send<{ talent: Talent }>(`/talents/${id}`, "PATCH", patch),
+  deleteTalent: (id: string) => send<{ ok: true }>(`/talents/${id}`, "DELETE"),
+
+  // Omitting a field leaves that half of the pairing untouched, so an owner
+  // can swap the vessel without restating the talent.
+  setAgentPairing: (agentId: string, body: { vesselId?: string; talentId?: string }) =>
+    send<{ agent: Agent }>(`/agents/${agentId}/pairing`, "POST", body),
+
+  // --- tools: the register, and who may use what ---------------------------
+  // Listing a tool is not granting it. `/tools` is the register of what this
+  // server can perform; the grants hanging off each row are the only thing
+  // that lets an agent reach for it.
+  tools: () => get<{ tools: ToolWithGrants[] }>("/tools"),
+  // Asked per project because a project grant is contextual: the same agent
+  // holds the customer's MCP tools inside the customer's project and nowhere
+  // else.
+  agentTools: (agentId: string, projectId?: string) =>
+    get<{ tools: AgentTool[] }>(
+      `/agents/${agentId}/tools${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`,
+    ),
+  // `allowUnapprovedExternal` is the deliberate second sentence: waiving the
+  // approval on an external tool is refused with 409 without it, and the
+  // refusal's message is the one worth reading.
+  grantTool: (
+    toolId: string,
+    body: {
+      agentId?: string;
+      talentId?: string;
+      projectId?: string;
+      requiresApproval?: boolean | null;
+      allowUnapprovedExternal?: boolean;
+    },
+  ) => send<{ grant: ToolGrant }>(`/tools/${toolId}/grants`, "POST", body),
+  revokeToolGrant: (id: string) => send<{ ok: true }>(`/tool-grants/${id}`, "DELETE"),
+  setToolEnabled: (id: string, enabled: boolean) => send<{ tool: Tool }>(`/tools/${id}/enabled`, "POST", { enabled }),
+
+  searchProviders: () => get<{ providers: SearchProviderStatus[] }>("/search-providers"),
+  // Takes an agent id and goes through the same gate as any other tool use —
+  // the API is not a way around a grant that was never given. A 202 is a
+  // success on the wire and a refusal in effect: an approval is now waiting.
+  search: (input: {
+    agentId: string;
+    query: string;
+    limit?: number;
+    language?: string;
+    safeSearch?: "off" | "moderate" | "strict";
+    kind?: string;
+    projectId?: string;
+    taskId?: string;
+  }) => send<SearchOutcome>("/search", "POST", input),
+
+  // --- run queue & scheduler -----------------------------------------------
+  runQueue: (status?: RunRequestStatus) =>
+    get<{ requests: RunRequest[] }>(`/run-queue${status ? `?status=${status}` : ""}`),
+  cancelRunRequest: (id: string) => send<{ request: RunRequest }>(`/run-queue/${id}/cancel`, "POST"),
+  // Draining by hand is the same work the background scheduler does, which is
+  // why it is worth having when the scheduler is switched off.
+  drainRunQueue: (limit?: number) => send<RunQueueDrainResult>("/run-queue/drain", "POST", { limit }),
+  scheduler: () => get<SchedulerStatus>("/scheduler"),
+  runSchedulerJob: (name: string) => send<{ job: SchedulerJob }>(`/scheduler/${encodeURIComponent(name)}/run`, "POST"),
 };

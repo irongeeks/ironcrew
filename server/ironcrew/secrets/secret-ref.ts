@@ -10,10 +10,10 @@
  * orchestrator/company.ts#resolveSecret).
  */
 
-export type SecretProviderKind = "vaultwarden" | "protonpass";
+export type SecretProviderKind = "vaultwarden" | "protonpass" | "keychain";
 
 export function isSecretProviderKind(value: unknown): value is SecretProviderKind {
-  return value === "vaultwarden" || value === "protonpass";
+  return value === "vaultwarden" || value === "protonpass" || value === "keychain";
 }
 
 export interface SecretRef {

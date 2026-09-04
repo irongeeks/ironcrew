@@ -382,6 +382,60 @@ chain. The contents are always one request away
 (`GET /api/crew/change-proposals/:id`), and the approval summary deliberately
 lists every path so the size of what is being approved cannot be hidden.
 
+### T-16 — Background execution with no human present — **High**
+
+Every other finding in this document assumes someone was there. Until the
+scheduler existed, they were: a run happened because a person pressed a
+button, so a mis-scoped task, a runaway loop or an injected instruction had a
+witness within seconds.
+
+The scheduler removes the witness. It drains the run queue every fifteen
+seconds, polls mailboxes and chat channels on their own timers, and does so at
+three in the morning as readily as at noon. **Anything that reaches the queue
+runs, unattended.** That is the entire point of running IronCrew as a service,
+and it means the question is no longer "who authorised this run" but "what can
+reach the queue at all".
+
+**Mitigation.** Four layers, each answering a different half of the question.
+
+1. **Only delegated work is enqueued.** `enqueueRun()` has exactly two
+   callers: the EA delegating a request the owner made, and the owner asking
+   for a revision. External ingresses do not enqueue. Incoming mail (T-10) and
+   a guest's chat message (T-13) become `inbox` tasks, which never enter the
+   claimable queue — so a stranger's text cannot start a run while nobody is
+   watching, no matter how it is phrased. The queue drains what the owner
+   asked for; the inbox holds what the world sent.
+2. **Sensitive work is still gated by an approval.** Triage classifies before
+   anything is queued, and a sensitive or high-risk request becomes an
+   `approval_required` task rather than a run request. The gate is unchanged
+   by the scheduler: no approval, no run, whether or not a person is at the
+   console. Elevation is likewise unreachable without a `SandboxGrant` minted
+   from an approved request and capped at four hours (T-01).
+3. **The vessel caps time and concurrency.** An unattended run is bounded by
+   `timeout_ms` — enforced as an `AbortSignal` the runtimes honour, with a
+   ten-minute fallback so a run is never unbounded in time — and by
+   `max_concurrency`, so a night of queued work cannot fan out into fifty
+   simultaneous CLI sessions against one account
+   (`docs/VESSELS_TALENTS.md`).
+4. **The dead letter stops an infinite retry loop.** A request spends an
+   attempt only when a run actually happened; enough failures and it becomes
+   `dead` and waits for a human, rather than retrying a permanently broken
+   task forever at full speed. Backoff between attempts is exponential and
+   capped (`docs/RUN_QUEUE.md`).
+
+The switch is documented rather than hidden: `IRONCREW_SCHEDULER=off` leaves a
+server that answers HTTP and does nothing on its own, which is the right
+posture for a second instance sharing one database
+(`docs/SERVICE.md`).
+
+_Residual risk:_ everything the owner legitimately delegates still runs
+without a witness, and the audit log is read after the fact rather than
+before. A task that was correctly authorised and turns out to be wrong will
+have run by the time anyone looks. Time and concurrency bound the damage;
+they do not prevent it. Lowering `IRONCREW_SCHEDULER_QUEUE_SECONDS` shortens
+the window in which a human could intervene and raising it lengthens the
+delay before legitimate work starts — there is no setting that gives both.
+
 ## Explicitly out of scope for the MVP
 
 - Multi-user authorisation (single owner only; OIDC is Phase 5).
@@ -390,6 +444,125 @@ lists every path so the size of what is being approved cannot be hidden.
 - Defending against a compromised host OS.
 - Supply-chain attacks on npm dependencies beyond the existing lockfile,
   `pnpm.overrides` and gitleaks configuration.
+
+### T-17 — The control plane holding the owner's CLI logins — **High**
+
+The official CLI runtimes authenticate as the owner. Claude Code, Codex and
+the rest keep their credentials under `$HOME`, and a process that can run them
+can read them.
+
+Until the runner existed, that process was the control plane — the same one
+that parses incoming mail, accepts chat messages from paired strangers,
+installs skills from marketplaces and serves an HTTP API. Every one of those
+is an ingress, and each is one bug away from the account that pays for the
+models and can act as the owner elsewhere. It is also why
+`deploy/ironcrew.service` has to move `HOME` to `/var/lib/ironcrew`: without
+that, `ProtectHome=true` would leave the service with no usable home at all,
+and the alternative (`ProtectHome=read-only`) would hand it every credential,
+SSH key and browser profile on the machine.
+
+**Mitigation.** The runner is a separate trust domain, not a separate module.
+
+1. **Its own OS user, its own home, its own unit.** `ironcrew-runner` holds
+   the CLI logins under `/var/lib/ironcrew-runner`. The control plane's
+   account cannot read them — the operating system enforces that, not a
+   convention in this codebase.
+2. **The socket's permissions are the access control.** `0660`, owned by the
+   runner user, group-shared with the service user. A localhost TCP port
+   would be reachable by every process on the box, including anything an
+   agent itself starts, which would make the separation decorative. The
+   shared token is defence in depth and is compared in constant time.
+3. **No token ever crosses the wire.** The protocol carries capabilities,
+   health, `AuthStatus` and normalised events. `AuthStatus` is booleans and a
+   non-identifying hint by contract, and the runner rebuilds it field by field
+   before sending — so a future field that carried a secret would have to be
+   added deliberately, in the one place that is about leaving the trust
+   domain.
+4. **The runner refuses a workspace outside its root**, checked with
+   `realpath` rather than a string prefix. A runner that trusted the path it
+   was handed would turn a bug in the control plane into arbitrary file
+   access under the account that holds the credentials — which is the exact
+   thing this entry exists to prevent, arriving by the back door.
+
+**Residual risk.** The runner still executes whatever the control plane asks
+it to, so a compromised control plane can still spend the owner's tokens and
+run agent work. What it cannot do is _take_ the credentials. That is a real
+reduction, not an elimination, and it is the honest description: the runner
+bounds the blast radius, it does not remove the trust.
+
+### T-18 — MCP credentials in the settings table — **High**
+
+An MCP server is configured with an `env` (stdio) or `headers` (HTTP) map, and
+in practice that is where its API key goes: a GitHub token, a Jira password, a
+customer's API credential. Those configs live in the `settings` table as JSON.
+A literal value there is a plaintext credential in the database — the exact
+thing this document forbids everywhere else, arriving through a config form.
+
+It cannot be fixed by resolving the reference in the control plane. That only
+moves the plaintext from the database into the memory of the process that
+parses mail, accepts chat messages and serves an HTTP API — the process T-17
+exists to keep credential-free.
+
+**Mitigation.**
+
+1. **A value is either a literal or a reference.** `{"$secret": {"provider",
+"itemRef", "field"}}` names where the secret lives. A reference is not
+   sensitive: it may be stored, logged and shown in the UI.
+2. **The runner resolves it, and the runner runs the server.** A config
+   carrying references is started on the runner, as its own OS user, against
+   its own vault session. `mcp-connect` sends the config with its references
+   intact; the control plane receives tools and tool results
+   (`docs/RUNNER_PROTOCOL.md`).
+3. **Without a runner it is refused, by name.** The control-plane connector
+   has no resolver, so it fails before starting anything, with a message
+   naming `IRONCREW_RUNNER_SOCKET`. A config that silently started with a
+   reference object stringified into an environment variable would surface
+   hours later as an authentication error nobody could trace back.
+4. **A failed resolution names the key and the vault item, never the value.**
+   An error message is the one place a secret leaks without anyone noticing —
+   it travels into logs, into the UI, and often into a bug report.
+5. **The resolved values live as long as the connection.** A disconnected
+   connector holding one is a leak waiting for a heap dump; stopping the
+   daemon stops every MCP server it started.
+
+**Residual risk.** The MCP server itself receives the credential — that is the
+point of it — so a malicious or compromised MCP server still has what it was
+given. What changes is that neither the database nor the control plane ever
+holds it, and revoking the vault item is enough to end its access at the next
+start. Servers configured with literals are unchanged and still run inline:
+this bounds where credentials may live, it does not stop an operator from
+pasting one in.
+
+### T-19 — An audit log that names nobody — **Medium**
+
+Every entry in `crew_audit_events` named the constant `"ceo"`, because that
+was the only actor the system had. The chain was intact, the hashes verified,
+and the log could still not answer the one question it exists for: who did
+this. A log like that is worse than none, because it looks like
+accountability while providing it only for the case where there is exactly one
+person and they never dispute anything.
+
+**Mitigation.**
+
+1. **Accounts, roles and sessions**, wired to `/api/crew`
+   (`docs/IDENTITY.md`). `actor_id` is a real `usr_…` for anything a
+   signed-in person does.
+2. **The constant survives only where it is true**: an installation with no
+   accounts, and work with no person behind it (the scheduler, a routine, the
+   messenger owner path). It is the honest answer there, not a placeholder.
+3. **Approving stays the owner's alone** (T-01), and so does everything else
+   that hands out authority — a vault secret, a tool grant, a chat pairing
+   that reaches the CEO path. An operator runs the company; an owner decides
+   what the company may do.
+4. **Disabling an account ends its sessions now**, not at the end of a
+   seven-day TTL: the session resolver re-reads the account on every request.
+
+**Residual risk.** The pre-identity regime is a real gap for as long as an
+installation stays in it: a shared password names nobody, and this change does
+not force anyone out of it. What it does is make leaving it a two-minute job
+and make the log say plainly which regime it was written under. There is also
+no second factor: a stolen session cookie or password is full access at that
+account's role until it is revoked.
 
 ## Non-negotiable defaults
 
@@ -406,3 +579,7 @@ lists every path so the size of what is being approved cannot be hidden.
 | Inbound chat                | no pairing, no access; `owner` role granted by the owner only (T-13, T-14)   |
 | Agent file writes           | approved proposal, path-contained, hash-checked, all-or-nothing (T-15)       |
 | Sandbox grant lifetime      | ≤ 4 hours, tied to an approval                                               |
+| Background execution        | only delegated work is enqueued; `inbox` tasks never are (T-16)              |
+| CLI credentials             | held by the runner's own OS user; the control plane never sees one (T-17)    |
+| MCP credentials             | references in the config; resolved by the runner at start (T-18)             |
+| Audit actor                 | the signed-in user's id; "ceo" only where nobody has a name (T-19)           |

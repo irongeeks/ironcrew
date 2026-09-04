@@ -41,6 +41,8 @@ function makeFlagAdapter(overrides: Partial<CliAdapter> = {}): CliAdapter {
     transport: "cli",
     promptDelivery: "flag",
     promptFlag: "--message",
+    // Models OpenClaw, which is the adapter that actually has a session flag.
+    sessionFlag: "--session-id",
     supportsTokenTracking: false,
     buildArgs: (_ctx: InvocationContext) => ["test-cli", "agent", "--json"],
     parseStreamChunk: () => [],

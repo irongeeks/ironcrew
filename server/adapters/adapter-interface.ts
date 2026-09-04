@@ -38,6 +38,13 @@ export interface CliAdapter extends ProviderAdapter {
   buildArgs(context: InvocationContext): string[];
   promptDelivery: "stdin" | "flag";
   promptFlag?: string;
+  /**
+   * Flag that names a session/conversation id, when the CLI has one.
+   * Adapter-specific rather than assumed: `--session-id` is OpenClaw's, and
+   * passing it to a CLI that does not know it turns every run into an
+   * unknown-flag error.
+   */
+  sessionFlag?: string;
 }
 
 export interface HttpAdapter extends ProviderAdapter {

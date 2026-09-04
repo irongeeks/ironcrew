@@ -746,3 +746,291 @@ export interface ChangeApplyConflict {
   path: string;
   reason: string;
 }
+
+// --- vessels & talents: an agent is a vessel × talent pairing --------------
+
+/** An agent that currently uses a vessel or a talent, flattened by the server
+ *  so a row can name its dependants without a second round trip. */
+export interface PairedAgentRef {
+  id: string;
+  key: string;
+  display_name: string;
+}
+
+/**
+ * The execution container: which runtime runs an agent, on which model, and
+ * how long and how often a single run may take.
+ *
+ * A vessel deliberately carries no permission mode, no tool allowlist and no
+ * sandbox setting. It governs the *shape* of a run — duration, repetition,
+ * parallelism — never what that run is allowed to do; that stays with the
+ * talent's policy. Keeping the two apart is what lets the same talent run in
+ * a different vessel without quietly gaining or losing authority.
+ */
+export interface Vessel {
+  id: string;
+  company_id: string;
+  key: string;
+  label: string;
+  runtime_provider: string;
+  model: string;
+  timeout_ms: number;
+  max_retries: number;
+  max_concurrency: number;
+  created_at: number;
+  updated_at: number;
+  agents: PairedAgentRef[];
+}
+
+/**
+ * The capability package: role, seniority, policy, persona and skills.
+ *
+ * `policy_json`, `persona_json` and `skills_json` arrive as stored text. Their
+ * inner shape belongs to whoever authored the talent pack, so the UI reads
+ * them defensively and never assumes a schema.
+ */
+export interface Talent {
+  id: string;
+  company_id: string;
+  key: string;
+  professional_role: string;
+  role_summary: string;
+  seniority: string;
+  policy_json: string;
+  persona_json: string;
+  skills_json: string;
+  created_at: number;
+  updated_at: number;
+  agents: PairedAgentRef[];
+}
+
+// --- run queue: the durable intent to run a task --------------------------
+
+/**
+ * `dead` is the only status a scheduler will never move again: the attempts
+ * are spent, so the request sits there until a person decides. Every other
+ * status either advances on its own or is already final by choice.
+ */
+export type RunRequestStatus = "queued" | "running" | "done" | "failed" | "dead" | "cancelled";
+
+export const RUN_REQUEST_STATUS_LABEL: Record<RunRequestStatus, string> = {
+  queued: "wartet",
+  running: "läuft",
+  done: "erledigt",
+  failed: "fehlgeschlagen",
+  dead: "aufgegeben",
+  cancelled: "abgebrochen",
+};
+
+export interface RunRequest {
+  id: string;
+  task_id: string;
+  requested_by: string;
+  status: RunRequestStatus;
+  attempts: number;
+  max_attempts: number;
+  not_before: number | null;
+  run_id: string | null;
+  last_error: string;
+  created_at: number;
+  updated_at: number;
+  finished_at: number | null;
+  task_title: string;
+}
+
+/** What one drain pass actually did — reported back, never assumed. */
+export interface RunQueueDrainResult {
+  claimed: number;
+  completed: number;
+  failed: number;
+  deferred: number;
+}
+
+// --- scheduler: the background worker that drains the queue ----------------
+
+export interface SchedulerJob {
+  name: string;
+  intervalMs: number;
+  running: boolean;
+  runs: number;
+  failures: number;
+  skipped: number;
+  lastStartedAt: number | null;
+  lastFinishedAt: number | null;
+  lastDurationMs: number | null;
+  lastError: string;
+}
+
+export interface SchedulerStatus {
+  enabled: boolean;
+  jobs: SchedulerJob[];
+}
+
+// --- tools: what this server can perform, and who may ---------------------
+
+/**
+ * `crew_tools` says what the server *can* do; `crew_tool_grants` says who
+ * *may*. Registering a tool grants nothing — a fresh install can search and
+ * browse, and no agent may, until someone says so.
+ */
+export type ToolRiskClass = "read" | "write" | "external";
+
+/**
+ * The class named by what it does to the world, not by its column value.
+ * "external" tells an operator nothing; "wirkt nach außen" is the sentence
+ * they have to weigh before waiving a gate.
+ */
+export const TOOL_RISK_CLASS_LABEL: Record<ToolRiskClass, string> = {
+  read: "beobachtet nur",
+  write: "ändert den Arbeitsbereich",
+  external: "wirkt nach außen",
+};
+
+export type ToolOrigin = "builtin" | "mcp" | "marketplace";
+
+/** Origins are open-ended server-side, so unknown ones fall back to the raw value. */
+export const TOOL_ORIGIN_LABEL: Record<string, string> = {
+  builtin: "eingebaut",
+  mcp: "MCP-Server",
+  marketplace: "Marktplatz",
+};
+
+/** A grant names exactly one of these — never two, never none. */
+export type ToolGrantScope = "agent" | "project" | "talent";
+
+export const TOOL_GRANT_SCOPE_LABEL: Record<ToolGrantScope, string> = {
+  agent: "Agent",
+  project: "Projekt",
+  talent: "Talent",
+};
+
+/**
+ * Which scope actually decided, when several could have.
+ * Precedence is agent > project > talent: the more specific one wins, because
+ * whoever wrote it meant it that way.
+ */
+export const TOOL_VIA_LABEL: Record<string, string> = {
+  agent: "über den Agenten",
+  project: "über das Projekt",
+  talent: "über das Talent",
+};
+
+export interface ToolGrant {
+  id: string;
+  tool_id: string;
+  agent_id: string | null;
+  talent_id: string | null;
+  project_id: string | null;
+  /**
+   * `null` means "whatever the risk class implies", not "nein". That is what
+   * keeps an external tool gated by omission rather than by remembering.
+   */
+  requires_approval: number | null;
+  granted_by: string;
+  created_at: number;
+}
+
+export interface Tool {
+  id: string;
+  company_id: string;
+  key: string;
+  label: string;
+  description: string;
+  risk_class: ToolRiskClass;
+  origin: string;
+  enabled: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ToolWithGrants extends Tool {
+  grants: ToolGrant[];
+}
+
+/** One row of `GET /agents/:id/tools`: what this post may reach for, and why. */
+export interface AgentTool {
+  tool: Tool;
+  requiresApproval: boolean;
+  via: string;
+}
+
+// --- web search -----------------------------------------------------------
+
+export interface SearchProviderStatus {
+  kind: string;
+  registered: boolean;
+  ok: boolean;
+  message: string;
+}
+
+/**
+ * A hit as the provider reported it.
+ *
+ * Title, snippet and URL are text a stranger wrote. The server strips control
+ * tokens and drops anything without an http(s) URL, but stripped is not the
+ * same as trustworthy — the UI renders all three as plain text.
+ */
+export interface SearchResultItem {
+  title: string;
+  url: string;
+  snippet: string;
+  rank: number;
+  publishedAt: number | null;
+}
+
+export interface SearchHits {
+  provider: string;
+  results: SearchResultItem[];
+  prompt: string;
+}
+
+/** 202: the gate held. Nothing was searched; an approval is waiting. */
+export interface SearchApprovalPending {
+  approvalRequired: true;
+  approvalId: string;
+}
+
+export type SearchOutcome = SearchHits | SearchApprovalPending;
+
+/**
+ * Identity — the three roles, kept coarse on purpose.
+ *
+ * Mirrors server/ironcrew/auth/user-store.ts: three roles that map to real
+ * jobs beat a permission matrix nobody maintains. A viewer reads, an operator
+ * runs the company, an owner decides what the company may do.
+ */
+export type UserRole = "owner" | "operator" | "viewer";
+export type UserStatus = "active" | "disabled";
+
+export interface CrewUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  lastLoginAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * `bootstrap` means no account exists yet, so the installation still runs on
+ * the shared password and the UI should offer to create the first owner
+ * rather than a login form.
+ */
+export interface AuthStatus {
+  bootstrap: boolean;
+  authenticated: boolean;
+  user: CrewUser | null;
+}
+
+export interface CrewSession {
+  id: string;
+  ip: string;
+  userAgent: string;
+  createdAt: number;
+  lastSeenAt: number | null;
+  expiresAt: number;
+  /** The session this request itself is using. */
+  current: boolean;
+}

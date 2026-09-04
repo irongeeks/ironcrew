@@ -15,6 +15,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { CompanyOrchestrator, type AgentRow } from "../orchestrator/company.ts";
+import { createCrewAuth, methodGuard, type CrewAuth } from "../auth/crew-auth.ts";
+import { registerCrewAuthRoutes } from "./auth-routes.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
 import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
@@ -51,6 +53,13 @@ import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts
 import { MessengerPairingError, PAIRING_ROLES } from "../domain/messenger-pairing-store.ts";
 import { MessengerChannelError } from "../notify/messenger-channel.ts";
 import { ChangeProposalError, CHANGE_PROPOSAL_STATUSES } from "../domain/change-proposal-store.ts";
+import { VesselMutationError } from "../domain/vessel-store.ts";
+import { TalentMutationError, SENIORITY_LEVELS } from "../domain/talent-store.ts";
+import { RunRequestError, RUN_REQUEST_STATUSES } from "../domain/run-request-store.ts";
+import type { JobStatus } from "../scheduler/scheduler.ts";
+import { ToolMutationError } from "../domain/tool-store.ts";
+import { RoutineMutationError } from "../domain/routine-store.ts";
+import { SearchProviderError } from "../search/search-provider.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -118,7 +127,7 @@ const updateMilestoneSchema = z.object({
 const milestoneStatusSchema = z.object({ status: z.enum(MILESTONE_STATUSES) });
 const createSecretSchema = z.object({
   name: z.string().min(1).max(200),
-  provider: z.enum(["vaultwarden", "protonpass"]),
+  provider: z.enum(["vaultwarden", "protonpass", "keychain"]),
   itemRef: z.string().min(1).max(500),
   field: z.string().max(200).optional(),
   description: z.string().max(2000).optional(),
@@ -208,6 +217,87 @@ const createMarketplaceSchema = z.object({
 // The kind decides how the URL is parsed, so it stays fixed for the life of
 // a source — changing it would silently reinterpret the same URL.
 const updateMarketplaceSchema = createMarketplaceSchema.partial().omit({ kind: true });
+
+const createRoutineSchema = z.object({
+  name: z.string().min(1).max(200),
+  instruction: z.string().min(1).max(20000),
+  intervalMinutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(60 * 24 * 31),
+  agentId: z.string().min(1).max(200).nullish(),
+  projectId: z.string().min(1).max(200).nullish(),
+  enabled: z.boolean().optional(),
+});
+const updateRoutineSchema = createRoutineSchema.omit({ enabled: true }).partial();
+
+const grantToolSchema = z
+  .object({
+    agentId: z.string().min(1).max(200).optional(),
+    talentId: z.string().min(1).max(200).optional(),
+    projectId: z.string().min(1).max(200).optional(),
+    requiresApproval: z.boolean().nullable().optional(),
+    // Waiving the gate on a tool that reaches outside is a sentence someone
+    // wrote, not a field someone forgot — so it needs its own flag here too.
+    allowUnapprovedExternal: z.boolean().optional(),
+  })
+  .refine((v) => [v.agentId, v.talentId, v.projectId].filter(Boolean).length === 1, {
+    message: "Genau eines von agentId, talentId oder projectId angeben.",
+  });
+const toolEnabledSchema = z.object({ enabled: z.boolean() });
+const agentToolsQuerySchema = z.object({ projectId: z.string().min(1).max(200).optional() });
+const searchSchema = z.object({
+  agentId: z.string().min(1).max(200),
+  query: z.string().min(1).max(2000),
+  limit: z.number().int().min(1).max(50).optional(),
+  language: z.string().max(20).optional(),
+  safeSearch: z.enum(["off", "moderate", "strict"]).optional(),
+  kind: z.string().max(50).optional(),
+  projectId: z.string().min(1).max(200).optional(),
+  taskId: z.string().min(1).max(200).optional(),
+});
+
+const createVesselSchema = z.object({
+  key: z.string().min(1).max(120),
+  label: z.string().max(200).optional(),
+  runtimeProvider: z.string().min(1).max(120),
+  model: z.string().max(200).optional(),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60_000)
+    .optional(),
+  maxRetries: z.number().int().min(0).max(20).optional(),
+  maxConcurrency: z.number().int().min(1).max(100).optional(),
+});
+// `key` is omitted rather than made optional: renaming a vessel's key would
+// silently orphan anything that referred to it by key.
+const updateVesselSchema = createVesselSchema.omit({ key: true }).partial();
+
+const createTalentSchema = z.object({
+  key: z.string().min(1).max(120),
+  professionalRole: z.string().min(1).max(200),
+  roleSummary: z.string().max(2000).optional(),
+  seniority: z.enum(SENIORITY_LEVELS).optional(),
+  policy: z.record(z.string(), z.unknown()).optional(),
+  persona: z.record(z.string(), z.unknown()).optional(),
+  skills: z.array(z.string().max(200)).max(100).optional(),
+});
+const updateTalentSchema = createTalentSchema.omit({ key: true }).partial();
+
+const agentPairingSchema = z
+  .object({ vesselId: z.string().min(1).max(200).optional(), talentId: z.string().min(1).max(200).optional() })
+  .refine((v) => v.vesselId !== undefined || v.talentId !== undefined, {
+    message: "Mindestens vesselId oder talentId angeben.",
+  });
+
+const listRunQueueSchema = z.object({
+  status: z.enum(RUN_REQUEST_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+const drainRunQueueSchema = z.object({ limit: z.coerce.number().int().min(1).max(50).optional() });
 
 const acceptPairingSchema = z.object({ role: z.enum(PAIRING_ROLES) });
 const changeProposalDecisionSchema = z.object({
@@ -375,6 +465,30 @@ function sendDomainError(res: Response, err: unknown): boolean {
     res.status(409).json({ error: "change_proposal_refused", message: err.message });
     return true;
   }
+  // A vessel or talent that agents still hold refuses to be deleted, and the
+  // message names them — 409, because the request was fine and the *state* is
+  // what said no.
+  if (err instanceof VesselMutationError || err instanceof TalentMutationError) {
+    res.status(409).json({ error: "invalid_pairing_mutation", message: err.message });
+    return true;
+  }
+  if (err instanceof RunRequestError) {
+    res.status(409).json({ error: "invalid_run_request_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof RoutineMutationError) {
+    res.status(400).json({ error: "invalid_routine_mutation", message: err.message });
+    return true;
+  }
+  if (err instanceof ToolMutationError) {
+    res.status(409).json({ error: "invalid_tool_mutation", message: err.message });
+    return true;
+  }
+  // The request was fine; the search provider on the other end was not.
+  if (err instanceof SearchProviderError) {
+    res.status(502).json({ error: "search_unreachable", message: err.message });
+    return true;
+  }
   if (err instanceof z.ZodError) {
     res.status(400).json({ error: "invalid_request", issues: err.issues });
     return true;
@@ -398,6 +512,20 @@ function wrap(handler: (req: Request, res: Response) => Promise<void> | void) {
   };
 }
 
+/**
+ * What the API needs from the background scheduler.
+ *
+ * Narrowed to two methods rather than taking the Scheduler itself: the routes
+ * are mounted before the scheduler exists (it needs the company id this
+ * function returns), so this is resolved lazily through a callback. Keeping
+ * the surface tiny also keeps the API from growing a dependency on the loop's
+ * internals.
+ */
+export interface SchedulerHandle {
+  status(): JobStatus[];
+  runNow(name: string): Promise<JobStatus>;
+}
+
 export interface IronCrewApiOptions {
   db: DatabaseSync;
   broadcast?: Broadcast;
@@ -405,11 +533,16 @@ export interface IronCrewApiOptions {
   companySlug?: string;
   companyName?: string;
   orchestrator?: CompanyOrchestrator;
+  /** Resolved per request; absent means IRONCREW_SCHEDULER=off. */
+  scheduler?: () => SchedulerHandle | null;
+  /** Injectable so a test can drive the guards without a second database. */
+  auth?: CrewAuth;
 }
 
 export interface IronCrewApi {
   orchestrator: CompanyOrchestrator;
   companyId: string;
+  auth: CrewAuth;
 }
 
 export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): IronCrewApi {
@@ -425,6 +558,42 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   });
 
   const base = "/api/crew";
+
+  // --- identity -----------------------------------------------------------
+  //
+  // Order matters and is the whole design (server/ironcrew/auth/crew-auth.ts):
+  //
+  //   1. `identify` runs for everything under /api/crew and never rejects, so
+  //      even the login endpoint knows whether someone is already signed in.
+  //   2. the auth routes register next, carrying their own guards — logging in
+  //      must not require being logged in.
+  //   3. the blanket guards come after, so every route below is covered
+  //      without 135 individual registrations to keep in sync. The endpoint
+  //      somebody forgets to add to a list is the one that ends up open.
+  //
+  // While `crew_users` is empty nothing changes for an existing installation:
+  // the guards let every request through, because there is no person to name
+  // and the shared password (server/security/auth.ts) is still the only
+  // credential. Creating the first account switches the surface over in the
+  // same instant.
+  const auth = opts.auth ?? createCrewAuth(db);
+  app.use(base, auth.identify);
+  registerCrewAuthRoutes(app, { base, auth });
+  app.use(base, auth.requireUser);
+  app.use(base, methodGuard(auth));
+
+  /** Who to record for this request — a real user id once anyone is signed in. */
+  const actorOf = (req: Request) => auth.actorOf(req);
+
+  /**
+   * Endpoints that need more than "may change things".
+   *
+   * Approving is the owner's alone (docs/THREAT_MODEL.md T-01), and so is
+   * anything that hands out authority: a vault secret, a tool grant, a chat
+   * pairing that reaches the CEO path. An operator runs the company; an owner
+   * decides what the company is allowed to do.
+   */
+  const ownerOnly = auth.requireRole("owner");
 
   // --- company / org ------------------------------------------------------
 
@@ -486,7 +655,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
           .json({ error: "unknown_runtime", message: `No runtime registered for "${runtimeProvider}".`, registered });
         return;
       }
-      const agent = orchestrator.setAgentRuntimeProvider(companyId, param(req, "id"), runtimeProvider);
+      const agent = orchestrator.setAgentRuntimeProvider(companyId, param(req, "id"), runtimeProvider, actorOf(req));
       if (!agent) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -535,7 +704,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/chat`,
     wrap((req, res) => {
       const { body } = ceoMessageSchema.parse(req.body);
-      const result = orchestrator.handleCeoMessage(companyId, body);
+      const result = orchestrator.handleCeoMessage(companyId, body, actorOf(req));
       broadcast("crew_chat_message", { conversationId: result.conversationId, reply: result.reply });
       if (result.task) broadcast("crew_task_changed", { taskId: result.task.id, status: result.task.status });
       res.status(201).json({
@@ -598,7 +767,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/tasks/:id/accept`,
     wrap((req, res) => {
       const { note } = reviewSchema.parse(req.body ?? {});
-      const task = orchestrator.acceptReview(companyId, param(req, "id"), note ?? "");
+      const task = orchestrator.acceptReview(companyId, param(req, "id"), note ?? "", actorOf(req));
       if (!task) {
         res.status(409).json({ error: "cannot_accept", message: "Task is not in a reviewable state." });
         return;
@@ -612,7 +781,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/tasks/:id/revise`,
     wrap((req, res) => {
       const { reason } = revisionSchema.parse(req.body ?? {});
-      const task = orchestrator.requestRevision(companyId, param(req, "id"), reason);
+      const task = orchestrator.requestRevision(companyId, param(req, "id"), reason, actorOf(req));
       if (!task) {
         res.status(409).json({ error: "cannot_revise", message: "Task is not in a reviewable state." });
         return;
@@ -642,8 +811,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       const task = orchestrator.tasks.transition(existing.id, status, {
         reason: reason ?? "moved on the board",
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
         correlationId: existing.correlation_id,
       });
       if (!task) {
@@ -669,7 +837,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "depends_on_not_found" });
         return;
       }
-      orchestrator.tasks.addDependency(companyId, task.id, dependsOnId, { actorType: "owner", actorId: "ceo" });
+      orchestrator.tasks.addDependency(companyId, task.id, dependsOnId, actorOf(req));
       broadcast("crew_task_changed", { taskId: task.id, status: task.status });
       res.status(201).json({ blockers: orchestrator.tasks.blockers(task.id) });
     }),
@@ -684,8 +852,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       orchestrator.tasks.removeDependency(companyId, task.id, param(req, "dependsOnId"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_task_changed", { taskId: task.id, status: task.status });
       res.json({ blockers: orchestrator.tasks.blockers(task.id) });
@@ -733,7 +900,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/goals`,
     wrap((req, res) => {
       const input = createGoalSchema.parse(req.body ?? {});
-      const goal = orchestrator.goals.create({ companyId, ...input });
+      const goal = orchestrator.goals.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_goal_changed", { goalId: goal.id });
       res.status(201).json({ goal });
     }),
@@ -748,7 +915,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const goal = orchestrator.goals.update(existing.id, patch);
+      const goal = orchestrator.goals.update(existing.id, patch, actorOf(req));
       broadcast("crew_goal_changed", { goalId: existing.id });
       res.json({ goal });
     }),
@@ -763,7 +930,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const goal = orchestrator.goals.setStatus(existing.id, status, { actorType: "owner", actorId: "ceo" });
+      const goal = orchestrator.goals.setStatus(existing.id, status, actorOf(req));
       broadcast("crew_goal_changed", { goalId: existing.id, status });
       res.json({ goal });
     }),
@@ -785,7 +952,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
           return;
         }
       }
-      const goal = orchestrator.goals.reparent(existing.id, parentId, { actorType: "owner", actorId: "ceo" });
+      const goal = orchestrator.goals.reparent(existing.id, parentId, actorOf(req));
       broadcast("crew_goal_changed", { goalId: existing.id });
       res.json({ goal });
     }),
@@ -827,7 +994,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/projects`,
     wrap((req, res) => {
       const input = createProjectSchema.parse(req.body ?? {});
-      const project = orchestrator.projects.create({ companyId, ...input });
+      const project = orchestrator.projects.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_project_changed", { projectId: project.id });
       res.status(201).json({ project });
     }),
@@ -842,7 +1009,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const project = orchestrator.projects.update(existing.id, patch);
+      const project = orchestrator.projects.update(existing.id, patch, actorOf(req));
       broadcast("crew_project_changed", { projectId: existing.id });
       res.json({ project });
     }),
@@ -857,7 +1024,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const project = orchestrator.projects.setStatus(existing.id, status, { actorType: "owner", actorId: "ceo" });
+      const project = orchestrator.projects.setStatus(existing.id, status, actorOf(req));
       broadcast("crew_project_changed", { projectId: existing.id, status });
       res.json({ project });
     }),
@@ -872,7 +1039,12 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const milestone = orchestrator.projects.addMilestone({ companyId, projectId: project.id, ...input });
+      const milestone = orchestrator.projects.addMilestone({
+        companyId,
+        projectId: project.id,
+        ...input,
+        ...actorOf(req),
+      });
       broadcast("crew_project_changed", { projectId: project.id });
       res.status(201).json({ milestone });
     }),
@@ -903,8 +1075,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const milestone = orchestrator.projects.setMilestoneStatus(existing.id, status, {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_project_changed", { projectId: existing.project_id, status });
       res.json({ milestone });
@@ -937,9 +1108,10 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/approvals/:id/decide`,
+    ownerOnly,
     wrap((req, res) => {
       const { decision, reason } = decisionSchema.parse(req.body ?? {});
-      const approval = orchestrator.decideApproval(companyId, param(req, "id"), decision, reason ?? "");
+      const approval = orchestrator.decideApproval(companyId, param(req, "id"), decision, reason ?? "", actorOf(req));
       if (!approval) {
         res.status(409).json({ error: "already_decided", message: "This approval is no longer pending." });
         return;
@@ -995,7 +1167,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   app.get(
     `${base}/secret-providers`,
     wrap(async (_req, res) => {
-      const kinds: Array<"vaultwarden" | "protonpass"> = ["vaultwarden", "protonpass"];
+      const kinds: Array<"vaultwarden" | "protonpass" | "keychain"> = ["vaultwarden", "protonpass", "keychain"];
       const providers = await Promise.all(
         kinds.map(async (kind) => ({
           kind,
@@ -1016,9 +1188,10 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/secrets`,
+    ownerOnly,
     wrap((req, res) => {
       const input = createSecretSchema.parse(req.body ?? {});
-      const secret = orchestrator.secrets.create({ companyId, ...input, actorType: "owner", actorId: "ceo" });
+      const secret = orchestrator.secrets.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_secret_changed", { secretId: secret.id });
       res.status(201).json({ secret });
     }),
@@ -1026,6 +1199,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.patch(
     `${base}/secrets/:id`,
+    ownerOnly,
     wrap((req, res) => {
       const patch = updateSecretSchema.parse(req.body ?? {});
       const existing = orchestrator.secrets.get(param(req, "id"));
@@ -1033,7 +1207,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const secret = orchestrator.secrets.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      const secret = orchestrator.secrets.update(existing.id, patch, actorOf(req));
       broadcast("crew_secret_changed", { secretId: existing.id });
       res.json({ secret });
     }),
@@ -1041,13 +1215,14 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.delete(
     `${base}/secrets/:id`,
+    ownerOnly,
     wrap((req, res) => {
       const existing = orchestrator.secrets.get(param(req, "id"));
       if (!existing || existing.company_id !== companyId) {
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.secrets.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.secrets.delete(existing.id, actorOf(req));
       broadcast("crew_secret_changed", { secretId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -1055,6 +1230,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/secrets/:id/test`,
+    ownerOnly,
     wrap(async (req, res) => {
       const existing = orchestrator.secrets.get(param(req, "id"));
       if (!existing || existing.company_id !== companyId) {
@@ -1062,7 +1238,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       try {
-        const value = await orchestrator.resolveSecret(companyId, existing.id, { actorType: "owner", actorId: "ceo" });
+        const value = await orchestrator.resolveSecret(companyId, existing.id, actorOf(req));
         res.json({ ok: true, length: value.length });
       } catch (err) {
         if (err instanceof SecretResolutionError) {
@@ -1109,8 +1285,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         buffer,
         taskId: input.taskId ?? null,
         projectId: input.projectId ?? null,
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_attachment_changed", { attachmentId: attachment.id });
       res.status(201).json({ attachment });
@@ -1140,8 +1315,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/attachments/:id`,
     wrap((req, res) => {
       const deleted = orchestrator.deleteAttachment(companyId, param(req, "id"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       if (!deleted) {
         res.status(404).json({ error: "not_found" });
@@ -1183,7 +1357,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/remote-workers`,
     wrap((req, res) => {
       const input = createRemoteWorkerSchema.parse(req.body ?? {});
-      const worker = orchestrator.remoteWorkers.create({ companyId, ...input, actorType: "owner", actorId: "ceo" });
+      const worker = orchestrator.remoteWorkers.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_remote_worker_changed", { remoteWorkerId: worker.id });
       res.status(201).json({ remoteWorker: worker });
     }),
@@ -1197,7 +1371,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.remoteWorkers.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.remoteWorkers.delete(existing.id, actorOf(req));
       broadcast("crew_remote_worker_changed", { remoteWorkerId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -1244,8 +1418,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const meeting = orchestrator.meetings.create({
         companyId,
         ...input,
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.status(201).json({ meeting });
@@ -1277,7 +1450,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const started = orchestrator.meetings.start(meeting.id, { actorType: "owner", actorId: "ceo" });
+      const started = orchestrator.meetings.start(meeting.id, actorOf(req));
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.json({ meeting: started });
     }),
@@ -1308,8 +1481,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       const { minutes } = meetingEndSchema.parse(req.body ?? {});
       const ended = orchestrator.meetings.end(meeting.id, minutes ?? meeting.minutes, {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.json({ meeting: ended });
@@ -1324,7 +1496,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const cancelled = orchestrator.meetings.cancel(meeting.id, { actorType: "owner", actorId: "ceo" });
+      const cancelled = orchestrator.meetings.cancel(meeting.id, actorOf(req));
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.json({ meeting: cancelled });
     }),
@@ -1342,8 +1514,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const item = orchestrator.meetings.addActionItem({
         meetingId: meeting.id,
         ...input,
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.status(201).json({ actionItem: item });
@@ -1358,7 +1529,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const task = orchestrator.convertActionItemToTask(companyId, item.id, { actorType: "owner", actorId: "ceo" });
+      const task = orchestrator.convertActionItemToTask(companyId, item.id, actorOf(req));
       if (!task) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -1424,8 +1595,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     wrap(async (req, res) => {
       const input = createMemorySchema.parse(req.body ?? {});
       const ref = await orchestrator.recordMemory(companyId, input.provider, input, {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_memory_changed", { memoryId: ref.id });
       res.status(201).json({ memory: ref });
@@ -1448,8 +1618,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/memory/:id`,
     wrap(async (req, res) => {
       const deleted = await orchestrator.deleteMemory(companyId, param(req, "id"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       if (!deleted) {
         res.status(404).json({ error: "not_found" });
@@ -1496,8 +1665,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const mailbox = orchestrator.mailboxes.create({
         companyId,
         ...input,
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_mailbox_changed", { mailboxId: mailbox.id });
       res.status(201).json({ mailbox });
@@ -1529,7 +1697,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const { credentials, ...patch } = updateMailboxSchema.parse(req.body ?? {});
-      const mailbox = orchestrator.mailboxes.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      const mailbox = orchestrator.mailboxes.update(existing.id, patch, actorOf(req));
       // Credentials are replaced wholesale rather than merged: a partial
       // update of a secret is how stale halves of a credential survive.
       if (credentials) orchestrator.mailboxes.writeCredentials(existing.id, credentials);
@@ -1546,7 +1714,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.mailboxes.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.mailboxes.delete(existing.id, actorOf(req));
       broadcast("crew_mailbox_changed", { mailboxId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -1576,8 +1744,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       const { agentId, access } = grantMailboxAgentSchema.parse(req.body ?? {});
       const agents = orchestrator.mailboxes.grantAgent(existing.id, agentId, access ?? "read", {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_mailbox_changed", { mailboxId: existing.id });
       res.status(201).json({ agents });
@@ -1593,8 +1760,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const revoked = orchestrator.mailboxes.revokeAgent(existing.id, param(req, "agentId"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       if (!revoked) {
         res.status(404).json({ error: "not_found" });
@@ -1764,9 +1930,10 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/messenger-pairings/:id/accept`,
+    ownerOnly,
     wrap((req, res) => {
       const { role } = acceptPairingSchema.parse(req.body ?? {});
-      const pairing = orchestrator.acceptMessengerPairing(companyId, param(req, "id"), role);
+      const pairing = orchestrator.acceptMessengerPairing(companyId, param(req, "id"), role, actorOf(req));
       if (!pairing) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -1783,13 +1950,14 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   for (const action of ["block", "revoke", "unblock"] as const) {
     app.post(
       `${base}/messenger-pairings/:id/${action}`,
+      ownerOnly,
       wrap((req, res) => {
         const existing = orchestrator.messengerPairings.get(param(req, "id"));
         if (!existing || existing.company_id !== companyId) {
           res.status(404).json({ error: "not_found" });
           return;
         }
-        const pairing = orchestrator.messengerPairings[action](existing.id, { actorType: "owner", actorId: "ceo" });
+        const pairing = orchestrator.messengerPairings[action](existing.id, actorOf(req));
         broadcast("crew_messenger_changed", { pairingId: existing.id, action });
         res.json({ pairing });
       }),
@@ -1833,9 +2001,13 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/change-proposals/:id/decision`,
+    ownerOnly,
     wrap((req, res) => {
       const { decision, reason } = changeProposalDecisionSchema.parse(req.body ?? {});
-      const proposal = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, { reason });
+      const proposal = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, {
+        reason,
+        ...actorOf(req),
+      });
       if (!proposal) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -1848,8 +2020,9 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/change-proposals/:id/apply`,
+    ownerOnly,
     wrap((req, res) => {
-      const result = orchestrator.applyChangeProposal(companyId, param(req, "id"));
+      const result = orchestrator.applyChangeProposal(companyId, param(req, "id"), actorOf(req));
       broadcast("crew_change_proposal_changed", { proposalId: result.proposal.id, status: result.proposal.status });
       res.json(result);
     }),
@@ -1886,6 +2059,424 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const event = orchestrator.externalEvents.replay(existing.id);
       broadcast("crew_external_event_changed", { eventId: existing.id, replayed: true });
       res.json({ event });
+    }),
+  );
+
+  // --- vessels and talents: the two halves of an agent ---------------------
+  //
+  // A vessel is the execution container (which runtime, which model, how long,
+  // how often, how many at once); a talent is the capability package (role,
+  // policy, persona, skills). Splitting them is what makes a role portable
+  // across runtimes.
+  //
+  // Note what the vessel surface does NOT accept: no permission mode, no
+  // sandbox, no tool allowlist. That is not an oversight to fill in later —
+  // elevation comes only from a SandboxGrant minted from an approved request
+  // and capped at four hours (docs/THREAT_MODEL.md T-01), and a vessel field
+  // saying "elevated" would be a second route to it that no approval ever
+  // authorised. The store's patch allowlist enforces the same thing one layer
+  // down, so a body carrying such a key changes nothing either way.
+
+  app.get(
+    `${base}/vessels`,
+    wrap((_req, res) => {
+      const vessels = orchestrator.vessels.list(companyId).map((vessel) => ({
+        ...vessel,
+        agents: orchestrator.vessels.agentsFor(vessel.id),
+      }));
+      res.json({ vessels });
+    }),
+  );
+
+  app.post(
+    `${base}/vessels`,
+    wrap((req, res) => {
+      const input = createVesselSchema.parse(req.body ?? {});
+      const vessel = orchestrator.vessels.create({ companyId, ...input }, actorOf(req));
+      broadcast("crew_vessel_changed", { vesselId: vessel.id });
+      res.status(201).json({ vessel });
+    }),
+  );
+
+  app.patch(
+    `${base}/vessels/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.vessels.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const patch = updateVesselSchema.parse(req.body ?? {});
+      const vessel = orchestrator.vessels.update(existing.id, patch, actorOf(req));
+      broadcast("crew_vessel_changed", { vesselId: existing.id });
+      res.json({ vessel });
+    }),
+  );
+
+  app.delete(
+    `${base}/vessels/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.vessels.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      // A vessel still bound to agents refuses to go, and the store's message
+      // names them — which is the whole value of the refusal, so it reaches
+      // the client as a 409 rather than being flattened into "delete failed".
+      orchestrator.vessels.delete(existing.id, actorOf(req));
+      broadcast("crew_vessel_changed", { vesselId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.get(
+    `${base}/talents`,
+    wrap((_req, res) => {
+      const talents = orchestrator.talents.list(companyId).map((talent) => ({
+        ...talent,
+        agents: orchestrator.talents.agentsFor(talent.id),
+      }));
+      res.json({ talents });
+    }),
+  );
+
+  // Served rather than hardcoded in the UI: one list, one place to change it.
+  app.get(
+    `${base}/talents/seniorities`,
+    wrap((_req, res) => {
+      res.json({ seniorities: SENIORITY_LEVELS });
+    }),
+  );
+
+  app.post(
+    `${base}/talents`,
+    wrap((req, res) => {
+      const input = createTalentSchema.parse(req.body ?? {});
+      const talent = orchestrator.talents.create({ companyId, ...input }, actorOf(req));
+      broadcast("crew_talent_changed", { talentId: talent.id });
+      res.status(201).json({ talent });
+    }),
+  );
+
+  app.patch(
+    `${base}/talents/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.talents.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const patch = updateTalentSchema.parse(req.body ?? {});
+      const talent = orchestrator.talents.update(existing.id, patch, actorOf(req));
+      broadcast("crew_talent_changed", { talentId: existing.id });
+      res.json({ talent });
+    }),
+  );
+
+  app.delete(
+    `${base}/talents/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.talents.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.talents.delete(existing.id, actorOf(req));
+      broadcast("crew_talent_changed", { talentId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  /** Rebinds an agent. Omitting a field leaves that half of the pairing alone. */
+  app.post(
+    `${base}/agents/:id/pairing`,
+    wrap((req, res) => {
+      const pairing = agentPairingSchema.parse(req.body ?? {});
+      const agent = orchestrator.setAgentPairing(companyId, param(req, "id"), pairing, actorOf(req));
+      if (!agent) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_agent_changed", { agentId: agent.id });
+      res.json({ agent: presentAgent(agent) });
+    }),
+  );
+
+  // --- the run queue and the loop that drains it ---------------------------
+  //
+  // Read-mostly. The queue is filled by whatever delegated the work and
+  // emptied by the scheduler; the endpoints here exist so an operator can see
+  // what is waiting, push it along by hand, and withdraw something that should
+  // not run after all.
+
+  app.get(
+    `${base}/run-queue`,
+    wrap((req, res) => {
+      const { status, limit } = listRunQueueSchema.parse(req.query ?? {});
+      const requests = orchestrator.runRequests.list(companyId, { status, limit }).map((request) => ({
+        ...request,
+        // The title is what an operator recognises; the task id is not.
+        task_title: orchestrator.tasks.get(request.task_id)?.title ?? null,
+      }));
+      res.json({ requests });
+    }),
+  );
+
+  app.post(
+    `${base}/run-queue/:id/cancel`,
+    wrap((req, res) => {
+      const existing = orchestrator.runRequests.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const request = orchestrator.runRequests.cancel(existing.id, { reason: "vom Chef zurückgezogen" });
+      broadcast("crew_run_queue_changed", { requestId: existing.id, cancelled: true });
+      res.json({ request });
+    }),
+  );
+
+  /** The "do it now" button. Same drain the scheduler runs, same limits. */
+  app.post(
+    `${base}/run-queue/drain`,
+    wrap(async (req, res) => {
+      const { limit } = drainRunQueueSchema.parse(req.body ?? {});
+      const result = await orchestrator.drainRunQueue(companyId, {
+        limit,
+        onEvent: (event: RunEvent) => broadcast("crew_run_event", event),
+      });
+      if (result.claimed > 0) {
+        broadcast("crew_run_queue_changed", result);
+        broadcast("crew_task_changed", {});
+      }
+      res.json(result);
+    }),
+  );
+
+  app.get(
+    `${base}/scheduler`,
+    wrap((_req, res) => {
+      const scheduler = opts.scheduler?.();
+      // Absent is a real answer, not an error: IRONCREW_SCHEDULER=off is a
+      // supported configuration, and the UI has to be able to say so rather
+      // than showing an empty list that looks like a broken page.
+      res.json({ enabled: Boolean(scheduler), jobs: scheduler?.status() ?? [] });
+    }),
+  );
+
+  app.post(
+    `${base}/scheduler/:name/run`,
+    wrap(async (req, res) => {
+      const scheduler = opts.scheduler?.();
+      if (!scheduler) {
+        res.status(409).json({ error: "scheduler_disabled", message: "Der Hintergrund-Scheduler ist abgeschaltet." });
+        return;
+      }
+      const name = param(req, "name");
+      if (!scheduler.status().some((job) => job.name === name)) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({ job: await scheduler.runNow(name) });
+    }),
+  );
+
+  // --- tools: what an agent may reach for ---------------------------------
+  //
+  // Registering a tool and granting it are separate endpoints because they are
+  // separate acts: the registry says what this server can perform, the grants
+  // say who may. Everything installed is visible here; nothing installed is
+  // usable until someone says so.
+
+  app.get(
+    `${base}/tools`,
+    wrap((_req, res) => {
+      const tools = orchestrator.tools.list(companyId).map((tool) => ({
+        ...tool,
+        grants: orchestrator.tools.grantsFor(tool.id),
+      }));
+      res.json({ tools });
+    }),
+  );
+
+  app.get(
+    `${base}/agents/:id/tools`,
+    wrap((req, res) => {
+      const { projectId } = agentToolsQuerySchema.parse(req.query ?? {});
+      // Answered per project because a project grant is contextual: the same
+      // agent has the customer's tools inside the customer's project and not
+      // outside it (migration 0019).
+      res.json({ tools: orchestrator.tools.listForAgent(companyId, param(req, "id"), { projectId }) });
+    }),
+  );
+
+  app.post(
+    `${base}/tools/:id/grants`,
+    ownerOnly,
+    wrap((req, res) => {
+      const existing = orchestrator.tools.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const input = grantToolSchema.parse(req.body ?? {});
+      const grant = orchestrator.tools.grant({ toolId: existing.id, ...input }, actorOf(req));
+      broadcast("crew_tool_changed", { toolId: existing.id });
+      res.status(201).json({ grant });
+    }),
+  );
+
+  app.delete(
+    `${base}/tool-grants/:id`,
+    wrap((req, res) => {
+      const grant = orchestrator.tools.grantById(param(req, "id"));
+      const tool = grant ? orchestrator.tools.get(grant.tool_id) : null;
+      if (!grant || !tool || tool.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.tools.revoke(grant.id, actorOf(req));
+      broadcast("crew_tool_changed", { toolId: tool.id });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.post(
+    `${base}/tools/:id/enabled`,
+    wrap((req, res) => {
+      const existing = orchestrator.tools.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { enabled } = toolEnabledSchema.parse(req.body ?? {});
+      const tool = orchestrator.tools.setEnabled(existing.id, enabled, actorOf(req));
+      broadcast("crew_tool_changed", { toolId: existing.id, enabled });
+      res.json({ tool });
+    }),
+  );
+
+  // --- web search ---------------------------------------------------------
+  //
+  // The search endpoint takes an agent id and goes through the tool gate, so
+  // the API cannot be the way around a grant an operator did not give.
+
+  app.get(
+    `${base}/search-providers`,
+    wrap(async (_req, res) => {
+      const kinds = orchestrator.listSearchProviderKinds();
+      const providers = await Promise.all(
+        kinds.map(async (kind) => ({ kind, registered: true, ...(await orchestrator.testSearchProvider(kind)) })),
+      );
+      res.json({ providers });
+    }),
+  );
+
+  app.post(
+    `${base}/search`,
+    wrap(async (req, res) => {
+      const input = searchSchema.parse(req.body ?? {});
+      const result = await orchestrator.searchWeb(
+        companyId,
+        input.agentId,
+        { query: input.query, limit: input.limit, language: input.language, safeSearch: input.safeSearch },
+        { kind: input.kind, projectId: input.projectId, taskId: input.taskId },
+      );
+
+      if (result.outcome === "denied") {
+        res.status(403).json({ error: "tool_denied", message: "Dieser Agent darf die Websuche nicht verwenden." });
+        return;
+      }
+      if (result.outcome === "approval_required") {
+        broadcast("crew_approval_changed", { approvalId: result.approvalId });
+        res.status(202).json({ approvalRequired: true, approvalId: result.approvalId });
+        return;
+      }
+      res.json({ provider: result.provider, results: result.results, prompt: result.prompt });
+    }),
+  );
+
+  // --- routines: recurring work that leaves a trace -------------------------
+  //
+  // Firing a routine is not an action endpoint. It creates a task, so the
+  // owner sees on the board exactly what a timer asked for — the alternative,
+  // a scheduler that quietly does things, is invisible to the board, the
+  // approval gates, the budget engine and the audit log alike.
+
+  app.get(
+    `${base}/routines`,
+    wrap((_req, res) => {
+      res.json({ routines: orchestrator.routines.list(companyId) });
+    }),
+  );
+
+  app.post(
+    `${base}/routines`,
+    wrap((req, res) => {
+      const input = createRoutineSchema.parse(req.body ?? {});
+      const routine = orchestrator.routines.create({ companyId, ...input }, actorOf(req));
+      broadcast("crew_routine_changed", { routineId: routine.id });
+      res.status(201).json({ routine });
+    }),
+  );
+
+  app.patch(
+    `${base}/routines/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.routines.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const patch = updateRoutineSchema.parse(req.body ?? {});
+      const routine = orchestrator.routines.update(existing.id, patch, actorOf(req));
+      broadcast("crew_routine_changed", { routineId: existing.id });
+      res.json({ routine });
+    }),
+  );
+
+  app.post(
+    `${base}/routines/:id/enabled`,
+    wrap((req, res) => {
+      const existing = orchestrator.routines.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { enabled } = toolEnabledSchema.parse(req.body ?? {});
+      const routine = orchestrator.routines.setEnabled(existing.id, enabled, actorOf(req));
+      broadcast("crew_routine_changed", { routineId: existing.id, enabled });
+      res.json({ routine });
+    }),
+  );
+
+  app.delete(
+    `${base}/routines/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.routines.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.routines.delete(existing.id, actorOf(req));
+      broadcast("crew_routine_changed", { routineId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  /** The operator's "do it now". Produces the same visible task the timer would. */
+  app.post(
+    `${base}/routines/:id/run`,
+    wrap((req, res) => {
+      const task = orchestrator.runRoutineNow(companyId, param(req, "id"));
+      if (!task) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_task_changed", { taskId: task.id, status: task.status });
+      broadcast("crew_routine_changed", { routineId: param(req, "id") });
+      res.status(201).json({ task });
     }),
   );
 
@@ -2029,7 +2620,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/marketplaces`,
     wrap(async (req, res) => {
       const input = createMarketplaceSchema.parse(req.body ?? {});
-      const marketplace = orchestrator.marketplaces.create({ companyId, ...input });
+      const marketplace = orchestrator.marketplaces.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_marketplace_changed", { marketplaceId: marketplace.id });
       res.status(201).json({ marketplace });
     }),
@@ -2045,8 +2636,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       const patch = updateMarketplaceSchema.parse(req.body ?? {});
       const marketplace = orchestrator.marketplaces.update(existing.id, patch, {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_marketplace_changed", { marketplaceId: existing.id });
       res.json({ marketplace });
@@ -2061,7 +2651,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found", message: "Marketplace not found" });
         return;
       }
-      orchestrator.marketplaces.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.marketplaces.delete(existing.id, actorOf(req));
       broadcast("crew_marketplace_changed", { marketplaceId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -2084,7 +2674,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         param(req, "id"),
         input.entryId,
         { env: input.env, headers: input.headers, nameOverride: input.name },
-        { actorType: "owner", actorId: "ceo" },
+        actorOf(req),
       );
       broadcast("crew_marketplace_changed", { marketplaceId: param(req, "id"), installed: result.name });
       res.status(201).json({ install, result });
@@ -2100,8 +2690,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const removed = await orchestrator.uninstallFromMarketplace(companyId, entryType, param(req, "name"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       if (!removed) {
         res.status(404).json({ error: "not_found", message: "Nothing installed under that name" });
@@ -2112,5 +2701,5 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     }),
   );
 
-  return { orchestrator, companyId };
+  return { orchestrator, companyId, auth };
 }

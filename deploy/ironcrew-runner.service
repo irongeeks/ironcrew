@@ -1,0 +1,78 @@
+[Unit]
+# IronCrew runner — the process that holds the CLI logins.
+#
+# This exists so the control plane does not. The official CLI runtimes hold
+# the owner's real credentials; giving the control plane those credentials
+# means one bug there reaches them (docs/THREAT_MODEL.md T-05). So the runner
+# is a separate trust domain: its own OS user, its own home, its own systemd
+# unit. The control plane connects over a Unix socket and receives
+# capabilities, status and normalised events — never a token.
+#
+# Ships with the DEFAULT layout baked in:
+#   install prefix : /opt/ironcrew
+#   runner user    : ironcrew-runner
+#   env file       : /etc/ironcrew/runner.env
+#   socket         : /run/ironcrew/runner.sock
+Description=IronCrew runner — executes agent work, holds the CLI logins
+Documentation=file:/opt/ironcrew/docs/RUNNER_PROTOCOL.md
+After=network-online.target
+Wants=network-online.target
+
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ironcrew-runner
+Group=ironcrew
+WorkingDirectory=/opt/ironcrew
+
+# Same reasoning as the control plane's unit: `pnpm start`'s prestart hooks
+# write into the checkout, which ProtectSystem=strict forbids.
+ExecStart=/usr/bin/node --import tsx server/runner-main.ts
+Restart=on-failure
+RestartSec=5
+
+Environment=NODE_ENV=production
+# The runner's own home, outside /home so ProtectHome=true can stay on. This
+# is where `claude login` writes, and the whole point of this unit: these
+# credentials belong to this account and never leave it.
+#   sudo -u ironcrew-runner HOME=/var/lib/ironcrew-runner claude login
+Environment=HOME=/var/lib/ironcrew-runner
+EnvironmentFile=/etc/ironcrew/runner.env
+
+# The socket directory. RuntimeDirectory is owned by User:Group and removed
+# when the unit stops, so a stale socket cannot survive a reboot.
+RuntimeDirectory=ironcrew
+RuntimeDirectoryMode=0750
+
+# Logs go to journald. Do not add a log file.
+# journalctl -u ironcrew-runner -f
+
+# --- Hardening -------------------------------------------------------------
+# Deliberately close to the control plane's, with one difference: the runner
+# spawns CLI processes that do real work, so the syscall and device filters
+# that would be safe there are not obviously safe here and stay out.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+# MemoryDenyWriteExecute is NOT set: V8's JIT needs writable-executable pages
+# and the unit would not start.
+
+# Everything it may write: its own home (CLI credentials, caches) and the
+# workspaces it runs jobs in.
+ReadWritePaths=/var/lib/ironcrew-runner
+ReadWritePaths=/var/lib/ironcrew/workspaces
+
+[Install]
+WantedBy=multi-user.target

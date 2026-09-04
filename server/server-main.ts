@@ -11,6 +11,8 @@ import { ConnectorRegistry } from "./connectors/registry.ts";
 import { comfyuiConnector } from "./connectors/built-in/comfyui/connector.ts";
 import { webSearchConnector } from "./connectors/built-in/web-search/connector.ts";
 import { McpManager } from "./connectors/built-in/mcp/mcp-manager.ts";
+import { McpConnector } from "./connectors/built-in/mcp/mcp-connector.ts";
+import { configHasSecretRefs } from "./connectors/built-in/mcp/mcp-secrets.ts";
 import { loadNodeTypes } from "./node-types/node-type-loader.ts";
 
 import { DIST_DIR, IS_PRODUCTION } from "./config/runtime.ts";
@@ -34,10 +36,20 @@ import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
 import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
+import { setCrewSessionResolver } from "./security/auth.ts";
+import { Scheduler } from "./ironcrew/scheduler/scheduler.ts";
+import { SearxngProvider } from "./ironcrew/search/searxng-provider.ts";
+import { BraveProvider } from "./ironcrew/search/brave-provider.ts";
+import { buildCrewJobs, intervalsFromEnv, schedulerEnabled } from "./ironcrew/scheduler/crew-jobs.ts";
 import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
+import net from "node:net";
+import { OpenRouterRuntime } from "./ironcrew/runtime/openrouter-runtime.ts";
+import { RunnerRuntime } from "./ironcrew/runner/runner-client.ts";
+import { RunnerMcpConnector } from "./ironcrew/runner/runner-mcp-client.ts";
 import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
 import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
+import { KeychainSecretProvider } from "./ironcrew/secrets/keychain-provider.ts";
 import { ProtonPassSecretProvider } from "./ironcrew/secrets/protonpass-provider.ts";
 import { TailscaleProvider } from "./ironcrew/network/tailscale-provider.ts";
 import { ObsidianProvider } from "./ironcrew/memory/obsidian-provider.ts";
@@ -201,8 +213,41 @@ connectorRegistry.registerConnector(webSearchConnector);
   }
 }
 
+// ── The runner, if one is configured ──
+//
+// Computed here rather than at the CLI-runtime block below, because the MCP
+// manager needs it first. One place decides whether a runner exists; both
+// users read it.
+const runnerTransport = process.env.IRONCREW_RUNNER_SOCKET
+  ? {
+      socketPath: process.env.IRONCREW_RUNNER_SOCKET,
+      token: process.env.IRONCREW_RUNNER_TOKEN ?? "",
+      connect: (): Promise<net.Socket> =>
+        new Promise<net.Socket>((resolve, reject) => {
+          const socket = net.connect(process.env.IRONCREW_RUNNER_SOCKET!);
+          socket.setEncoding("utf-8");
+          socket.once("connect", () => resolve(socket));
+          socket.once("error", reject);
+        }),
+    }
+  : null;
+
 // ── MCP server connections ──
-const mcpManager = new McpManager();
+//
+// A server whose credentials are SecretRefs is started on the runner, not
+// here: resolving a vault item in this process would move the plaintext out
+// of the database and straight into the memory of the one process that is
+// meant to hold no credentials at all (mcp-secrets.ts, T-17). Everything else
+// still runs inline, so a plain filesystem MCP server needs no runner.
+//
+// Both kinds arrive at the connector registry as the same `Connector`, under
+// the same `mcp:<name>`, so tool grants keep working either way.
+const mcpManager = new McpManager({
+  createConnector: (config) => {
+    if (!runnerTransport || !configHasSecretRefs(config)) return new McpConnector(config);
+    return new RunnerMcpConnector({ config, token: runnerTransport.token, connect: runnerTransport.connect });
+  },
+});
 mcpManager.loadFromSettings(db);
 await mcpManager.connectAll();
 mcpManager.registerAll(connectorRegistry);
@@ -310,8 +355,46 @@ Object.assign(runtimeContext, registerApiRoutes(runtimeContext as RuntimeContext
 // isn't simply reports itself unhealthy rather than being hidden.
 const ironCrewOrchestrator = new CompanyOrchestrator(db);
 ironCrewOrchestrator.registerRuntime(new MockRuntime());
-for (const adapter of adapterRegistry.list()) {
-  if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
+// The first non-CLI runtime. Conditional on a key, like every other
+// integration that needs configuration to be real — and note that the vendor
+// policy is enforced *inside* it: one OpenRouter key reaches hundreds of
+// models from dozens of vendors, so a run could otherwise arrive at a blocked
+// one without anybody having chosen it.
+if (process.env.OPENROUTER_API_KEY) {
+  ironCrewOrchestrator.registerRuntime(
+    new OpenRouterRuntime({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      defaultModel: process.env.OPENROUTER_DEFAULT_MODEL,
+    }),
+  );
+}
+// CLI runtimes: in this process, or in the runner.
+//
+// With IRONCREW_RUNNER_SOCKET set, every CLI runtime is a RunnerRuntime that
+// forwards to the daemon — which is the arrangement the threat model wants,
+// because the CLI logins then live with the runner's own OS user and this
+// process never holds one (docs/RUNNER_PROTOCOL.md, T-05). Without it they
+// run inline, which is simpler and is why the shipped systemd unit has to
+// move HOME to /var/lib/ironcrew for CLI credentials to work at all.
+//
+// Either way the orchestrator sees the same AgentRuntime contract and cannot
+// tell the difference — that is what makes the security property free.
+if (runnerTransport) {
+  for (const adapter of adapterRegistry.list()) {
+    if (!isCliAdapter(adapter)) continue;
+    ironCrewOrchestrator.registerRuntime(
+      new RunnerRuntime({
+        runtimeType: adapter.providerType,
+        token: runnerTransport.token,
+        connect: runnerTransport.connect,
+      }),
+    );
+  }
+  logger.info({ socketPath: runnerTransport.socketPath }, "CLI runtimes are served by the runner daemon");
+} else {
+  for (const adapter of adapterRegistry.list()) {
+    if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
+  }
 }
 // Secret providers: same unconditional-wrapping posture as runtimes above —
 // GET /api/crew/secret-providers (the Settings UI's provider status panel)
@@ -321,6 +404,12 @@ ironCrewOrchestrator.registerSecretProvider(
   new VaultwardenSecretProvider({ serverUrl: process.env.VAULTWARDEN_SERVER_URL }),
 );
 ironCrewOrchestrator.registerSecretProvider(new ProtonPassSecretProvider());
+// The OS keychain, third alongside the two vaults. Registering it says this
+// server *can* read one; testConnection() is what says whether it actually
+// can — on a headless service there is no session bus and no unlocked
+// collection, and it reports that rather than failing later inside a run
+// (server/ironcrew/secrets/keychain-provider.ts).
+ironCrewOrchestrator.registerSecretProvider(new KeychainSecretProvider());
 // Same posture again: GET /api/crew/tailscale (the Netzwerk panel) reports
 // whether this node is actually on a tailnet rather than assuming it is.
 ironCrewOrchestrator.registerTailscaleProvider(new TailscaleProvider({ tailscalePath: process.env.TAILSCALE_BIN }));
@@ -413,11 +502,109 @@ ironCrewOrchestrator.registerMarketplaceInstaller(
   }),
 );
 
-registerIronCrewRoutes(app, {
+// Declared before the routes and assigned after: the scheduler needs the
+// company id that registering the routes produces, and the routes need to be
+// able to reach the scheduler. A callback breaks the cycle without either
+// side holding a half-built object.
+let ironCrewScheduler: Scheduler | null = null;
+
+// Tools, and what may be done with them.
+//
+// Registering is not granting: `crew_tools` says what this server can perform,
+// `crew_tool_grants` says who may. Booting with every built-in registered is
+// therefore safe, and an operator who disabled one keeps it disabled
+// (docs/TOOLS.md). MCP servers are mirrored in as tools so they sit behind the
+// same gate rather than in a second permission system.
+//
+// Search and browser providers are registered on the same conditional posture
+// as the notification channels: no configuration, no registration, and the
+// Settings UI reports honestly that nothing is there.
+if (process.env.SEARXNG_URL) {
+  ironCrewOrchestrator.registerSearchProvider(new SearxngProvider({ baseUrl: process.env.SEARXNG_URL }));
+}
+if (process.env.BRAVE_SEARCH_API_KEY) {
+  ironCrewOrchestrator.registerSearchProvider(new BraveProvider({ apiKey: process.env.BRAVE_SEARCH_API_KEY }));
+}
+
+const ironCrewApi = registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
   orchestrator: ironCrewOrchestrator,
+  scheduler: () => ironCrewScheduler,
 });
+
+// One login, not two. Someone who signed in with their own account satisfies
+// the generic HTTP security layer as well: a crew session is the stronger
+// credential — it names a person, expires and can be revoked — and asking for
+// the shared password on top would keep that password in circulation, which
+// is precisely what accounts are meant to end (docs/IDENTITY.md).
+setCrewSessionResolver((token, ip, userAgent) => ironCrewApi.auth.sessions.resolve(token, { ip, userAgent }) !== null);
+
+// The background loop — the difference between a program someone operates and
+// a service that runs. Without it the run queue only drains when a person
+// presses a button, which is exactly the situation the queue exists to end
+// (docs/RUN_QUEUE.md, docs/SERVICE.md).
+//
+// Registered here rather than inside registerIronCrewRoutes because a timer
+// is a property of *this process*, not of the routes: the test suite mounts
+// those routes hundreds of times and must not start a hundred loops.
+ironCrewOrchestrator.ensureBuiltinTools(ironCrewApi.companyId);
+try {
+  const mcpNames = (
+    runtimeContext as unknown as { mcpManager?: { getAllConfigs(): Array<{ name: string }> } }
+  ).mcpManager
+    ?.getAllConfigs()
+    .map((c) => c.name);
+  if (mcpNames) {
+    const synced = ironCrewOrchestrator.syncMcpTools(ironCrewApi.companyId, mcpNames);
+    if (synced.added > 0 || synced.disabled > 0) logger.info(synced, "MCP servers mirrored into the tool registry");
+  }
+} catch (err) {
+  // Never fatal: a tool registry that failed to mirror leaves every MCP
+  // server ungranted, which is the safe direction. Booting without a control
+  // plane because of it would not be.
+  logger.warn({ err }, "could not mirror MCP servers into the tool registry");
+}
+
+ironCrewScheduler = schedulerEnabled()
+  ? new Scheduler({
+      jobs: buildCrewJobs({
+        orchestrator: ironCrewOrchestrator,
+        companyId: ironCrewApi.companyId,
+        intervals: intervalsFromEnv(),
+        broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
+      }),
+    })
+  : null;
+
+if (ironCrewScheduler) {
+  ironCrewScheduler.start();
+} else {
+  logger.info("IronCrew scheduler disabled via IRONCREW_SCHEDULER");
+}
+
+// systemd sends SIGTERM and waits. This handler exists only to stop the loop
+// from *starting* new work; it deliberately does not exit the process.
+//
+// registerGracefulShutdownHandlers (modules/lifecycle.ts) already owns
+// shutdown: it stops child processes, rolls back worktrees, closes the
+// websockets, closes the database and then exits. A second handler calling
+// process.exit() would race that sequence and could cut it off mid-way —
+// closing the database out from under a rollback is a good deal worse than
+// a scheduler tick that never happened.
+//
+// `stop()` clears the timers synchronously before it awaits, so by the time
+// the graceful sequence runs, nothing new can start. A run already in flight
+// may still be cut off, and that is what the run request's lease is for: it
+// expires and the request is reclaimed on the next drain.
+let schedulerStopping = false;
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    if (schedulerStopping) return;
+    schedulerStopping = true;
+    void ironCrewScheduler?.stop();
+  });
+}
 
 app.use(globalErrorHandler);
 

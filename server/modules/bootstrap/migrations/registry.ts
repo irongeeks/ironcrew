@@ -18,9 +18,15 @@ import { migration as m0012CrewAgentRunLock } from "./0012-crew-agent-run-lock.t
 import { migration as m0013CrewExternalEvents } from "./0013-crew-external-events.ts";
 import { migration as m0014CrewChangeProposals } from "./0014-crew-change-proposals.ts";
 import { migration as m0015CrewMessengerPairings } from "./0015-crew-messenger-pairings.ts";
+import { migration as m0016CrewRunRequests } from "./0016-crew-run-requests.ts";
+import { migration as m0017CrewUsers } from "./0017-crew-users.ts";
+import { migration as m0018CrewTools } from "./0018-crew-tools.ts";
+import { migration as m0019CrewToolProjectScope } from "./0019-crew-tool-project-scope.ts";
+import { migration as m0020CrewSecretsKeychain } from "./0020-crew-secrets-keychain.ts";
+import { migration as m0021CrewRoutines } from "./0021-crew-routines.ts";
 
 // Import future migrations here:
-// import { migration as m0016 } from "./0016-example.ts";
+// import { migration as m0022 } from "./0022-example.ts";
 
 /**
  * Entry in the registry — pairs each Migration with the on-disk filename that
@@ -49,6 +55,12 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0013-crew-external-events.ts", migration: m0013CrewExternalEvents },
   { filename: "0014-crew-change-proposals.ts", migration: m0014CrewChangeProposals },
   { filename: "0015-crew-messenger-pairings.ts", migration: m0015CrewMessengerPairings },
+  { filename: "0016-crew-run-requests.ts", migration: m0016CrewRunRequests },
+  { filename: "0017-crew-users.ts", migration: m0017CrewUsers },
+  { filename: "0018-crew-tools.ts", migration: m0018CrewTools },
+  { filename: "0019-crew-tool-project-scope.ts", migration: m0019CrewToolProjectScope },
+  { filename: "0020-crew-secrets-keychain.ts", migration: m0020CrewSecretsKeychain },
+  { filename: "0021-crew-routines.ts", migration: m0021CrewRoutines },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

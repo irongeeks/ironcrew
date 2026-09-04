@@ -1,0 +1,113 @@
+[Unit]
+# IronCrew control plane as a system service.
+#
+# This file ships with the DEFAULT layout baked in:
+#   install prefix : /opt/ironcrew
+#   service user   : ironcrew
+#   env file       : /etc/ironcrew/ironcrew.env
+# scripts/install-service.sh rewrites those three values when you install with
+# a different prefix or user, so the file is usable both by hand and via the
+# installer.
+Description=IronCrew — local-first AI company OS
+Documentation=file:/opt/ironcrew/docs/LINUX_INSTALL.md
+Documentation=file:/opt/ironcrew/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+
+# A crash-looping service must not hammer the machine: give up after 5 starts
+# within 5 minutes and stay failed until someone looks at `systemctl status`.
+# (These two live in [Unit], not [Service], on systemd >= 229.)
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ironcrew
+Group=ironcrew
+WorkingDirectory=/opt/ironcrew
+
+# The server is TypeScript executed through tsx; there is no compiled server
+# bundle. `pnpm start` is deliberately NOT used here: its prestart hooks write
+# to the checkout (.env, AGENTS.md), which ProtectSystem=strict forbids. Run
+# those migrations manually during an update — see deploy/README.md.
+# The node path is substituted by the installer if node is not /usr/bin/node.
+ExecStart=/usr/bin/node --import tsx server/index.ts
+
+# Configuration. The env file holds bot tokens, so it is chmod 600 and owned by
+# the service user. Values set here win over a stray .env inside the checkout:
+# server/config/runtime.ts only fills in variables that are not already set.
+Environment=NODE_ENV=production
+Environment=HOME=/var/lib/ironcrew
+EnvironmentFile=/etc/ironcrew/ironcrew.env
+
+Restart=on-failure
+RestartSec=5
+# SIGTERM, then a chance to close SQLite cleanly before SIGKILL.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Logging goes to journald — that is the systemd default and it is what we
+# want. Do NOT add StandardOutput=append:/var/log/... here: the service would
+# then need write access to a log file, and log rotation would be your problem.
+# Read the log with: journalctl -u ironcrew -f
+SyslogIdentifier=ironcrew
+
+# ---------------------------------------------------------------------------
+# Hardening
+#
+# Note that everything below applies to child processes too — git, pnpm and any
+# CLI runtime the orchestrator spawns inherit this sandbox.
+# ---------------------------------------------------------------------------
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictNamespaces=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+# MemoryDenyWriteExecute is intentionally NOT set: V8's JIT allocates
+# write-then-execute pages, so the service would fail to start with it enabled.
+
+# ProtectHome — the trade-off, decided explicitly.
+#
+# ProtectHome=true hides /home, /root and /run/user from the service. That is
+# the right default: the machine's human users keep their ~/.claude and
+# ~/.codex logins to themselves, and a compromised agent cannot read them
+# (docs/THREAT_MODEL.md T-05).
+#
+# But CLI runtimes (Claude Code, Codex) keep their credentials under $HOME, so
+# a service with no usable $HOME cannot authenticate at all. The escape is not
+# to weaken ProtectHome, it is to put the service account's home OUTSIDE /home:
+# HOME=/var/lib/ironcrew above, listed in ReadWritePaths below. `claude login`
+# run as the service user (see deploy/README.md) then writes
+# /var/lib/ironcrew/.claude and the service can read it, while /home stays
+# invisible.
+#
+# The alternative — ProtectHome=read-only, so the service can read a human
+# user's logins — is NOT used: it grants the agent read access to every
+# credential, SSH key and browser profile in every home directory on the box.
+# If you ever do need it, change the line below and understand what you traded.
+ProtectHome=true
+
+# The application tree in /opt is read-only under ProtectSystem=strict.
+# Only state is writable: the data directory (SQLite + logs) and the service
+# account's home, where CLI runtimes keep their credentials.
+ReadWritePaths=/opt/ironcrew/data
+ReadWritePaths=/var/lib/ironcrew
+
+# Optional, stricter still. Left off by default because IronCrew spawns
+# arbitrary CLI runtimes and toolchains, which these can break in ways that are
+# tedious to diagnose. Enable them if your runtime set is fixed and known:
+# RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# SystemCallFilter=@system-service
+# PrivateDevices=true
+
+[Install]
+WantedBy=multi-user.target

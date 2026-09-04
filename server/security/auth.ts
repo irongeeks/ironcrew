@@ -38,6 +38,23 @@ const TASK_INTERRUPT_TOKEN_SCOPE = "task_interrupt_v1";
 
 let _db: DatabaseSync | undefined;
 
+/**
+ * How a crew session is checked, when identity is in use.
+ *
+ * A callback rather than an import: this module is the generic HTTP security
+ * layer and must not depend on the IronCrew domain, but a person who signed
+ * in with their own account should not then be asked for the shared password
+ * as well. Registered from the composition root
+ * (server/server-main.ts); absent in tests and in any deployment that never
+ * creates a user, where behaviour is exactly as before.
+ */
+type CrewSessionResolver = (token: string, ip?: string, userAgent?: string) => boolean;
+let _crewSessionResolver: CrewSessionResolver | null = null;
+
+export function setCrewSessionResolver(resolver: CrewSessionResolver | null): void {
+  _crewSessionResolver = resolver;
+}
+
 export function isLoopbackHostname(hostname: string): boolean {
   const h = hostname.toLowerCase();
   return h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "[::1]";
@@ -140,7 +157,26 @@ export function isAuthenticated(req: Request): boolean {
     const ua = req.get("user-agent") ?? undefined;
     if (validateRemoteSession(_db, token, ip, ua)) return true;
   }
+  // A user signed in with their own account. One login, not two: the crew
+  // session is a stronger credential than the shared password — it names a
+  // person, expires, and can be revoked — so it satisfies this layer as well.
+  if (_crewSessionResolver) {
+    const crewToken = crewSessionToken(req);
+    if (crewToken) {
+      const ip = req.ip ?? req.socket?.remoteAddress ?? undefined;
+      const ua = req.get("user-agent") ?? undefined;
+      if (_crewSessionResolver(crewToken, ip, ua)) return true;
+    }
+  }
   return false;
+}
+
+/** The IronCrew session cookie, or the header a script would send instead. */
+function crewSessionToken(req: Request): string | null {
+  const cookie = parseCookies(req.header("cookie"))["ironcrew_session"];
+  if (cookie) return cookie;
+  const header = req.header("x-ironcrew-session");
+  return header && header.trim() !== "" ? header.trim() : null;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -174,6 +210,13 @@ export function isPublicApiPath(pathname: string): boolean {
   if (pathname === "/api/auth/status") return true;
   if (pathname === "/api/auth/login") return true;
   if (pathname === "/api/auth/logout") return true;
+  // The IronCrew login is a front door of its own: requiring the shared
+  // password to reach it would mean two passwords for one sign-in, and on an
+  // installation that has moved to accounts the shared one is exactly what
+  // should stop being handed around.
+  if (pathname === "/api/crew/auth/login") return true;
+  if (pathname === "/api/crew/auth/logout") return true;
+  if (pathname === "/api/crew/auth/status") return true;
   if (pathname === "/api/inbox") return true;
   if (pathname === "/api/openapi.json") return true;
   if (pathname === "/api/docs" || pathname.startsWith("/api/docs/")) return true;

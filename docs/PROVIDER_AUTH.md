@@ -24,11 +24,18 @@ carry an email address or a token.
 Every CLI invocation resolves a permission mode before argv is built.
 See `docs/THREAT_MODEL.md` T-01 for why this exists.
 
-| Mode                     | Meaning                          | Claude Code                      | Codex                       | Gemini                      |
-| ------------------------ | -------------------------------- | -------------------------------- | --------------------------- | --------------------------- |
-| `restricted` _(default)_ | no destructive tool use          | _(no bypass flag)_               | `--sandbox read-only`       | `--approval-mode default`   |
-| `workspace_write`        | writes confined to the workspace | _(no bypass flag)_               | `--sandbox workspace-write` | `--approval-mode auto_edit` |
-| `elevated`               | permission bypass                | `--dangerously-skip-permissions` | `--yolo`                    | `--approval-mode yolo`      |
+| Mode                     | Meaning                          | Claude Code                      | Codex                       | Gemini                      | Antigravity (`agy`)              |
+| ------------------------ | -------------------------------- | -------------------------------- | --------------------------- | --------------------------- | -------------------------------- |
+| `restricted` _(default)_ | no destructive tool use          | _(no bypass flag)_               | `--sandbox read-only`       | `--approval-mode default`   | `--sandbox`                      |
+| `workspace_write`        | writes confined to the workspace | _(no bypass flag)_               | `--sandbox workspace-write` | `--approval-mode auto_edit` | `--sandbox`                      |
+| `elevated`               | permission bypass                | `--dangerously-skip-permissions` | `--yolo`                    | `--approval-mode yolo`      | `--dangerously-skip-permissions` |
+
+`agy` publishes exactly two levels on the command line — its default
+(`request-review`, which in headless mode means nothing gets approved) and
+`--dangerously-skip-permissions` (`always-proceed`). Finer rules live in its
+own `settings.json`, not in argv, so its two non-elevated modes deliberately
+produce the same flags. Inventing a middle flag that does not exist would read
+as policy and enforce nothing.
 
 `elevated` is reachable **only** through a `SandboxGrant` that:
 
@@ -93,8 +100,31 @@ instructions when not authenticated. No token, ever.
 - Capability detection via `agy --help` and `agy models`.
 - Default concurrency: **2**.
 
-_Status: the upstream Antigravity adapter is HTTP-based. The `agy` CLI adapter
-is not implemented yet — see `IMPLEMENTATION_STATUS.md`._
+Headless invocation, from the published documentation
+(<https://antigravity.google/docs/cli/headless/>):
+
+```
+agy [--model <slug>] [--effort low|medium|high] --sandbox --output-format stream-json -p "<prompt>"
+```
+
+**The prompt goes in a flag, and that is not a preference.** `-p` takes the
+prompt as an argument and ignores stdin; stdin only carries prompts under
+`--input-format stream-json`, which needs a different framing on both ends. So
+the adapter declares `promptDelivery: "flag"` and the runtime appends it —
+after the permission guard has run, so that a prompt merely mentioning
+`--yolo` is treated as the data it is.
+
+Output is NDJSON: one `init` event, a `step_update` per step, a `result` per
+turn. Finished steps become tool-use events, a `SUCCESS` result becomes the
+agent's message, any other status becomes an error. The `result.usage` object
+is passed through as metadata but not interpreted: its field names are not
+documented, and reporting invented token counts is worse than reporting none.
+
+_Status: implemented as a CLI adapter (`server/adapters/antigravity.ts`). It
+replaces an inherited HTTP stub that pointed at a non-existent endpoint,
+returned no events and always reported failure. Not yet verified against a
+real `agy` binary — no Antigravity login exists in this environment, so live
+verification stays a manual test alongside the other CLIs._
 
 ## Password managers (SecretRef resolution)
 
@@ -121,9 +151,22 @@ reachable, rather than hiding one that isn't configured.
   `"<shareId>:<itemId>"` — IDs, not names, so a later rename in the vault
   can't silently break it.
 
-Neither provider has been exercised against a real `bw`/`pass-cli` install in
-this project's CI — verify against your actual deployment before relying on
-it in production.
+- **OS-Schlüsselbund** — via `secret-tool` (libsecret) auf Linux oder
+  `security` auf macOS. Ein `itemRef` ist `"dienst"` oder `"dienst:konto"`,
+  weil das genau das ist, was beide Werkzeuge entgegennehmen.
+
+  **Auf einem Server ist das die falsche Wahl**, und zwar nicht als Detail,
+  sondern als Grundsatz: libsecret braucht einen laufenden Daemon und eine
+  entsperrte Collection. Ein Dienst, der beim Boot startet, hat weder das eine
+  noch das andere — ein Keychain-Ref scheitert dann mitten in einem Lauf statt
+  bei der Einrichtung. `testConnection()` prüft deshalb den Session-Bus und
+  sagt es vorher. Auf einer Workstation ist der Schlüsselbund dagegen die
+  richtige Voreinstellung: Das Geheimnis ist bereits durch die Anmeldung
+  geschützt, die der Betreiber ohnehin vornimmt.
+
+None of the three providers has been exercised against a real
+`bw`/`pass-cli`/`secret-tool` install in this project's CI — verify against
+your actual deployment before relying on one in production.
 
 ## OpenRouter
 

@@ -16,6 +16,7 @@ grafted alongside the existing runtime.
 ┌─────────────────────────────▼────────────────────────────────┐
 │ Control Plane (server/ironcrew)                           │
 │ Orchestrator · Task State Machine · Atomic Claiming          │
+│ Run Queue · Scheduler · Vessels × Talents                    │
 │ Approval Engine · Budget Engine · Vendor Policy              │
 │ Permission Policy · Redaction · Hash-chained Audit           │
 └─────────────────────────────┬────────────────────────────────┘
@@ -49,37 +50,42 @@ It never imports `runtimeContext`. The consequences are concrete:
 
 ## Module map
 
-| Path                                            | Responsibility                                                                                                                                                                                             |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `server/ironcrew/domain/task-state.ts`          | Task and agent state machines. Pure, no I/O.                                                                                                                                                               |
-| `server/ironcrew/domain/task-store.ts`          | Task persistence, atomic claiming, dependencies, orphan recovery.                                                                                                                                          |
-| `server/ironcrew/domain/audit.ts`               | Append-only hash-chained audit log.                                                                                                                                                                        |
-| `server/ironcrew/domain/crew-config.ts`         | Persona / role / policy separation and its enforcement.                                                                                                                                                    |
-| `server/ironcrew/domain/sql.ts`                 | Typed row helpers for `node:sqlite`.                                                                                                                                                                       |
-| `server/ironcrew/policy/vendor-policy.ts`       | Which models and providers may be used.                                                                                                                                                                    |
-| `server/ironcrew/policy/runtime-permissions.ts` | CLI permission modes and sandbox grants.                                                                                                                                                                   |
-| `server/ironcrew/policy/approval-policy.ts`     | Approval requests and the blocking gate.                                                                                                                                                                   |
-| `server/ironcrew/policy/budget-engine.ts`       | Budget scopes, thresholds, pre- and post-spend enforcement.                                                                                                                                                |
-| `server/ironcrew/runtime/run-events.ts`         | Normalised run protocol and `AgentRuntime`.                                                                                                                                                                |
-| `server/ironcrew/runtime/run-store.ts`          | Run and event persistence, redaction, sequencing.                                                                                                                                                          |
-| `server/ironcrew/runtime/mock-runtime.ts`       | MockRuntime.                                                                                                                                                                                               |
-| `server/ironcrew/orchestrator/triage.ts`        | EA message classification and routing.                                                                                                                                                                     |
-| `server/ironcrew/orchestrator/company.ts`       | The CEO → EA → task → run → review flow, plus every provider registry (secrets, memory, notification channels, mail providers, marketplace sources) and their fan-out/dispatch logic.                      |
-| `server/ironcrew/api/routes.ts`                 | REST surface under `/api/crew`.                                                                                                                                                                            |
-| `server/ironcrew/security/redaction.ts`         | Secret redaction for logs, events and streams.                                                                                                                                                             |
-| `server/ironcrew/domain/meeting-store.ts`       | Meetings — moderator, bounded rounds, budget (`docs/UPSTREAM_ANALYSIS.md`'s anti-god-object design).                                                                                                       |
-| `server/ironcrew/memory/`                       | `MemoryProvider` contract + `ObsidianProvider` (a real vault of markdown files) — the first memory backend.                                                                                                |
-| `server/ironcrew/secrets/`                      | `SecretProvider` contract + Vaultwarden/Proton Pass — a `SecretRef` never carries a value.                                                                                                                 |
-| `server/ironcrew/mail/`                         | `MailProvider` contract + IMAP, JMAP, Microsoft 365 and Gmail. Mailboxes are granted to agents n:n; incoming mail becomes an `inbox` task, never a CEO message (docs/MAIL.md).                             |
-| `server/ironcrew/marketplace/`                  | `MarketplaceSource` contract + catalog, MCP registry, Claude-Code plugin and Git adapters, plus the installer that is the trust boundary between third-party JSON and this machine (docs/MARKETPLACES.md). |
-| `server/ironcrew/notify/`                       | `NotificationChannel` contract + Discord/Telegram/email — best-effort fan-out for the decision inbox — and, in the other direction, the `MessengerChannel` contract + Telegram/Discord inbound (docs/MESSENGER.md). |
-| `server/ironcrew/domain/messenger-pairing-store.ts` | Who may talk to the EA over chat, and with what authority. Deny by default; role `owner` reaches the CEO path (docs/MESSENGER.md).                                                                      |
-| `server/ironcrew/domain/change-proposal-store.ts`   | Proposed file changes: approval-gated, hash-checked, path-contained, all-or-nothing (docs/CHANGE_PROPOSALS.md).                                                                                          |
-| `server/ironcrew/domain/external-event-store.ts`    | One record per arrival from outside, deduplicated by `(source, external id)`, with seen/handled separated and replay.                                                                                    |
-| `server/ironcrew/domain/agent-lock-store.ts`        | The per-agent run lease — one agent, one run in flight. Compare-and-set in the `WHERE` clause, guarded release, fail-closed.                                                                             |
-| `server/ironcrew/network/tailscale-provider.ts` | Tailscale/Headscale status (`tailscale status --json`).                                                                                                                                                    |
-| `server/ironcrew/domain/remote-worker-store.ts` | SSH-over-tailnet worker registry for Tier0/customer networks.                                                                                                                                              |
-| `src/ironcrew/`                                 | Command Center UI.                                                                                                                                                                                         |
+| Path                                                | Responsibility                                                                                                                                                                                                      |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/ironcrew/domain/task-state.ts`              | Task and agent state machines. Pure, no I/O.                                                                                                                                                                        |
+| `server/ironcrew/domain/task-store.ts`              | Task persistence, atomic claiming, dependencies, orphan recovery.                                                                                                                                                   |
+| `server/ironcrew/domain/audit.ts`                   | Append-only hash-chained audit log.                                                                                                                                                                                 |
+| `server/ironcrew/domain/crew-config.ts`             | Persona / role / policy separation and its enforcement.                                                                                                                                                             |
+| `server/ironcrew/domain/sql.ts`                     | Typed row helpers for `node:sqlite`.                                                                                                                                                                                |
+| `server/ironcrew/policy/vendor-policy.ts`           | Which models and providers may be used.                                                                                                                                                                             |
+| `server/ironcrew/policy/runtime-permissions.ts`     | CLI permission modes and sandbox grants.                                                                                                                                                                            |
+| `server/ironcrew/policy/approval-policy.ts`         | Approval requests and the blocking gate.                                                                                                                                                                            |
+| `server/ironcrew/policy/budget-engine.ts`           | Budget scopes, thresholds, pre- and post-spend enforcement.                                                                                                                                                         |
+| `server/ironcrew/runtime/run-events.ts`             | Normalised run protocol and `AgentRuntime`.                                                                                                                                                                         |
+| `server/ironcrew/runtime/run-store.ts`              | Run and event persistence, redaction, sequencing.                                                                                                                                                                   |
+| `server/ironcrew/runtime/mock-runtime.ts`           | MockRuntime.                                                                                                                                                                                                        |
+| `server/ironcrew/orchestrator/triage.ts`            | EA message classification and routing.                                                                                                                                                                              |
+| `server/ironcrew/orchestrator/company.ts`           | The CEO → EA → task → run → review flow, plus every provider registry (secrets, memory, notification channels, mail providers, marketplace sources) and their fan-out/dispatch logic.                               |
+| `server/ironcrew/api/routes.ts`                     | REST surface under `/api/crew`.                                                                                                                                                                                     |
+| `server/ironcrew/security/redaction.ts`             | Secret redaction for logs, events and streams.                                                                                                                                                                      |
+| `server/ironcrew/domain/meeting-store.ts`           | Meetings — moderator, bounded rounds, budget (`docs/UPSTREAM_ANALYSIS.md`'s anti-god-object design).                                                                                                                |
+| `server/ironcrew/memory/`                           | `MemoryProvider` contract + `ObsidianProvider` (a real vault of markdown files) — the first memory backend.                                                                                                         |
+| `server/ironcrew/secrets/`                          | `SecretProvider` contract + Vaultwarden/Proton Pass — a `SecretRef` never carries a value.                                                                                                                          |
+| `server/ironcrew/mail/`                             | `MailProvider` contract + IMAP, JMAP, Microsoft 365 and Gmail. Mailboxes are granted to agents n:n; incoming mail becomes an `inbox` task, never a CEO message (docs/MAIL.md).                                      |
+| `server/ironcrew/marketplace/`                      | `MarketplaceSource` contract + catalog, MCP registry, Claude-Code plugin and Git adapters, plus the installer that is the trust boundary between third-party JSON and this machine (docs/MARKETPLACES.md).          |
+| `server/ironcrew/notify/`                           | `NotificationChannel` contract + Discord/Telegram/email — best-effort fan-out for the decision inbox — and, in the other direction, the `MessengerChannel` contract + Telegram/Discord inbound (docs/MESSENGER.md). |
+| `server/ironcrew/domain/messenger-pairing-store.ts` | Who may talk to the EA over chat, and with what authority. Deny by default; role `owner` reaches the CEO path (docs/MESSENGER.md).                                                                                  |
+| `server/ironcrew/domain/change-proposal-store.ts`   | Proposed file changes: approval-gated, hash-checked, path-contained, all-or-nothing (docs/CHANGE_PROPOSALS.md).                                                                                                     |
+| `server/ironcrew/domain/external-event-store.ts`    | One record per arrival from outside, deduplicated by `(source, external id)`, with seen/handled separated and replay.                                                                                               |
+| `server/ironcrew/domain/agent-lock-store.ts`        | The per-agent run lease — one agent, one run in flight. Compare-and-set in the `WHERE` clause, guarded release, fail-closed.                                                                                        |
+| `server/ironcrew/domain/vessel-store.ts`            | The execution container: runtime, model, timeout, retries, concurrency — and deliberately nothing about what a run may _do_ (docs/VESSELS_TALENTS.md).                                                              |
+| `server/ironcrew/domain/talent-store.ts`            | The capability package: professional role, policy, persona, skills. Defined once, worn by many agents (docs/VESSELS_TALENTS.md).                                                                                    |
+| `server/ironcrew/domain/agent-resolution.ts`        | The one join that turns an agent row plus its pairing back into a whole agent. `LEFT JOIN` + `COALESCE`, so a broken pairing is visible rather than invisible.                                                      |
+| `server/ironcrew/domain/run-request-store.ts`       | The durable queue between intent to run and the run itself: one live request per task, leases, attempts, backoff, dead letter (docs/RUN_QUEUE.md).                                                                  |
+| `server/ironcrew/scheduler/`                        | The background loop and the four jobs it runs — queue drain, mailboxes, messengers, lease sweep. No persistence of its own; it only decides when to look (docs/SERVICE.md).                                         |
+| `server/ironcrew/network/tailscale-provider.ts`     | Tailscale/Headscale status (`tailscale status --json`).                                                                                                                                                             |
+| `server/ironcrew/domain/remote-worker-store.ts`     | SSH-over-tailnet worker registry for Tier0/customer networks.                                                                                                                                                       |
+| `src/ironcrew/`                                     | Command Center UI.                                                                                                                                                                                                  |
 
 ## Key invariants
 
@@ -119,6 +125,17 @@ These are enforced in code and covered by tests, not merely documented.
 10. **No silent failure.** A rate limit is its own event, not a generic error.
     A budget stop is HTTP 402. An approval block is 403. The UI shows them.
 
+11. **A vessel never grants capability.** It decides runtime, model, timeout,
+    retries and concurrency — never permission mode, sandbox or tools. Those
+    come only from a `SandboxGrant` tied to an approval and capped at four
+    hours, and `VesselStore.update()` walks a fixed field allowlist so an
+    unexpected key cannot reach the `SET` clause.
+
+12. **One live run request per task.** A partial unique index, not a
+    convention, so two ingresses asking for the same task produce one queued
+    run and not two. A request that could not _start_ gives its attempt back;
+    only a run that actually happened spends one.
+
 ## Data flow: a CEO request end to end
 
 ```text
@@ -133,13 +150,19 @@ POST /api/crew/chat
   │                  audit: approval.requested
   │
   └─ otherwise ──►  pickAgent() → task → assigned → ready
+                    RunRequestStore.enqueue()   the intent, as a row
+                    audit: run_request.enqueued
 
-POST /api/crew/tasks/execute-next
+Scheduler job "run-queue", every 15s      (or POST /tasks/execute-next by hand)
   │
+  ├─ RunRequestStore.claimNext()            CAS + lease; attempts + 1
   ├─ BudgetEngine.assertRunPermitted()      pre-dispatch gate → 402 if blocked
-  ├─ RunStore.create()
+  ├─ resolvePermissionMode()                fails closed to `restricted`
+  ├─ RunStore.create()                      vessel's model
   ├─ TaskStore.claim()                      CAS; audit: task.claimed
-  ├─ task → running
+  ├─ AgentLockStore.acquire()               one agent, one run
+  ├─ vesselAdmits()                         concurrency cap, by rank
+  ├─ task → running                         vessel's timeout as an AbortSignal
   │
   ├─ for await (event of runtime.startRun())
   │     ├─ redact → sequence → persist → broadcast
@@ -147,11 +170,20 @@ POST /api/crew/tasks/execute-next
   │     └─ approval.required  → ApprovalEngine.request()
   │
   ├─ TaskStore.releaseLock()                only if still the owner
-  └─ task → review | waiting | failed
+  ├─ AgentLockStore.release()               guarded on this run's id
+  ├─ task → review | waiting | failed
+  └─ RunRequestStore.complete() | fail()    fail → backoff, or `dead`
+                                            never started → defer(), attempt back
 
 POST /api/crew/tasks/:id/accept   → task → done,  EA reports to the CEO
-POST /api/crew/tasks/:id/revise   → task → ready, re-run
+POST /api/crew/tasks/:id/revise   → task → ready, re-run + a new run request
 ```
+
+The queue is what makes the middle block happen without a person. See
+[`RUN_QUEUE.md`](./RUN_QUEUE.md) for the attempt bookkeeping,
+[`VESSELS_TALENTS.md`](./VESSELS_TALENTS.md) for where the model, timeout and
+concurrency cap come from, and [`SERVICE.md`](./SERVICE.md) for the loop that
+drives it.
 
 ## Storage
 
@@ -172,7 +204,9 @@ short: `CliAdapterRuntime` now drives real CLI runtimes end-to-end (Phase
 decision inbox, the org chart, bounded meetings, an Obsidian `MemoryProvider`,
 and Discord/Telegram/email notification fan-out — is built and tested, as are
 mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants) and marketplaces for
-skills and MCP servers. What remains: a tool registry with risk-classed
+skills and MCP servers. IronCrew also runs unattended now: agents are
+Vessel × Talent pairings, the intent to run is a durable queue, and a
+scheduler drains it as a systemd service (`docs/SERVICE.md`). What remains: a tool registry with risk-classed
 approvals, a native runner daemon (so the control plane and the runtime stop
 sharing a process), and the business packs (MSP, Web Agency, Finance, Legal,
 Knowledge) — all Phase 3+.

@@ -78,22 +78,70 @@ Requested mid-stream and built with the same standard (domain → orchestrator
 
 ## Phase 3 — Runtimes and tools
 
-- All four runtimes stable: Claude Code, Codex, Antigravity (`agy`), OpenRouter
-- Native runner daemon, so CLI logins stay with their OS user and the control
-  plane never holds a token (`docs/RUNNER_PROTOCOL.md`)
-- MCP registry: **partly shipped** — servers can be discovered and installed
-  from the official registry and three other marketplace kinds
-  (`docs/MARKETPLACES.md`). Still open here: per-agent and per-project scopes,
-  secret injection only in the runner, streamable-HTTP transport, and full
-  tool-call auditing
-- Tool registry with risk classes and approval policies
-- Web search behind a `SearchProvider` (SearXNG, Brave)
-- Playwright browser tool in an isolated profile, with submit/purchase/publish
-  gated behind approval
-- `SecretProvider`: OS keychain first, then Proton Pass
-- Rate-limit-aware scheduler with a persistent queue
-- Routines and heartbeats — every routine produces a visible task or run, never
-  an invisible background action
+**Mostly shipped.** What landed, and what is honestly still open:
+
+- **Tool registry with risk classes and approval policies** — shipped.
+  `crew_tools` says what the server can perform, `crew_tool_grants` says who
+  may; registering grants nothing. An `external` tool is gated by omission
+  (`docs/TOOLS.md`).
+- **Web search behind a `SearchProvider`** — shipped. SearXNG and Brave, with
+  results stripped at the boundary and fenced before they may reach a prompt.
+- **Playwright browser tool in an isolated profile** — shipped, with a
+  deny-by-default host allowlist and `submit` classified as external even
+  when the form looks like a search box.
+- **`SecretProvider`: OS keychain** — shipped, with the caveat enforced in
+  code that a headless service should use Vaultwarden or Proton Pass instead
+  (`docs/PROVIDER_AUTH.md`).
+- **Rate-limit-aware scheduler with a persistent queue** — shipped
+  (`docs/RUN_QUEUE.md`, `docs/SERVICE.md`).
+- **Routines** — shipped. Every routine produces a visible task; none acts
+  directly (`docs/TOOLS.md`).
+- **MCP per-agent and per-project scopes** — shipped, by putting MCP servers
+  in the same registry behind the same grants rather than in a second
+  permission system.
+- **OpenRouter runtime** — shipped. The first runtime that is not a CLI; the
+  vendor policy is enforced inside it, because one key reaches hundreds of
+  models from dozens of vendors.
+- **Native runner daemon** — shipped (`docs/RUNNER_PROTOCOL.md`). CLI logins
+  live with the runner's own OS user; the control plane never holds one.
+- **MCP secret injection in the runner** — shipped. An MCP server's `env` and
+  `headers` may name a vault item instead of carrying a value, and the runner
+  resolves it at start (T-18). Doing it in the control plane would only have
+  moved the plaintext from the database into the process that must not hold
+  it.
+- **MCP streamable-HTTP transport** — shipped alongside it, since it is the
+  same config path and the same header credentials. `sse` still works;
+  servers deployed against the older transport should not need a redeploy to
+  upgrade IronCrew.
+
+- **Antigravity (`agy`)** — shipped as a CLI adapter, replacing an inherited
+  HTTP stub that pointed at an endpoint that does not exist, dropped every
+  event and always reported failure. Its flags come from the published
+  headless-mode documentation, not from guessing. Like every other CLI here,
+  it is unverified against a real binary in this environment — that stays a
+  manual test (`docs/PROVIDER_AUTH.md`).
+
+Phase 3 is done. Two things it turned up, both open and both honest about
+their size:
+
+- **Identity — shipped** (`docs/IDENTITY.md`, T-19). Accounts, three roles,
+  expiring revocable sessions, a login gate in the Command Center, and a real
+  `usr_…` in the audit log instead of the constant `"ceo"`. An installation
+  with no accounts still works exactly as before: the switch happens when the
+  first account is created, checked per request rather than at startup, so
+  updating changes nothing until an operator decides it should.
+
+  What is deliberately not in it: no SSO, no per-object permissions, and no
+  second factor. Each would be a dependency or a permission system in its own
+  right, and none of the three is what a self-hosted single-operator install
+  is missing today.
+
+- **A flag-delivery adapter used to run with no prompt.** Found while building
+  the `agy` adapter: `CliAdapterRuntime` only ever wrote the prompt to stdin,
+  and the CLIs that take it as a flag (`agy`, OpenClaw) ignore stdin. Fixed,
+  with a test that spawns a real process and reads back the argv it was given.
+  The lesson is the general one: a contract with two branches needs a test on
+  the branch nobody uses yet.
 
 ## Phase 4 — Business packs
 

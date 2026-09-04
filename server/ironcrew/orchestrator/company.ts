@@ -61,6 +61,17 @@ import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-re
 import { AgentLockStore } from "../domain/agent-lock-store.ts";
 import { ExternalEventStore } from "../domain/external-event-store.ts";
 import { MessengerPairingStore, type PairingRole } from "../domain/messenger-pairing-store.ts";
+import { VesselStore, VesselMutationError } from "../domain/vessel-store.ts";
+import { TalentStore, TalentMutationError } from "../domain/talent-store.ts";
+import { RunRequestStore, type RunRequestRow } from "../domain/run-request-store.ts";
+import { ToolStore, type ToolDecision } from "../domain/tool-store.ts";
+import { RoutineStore, type RoutineRow } from "../domain/routine-store.ts";
+import {
+  wrapSearchResults,
+  type SearchProvider,
+  type SearchQuery,
+  type SearchResult,
+} from "../search/search-provider.ts";
 import type { InboundMessage, MessengerChannel } from "../notify/messenger-channel.ts";
 import {
   ChangeProposalStore,
@@ -101,6 +112,32 @@ import type { AgentRuntime, RunEvent } from "../runtime/run-events.ts";
  */
 export type AgentRow = ResolvedAgentRow;
 
+/**
+ * How long a run may go unheard from before it stops counting against its
+ * vessel's concurrency.
+ *
+ * A run row says `running` until something writes otherwise, and a process
+ * killed mid-run writes nothing. Without this, one crash would permanently
+ * consume a slot on a vessel whose whole purpose is to cap how many runs
+ * happen at once — the concurrency limit would ratchet down to zero over
+ * time and no error would ever say why.
+ *
+ * Every persisted event calls `runs.heartbeat()`, so a live run refreshes
+ * this constantly; five minutes of total silence is well past anything a
+ * working run produces.
+ */
+const VESSEL_RUN_STALE_MS = 5 * 60_000;
+
+/** Fallback when a vessel is missing, so a run is never unbounded in time. */
+const DEFAULT_RUN_TIMEOUT_MS = 600_000;
+
+/** What a caller may say about how a run is executed. */
+export interface ExecuteOptions {
+  runtimeType?: string;
+  workspacePath?: string;
+  onEvent?: (e: RunEvent) => void;
+}
+
 export interface CeoMessageResult {
   conversationId: string;
   messageId: string;
@@ -112,6 +149,25 @@ export interface CeoMessageResult {
   /** The EA's reply to the CEO. */
   reply: string;
   correlationId: string;
+}
+
+/**
+ * Which human asked for this.
+ *
+ * Every API-reachable action takes one, and it is optional with a documented
+ * default rather than required: an installation with no user accounts has no
+ * name to give (docs/IDENTITY.md), and the scheduler, the messenger owner
+ * path and the routines call these same methods with no person behind them.
+ * "ceo" is the honest answer in exactly those cases — a single fictional
+ * actor, but one that only appears where there genuinely is nobody.
+ */
+export interface HumanActor {
+  /** A `usr_…` id from a resolved session, when one exists. */
+  actorId?: string;
+}
+
+export function humanActor(opts: HumanActor): string {
+  return opts.actorId ?? "ceo";
 }
 
 export class CompanyOrchestrator {
@@ -135,7 +191,13 @@ export class CompanyOrchestrator {
   readonly externalEvents: ExternalEventStore;
   readonly changeProposals: ChangeProposalStore;
   readonly messengerPairings: MessengerPairingStore;
+  readonly vessels: VesselStore;
+  readonly talents: TalentStore;
+  readonly runRequests: RunRequestStore;
+  readonly tools: ToolStore;
+  readonly routines: RoutineStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
+  private readonly searchProviders = new Map<string, SearchProvider>();
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -177,6 +239,11 @@ export class CompanyOrchestrator {
     this.externalEvents = new ExternalEventStore(db);
     this.changeProposals = new ChangeProposalStore(db);
     this.messengerPairings = new MessengerPairingStore(db);
+    this.vessels = new VesselStore(db);
+    this.talents = new TalentStore(db);
+    this.runRequests = new RunRequestStore(db);
+    this.tools = new ToolStore(db);
+    this.routines = new RoutineStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -417,7 +484,7 @@ export class CompanyOrchestrator {
       description: `Aus Meeting "${meeting.topic}": ${item.description}`,
       projectId: meeting.project_id,
       assignedAgentId: item.assigned_agent_id,
-      createdBy: opts.actorId ?? "ceo",
+      createdBy: humanActor(opts),
     });
 
     this.meetings.linkActionItemToTask(actionItemId, task.id, opts);
@@ -1074,10 +1141,10 @@ export class CompanyOrchestrator {
   }
 
   /** The owner accepts a pending pairing, choosing what authority it carries. */
-  acceptMessengerPairing(companyId: string, pairingId: string, role: PairingRole) {
+  acceptMessengerPairing(companyId: string, pairingId: string, role: PairingRole, opts: HumanActor = {}) {
     const pairing = this.messengerPairings.get(pairingId);
     if (!pairing || pairing.company_id !== companyId) return null;
-    return this.messengerPairings.accept(pairingId, role, { actorType: "owner", actorId: "ceo" });
+    return this.messengerPairings.accept(pairingId, role, { actorType: "owner", actorId: humanActor(opts) });
   }
 
   // --- change proposals: file edits an owner sees before they happen -------
@@ -1144,15 +1211,16 @@ export class CompanyOrchestrator {
     companyId: string,
     proposalId: string,
     decision: "approved" | "rejected",
-    opts: { reason?: string } = {},
+    opts: { reason?: string } & HumanActor = {},
   ): ChangeProposalRow | null {
     const proposal = this.changeProposals.get(proposalId);
     if (!proposal || proposal.company_id !== companyId) return null;
 
+    const actorId = humanActor(opts);
     if (proposal.approval_id) {
-      this.approvals.decide(proposal.approval_id, decision, "ceo", opts.reason ?? "");
+      this.approvals.decide(proposal.approval_id, decision, actorId, opts.reason ?? "");
     }
-    return this.changeProposals.decide(proposalId, decision, { actorType: "owner", actorId: "ceo", ...opts });
+    return this.changeProposals.decide(proposalId, decision, { ...opts, actorType: "owner", actorId });
   }
 
   /**
@@ -1163,7 +1231,7 @@ export class CompanyOrchestrator {
    * marked approved must stop the write, and the approval is where that
    * lives.
    */
-  applyChangeProposal(companyId: string, proposalId: string): ApplyResult {
+  applyChangeProposal(companyId: string, proposalId: string, opts: HumanActor = {}): ApplyResult {
     const proposal = this.changeProposals.get(proposalId);
     if (!proposal || proposal.company_id !== companyId) {
       throw new ChangeProposalError(`Proposal "${proposalId}" does not exist.`);
@@ -1178,7 +1246,7 @@ export class CompanyOrchestrator {
       }
     }
 
-    return this.changeProposals.apply(proposalId, { actorType: "owner", actorId: "ceo" });
+    return this.changeProposals.apply(proposalId, { actorType: "owner", actorId: humanActor(opts) });
   }
 
   /** A file change waiting on the owner reaches the decision inbox and every channel. */
@@ -1262,8 +1330,10 @@ export class CompanyOrchestrator {
     approvalId: string,
     decision: "approved" | "rejected",
     reason = "",
+    opts: HumanActor = {},
   ): ApprovalRow | null {
-    const approval = this.approvals.decide(approvalId, decision, "ceo", reason);
+    const decidedBy = humanActor(opts);
+    const approval = this.approvals.decide(approvalId, decision, decidedBy, reason);
     if (!approval) return null;
 
     this.decisions.create({
@@ -1272,12 +1342,80 @@ export class CompanyOrchestrator {
       decision,
       context: approval.impact,
       rationale: reason,
-      decidedBy: "ceo",
+      decidedBy,
       taskId: approval.task_id,
     });
     this.notifications.markReadByApproval(companyId, approval.id);
 
+    this.settleApprovedTask(companyId, approval, decision, reason, opts);
+
     return approval;
+  }
+
+  /**
+   * Moves the task an approval was blocking, now that the owner has decided.
+   *
+   * Without this the decision was a dead end. `handleCeoMessage` parks
+   * sensitive work at `approval_required` and returns; approving it recorded
+   * the decision, marked the notification read — and left the task parked
+   * forever. Nothing ever transitioned it, so the one path the approval gate
+   * exists for (transfers, terminations, anything legally or financially
+   * real) was the one path that could never complete.
+   *
+   * Deliberately narrow: it acts only on a task currently sitting in
+   * `approval_required`. An approval raised *during* a run leaves its task in
+   * `running` or `waiting`, and that run is still in progress — resuming it
+   * from here would start a second one. A `file_change` approval has no
+   * parked task at all; that one is applied through `applyChangeProposal`,
+   * which re-reads this same approval.
+   */
+  private settleApprovedTask(
+    companyId: string,
+    approval: ApprovalRow,
+    decision: "approved" | "rejected",
+    reason: string,
+    opts: HumanActor = {},
+  ): void {
+    const actorId = humanActor(opts);
+    if (!approval.task_id) return;
+    const task = this.tasks.get(approval.task_id);
+    if (!task || task.company_id !== companyId) return;
+    if (task.status !== "approval_required") return;
+
+    if (decision === "rejected") {
+      // A refused task must not linger as if it might still happen. It is
+      // cancelled, carrying the owner's reason, so the board shows a decision
+      // rather than a stall.
+      this.tasks.transition(task.id, "cancelled", {
+        reason: `Freigabe abgelehnt: ${reason || "ohne Begründung"}`,
+        actorType: "owner",
+        actorId,
+        correlationId: task.correlation_id,
+      });
+      this.syncAgentStatuses(companyId);
+      return;
+    }
+
+    // The sensitive branch parks the task before delegation ever runs, so
+    // there is usually no agent yet. Re-deriving the classification from the
+    // stored description picks the same department the EA would have picked,
+    // rather than inventing a second rule for who does approved work.
+    const agentId = task.assigned_agent_id ?? this.pickAgent(companyId, triage(task.description))?.id ?? null;
+
+    this.tasks.transition(task.id, "ready", {
+      assignedAgentId: agentId,
+      reason: "vom Chef freigegeben",
+      actorType: "owner",
+      actorId,
+      correlationId: task.correlation_id,
+    });
+
+    // And the intent to run becomes a row, the same as any other delegation —
+    // otherwise the approved task would sit at `ready` waiting for someone to
+    // press a button, which is the gap the run queue exists to close.
+    if (agentId) this.enqueueRun(companyId, task.id, { requestedBy: actorId });
+
+    this.syncAgentStatuses(companyId);
   }
 
   registerRuntime(runtime: AgentRuntime): void {
@@ -1673,7 +1811,12 @@ export class CompanyOrchestrator {
    * the provider itself is validated separately (against listRuntimes())
    * before this is ever called.
    */
-  setAgentRuntimeProvider(companyId: string, agentId: string, provider: string): AgentRow | null {
+  setAgentRuntimeProvider(
+    companyId: string,
+    agentId: string,
+    provider: string,
+    opts: HumanActor = {},
+  ): AgentRow | null {
     const agent = this.db
       .prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ? AND a.company_id = ?`)
       .get(agentId, companyId) as AgentRow | undefined;
@@ -1692,7 +1835,7 @@ export class CompanyOrchestrator {
     appendAuditEvent(this.db, {
       companyId,
       actorType: "owner",
-      actorId: "ceo",
+      actorId: humanActor(opts),
       action: "agent.runtime_changed",
       entityType: "agent",
       entityId: agentId,
@@ -1797,7 +1940,8 @@ export class CompanyOrchestrator {
    * The EA never approves anything and never executes a sensitive action
    * itself — it raises an approval request and reports back.
    */
-  handleCeoMessage(companyId: string, body: string): CeoMessageResult {
+  handleCeoMessage(companyId: string, body: string, opts: HumanActor = {}): CeoMessageResult {
+    const actorId = humanActor(opts);
     const correlationId = newCorrelationId();
     const conversationId = this.ensureCeoConversation(companyId);
     const ea = this.executiveAssistant(companyId);
@@ -1815,7 +1959,7 @@ export class CompanyOrchestrator {
     appendAuditEvent(this.db, {
       companyId,
       actorType: "owner",
-      actorId: "ceo",
+      actorId: actorId,
       action: "ceo.message_received",
       entityType: "message",
       entityId: messageId,
@@ -1952,6 +2096,10 @@ export class CompanyOrchestrator {
         actorId: ea.id,
         correlationId,
       });
+      // "queued for execution" used to be a hope. Now it is a row: the run
+      // request outlives this process, so work delegated at three in the
+      // morning is still waiting to be picked up at eight.
+      this.enqueueRun(companyId, task.id, { requestedBy: actorId });
     }
 
     this.addMessage({
@@ -2047,14 +2195,582 @@ export class CompanyOrchestrator {
    * The budget gate runs before the claim, so a blocked company does not
    * churn task state.
    */
+  /**
+   * Whether this run may proceed under its vessel's concurrency cap.
+   *
+   * The check is by *rank*, not by count, and that is deliberate. Counting
+   * before inserting is a read-then-write: two dispatchers for two different
+   * agents sharing one vessel would both read "one slot free" and both take
+   * it. Here the run row is already committed, so both dispatchers see both
+   * rows and order them the same way — the earlier one is admitted, the later
+   * one backs off. The database resolves the race rather than the timing of
+   * two callers.
+   *
+   * Order is by `rowid` — SQLite's insertion order — and not by `created_at`,
+   * which is only millisecond-precise: two runs created in the same
+   * millisecond would need a tiebreak, and `id` is a random UUID, so that
+   * tiebreak would decide by coin flip which of them counts as "first".
+   * A cap that admits or refuses the same situation differently on different
+   * runs is worse than no cap, because nobody can reproduce it. `rowid` is
+   * monotonic per insert, so "ahead of me" means exactly what it says.
+   */
+  private vesselAdmits(agent: AgentRow, runId: string, now = Date.now()): boolean {
+    if (!agent.vessel_id) return true;
+    const limit = Math.max(1, agent.vessel_max_concurrency);
+
+    const rank = this.db
+      .prepare(
+        `SELECT COUNT(*) AS ahead
+           FROM crew_runs r
+           JOIN crew_agents a ON a.id = r.agent_id
+          WHERE a.vessel_id = ?
+            AND r.status IN ('queued','running')
+            AND COALESCE(r.heartbeat_at, r.created_at) > ?
+            AND r.rowid < (SELECT rowid FROM crew_runs WHERE id = ?)`,
+      )
+      .get(agent.vessel_id, now - VESSEL_RUN_STALE_MS, runId) as { ahead: number };
+
+    return rank.ahead < limit;
+  }
+
+  /**
+   * Rebinds an agent to a different vessel, talent, or both.
+   *
+   * Both ids are re-checked against this company before anything is written.
+   * The foreign keys alone would not catch it: `crew_vessels.id` is unique
+   * across the database, so binding an agent to *another company's* vessel is
+   * a perfectly valid FK and a complete tenancy break. The check has to be
+   * here, where the company is known.
+   */
+  setAgentPairing(
+    companyId: string,
+    agentId: string,
+    pairing: { vesselId?: string; talentId?: string },
+    opts: HumanActor = {},
+  ): AgentRow | null {
+    const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
+    if (!agent || agent.company_id !== companyId) return null;
+
+    if (pairing.vesselId !== undefined) {
+      const vessel = this.vessels.get(pairing.vesselId);
+      if (!vessel || vessel.company_id !== companyId) {
+        throw new VesselMutationError(`Vessel "${pairing.vesselId}" gehört nicht zu dieser Firma.`);
+      }
+    }
+    if (pairing.talentId !== undefined) {
+      const talent = this.talents.get(pairing.talentId);
+      if (!talent || talent.company_id !== companyId) {
+        throw new TalentMutationError(`Talent "${pairing.talentId}" gehört nicht zu dieser Firma.`);
+      }
+    }
+
+    const now = Date.now();
+    if (pairing.vesselId !== undefined) {
+      this.db
+        .prepare("UPDATE crew_agents SET vessel_id = ?, updated_at = ? WHERE id = ?")
+        .run(pairing.vesselId, now, agentId);
+    }
+    if (pairing.talentId !== undefined) {
+      this.db
+        .prepare("UPDATE crew_agents SET talent_id = ?, updated_at = ? WHERE id = ?")
+        .run(pairing.talentId, now, agentId);
+    }
+
+    appendAuditEvent(this.db, {
+      companyId,
+      actorType: "owner",
+      actorId: humanActor(opts),
+      action: "agent.repaired",
+      entityType: "agent",
+      entityId: agentId,
+      details: {
+        vesselId: pairing.vesselId ?? agent.vessel_id,
+        talentId: pairing.talentId ?? agent.talent_id,
+      },
+    });
+
+    return (this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined) ?? null;
+  }
+
+  // --- routines: recurring work that leaves a trace -------------------------
+
+  /**
+   * Fires every routine that is due, turning each into an ordinary task.
+   *
+   * A routine deliberately does not act. It asks — in the owner's own words,
+   * on a timer — and everything after that is the normal path: the EA
+   * triages it, an approval gate stops it if it is sensitive, the budget
+   * engine sees the spend, and the board shows it. A scheduler that performed
+   * actions directly would be invisible to all four.
+   *
+   * The limit is per tick, not per routine: a company whose routines all come
+   * due at once should produce a queue, not a stampede.
+   */
+  runDueRoutines(
+    companyId: string,
+    opts: { limit?: number; now?: number } = {},
+  ): {
+    fired: number;
+    tasks: TaskRow[];
+  } {
+    const limit = Math.max(1, opts.limit ?? 10);
+    const now = opts.now ?? Date.now();
+    const tasks: TaskRow[] = [];
+
+    for (let i = 0; i < limit; i++) {
+      const routine = this.routines.claimDue(companyId, now);
+      if (!routine) break;
+      tasks.push(this.taskFromRoutine(companyId, routine, now));
+    }
+
+    return { fired: tasks.length, tasks };
+  }
+
+  /** Fires one routine now, whatever its schedule says. The operator's "do it now". */
+  runRoutineNow(companyId: string, routineId: string): TaskRow | null {
+    const routine = this.routines.get(routineId);
+    if (!routine || routine.company_id !== companyId) return null;
+    return this.taskFromRoutine(companyId, routine, Date.now());
+  }
+
+  private taskFromRoutine(companyId: string, routine: RoutineRow, now: number): TaskRow {
+    const correlationId = newCorrelationId();
+    const classification = triage(routine.instruction);
+
+    // The routine's own text, not a summary of it: an operator reading the
+    // task should see exactly what they asked for, and the EA should triage
+    // the same words it would have triaged from the chat.
+    // Created `ready`, exactly as handleCeoMessage creates a request the owner
+    // typed — a routine is the owner asking on a timer, so it enters the
+    // board through the same door and the same legal transitions.
+    const task = this.tasks.create({
+      companyId,
+      title: `Routine: ${routine.name}`,
+      description: routine.instruction,
+      status: "ready",
+      projectId: routine.project_id,
+      riskLevel: classification.riskLevel,
+      sensitive: classification.sensitive,
+      createdBy: `routine:${routine.id}`,
+      correlationId,
+    });
+    this.routines.recordTask(routine.id, task.id);
+
+    appendAuditEvent(this.db, {
+      companyId,
+      actorType: "system",
+      actorId: `routine:${routine.id}`,
+      action: "routine.fired",
+      entityType: "routine",
+      entityId: routine.id,
+      taskId: task.id,
+      correlationId,
+      details: { name: routine.name, firedAt: now },
+    });
+
+    // A sensitive routine is parked behind an approval exactly like a
+    // sensitive request typed into the chat — a timer must not be a way to
+    // skip the gate.
+    if (classification.sensitive) {
+      const approval = this.approvals.request(
+        companyId,
+        {
+          approvalType: this.approvalTypeFor(routine.instruction),
+          requestedBy: `routine:${routine.id}`,
+          summary: `Freigabe erforderlich für Routine: ${routine.name}`,
+          riskLevel: "high",
+          impact: "Wiederkehrende Aktion mit rechtlicher oder finanzieller Wirkung.",
+          proposedAction: routine.instruction,
+        },
+        { taskId: task.id, correlationId },
+      );
+      this.notifyApprovalRequested(companyId, approval);
+      this.tasks.transition(task.id, "approval_required", {
+        reason: "sensitive routine awaiting owner approval",
+        actorType: "system",
+        actorId: `routine:${routine.id}`,
+        correlationId,
+      });
+      return this.tasks.get(task.id)!;
+    }
+
+    // Otherwise it is delegated and queued like anything else the owner asks
+    // for, so it actually runs rather than sitting in the inbox.
+    const agent = routine.agent_id
+      ? (this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(routine.agent_id) as AgentRow | undefined)
+      : this.pickAgent(companyId, classification);
+
+    if (agent) {
+      // assigned, then back to ready: the same two steps delegation takes, so
+      // the scheduler's atomic claim stays the thing that grants the work.
+      this.tasks.transition(task.id, "assigned", {
+        assignedAgentId: agent.id,
+        reason: `angelegt von Routine "${routine.name}"`,
+        actorType: "system",
+        actorId: `routine:${routine.id}`,
+        correlationId,
+      });
+      this.tasks.transition(task.id, "ready", {
+        reason: "queued for execution",
+        actorType: "system",
+        actorId: `routine:${routine.id}`,
+        correlationId,
+      });
+      this.enqueueRun(companyId, task.id, { requestedBy: `routine:${routine.id}` });
+    }
+
+    this.syncAgentStatuses(companyId);
+    return this.tasks.get(task.id)!;
+  }
+
+  // --- tools: what an agent may reach for ----------------------------------
+
+  /**
+   * Decides whether an agent may use a tool right now, raising an approval
+   * when the grant says one is needed.
+   *
+   * The two halves are deliberately one call. A caller that asked "may I?"
+   * and separately "should I request approval?" could act on the first
+   * answer and skip the second — and the tools this matters for are exactly
+   * the ones that submit forms and spend money.
+   *
+   * Returns `"denied"` without saying why: the reason is in the audit log for
+   * an operator, not in the return value for a caller that might branch on it.
+   */
+  requestToolUse(
+    companyId: string,
+    agentId: string,
+    toolKey: string,
+    context: { taskId?: string | null; runId?: string | null; projectId?: string | null; summary?: string } = {},
+  ): { outcome: "allowed" } | { outcome: "denied" } | { outcome: "approval_required"; approvalId: string } {
+    const decision: ToolDecision = this.tools.resolve(companyId, agentId, toolKey, {
+      projectId: context.projectId ?? null,
+    });
+
+    if (!decision.allowed) {
+      appendAuditEvent(this.db, {
+        companyId,
+        actorType: "agent",
+        actorId: agentId,
+        action: "tool.denied",
+        entityType: "tool",
+        entityId: toolKey,
+        taskId: context.taskId ?? null,
+        runId: context.runId ?? null,
+        outcome: "denied",
+        details: { toolKey, reason: decision.reason },
+      });
+      return { outcome: "denied" };
+    }
+
+    if (!decision.requiresApproval) {
+      appendAuditEvent(this.db, {
+        companyId,
+        actorType: "agent",
+        actorId: agentId,
+        action: "tool.used",
+        entityType: "tool",
+        entityId: decision.tool.id,
+        taskId: context.taskId ?? null,
+        runId: context.runId ?? null,
+        details: { toolKey, riskClass: decision.tool.risk_class, via: decision.via },
+      });
+      return { outcome: "allowed" };
+    }
+
+    const approval = this.approvals.request(
+      companyId,
+      {
+        approvalType: "irreversible_data_change",
+        requestedBy: agentId,
+        summary: context.summary ?? `Werkzeug "${decision.tool.label || decision.tool.key}" verwenden`,
+        riskLevel: decision.tool.risk_class === "external" ? "high" : "medium",
+        impact: `Das Werkzeug wirkt ${decision.tool.risk_class === "external" ? "nach außen" : "im Arbeitsbereich"}.`,
+        rollbackPlan: "Die Freigabe verweigern; ohne Freigabe wird das Werkzeug nicht verwendet.",
+        proposedAction: decision.tool.key,
+      },
+      { taskId: context.taskId ?? null, runId: context.runId ?? null },
+    );
+    this.notifyApprovalRequested(companyId, approval);
+    return { outcome: "approval_required", approvalId: approval.id };
+  }
+
+  /**
+   * The tools this server can actually perform, registered once per company.
+   *
+   * `ensure` rather than `register`: this runs at every boot, and an operator
+   * who switched a tool off company-wide must not have it switched back on by
+   * a restart. Registering a tool grants nothing — presence is not permission
+   * (domain/tool-store.ts) — so booting with all of them is safe and the
+   * grants stay the owner's decision.
+   */
+  ensureBuiltinTools(companyId: string): void {
+    const builtins = [
+      { key: "web.search", label: "Websuche", riskClass: "read" as const, description: "Sucht im Web." },
+      {
+        key: "browser.read",
+        label: "Browser (lesen)",
+        riskClass: "read" as const,
+        description: "Öffnet und liest Seiten.",
+      },
+      {
+        key: "browser.interact",
+        label: "Browser (bedienen)",
+        riskClass: "write" as const,
+        description: "Klickt und füllt Felder aus.",
+      },
+      {
+        key: "browser.external",
+        label: "Browser (absenden)",
+        riskClass: "external" as const,
+        description: "Sendet Formulare ab, lädt hoch oder herunter.",
+      },
+    ];
+    for (const tool of builtins) {
+      this.tools.ensure({ companyId, origin: "builtin", ...tool }, { actorType: "system", actorId: "boot" });
+    }
+  }
+
+  /**
+   * Mirrors the configured MCP servers into the tool registry.
+   *
+   * An MCP server is a tool source, so it belongs in the same registry behind
+   * the same gate rather than in a parallel permission system that would
+   * eventually disagree with this one. Risk class `external` by default: an
+   * MCP server reaches something outside this process, and what exactly is up
+   * to whoever installed it.
+   *
+   * Servers that disappeared from the configuration are disabled rather than
+   * deleted — deleting would silently drop the grants an operator made, so
+   * re-adding a server would come back with its access wiped and nobody would
+   * know why.
+   */
+  syncMcpTools(companyId: string, serverNames: readonly string[]): { added: number; disabled: number } {
+    let added = 0;
+    for (const name of serverNames) {
+      const key = `mcp.${name}`;
+      if (!this.tools.byKey(companyId, key)) {
+        this.tools.register(
+          { companyId, key, label: `MCP: ${name}`, riskClass: "external", origin: "mcp" },
+          { actorType: "system", actorId: "boot" },
+        );
+        added++;
+      }
+    }
+
+    const configured = new Set(serverNames.map((n) => `mcp.${n}`));
+    let disabled = 0;
+    for (const tool of this.tools.list(companyId)) {
+      if (tool.origin === "mcp" && tool.enabled === 1 && !configured.has(tool.key)) {
+        this.tools.setEnabled(tool.id, false, { actorType: "system", actorId: "boot" });
+        disabled++;
+      }
+    }
+    return { added, disabled };
+  }
+
+  registerSearchProvider(provider: SearchProvider): void {
+    this.searchProviders.set(provider.kind, provider);
+  }
+
+  listSearchProviderKinds(): string[] {
+    return [...this.searchProviders.keys()];
+  }
+
+  async testSearchProvider(kind: string): Promise<{ ok: boolean; message: string }> {
+    const provider = this.searchProviders.get(kind);
+    if (!provider) return { ok: false, message: `Kein "${kind}"-Suchanbieter registriert.` };
+    return provider.testConnection();
+  }
+
+  /**
+   * A web search on an agent's behalf, through the tool gate.
+   *
+   * The gate is checked here rather than left to the caller, because a caller
+   * that could search without asking is a caller for whom the gate does not
+   * exist. The result comes back both raw — for a UI to render as links — and
+   * fenced, which is the only form that may reach a prompt: these sentences
+   * were written by strangers.
+   */
+  async searchWeb(
+    companyId: string,
+    agentId: string,
+    query: SearchQuery,
+    opts: { kind?: string; projectId?: string | null; taskId?: string | null; runId?: string | null } = {},
+  ): Promise<
+    | { outcome: "denied" }
+    | { outcome: "approval_required"; approvalId: string }
+    | { outcome: "ok"; provider: string; results: SearchResult[]; prompt: string }
+  > {
+    const kind = opts.kind ?? this.listSearchProviderKinds()[0];
+    const provider = kind ? this.searchProviders.get(kind) : undefined;
+    if (!provider) throw new Error(`Kein "${kind ?? "—"}"-Suchanbieter registriert.`);
+
+    const gate = this.requestToolUse(companyId, agentId, "web.search", {
+      taskId: opts.taskId,
+      runId: opts.runId,
+      projectId: opts.projectId,
+      summary: `Websuche: ${sanitiseLine(query.query, 120)}`,
+    });
+    if (gate.outcome !== "allowed") return gate;
+
+    const results = await provider.search(query);
+    return {
+      outcome: "ok",
+      provider: provider.kind,
+      results,
+      prompt: wrapSearchResults(results, { provider: provider.kind, query: query.query }),
+    };
+  }
+
+  // --- the run queue: intent to run, kept until it happened ----------------
+  //
+  // Everything above creates tasks. Nothing above makes them run: that needed
+  // someone to call executeNextTask, which was fine while the only ingress was
+  // a person typing into the Command Center and stopped being fine the moment
+  // mail and chat could create work at three in the morning.
+  //
+  // So an ingress records the *intent* to run, durably, and a drain turns
+  // intents into runs whenever the company has capacity. The queue is what
+  // makes "the server is running as a service" mean something.
+
+  /**
+   * Records that a task should run.
+   *
+   * The attempt budget comes from the agent's vessel — `max_retries + 1`,
+   * since the first go is not a retry. That is the fourth vessel column
+   * finally doing something: an operator raising retries on a flaky runtime
+   * changes how hard the queue tries, without touching the queue.
+   */
+  enqueueRun(
+    companyId: string,
+    taskId: string,
+    opts: { requestedBy?: string; maxAttempts?: number; notBefore?: number } = {},
+  ): { request: RunRequestRow; isNew: boolean } | null {
+    const task = this.tasks.get(taskId);
+    if (!task || task.company_id !== companyId) return null;
+
+    return this.runRequests.enqueue({
+      companyId,
+      taskId,
+      requestedBy: opts.requestedBy ?? task.created_by,
+      maxAttempts: opts.maxAttempts ?? this.attemptBudgetFor(task.assigned_agent_id),
+      notBefore: opts.notBefore,
+      correlationId: task.correlation_id,
+    });
+  }
+
+  private attemptBudgetFor(agentId: string | null): number {
+    if (!agentId) return 1;
+    const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
+    // +1 because max_retries counts retries, and the first attempt is not one.
+    return agent ? Math.max(1, agent.vessel_max_retries + 1) : 1;
+  }
+
+  /**
+   * Turns queued intents into runs, until the queue is empty or `limit` is hit.
+   *
+   * The limit exists because this is called on a timer: an unbounded drain
+   * that starts every queued run at once would defeat both the agent lock and
+   * the vessel's concurrency cap by making them fight over a hundred
+   * simultaneous dispatches instead of a handful.
+   *
+   * Three outcomes per request, and the difference between the last two is the
+   * point of the whole queue:
+   *
+   *   completed  the run finished; the task moved to review or waiting
+   *   failed     the run happened and went wrong — that spends an attempt,
+   *              and enough of them dead-letter the request for a human
+   *   deferred   the run never started because the agent or the vessel was
+   *              busy. Nothing was attempted, so nothing is spent; it goes
+   *              back on the queue with a short delay.
+   */
+  async drainRunQueue(
+    companyId: string,
+    opts: ExecuteOptions & { limit?: number; leaseOwner?: string } = {},
+  ): Promise<{ claimed: number; completed: number; failed: number; deferred: number }> {
+    const limit = Math.max(1, opts.limit ?? 5);
+    const leaseOwner = opts.leaseOwner ?? `drain:${process.pid}`;
+    const result = { claimed: 0, completed: 0, failed: 0, deferred: 0 };
+
+    // A drain that crashed mid-run holds a lease nobody will release. Sweeping
+    // first means the recovery happens on the next tick rather than needing a
+    // restart of the whole service.
+    this.runRequests.sweepExpired(companyId);
+
+    for (let i = 0; i < limit; i++) {
+      const request = this.runRequests.claimNext(companyId, leaseOwner);
+      if (!request) break;
+      result.claimed++;
+
+      try {
+        const executed = await this.executeTaskById(companyId, request.task_id, opts);
+
+        if (!executed) {
+          this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.");
+          result.deferred++;
+          continue;
+        }
+
+        if (executed.task.status === "failed") {
+          // The run's own summary is the useful text here; the queue records
+          // it so the reason survives on the request a human is looking at.
+          this.runRequests.fail(request.id, executed.task.result_summary || "Lauf fehlgeschlagen.");
+          result.failed++;
+        } else {
+          this.runRequests.complete(request.id, { runId: executed.runId });
+          result.completed++;
+        }
+      } catch (err) {
+        // An exception here is the drain's own failure, not the runtime's —
+        // executeTask already catches those. Spending an attempt is right:
+        // whatever broke will break again next tick, and the dead letter is
+        // how it becomes visible instead of looping forever.
+        this.runRequests.fail(request.id, err instanceof Error ? err.message : String(err));
+        result.failed++;
+      }
+    }
+
+    return result;
+  }
+
   async executeNextTask(
     companyId: string,
-    opts: { runtimeType?: string; workspacePath?: string; onEvent?: (e: RunEvent) => void } = {},
+    opts: ExecuteOptions = {},
   ): Promise<{ task: TaskRow; runId: string; events: RunEvent[] } | null> {
     const claimable = this.tasks.findClaimable(companyId);
     if (claimable.length === 0) return null;
+    return this.executeTask(companyId, claimable[0], opts);
+  }
 
-    const candidate = claimable[0];
+  /**
+   * Executes one *named* task, if it is claimable right now.
+   *
+   * The queue names a specific task, where `executeNextTask` takes whatever is
+   * next — so the claimability check has to happen here rather than at the
+   * caller. It deliberately re-uses `findClaimable`, so "claimable" keeps one
+   * definition: a drain and a button must not disagree about whether a task
+   * may start.
+   *
+   * Returns null when the task exists but cannot start yet. That is not an
+   * error — see `drainRunQueue`, which treats it as "try again shortly"
+   * rather than as a failed attempt.
+   */
+  async executeTaskById(
+    companyId: string,
+    taskId: string,
+    opts: ExecuteOptions = {},
+  ): Promise<{ task: TaskRow; runId: string; events: RunEvent[] } | null> {
+    const candidate = this.tasks.findClaimable(companyId).find((t) => t.id === taskId);
+    if (!candidate) return null;
+    return this.executeTask(companyId, candidate, opts);
+  }
+
+  private async executeTask(
+    companyId: string,
+    candidate: TaskRow,
+    opts: ExecuteOptions = {},
+  ): Promise<{ task: TaskRow; runId: string; events: RunEvent[] } | null> {
     const agentId = candidate.assigned_agent_id;
     if (!agentId) return null;
 
@@ -2103,12 +2819,19 @@ export class CompanyOrchestrator {
       details: { mode: permission.mode, code: permission.code, grantId: permission.grantId ?? null },
     });
 
+    // The vessel's model, if it names one. Empty means "whatever the runtime
+    // defaults to", which is why it is normalised to undefined rather than
+    // passed through as "" — a runtime asked to use a model called "" fails
+    // in a way that looks like a broken account rather than a blank field.
+    const model = agent.vessel_model.trim() || undefined;
+
     const run = this.runs.create({
       companyId,
       taskId: candidate.id,
       agentId,
       projectId: candidate.project_id,
       runtimeType,
+      model,
       permissionMode: permission.mode,
       sandboxGrantId: permission.grantId ?? null,
       correlationId: candidate.correlation_id,
@@ -2147,6 +2870,27 @@ export class CompanyOrchestrator {
       return null;
     }
 
+    // The vessel's own cap, one layer out from the agent lock. The lock says
+    // "this agent is busy"; this says "this runtime has no seat free" — five
+    // agents sharing one Claude Code vessel are five agents sharing one CLI
+    // account and one rate limit, and starting all five at once is how that
+    // account gets throttled.
+    //
+    // Same fail-closed shape as above: the task returns to `ready` and is
+    // picked up as soon as a seat frees.
+    if (!this.vesselAdmits(agent, run.id)) {
+      this.agentLocks.release(agentId, run.id);
+      this.tasks.releaseLock(candidate.id, run.id);
+      this.tasks.transition(claimed.id, "ready", {
+        reason: `vessel "${agent.vessel_key || agent.vessel_id}" is at its concurrency limit`,
+        actorType: "system",
+        actorId: "scheduler",
+        correlationId: claimed.correlation_id,
+      });
+      this.runs.setStatus(run.id, "cancelled");
+      return null;
+    }
+
     this.tasks.transition(claimed.id, "running", {
       reason: "run started",
       actorType: "agent",
@@ -2168,9 +2912,52 @@ export class CompanyOrchestrator {
     let waiting = false;
     let summary = "";
 
+    // The vessel's timeout, as an abort signal. Both runtimes already honour
+    // `context.signal` — CliAdapterRuntime kills its process tree on it and
+    // MockRuntime stops iterating — so the cap is enforced by the thing doing
+    // the work rather than by a watchdog that can only notice afterwards.
+    const timeoutMs = agent.vessel_timeout_ms > 0 ? agent.vessel_timeout_ms : DEFAULT_RUN_TIMEOUT_MS;
+    const abort = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, timeoutMs);
+    // A finished run must not hold the process open for the rest of its
+    // vessel's timeout — which, at ten minutes by default, is exactly what an
+    // un-unref'd timer would do to a server trying to shut down.
+    timer.unref?.();
+
+    /**
+     * Records a failure the runtime did not report itself.
+     *
+     * It goes through the same two channels every other event does — the
+     * returned list and `onEvent` — because a failure that only reaches the
+     * database is invisible both to the caller that asked for the run and to
+     * the websocket the Command Center is listening on. That hole already
+     * existed for the catch branch below; a timeout would have inherited it.
+     */
+    const recordFailure = (payload: Record<string, unknown>): void => {
+      const persisted = this.runs.appendEvent({
+        companyId,
+        runId: run.id,
+        taskId: candidate.id,
+        projectId: candidate.project_id,
+        agentId,
+        type: "run.failed",
+        payload,
+      });
+      events.push(persisted);
+      opts.onEvent?.(persisted);
+      failed = true;
+    };
+
     try {
       for await (const ev of runtime.startRun(
-        { prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}` },
+        {
+          prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}`,
+          model,
+        },
         {
           companyId,
           projectId: candidate.project_id,
@@ -2180,6 +2967,7 @@ export class CompanyOrchestrator {
           correlationId: candidate.correlation_id,
           workspacePath: opts.workspacePath ?? "/tmp/iron-crew-workspace",
           permissionMode: permission.mode,
+          signal: abort.signal,
         },
       )) {
         const persisted = this.runs.appendEvent({
@@ -2235,15 +3023,22 @@ export class CompanyOrchestrator {
         }
       }
     } catch (err) {
-      this.runs.appendEvent({
-        companyId,
-        runId: run.id,
-        taskId: candidate.id,
-        agentId,
-        type: "run.failed",
-        payload: { message: err instanceof Error ? err.message : String(err) },
-      });
-      failed = true;
+      // A timeout reads as an opaque abort from inside the runtime, so name it
+      // here instead: "the vessel's limit stopped this" is actionable — raise
+      // the limit or split the task — where "aborted" is not.
+      recordFailure(
+        timedOut
+          ? { message: `Zeitlimit des Vessels erreicht (${timeoutMs} ms).`, timedOut: true }
+          : { message: err instanceof Error ? err.message : String(err) },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // A runtime that ends its stream quietly on abort would otherwise leave a
+    // timed-out run looking like a clean finish waiting for review.
+    if (timedOut && !failed) {
+      recordFailure({ message: `Zeitlimit des Vessels erreicht (${timeoutMs} ms).`, timedOut: true });
     }
 
     this.tasks.releaseLock(candidate.id, run.id);
@@ -2270,7 +3065,7 @@ export class CompanyOrchestrator {
    * CEO accepts a result in review. The EA records the outcome and the task
    * is done.
    */
-  acceptReview(companyId: string, taskId: string, note = ""): TaskRow | null {
+  acceptReview(companyId: string, taskId: string, note = "", opts: HumanActor = {}): TaskRow | null {
     const ea = this.executiveAssistant(companyId);
     const task = this.tasks.get(taskId);
     if (!task) return null;
@@ -2281,7 +3076,7 @@ export class CompanyOrchestrator {
     const done = this.tasks.transition(taskId, "done", {
       reason: "accepted by CEO",
       actorType: "owner",
-      actorId: "ceo",
+      actorId: humanActor(opts),
       reviewNotes: note || null,
       correlationId: task.correlation_id,
     });
@@ -2301,7 +3096,7 @@ export class CompanyOrchestrator {
   }
 
   /** CEO requests a revision: the task goes back to ready for another attempt. */
-  requestRevision(companyId: string, taskId: string, reason: string): TaskRow | null {
+  requestRevision(companyId: string, taskId: string, reason: string, opts: HumanActor = {}): TaskRow | null {
     const ea = this.executiveAssistant(companyId);
     const task = this.tasks.get(taskId);
     if (!task) return null;
@@ -2310,11 +3105,15 @@ export class CompanyOrchestrator {
     const revised = this.tasks.transition(taskId, "ready", {
       reason: `revision requested: ${reason}`,
       actorType: "owner",
-      actorId: "ceo",
+      actorId: humanActor(opts),
       reviewNotes: reason,
       correlationId: task.correlation_id,
     });
     if (!revised) return null;
+
+    // A revision is a new run that has to actually happen; without this the
+    // task would sit at `ready` waiting for someone to press a button.
+    this.enqueueRun(companyId, taskId, { requestedBy: humanActor(opts) });
 
     this.addMessage({
       companyId,

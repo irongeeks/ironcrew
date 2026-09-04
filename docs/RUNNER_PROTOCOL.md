@@ -2,12 +2,10 @@
 
 How the control plane talks to the thing that actually executes agent work.
 
-> **Status.** The `AgentRuntime` interface, the normalised event model,
-> MockRuntime and `CliAdapterRuntime` — the bridge onto the upstream CLI
-> adapters described below — are implemented and tested. The `native-daemon`
-> and `remote-daemon` transports described below are **design, not code** —
-> see `IMPLEMENTATION_STATUS.md`. Today the control plane and the runtime
-> share a process (`embedded`).
+> **Status.** `embedded` and `native-daemon` are implemented and tested
+> (`server/ironcrew/runner/`, including a round trip over a real Unix
+> socket). `remote-daemon` — the outbound-only connection for a VPS or a
+> customer network — is still design.
 
 ## Why a runner abstraction at all
 
@@ -30,11 +28,104 @@ never receives an OAuth token
 
 ## Transports
 
-| Mode            | Status      | Use                                                     |
-| --------------- | ----------- | ------------------------------------------------------- |
-| `embedded`      | implemented | local development; runtime in the control plane process |
-| `native-daemon` | design      | Linux/macOS; a dedicated OS user owns the CLI logins    |
-| `remote-daemon` | design      | VPS, server tank, isolated customer networks            |
+| Mode            | Status      | Use                                                                          |
+| --------------- | ----------- | ---------------------------------------------------------------------------- |
+| `embedded`      | implemented | local development; runtime in the control plane process                      |
+| `native-daemon` | implemented | Linux/macOS; a dedicated OS user owns the CLI logins and the MCP credentials |
+| `remote-daemon` | design      | VPS, server tank, isolated customer networks                                 |
+
+### Switching between them
+
+One variable. With `IRONCREW_RUNNER_SOCKET` set, every CLI runtime the
+control plane registers is a `RunnerRuntime` that forwards to the daemon;
+without it they run inline. The orchestrator sees the same `AgentRuntime`
+either way and cannot tell the difference — which is what makes the security
+property cost nothing.
+
+Without a runner, `deploy/ironcrew.service` has to move `HOME` to
+`/var/lib/ironcrew` so the control plane's own account can hold CLI
+credentials. With one, that stops being necessary: the credentials live with
+`ironcrew-runner` and the control plane never has them.
+
+### The wire
+
+NDJSON over a Unix socket — one message per line, `{ v, kind, … }`. Not a
+binary framing and not an RPC library: a protocol an operator can read with
+`nc` at three in the morning is worth more than the saved bytes, and the
+message rate is events from a handful of runs.
+
+A **Unix socket rather than a localhost port** because access control is then
+the filesystem's: the socket is `0660`, owned by the runner user, group-shared
+with the service user. A TCP port on localhost is reachable by every process
+on the machine — including anything an agent itself starts, which would make
+the isolation decorative. The shared token on top is defence in depth, not the
+primary control, and is compared in constant time.
+
+### What the runner refuses
+
+- **A workspace outside its root.** `IRONCREW_RUNNER_WORKSPACE_ROOT` is
+  checked with `realpath`, not a string prefix, so a symlink inside the root
+  pointing out of it does not pass. A runner that trusted the path the
+  control plane sent would turn a bug there into filesystem access under the
+  account that holds the logins.
+- **A job for a runtime it does not have.** Reported at the handshake, so it
+  reads as "this runner cannot do that" rather than as a mysterious failure
+  inside a run.
+- **A wrong token**, without revealing its length.
+
+### MCP servers on the runner
+
+An MCP server is usually a process with an API key in its environment. That
+key must not live in the control plane's database — so the server runs on the
+runner too, and the protocol carries three more messages for it:
+
+| Message          | Direction | Purpose                                             |
+| ---------------- | --------- | --------------------------------------------------- |
+| `mcp-connect`    | → runner  | start (or restart) a server; answers with its tools |
+| `mcp-call`       | → runner  | run one tool; answers with the connector result     |
+| `mcp-disconnect` | → runner  | stop it                                             |
+
+`mcp-connect` sends the **stored config, references intact**. A config value
+may be either a literal or a pointer into a vault:
+
+```json
+{ "$secret": { "provider": "vaultwarden", "itemRef": "GitHub MCP", "field": "password" } }
+```
+
+A pointer is not a credential, so it may be stored, logged and shown in the
+UI. The runner resolves it as its own OS user, against its own vault session,
+immediately before starting the server. The value is never sent back: the
+control plane sees tools and tool results, and nothing else.
+
+Which side runs a given server is decided by the config, not by a setting: a
+server whose values are all literals runs inline as before; one that
+references the vault runs on the runner, and says so (`needsRunner` in its
+status) rather than failing later as an authentication error. Without a
+runner configured, starting such a server is refused with a message that
+names `IRONCREW_RUNNER_SOCKET` — an operator should not have to guess that
+the missing piece is a daemon.
+
+The servers are **daemon-scoped, not connection-scoped**. The control plane
+opens one connection per request, so a server tied to a connection would be
+spawned and killed for every tool call. They stop on `mcp-disconnect` or when
+the daemon stops — which is also what keeps a credential from outliving the
+vault entry it came from.
+
+### What always happens
+
+**A run always ends.** Every failure across the boundary — the connection
+dropping mid-run, the daemon dying, a protocol error, an idle timeout, even a
+runner that ends a job without a terminal event — produces `run.failed` or
+`run.cancelled` on the control-plane side. A `startRun` generator that merely
+stopped would leave the orchestrator's `for await` waiting, the task
+`running` and the agent locked until its lease expired minutes later.
+
+Locally minted events carry `seq: -1`: the runner owns the sequence for a run,
+and inventing a number in its space could collide with one it already used.
+
+**A dropped connection cancels what it started.** A CLI process still running
+for a control plane that is no longer listening spends money and holds a
+workspace for nothing.
 
 The native runner:
 

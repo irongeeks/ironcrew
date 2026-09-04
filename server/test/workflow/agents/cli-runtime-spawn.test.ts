@@ -172,13 +172,17 @@ describe("cli-runtime spawnCliAgent — adapter dispatch", () => {
     expect((options.env as Record<string, string>).CI).toBe("1");
   });
 
-  it.each([
-    ["copilot", copilotAdapter],
-    ["antigravity", antigravityAdapter],
-  ] as const)("rejects HTTP adapter %s with a clear error", (key, adapter) => {
+  it.each([["copilot", copilotAdapter]] as const)("rejects HTTP adapter %s with a clear error", (key, adapter) => {
     const deps = makeDeps({ adapterRegistry: makeAdapterRegistry({ [key]: adapter as any }) });
     const runtime = createCliRuntimeTools(deps);
     expect(() => runtime.spawnCliAgent("t", key, "p", "/tmp", "/tmp/l.txt")).toThrow(/HTTP adapter/);
+  });
+
+  it("spawns the antigravity CLI adapter — it is agy, not an HTTP endpoint", () => {
+    const deps = makeDeps({ adapterRegistry: makeAdapterRegistry({ antigravity: antigravityAdapter }) });
+    const runtime = createCliRuntimeTools(deps);
+    expect(() => runtime.spawnCliAgent("t", "antigravity", "p", "/tmp", "/tmp/l.txt")).not.toThrow();
+    expect(mockSpawn.mock.calls[0][0]).toBe("agy");
   });
 
   it("throws when provider is unknown", () => {
@@ -230,6 +234,8 @@ describe("cli-runtime spawnCliAgent — env, prompt, stdin", () => {
       ...fakeAdapter,
       promptDelivery: "flag",
       promptFlag: "--message",
+      // Models OpenClaw, which is the adapter that actually has a session flag.
+      sessionFlag: "--session-id",
     };
     const deps = makeDeps({ adapterRegistry: makeAdapterRegistry({ fake: flagAdapter }) });
     const runtime = createCliRuntimeTools(deps);

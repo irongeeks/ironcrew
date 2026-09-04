@@ -254,14 +254,18 @@ export function createCliRuntimeTools(deps: CliRuntimeDeps) {
     // metacharacter injection (", &, |, etc.). Instead, fall back to stdin delivery on Windows.
     let win32StdinFallback = false;
     if (adapter.promptDelivery === "flag" && adapter.promptFlag) {
+      // The session flag is the adapter's, not every CLI's: agy has no
+      // --session-id, and handing it one turns every run into an unknown-flag
+      // error.
+      const sessionArgs = adapter.sessionFlag ? [adapter.sessionFlag, taskId] : [];
       if (process.platform === "win32") {
         // Windows with shell: true — unsafe to pass prompt as CLI flag argument.
         // Switch to stdin delivery: the prompt is already saved to promptPath for debugging,
         // and we will write it to stdin below (the stdin delivery block will handle it).
-        args.push("--session-id", taskId);
+        args.push(...sessionArgs);
         win32StdinFallback = true;
       } else {
-        args.push("--session-id", taskId, adapter.promptFlag, prompt);
+        args.push(...sessionArgs, adapter.promptFlag, prompt);
       }
     }
 
