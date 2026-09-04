@@ -124,7 +124,7 @@ const updateMilestoneSchema = z.object({
 const milestoneStatusSchema = z.object({ status: z.enum(MILESTONE_STATUSES) });
 const createSecretSchema = z.object({
   name: z.string().min(1).max(200),
-  provider: z.enum(["vaultwarden", "protonpass"]),
+  provider: z.enum(["vaultwarden", "protonpass", "keychain"]),
   itemRef: z.string().min(1).max(500),
   field: z.string().max(200).optional(),
   description: z.string().max(2000).optional(),
@@ -1104,7 +1104,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   app.get(
     `${base}/secret-providers`,
     wrap(async (_req, res) => {
-      const kinds: Array<"vaultwarden" | "protonpass"> = ["vaultwarden", "protonpass"];
+      const kinds: Array<"vaultwarden" | "protonpass" | "keychain"> = ["vaultwarden", "protonpass", "keychain"];
       const providers = await Promise.all(
         kinds.map(async (kind) => ({
           kind,

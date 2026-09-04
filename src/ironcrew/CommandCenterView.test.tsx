@@ -6,6 +6,7 @@ import { CommandCenterView } from "./CommandCenterView.tsx";
 import type { api } from "./api.ts";
 import type {
   Agent,
+  AgentTool,
   Approval,
   Attachment,
   ChangeProposal,
@@ -38,8 +39,12 @@ import type {
   Secret,
   SecretProviderStatus,
   TailscaleInfo,
+  SearchProviderStatus,
+  SearchResultItem,
   Talent,
   Task,
+  ToolGrant,
+  ToolWithGrants,
   Vessel,
 } from "./types.ts";
 
@@ -222,6 +227,13 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     drainRunQueue: vi.fn(),
     scheduler: vi.fn().mockResolvedValue({ enabled: true, jobs: [] }),
     runSchedulerJob: vi.fn(),
+    tools: vi.fn().mockResolvedValue({ tools: [] }),
+    agentTools: vi.fn().mockResolvedValue({ tools: [] }),
+    grantTool: vi.fn(),
+    revokeToolGrant: vi.fn(),
+    setToolEnabled: vi.fn(),
+    searchProviders: vi.fn().mockResolvedValue({ providers: [] }),
+    search: vi.fn(),
     ...over,
   } as unknown as Client;
 }

@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./command-center.css";
-import { api, serverMessage } from "./api.ts";
+import { api, serverErrorCode, serverMessage } from "./api.ts";
 import {
   AGENT_STATUS_LABEL,
   BOARD_COLUMNS,
@@ -34,7 +34,12 @@ import {
   RUN_REQUEST_STATUS_LABEL,
   SECRET_PROVIDER_LABEL,
   TASK_STATUS_LABEL,
+  TOOL_GRANT_SCOPE_LABEL,
+  TOOL_ORIGIN_LABEL,
+  TOOL_RISK_CLASS_LABEL,
+  TOOL_VIA_LABEL,
   type Agent,
+  type AgentTool,
   type Approval,
   type Attachment,
   type ChangeApplyConflict,
@@ -78,6 +83,8 @@ import {
   type RunRequestStatus,
   type RuntimeInfo,
   type SchedulerStatus,
+  type SearchHits,
+  type SearchProviderStatus,
   type Secret,
   type SecretProviderKind,
   type SecretProviderStatus,
@@ -85,6 +92,8 @@ import {
   type Talent,
   type Task,
   type TaskStatus,
+  type ToolGrantScope,
+  type ToolWithGrants,
   type Vessel,
 } from "./types.ts";
 
@@ -164,6 +173,27 @@ function eventKind(type: string): "error" | "decision" | "normal" {
   if (type === "run.failed" || type === "tool.failed" || type === "run.cancelled") return "error";
   if (type === "approval.required" || type === "rate_limit.detected" || type === "run.waiting") return "decision";
   return "normal";
+}
+
+/**
+ * The tool key the search panel goes through.
+ *
+ * Named here rather than inlined into a sentence, because a refusal that does
+ * not say *which* tool was refused sends the operator looking through the
+ * whole register.
+ */
+const WEB_SEARCH_TOOL_KEY = "web.search";
+
+/**
+ * Whether one grant needs an approval per use.
+ *
+ * `requires_approval` is deliberately nullable: NULL means "whatever the risk
+ * class implies", not "nein". That is the whole reason an external tool stays
+ * gated when someone forgets the field.
+ */
+function grantRequiresApproval(tool: ToolWithGrants, grant: { requires_approval: number | null }): boolean {
+  if (grant.requires_approval === null) return tool.risk_class === "external";
+  return grant.requires_approval === 1;
 }
 
 export interface CommandCenterViewProps {
@@ -329,6 +359,39 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [drainResult, setDrainResult] = useState<string | null>(null);
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
 
+  // --- tools & search: the register says what, the grants say who ---------
+  const [tools, setTools] = useState<ToolWithGrants[]>([]);
+  const [showTools, setShowTools] = useState(false);
+  // A 409 belongs on the tool it refused: the page-wide banner sits behind
+  // this dialog's backdrop, and the server's sentence is the only text that
+  // explains why waiving the gate was rejected.
+  const [toolErrors, setToolErrors] = useState<Record<string, string>>({});
+  const [grantScopeKind, setGrantScopeKind] = useState<Record<string, ToolGrantScope>>({});
+  const [grantScopeId, setGrantScopeId] = useState<Record<string, string>>({});
+  // "default" is the absence of an opinion, which is not the same as "no":
+  // it leaves `requires_approval` NULL, so the risk class keeps deciding.
+  const [grantApproval, setGrantApproval] = useState<Record<string, "default" | "required" | "none">>({});
+  // The one control in this dialog that removes a safety gate, so it stops
+  // and asks before the request is ever built.
+  const [waiverToolId, setWaiverToolId] = useState<string | null>(null);
+
+  const [searchProviders, setSearchProviders] = useState<SearchProviderStatus[]>([]);
+  const [searchAgentId, setSearchAgentId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  // Four separate outcomes, four separate places to say so: hits, a refusal,
+  // a waiting approval, and an unreachable provider are not the same event
+  // and must not collapse into one grey error line.
+  const [searchHits, setSearchHits] = useState<SearchHits | null>(null);
+  const [searchDenied, setSearchDenied] = useState<string | null>(null);
+  const [searchApprovalId, setSearchApprovalId] = useState<string | null>(null);
+  const [searchUnreachable, setSearchUnreachable] = useState<string | null>(null);
+  const [searchFailure, setSearchFailure] = useState<string | null>(null);
+
+  // What the agent in the detail dialog may reach for, straight from the gate
+  // rather than re-derived here — read-only, because granting happens in the
+  // Werkzeuge dialog where the whole register is visible.
+  const [agentTools, setAgentTools] = useState<AgentTool[] | null>(null);
+
   const [notificationChannels, setNotificationChannels] = useState<NotificationChannelStatus[]>([]);
   const [showChannels, setShowChannels] = useState(false);
   const [channelTestResults, setChannelTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
@@ -493,13 +556,22 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
       setSelectedAgent(agent);
       setPairingVesselId(null);
       setPairingTalentId(null);
+      setAgentTools(null);
       void refreshRuntimes();
       // Which vessel and talent this agent sits in is read back out of the
       // catalogues rather than from a duplicated field on the agent, so the
       // dropdowns can never disagree with the lists they are filled from.
       void refreshVesselsAndTalents();
+      // Asked of the gate rather than assembled from the grant list here:
+      // precedence is agent > project > talent, and only the server applies
+      // it, so anything computed in the UI could disagree with the answer a
+      // run actually gets.
+      client
+        .agentTools(agent.id)
+        .then((r) => setAgentTools(r.tools))
+        .catch(() => setAgentTools([]));
     },
-    [refreshRuntimes, refreshVesselsAndTalents],
+    [client, refreshRuntimes, refreshVesselsAndTalents],
   );
 
   useEffect(() => {
@@ -1553,6 +1625,149 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     [actWith, client, refreshVesselsAndTalents],
   );
 
+  // --- tools & search -----------------------------------------------------
+  //
+  // Two tables, two statements: the register says what this server *can*
+  // perform, the grants say who *may*. Nothing here registers a tool — that
+  // happens at start-up and on install — so everything this dialog does is
+  // about permission, and the register is only shown so the operator can see
+  // what there is to permit.
+
+  const refreshTools = useCallback(async () => {
+    const { tools: rows } = await client.tools();
+    setTools(rows);
+  }, [client]);
+
+  const openTools = useCallback(() => {
+    setShowTools(true);
+    setToolErrors({});
+    setWaiverToolId(null);
+    void actWith(
+      async () => {
+        // Talents are not in the main poll, and a grant that names one has to
+        // be able to say whose role it is rather than printing an id.
+        await Promise.all([refreshTools(), refreshVesselsAndTalents()]);
+        // A provider that is configured but unreachable is information, not a
+        // failure of this dialog, so it must not take the register down with it.
+        await client
+          .searchProviders()
+          .then((r) => setSearchProviders(r.providers))
+          .catch(() => setSearchProviders([]));
+      },
+      async () => {},
+    );
+  }, [actWith, client, refreshTools, refreshVesselsAndTalents]);
+
+  const setToolEnabled = useCallback(
+    (toolId: string, enabled: boolean) => {
+      void actWith(() => client.setToolEnabled(toolId, enabled), refreshTools);
+    },
+    [actWith, client, refreshTools],
+  );
+
+  const revokeToolGrant = useCallback(
+    (grantId: string) => {
+      void actWith(() => client.revokeToolGrant(grantId), refreshTools);
+    },
+    [actWith, client, refreshTools],
+  );
+
+  /**
+   * Sends one grant.
+   *
+   * Waiving the approval on an `external` tool is the single control in this
+   * dialog that takes a gate away, so the first click only asks: the request
+   * that carries `allowUnapprovedExternal` is built exclusively on the second,
+   * confirmed one. The server refuses the flagless version anyway — this is so
+   * the operator meets the question before the server does.
+   */
+  const submitGrant = useCallback(
+    (tool: ToolWithGrants, confirmedWaiver = false) => {
+      const kind = grantScopeKind[tool.id] ?? "agent";
+      const scopeId = grantScopeId[tool.id] ?? "";
+      if (scopeId === "") return;
+      const approval = grantApproval[tool.id] ?? "default";
+      const requiresApproval = approval === "default" ? null : approval === "required";
+
+      if (requiresApproval === false && tool.risk_class === "external" && !confirmedWaiver) {
+        setWaiverToolId(tool.id);
+        return;
+      }
+
+      const scope =
+        kind === "agent" ? { agentId: scopeId } : kind === "project" ? { projectId: scopeId } : { talentId: scopeId };
+
+      void actWith(async () => {
+        setToolErrors((prev) => {
+          const next = { ...prev };
+          delete next[tool.id];
+          return next;
+        });
+        try {
+          await client.grantTool(tool.id, {
+            ...scope,
+            requiresApproval,
+            ...(confirmedWaiver ? { allowUnapprovedExternal: true } : {}),
+          });
+          setWaiverToolId(null);
+          setGrantScopeId((prev) => ({ ...prev, [tool.id]: "" }));
+        } catch (err) {
+          // 409 invalid_tool_mutation: the message explains why the waiver was
+          // refused, and no wording of ours could say it better.
+          setToolErrors((prev) => ({ ...prev, [tool.id]: serverMessage(err) }));
+        }
+      }, refreshTools);
+    },
+    [actWith, client, grantApproval, grantScopeId, grantScopeKind, refreshTools],
+  );
+
+  /** Whom a grant is for, by name — falling back to the id it stores. */
+  const grantHolder = useCallback(
+    (grant: { agent_id: string | null; talent_id: string | null; project_id: string | null }): string => {
+      if (grant.agent_id) {
+        const found = agents.find((a) => a.id === grant.agent_id);
+        return `Agent: ${found ? found.displayName : grant.agent_id}`;
+      }
+      if (grant.project_id) {
+        const found = projects.find((p) => p.id === grant.project_id);
+        return `Projekt: ${found ? found.title : grant.project_id}`;
+      }
+      if (grant.talent_id) {
+        const found = talents.find((t) => t.id === grant.talent_id);
+        return `Talent: ${found ? found.professional_role : grant.talent_id}`;
+      }
+      return "—";
+    },
+    [agents, projects, talents],
+  );
+
+  const runSearch = useCallback(() => {
+    const query = searchQuery.trim();
+    if (query === "" || searchAgentId === "") return;
+    setSearchHits(null);
+    setSearchDenied(null);
+    setSearchApprovalId(null);
+    setSearchUnreachable(null);
+    setSearchFailure(null);
+    void actWith(
+      async () => {
+        try {
+          const outcome = await client.search({ agentId: searchAgentId, query });
+          // 202 arrives as a success on the wire and is a refusal in effect:
+          // nothing was searched, an approval is now waiting for the operator.
+          if ("approvalRequired" in outcome) setSearchApprovalId(outcome.approvalId);
+          else setSearchHits(outcome);
+        } catch (err) {
+          const code = serverErrorCode(err);
+          if (code === "tool_denied") setSearchDenied(serverMessage(err));
+          else if (code === "search_unreachable") setSearchUnreachable(serverMessage(err));
+          else setSearchFailure(serverMessage(err));
+        }
+      },
+      async () => {},
+    );
+  }, [actWith, client, searchAgentId, searchQuery]);
+
   // --- run queue & scheduler (the durable intent to run, and its worker) ---
 
   const refreshRunQueue = useCallback(
@@ -1873,6 +2088,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-vessels" onClick={openVessels}>
           Vessels &amp; Talente
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-tools" onClick={openTools}>
+          Werkzeuge
         </button>
 
         <button type="button" className="ic-btn" data-testid="open-run-queue" onClick={openRunQueue}>
@@ -2328,6 +2547,23 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                       {t}
                     </span>
                   ))}
+            </dd>
+            {/* What the gate actually answers for this post, and through which
+                scope it answered — a grant on the talent reaches every agent
+                in that role, so naming the scope is what makes the line
+                readable rather than surprising. */}
+            <dt>Freigegebene Werkzeuge</dt>
+            <dd data-testid="agent-tools-line">
+              {agentTools === null
+                ? "wird geladen…"
+                : agentTools.length === 0
+                  ? "Kein Werkzeug freigegeben."
+                  : agentTools.map((entry) => (
+                      <span key={entry.tool.id} className="ic-tag" data-tone="policy">
+                        {entry.tool.key} ({TOOL_VIA_LABEL[entry.via] ?? entry.via}
+                        {entry.requiresApproval ? ", Freigabe pro Nutzung" : ""})
+                      </span>
+                    ))}
             </dd>
             <dt>Auftreten</dt>
             <dd>{currentAgent.persona.traits.join(", ") || "—"}</dd>
@@ -4717,6 +4953,370 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               Anlegen
             </button>
           </div>
+        </DetailDialog>
+      )}
+
+      {showTools && (
+        <DetailDialog title="Werkzeuge" onClose={() => setShowTools(false)}>
+          <p className="ic-note">
+            Zwei Tabellen, zwei Aussagen: das Register sagt, was dieser Server ausführen <em>kann</em>, die Freigaben
+            sagen, wer es benutzen <em>darf</em>. Registrieren erteilt nichts. Eine Freigabe nennt genau einen
+            Geltungsbereich — einen Agenten (diesen Posten), ein Projekt (diesen Kontext) oder ein Talent (die Rolle
+            allgemein). Überschneiden sie sich, gewinnt das Spezifischere: Agent vor Projekt vor Talent.
+          </p>
+          <p className="ic-warn" data-testid="tool-disabled-note">
+            Ein abgeschaltetes Werkzeug wird für alle verweigert — unabhängig von jeder Freigabe.
+          </p>
+
+          {tools.length === 0 && <p className="ic-empty">Kein Werkzeug registriert.</p>}
+          <ul className="ic-milestone-list">
+            {tools.map((tool) => {
+              const kind = grantScopeKind[tool.id] ?? "agent";
+              const scopeId = grantScopeId[tool.id] ?? "";
+              const approval = grantApproval[tool.id] ?? "default";
+              return (
+                <li
+                  key={tool.id}
+                  className="ic-tool-row"
+                  data-tool-enabled={tool.enabled === 0 ? "false" : "true"}
+                  data-testid={`tool-${tool.id}`}
+                  style={{ flexWrap: "wrap" }}
+                >
+                  <span className="ic-milestone-title">{tool.label || tool.key}</span>
+                  <span className="ic-tag" data-testid={`tool-key-${tool.id}`}>
+                    {tool.key}
+                  </span>
+                  {/* The class named by what it does to the world. "external"
+                      is a column value; "wirkt nach außen" is the thing the
+                      operator has to weigh. */}
+                  <span
+                    className="ic-tag"
+                    data-tone={tool.risk_class === "external" ? "gate" : "policy"}
+                    data-testid={`tool-risk-${tool.id}`}
+                  >
+                    {TOOL_RISK_CLASS_LABEL[tool.risk_class]}
+                  </span>
+                  <span className="ic-tag" data-testid={`tool-origin-${tool.id}`}>
+                    {TOOL_ORIGIN_LABEL[tool.origin] ?? tool.origin}
+                  </span>
+                  {tool.enabled === 0 && (
+                    <span className="ic-tag" data-tone="off" data-testid={`tool-off-${tool.id}`}>
+                      abgeschaltet
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="ic-btn"
+                    data-testid={`tool-toggle-${tool.id}`}
+                    disabled={busy}
+                    onClick={() => setToolEnabled(tool.id, tool.enabled === 0)}
+                  >
+                    {tool.enabled === 0 ? "Einschalten" : "Abschalten"}
+                  </button>
+                  {tool.description !== "" && (
+                    <span className="ic-note" style={{ width: "100%" }} data-testid={`tool-description-${tool.id}`}>
+                      {tool.description}
+                    </span>
+                  )}
+
+                  {tool.grants.length === 0 ? (
+                    <span className="ic-note" style={{ width: "100%" }} data-testid={`tool-grants-empty-${tool.id}`}>
+                      Niemand darf dieses Werkzeug benutzen.
+                    </span>
+                  ) : (
+                    <ul className="ic-milestone-list" style={{ width: "100%" }}>
+                      {tool.grants.map((grant) => (
+                        <li key={grant.id} data-testid={`tool-grant-${grant.id}`} style={{ flexWrap: "wrap" }}>
+                          <span className="ic-milestone-title" data-testid={`tool-grant-holder-${grant.id}`}>
+                            {grantHolder(grant)}
+                          </span>
+                          <span
+                            className="ic-tag"
+                            data-tone={grantRequiresApproval(tool, grant) ? "gate" : undefined}
+                            data-testid={`tool-grant-approval-${grant.id}`}
+                          >
+                            {grantRequiresApproval(tool, grant) ? "Freigabe pro Nutzung" : "keine Freigabe nötig"}
+                          </span>
+                          <button
+                            type="button"
+                            className="ic-btn"
+                            data-variant="danger"
+                            data-testid={`tool-grant-revoke-${grant.id}`}
+                            disabled={busy}
+                            onClick={() => revokeToolGrant(grant.id)}
+                          >
+                            Entziehen
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="ic-form-row" data-testid={`tool-grant-form-${tool.id}`}>
+                    <label className="ic-sr-only" htmlFor={`ic-grant-kind-${tool.id}`}>
+                      Geltungsbereich für {tool.key}
+                    </label>
+                    <select
+                      id={`ic-grant-kind-${tool.id}`}
+                      className="ic-select"
+                      data-testid={`tool-grant-kind-${tool.id}`}
+                      value={kind}
+                      onChange={(e) => {
+                        const next = e.target.value as ToolGrantScope;
+                        setGrantScopeKind((prev) => ({ ...prev, [tool.id]: next }));
+                        // The previous pick belonged to the previous kind; an
+                        // agent id in the project slot would be a grant for
+                        // something that does not exist.
+                        setGrantScopeId((prev) => ({ ...prev, [tool.id]: "" }));
+                        setWaiverToolId(null);
+                      }}
+                    >
+                      {(["agent", "project", "talent"] as const).map((value) => (
+                        <option key={value} value={value}>
+                          {TOOL_GRANT_SCOPE_LABEL[value]}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label className="ic-sr-only" htmlFor={`ic-grant-target-${tool.id}`}>
+                      {TOOL_GRANT_SCOPE_LABEL[kind]} wählen
+                    </label>
+                    <select
+                      id={`ic-grant-target-${tool.id}`}
+                      className="ic-select"
+                      data-testid={`tool-grant-target-${tool.id}`}
+                      value={scopeId}
+                      onChange={(e) => setGrantScopeId((prev) => ({ ...prev, [tool.id]: e.target.value }))}
+                    >
+                      <option value="">— {TOOL_GRANT_SCOPE_LABEL[kind]} wählen —</option>
+                      {kind === "agent" &&
+                        agents.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.displayName}
+                          </option>
+                        ))}
+                      {kind === "project" &&
+                        projects.map((pr) => (
+                          <option key={pr.id} value={pr.id}>
+                            {pr.title}
+                          </option>
+                        ))}
+                      {kind === "talent" &&
+                        talents.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.professional_role}
+                          </option>
+                        ))}
+                    </select>
+
+                    <label className="ic-sr-only" htmlFor={`ic-grant-approval-${tool.id}`}>
+                      Freigabepflicht für {tool.key}
+                    </label>
+                    <select
+                      id={`ic-grant-approval-${tool.id}`}
+                      className="ic-select"
+                      data-testid={`tool-grant-approval-select-${tool.id}`}
+                      value={approval}
+                      onChange={(e) => {
+                        setGrantApproval((prev) => ({
+                          ...prev,
+                          [tool.id]: e.target.value as "default" | "required" | "none",
+                        }));
+                        setWaiverToolId(null);
+                      }}
+                    >
+                      {/* "Standard" leaves the column NULL — that is what keeps
+                          an external tool gated by omission rather than by
+                          someone remembering to say so. */}
+                      <option value="default">Freigabe: wie die Risikoklasse</option>
+                      <option value="required">Freigabe pro Nutzung</option>
+                      <option value="none">keine Freigabe nötig</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      className="ic-btn"
+                      data-variant="primary"
+                      data-testid={`tool-grant-submit-${tool.id}`}
+                      disabled={busy || scopeId === ""}
+                      onClick={() => submitGrant(tool)}
+                    >
+                      Freigeben
+                    </button>
+                  </div>
+
+                  {/* The one control here that takes a gate away, so it asks
+                      first and only the confirmed click sends the flag. */}
+                  {waiverToolId === tool.id && (
+                    <div className="ic-warn" style={{ width: "100%" }} data-testid={`tool-waiver-${tool.id}`}>
+                      <p style={{ margin: "0 0 6px" }}>
+                        {tool.key} wirkt nach außen: Was damit geschieht, behandelt jemand draußen als echt. Ohne
+                        Freigabepflicht handelt dieser Geltungsbereich künftig ohne Rückfrage — auch dann, wenn dabei
+                        Geld ausgegeben oder etwas in deinem Namen abgeschickt wird.
+                      </p>
+                      <button
+                        type="button"
+                        className="ic-btn"
+                        data-variant="danger"
+                        data-testid={`tool-waiver-confirm-${tool.id}`}
+                        disabled={busy}
+                        onClick={() => submitGrant(tool, true)}
+                      >
+                        Freigabepflicht bewusst abschalten
+                      </button>
+                      <button
+                        type="button"
+                        className="ic-btn"
+                        data-testid={`tool-waiver-cancel-${tool.id}`}
+                        disabled={busy}
+                        onClick={() => setWaiverToolId(null)}
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                  )}
+
+                  {/* A 409 explains why the waiver was refused; no wording of
+                      ours would say it better. */}
+                  {toolErrors[tool.id] && (
+                    <div className="ic-conflict" style={{ width: "100%" }} data-testid={`tool-error-${tool.id}`}>
+                      {toolErrors[tool.id]}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Suche
+          </h3>
+          <p className="ic-note">
+            Die Websuche gehört zum selben Register und geht durch dasselbe Gate: Ohne Freigabe für{" "}
+            {WEB_SEARCH_TOOL_KEY} sucht hier niemand. Treffer sind Text, den ein Fremder geschrieben hat — sie werden
+            als Text angezeigt, nie als Markup ausgeführt.
+          </p>
+          {searchProviders.length === 0 && <p className="ic-empty">Kein Suchanbieter konfiguriert.</p>}
+          <ul className="ic-milestone-list">
+            {searchProviders.map((provider) => (
+              <li key={provider.kind} data-testid={`search-provider-${provider.kind}`} style={{ flexWrap: "wrap" }}>
+                <span className="ic-milestone-title">{provider.kind}</span>
+                <span className="ic-tag" data-tone={provider.ok ? "policy" : "gate"}>
+                  {provider.ok ? "erreichbar" : "nicht erreichbar"}
+                </span>
+                {provider.message !== "" && (
+                  <span className="ic-note" style={{ width: "100%" }}>
+                    {provider.message}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <div className="ic-form-row">
+            <label className="ic-sr-only" htmlFor="ic-search-agent">
+              Agent für die Probesuche
+            </label>
+            <select
+              id="ic-search-agent"
+              className="ic-select"
+              data-testid="search-agent"
+              value={searchAgentId}
+              onChange={(e) => setSearchAgentId(e.target.value)}
+            >
+              <option value="">— Agent wählen —</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.displayName}
+                </option>
+              ))}
+            </select>
+            <label className="ic-sr-only" htmlFor="ic-search-query">
+              Suchbegriff
+            </label>
+            <input
+              id="ic-search-query"
+              data-testid="search-query"
+              placeholder="Suchbegriff"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="search-submit"
+              disabled={busy || searchAgentId === "" || searchQuery.trim() === ""}
+              onClick={runSearch}
+            >
+              Probesuche
+            </button>
+          </div>
+
+          {/* 403: the gate said no. Naming the tool is the point — the agent is
+              not broken, it simply has no grant for this one. */}
+          {searchDenied !== null && (
+            <div className="ic-conflict" data-testid="search-denied">
+              Dieser Agent darf das nicht: {WEB_SEARCH_TOOL_KEY} ist für ihn nicht freigegeben. {searchDenied}
+            </div>
+          )}
+          {/* 202: nothing was searched. The approval id is what the operator
+              looks for in the Freigaben list. */}
+          {searchApprovalId !== null && (
+            <div className="ic-warn" data-testid="search-approval">
+              Wartet auf deine Freigabe — Freigabe-ID {searchApprovalId}. Es wurde noch nichts gesucht.
+            </div>
+          )}
+          {/* 502: the request was fine, the provider on the other end was not. */}
+          {searchUnreachable !== null && (
+            <div className="ic-conflict" data-testid="search-unreachable">
+              Suchanbieter nicht erreichbar: {searchUnreachable}
+            </div>
+          )}
+          {searchFailure !== null && (
+            <div className="ic-conflict" data-testid="search-failure">
+              {searchFailure}
+            </div>
+          )}
+
+          {searchHits !== null && (
+            <>
+              <p className="ic-note" data-testid="search-provider-used">
+                Anbieter: {searchHits.provider}
+              </p>
+              {searchHits.results.length === 0 && <p className="ic-empty">Keine Treffer.</p>}
+              <ul className="ic-milestone-list">
+                {searchHits.results.map((hit) => (
+                  <li
+                    key={`${hit.rank}-${hit.url}`}
+                    data-testid={`search-result-${hit.rank}`}
+                    style={{ flexWrap: "wrap" }}
+                  >
+                    {/* Title, snippet and URL are attacker-controlled: rendered
+                        as children, never through dangerouslySetInnerHTML, and
+                        the link gets rel="noopener noreferrer" so the opened
+                        page cannot reach back into this window. */}
+                    <a
+                      className="ic-milestone-title"
+                      href={hit.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid={`search-result-title-${hit.rank}`}
+                    >
+                      {hit.title}
+                    </a>
+                    <span
+                      className="ic-note"
+                      style={{ width: "100%" }}
+                      data-testid={`search-result-snippet-${hit.rank}`}
+                    >
+                      {hit.snippet}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </DetailDialog>
       )}
 

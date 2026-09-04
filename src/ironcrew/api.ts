@@ -11,6 +11,7 @@
 import { isApiRequestError, request } from "../api/core";
 import type {
   Agent,
+  AgentTool,
   Approval,
   Attachment,
   ChangeApplyConflict,
@@ -63,12 +64,17 @@ import type {
   RuntimeInfo,
   SchedulerJob,
   SchedulerStatus,
+  SearchOutcome,
+  SearchProviderStatus,
   Secret,
   SecretProviderKind,
   SecretProviderStatus,
   TailscaleInfo,
   Talent,
   Task,
+  Tool,
+  ToolGrant,
+  ToolWithGrants,
   Vessel,
 } from "./types.ts";
 
@@ -100,6 +106,18 @@ export function serverMessage(err: unknown): string {
     if (details && typeof details.message === "string" && details.message.trim() !== "") return details.message;
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * The machine half of the same failure body.
+ *
+ * A search can fail in three ways that look identical to a human — the agent
+ * may not (403), the provider is unreachable (502), or something else broke —
+ * and only the code tells them apart. The message is what gets shown; this is
+ * what decides *where*.
+ */
+export function serverErrorCode(err: unknown): string | null {
+  return isApiRequestError(err) ? err.code : null;
 }
 
 export const api = {
@@ -390,6 +408,49 @@ export const api = {
   // can swap the vessel without restating the talent.
   setAgentPairing: (agentId: string, body: { vesselId?: string; talentId?: string }) =>
     send<{ agent: Agent }>(`/agents/${agentId}/pairing`, "POST", body),
+
+  // --- tools: the register, and who may use what ---------------------------
+  // Listing a tool is not granting it. `/tools` is the register of what this
+  // server can perform; the grants hanging off each row are the only thing
+  // that lets an agent reach for it.
+  tools: () => get<{ tools: ToolWithGrants[] }>("/tools"),
+  // Asked per project because a project grant is contextual: the same agent
+  // holds the customer's MCP tools inside the customer's project and nowhere
+  // else.
+  agentTools: (agentId: string, projectId?: string) =>
+    get<{ tools: AgentTool[] }>(
+      `/agents/${agentId}/tools${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`,
+    ),
+  // `allowUnapprovedExternal` is the deliberate second sentence: waiving the
+  // approval on an external tool is refused with 409 without it, and the
+  // refusal's message is the one worth reading.
+  grantTool: (
+    toolId: string,
+    body: {
+      agentId?: string;
+      talentId?: string;
+      projectId?: string;
+      requiresApproval?: boolean | null;
+      allowUnapprovedExternal?: boolean;
+    },
+  ) => send<{ grant: ToolGrant }>(`/tools/${toolId}/grants`, "POST", body),
+  revokeToolGrant: (id: string) => send<{ ok: true }>(`/tool-grants/${id}`, "DELETE"),
+  setToolEnabled: (id: string, enabled: boolean) => send<{ tool: Tool }>(`/tools/${id}/enabled`, "POST", { enabled }),
+
+  searchProviders: () => get<{ providers: SearchProviderStatus[] }>("/search-providers"),
+  // Takes an agent id and goes through the same gate as any other tool use —
+  // the API is not a way around a grant that was never given. A 202 is a
+  // success on the wire and a refusal in effect: an approval is now waiting.
+  search: (input: {
+    agentId: string;
+    query: string;
+    limit?: number;
+    language?: string;
+    safeSearch?: "off" | "moderate" | "strict";
+    kind?: string;
+    projectId?: string;
+    taskId?: string;
+  }) => send<SearchOutcome>("/search", "POST", input),
 
   // --- run queue & scheduler -----------------------------------------------
   runQueue: (status?: RunRequestStatus) =>

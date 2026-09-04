@@ -839,6 +839,25 @@
   background: var(--ic-bg-inset);
 }
 
+/* A tool nobody may use is a normal row; a tool that is switched off is not.
+   Disabled means the server refuses it for everyone, grants included, so the
+   row is dimmed and struck through rather than merely re-labelled — the state
+   has to be visible before the operator reads the tag that names it. */
+.ic-tool-row[data-tool-enabled="false"] {
+  opacity: 0.55;
+  border-left: 2px solid var(--ic-red);
+  padding-left: 8px;
+  background: var(--ic-bg-inset);
+}
+.ic-tool-row[data-tool-enabled="false"] .ic-milestone-title {
+  text-decoration: line-through;
+}
+/* Red, because "abgeschaltet" is a refusal and not a setting. */
+.ic-tag[data-tone="off"] {
+  border-color: var(--ic-red);
+  color: var(--ic-red);
+}
+
 /* Groups the fields of one create/edit form so a row's inline editor is
    visibly one unit rather than controls loose among the list items. */
 .ic-form-row {

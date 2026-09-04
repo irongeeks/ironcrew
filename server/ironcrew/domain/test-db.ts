@@ -21,6 +21,7 @@ import { migration as crewRunRequests } from "../../modules/bootstrap/migrations
 import { migration as crewUsers } from "../../modules/bootstrap/migrations/0017-crew-users.ts";
 import { migration as crewTools } from "../../modules/bootstrap/migrations/0018-crew-tools.ts";
 import { migration as crewToolProjectScope } from "../../modules/bootstrap/migrations/0019-crew-tool-project-scope.ts";
+import { migration as crewSecretsKeychain } from "../../modules/bootstrap/migrations/0020-crew-secrets-keychain.ts";
 import { newId } from "./ids.ts";
 
 /**
@@ -53,6 +54,7 @@ export function createTestDb(filePath?: string): DatabaseSync {
   crewUsers.up(db);
   crewTools.up(db);
   crewToolProjectScope.up(db);
+  crewSecretsKeychain.up(db);
   return db;
 }
 

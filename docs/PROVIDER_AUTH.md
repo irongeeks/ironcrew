@@ -121,9 +121,22 @@ reachable, rather than hiding one that isn't configured.
   `"<shareId>:<itemId>"` — IDs, not names, so a later rename in the vault
   can't silently break it.
 
-Neither provider has been exercised against a real `bw`/`pass-cli` install in
-this project's CI — verify against your actual deployment before relying on
-it in production.
+- **OS-Schlüsselbund** — via `secret-tool` (libsecret) auf Linux oder
+  `security` auf macOS. Ein `itemRef` ist `"dienst"` oder `"dienst:konto"`,
+  weil das genau das ist, was beide Werkzeuge entgegennehmen.
+
+  **Auf einem Server ist das die falsche Wahl**, und zwar nicht als Detail,
+  sondern als Grundsatz: libsecret braucht einen laufenden Daemon und eine
+  entsperrte Collection. Ein Dienst, der beim Boot startet, hat weder das eine
+  noch das andere — ein Keychain-Ref scheitert dann mitten in einem Lauf statt
+  bei der Einrichtung. `testConnection()` prüft deshalb den Session-Bus und
+  sagt es vorher. Auf einer Workstation ist der Schlüsselbund dagegen die
+  richtige Voreinstellung: Das Geheimnis ist bereits durch die Anmeldung
+  geschützt, die der Betreiber ohnehin vornimmt.
+
+None of the three providers has been exercised against a real
+`bw`/`pass-cli`/`secret-tool` install in this project's CI — verify against
+your actual deployment before relying on one in production.
 
 ## OpenRouter
 

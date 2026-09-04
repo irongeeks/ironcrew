@@ -42,6 +42,7 @@ import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
 import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
 import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
+import { KeychainSecretProvider } from "./ironcrew/secrets/keychain-provider.ts";
 import { ProtonPassSecretProvider } from "./ironcrew/secrets/protonpass-provider.ts";
 import { TailscaleProvider } from "./ironcrew/network/tailscale-provider.ts";
 import { ObsidianProvider } from "./ironcrew/memory/obsidian-provider.ts";
@@ -325,6 +326,12 @@ ironCrewOrchestrator.registerSecretProvider(
   new VaultwardenSecretProvider({ serverUrl: process.env.VAULTWARDEN_SERVER_URL }),
 );
 ironCrewOrchestrator.registerSecretProvider(new ProtonPassSecretProvider());
+// The OS keychain, third alongside the two vaults. Registering it says this
+// server *can* read one; testConnection() is what says whether it actually
+// can — on a headless service there is no session bus and no unlocked
+// collection, and it reports that rather than failing later inside a run
+// (server/ironcrew/secrets/keychain-provider.ts).
+ironCrewOrchestrator.registerSecretProvider(new KeychainSecretProvider());
 // Same posture again: GET /api/crew/tailscale (the Netzwerk panel) reports
 // whether this node is actually on a tailnet rather than assuming it is.
 ironCrewOrchestrator.registerTailscaleProvider(new TailscaleProvider({ tailscalePath: process.env.TAILSCALE_BIN }));
