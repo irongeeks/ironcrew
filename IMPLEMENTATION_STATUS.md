@@ -535,11 +535,22 @@ quorums, OIDC, off-box audit shipping, backups and the upgrade runbook in Phase 
    does not.
 
 5. **An offline verifier for the `crew_audit_events` chain.**
-   `verifyAuditChain()` is reachable only through `GET /api/crew/audit` and
-   `GET /api/crew/dashboard`, so verifying a restored database means starting
-   the build you were trying to verify first. `pnpm run audit:verify` checks a
-   different chain in a log file and does not cover this one
-   (`docs/UPGRADE.md`, known gaps).
+   **Closed.** `pnpm run audit:verify:db`
+   (`scripts/ironcrew-verify-audit.mjs`) verifies `crew_audit_events` from a
+   database file without starting the server, opening it strictly read-only —
+   a tool you run because you suspect tampering must not be able to write to
+   the evidence. It checks every company, reports the broken `seq` with the
+   entry's action, actor and timestamp, and separately reports holes in the
+   sequence. Exit 2 on a break or a hole, so it works in cron.
+
+   `pnpm run audit:verify` still checks a different chain — the NDJSON log
+   under `$LOGS_DIR` — and both are real; they simply answer different
+   questions.
+
+   What remains: truncation at the _tail_ is invisible. Deleting the last
+   entry leaves neither a broken link nor a hole, so the verifier proves the
+   rows present are unedited, not that none were removed after the last one.
+   Only comparing against a backup or the off-box copy closes that.
 
 Beyond that, the two largest surfaces are both deliberate noes with the
 reasoning written down: **multi-company**, which needs the company predicate to

@@ -333,7 +333,11 @@ function readOrgData() {
 
   let db;
   try {
-    db = new DatabaseSync(dbPath, { readonly: true });
+    // `readOnly`, not `readonly`. node:sqlite ignores an unknown option
+    // silently, so the lowercase spelling opened this database read-WRITE
+    // while every reader of the line believed otherwise. A report generator
+    // has no business being able to write to the database it describes.
+    db = new DatabaseSync(dbPath, { readOnly: true });
     const rows = db
       .prepare(
         `

@@ -17,9 +17,21 @@ reach.
 ## What it is not
 
 It is not a replacement for the local chain, and it is not a log-forwarding
-feature. `pnpm run audit:verify` checks a different thing — the NDJSON security
-log under `$LOGS_DIR` — and always did. This ships `crew_audit_events`: the
-decisions, the approvals, who signed what.
+feature. This ships `crew_audit_events`: the decisions, the approvals, who
+signed what.
+
+Three things check three different chains, and confusing them wastes an
+incident:
+
+| Command                    | Checks                                                |
+| -------------------------- | ----------------------------------------------------- |
+| `pnpm run audit:verify`    | the NDJSON security log under `$LOGS_DIR`             |
+| `pnpm run audit:verify:db` | `crew_audit_events` in a database file, offline       |
+| this feature               | carries `crew_audit_events` off the box, continuously |
+
+The offline verifier proves the rows present are unedited. Only the off-box
+copy answers the question it cannot: whether rows were removed from the end,
+which leaves neither a broken link nor a hole.
 
 It is also not a backup. `scripts/ironcrew-backup.mjs` takes a consistent
 snapshot of the whole database so you can restore it. This takes one table,
