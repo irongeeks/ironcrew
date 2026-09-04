@@ -189,7 +189,14 @@ export function loadCrewConfig(
  * as overriding it, so a persona instruction cannot be read as licence to
  * ignore a rule.
  */
-export function buildAgentGuidance(agent: SeedAgent): string {
+/**
+ * The fields this function actually reads. Narrower than `SeedAgent` on
+ * purpose: guidance is built both from the YAML seed and from a resolved
+ * agent row, and neither should have to supply a field the prompt ignores.
+ */
+export type GuidanceInput = Pick<SeedAgent, "professional_role" | "role_summary" | "skin" | "policy">;
+
+export function buildAgentGuidance(agent: GuidanceInput): string {
   const lines: string[] = [];
   lines.push(`# Rolle: ${agent.professional_role}`);
   if (agent.role_summary) lines.push(agent.role_summary.trim());

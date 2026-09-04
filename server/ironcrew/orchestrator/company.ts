@@ -57,6 +57,7 @@ import type {
   OutgoingMail,
 } from "../mail/mail-provider.ts";
 import { sanitiseLine, wrapUntrusted } from "../policy/untrusted-content.ts";
+import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-resolution.ts";
 import {
   MarketplaceStore,
   MarketplaceMutationError,
@@ -82,23 +83,12 @@ import {
 } from "../domain/crew-config.ts";
 import type { AgentRuntime, RunEvent } from "../runtime/run-events.ts";
 
-export interface AgentRow {
-  id: string;
-  company_id: string;
-  department_id: string | null;
-  key: string;
-  professional_role: string;
-  role_summary: string;
-  seniority: string;
-  policy_json: string;
-  persona_json: string;
-  display_name: string;
-  runtime_profile: string;
-  runtime_provider: string;
-  status: string;
-  status_detail: string;
-  is_executive_assistant: number;
-}
+/**
+ * An agent as every consumer here needs it: the row plus its talent and vessel
+ * followed (see domain/agent-resolution.ts). The name and the field meanings
+ * are unchanged from before the Vessel × Talent split — only the storage moved.
+ */
+export type AgentRow = ResolvedAgentRow;
 
 export interface CeoMessageResult {
   conversationId: string;
@@ -286,7 +276,9 @@ export class CompanyOrchestrator {
       speakerAgentId = participants[meeting.current_round % participants.length].agent_id;
     }
 
-    const agent = this.db.prepare("SELECT * FROM crew_agents WHERE id = ?").get(speakerAgentId) as AgentRow | undefined;
+    const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(speakerAgentId) as
+      | AgentRow
+      | undefined;
     if (!agent) throw new MeetingMutationError(`Agent "${speakerAgentId}" does not exist.`);
 
     const runtimeType = agent.runtime_provider;
@@ -301,13 +293,8 @@ export class CompanyOrchestrator {
     });
 
     const guidance = buildAgentGuidance({
-      key: agent.key,
-      department: "",
       professional_role: agent.professional_role,
       role_summary: agent.role_summary,
-      seniority: agent.seniority,
-      is_executive_assistant: agent.is_executive_assistant === 1,
-      runtime_profile: agent.runtime_profile,
       skin: JSON.parse(agent.persona_json),
       policy: JSON.parse(agent.policy_json),
     });
@@ -1295,31 +1282,68 @@ export class CompanyOrchestrator {
     return companyId;
   }
 
+  /**
+   * Seeds one agent as a Vessel × Talent pairing.
+   *
+   * The YAML still describes a whole agent, which is the right shape for a
+   * config file a human edits. Where those fields *land* is what changed: the
+   * role, policy and persona become a talent of the agent's own, and the
+   * runtime becomes a vessel shared by everyone using that runtime — the same
+   * grouping migration 0011 derives for an existing crew.
+   */
   private insertAgent(companyId: string, agent: SeedAgent, departmentId: string | null): string {
-    const id = newId("agt");
+    const vesselId = this.ensureVessel(companyId, "mock");
+
+    const talentId = newId("tal");
     this.db
       .prepare(
-        `INSERT INTO crew_agents
-           (id, company_id, department_id, key, professional_role, role_summary, seniority,
-            policy_json, persona_json, display_name, runtime_profile, runtime_provider,
-            status, is_executive_assistant)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'idle',?)`,
+        `INSERT INTO crew_talents
+           (id, company_id, key, professional_role, role_summary, seniority, policy_json, persona_json)
+         VALUES (?,?,?,?,?,?,?,?)`,
       )
       .run(
-        id,
+        talentId,
         companyId,
-        departmentId,
         agent.key,
         agent.professional_role,
         agent.role_summary,
         agent.seniority,
         JSON.stringify(agent.policy),
         JSON.stringify(agent.skin),
+      );
+
+    const id = newId("agt");
+    this.db
+      .prepare(
+        `INSERT INTO crew_agents
+           (id, company_id, department_id, key, display_name, vessel_id, talent_id,
+            status, is_executive_assistant)
+         VALUES (?,?,?,?,?,?,?,'idle',?)`,
+      )
+      .run(
+        id,
+        companyId,
+        departmentId,
+        agent.key,
         agent.skin.display_name,
-        agent.runtime_profile,
-        "mock",
+        vesselId,
+        talentId,
         agent.is_executive_assistant ? 1 : 0,
       );
+    return id;
+  }
+
+  /** One vessel per runtime per company; created on first use. */
+  private ensureVessel(companyId: string, runtimeProvider: string): string {
+    const existing = this.db
+      .prepare("SELECT id FROM crew_vessels WHERE company_id = ? AND key = ?")
+      .get(companyId, runtimeProvider) as { id: string } | undefined;
+    if (existing) return existing.id;
+
+    const id = newId("vsl");
+    this.db
+      .prepare("INSERT INTO crew_vessels (id, company_id, key, label, runtime_provider) VALUES (?,?,?,?,?)")
+      .run(id, companyId, runtimeProvider, `${runtimeProvider} (Standard)`, runtimeProvider);
     return id;
   }
 
@@ -1327,13 +1351,13 @@ export class CompanyOrchestrator {
 
   listAgents(companyId: string): AgentRow[] {
     return this.db
-      .prepare("SELECT * FROM crew_agents WHERE company_id = ? ORDER BY key")
+      .prepare(`${RESOLVED_AGENT_SELECT} WHERE a.company_id = ? ORDER BY a.key`)
       .all(companyId) as unknown as AgentRow[];
   }
 
   getAgent(companyId: string, key: string): AgentRow | null {
     return (
-      (this.db.prepare("SELECT * FROM crew_agents WHERE company_id = ? AND key = ?").get(companyId, key) as
+      (this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.company_id = ? AND a.key = ?`).get(companyId, key) as
         | AgentRow
         | undefined) ?? null
     );
@@ -1341,7 +1365,7 @@ export class CompanyOrchestrator {
 
   executiveAssistant(companyId: string): AgentRow {
     const ea = this.db
-      .prepare("SELECT * FROM crew_agents WHERE company_id = ? AND is_executive_assistant = 1")
+      .prepare(`${RESOLVED_AGENT_SELECT} WHERE a.company_id = ? AND a.is_executive_assistant = 1`)
       .get(companyId) as AgentRow | undefined;
     if (!ea) throw new Error("No executive assistant is configured for this company.");
     return ea;
@@ -1361,13 +1385,20 @@ export class CompanyOrchestrator {
    */
   setAgentRuntimeProvider(companyId: string, agentId: string, provider: string): AgentRow | null {
     const agent = this.db
-      .prepare("SELECT * FROM crew_agents WHERE id = ? AND company_id = ?")
+      .prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ? AND a.company_id = ?`)
       .get(agentId, companyId) as AgentRow | undefined;
     if (!agent) return null;
     if (!this.runtimes.has(provider)) {
       throw new Error(`Unknown runtime provider "${provider}". Registered: ${[...this.runtimes.keys()].join(", ")}`);
     }
-    this.db.prepare("UPDATE crew_agents SET runtime_provider = ? WHERE id = ?").run(provider, agentId);
+    // Moving an agent between runtimes is now moving it into a different
+    // vessel — which is the point of the split. The talent it carries (role,
+    // policy, persona) is untouched, so the same role really does run
+    // somewhere else rather than being redefined there.
+    const vesselId = this.ensureVessel(companyId, provider);
+    this.db
+      .prepare("UPDATE crew_agents SET vessel_id = ?, updated_at = ? WHERE id = ?")
+      .run(vesselId, Date.now(), agentId);
     appendAuditEvent(this.db, {
       companyId,
       actorType: "owner",
@@ -1375,9 +1406,9 @@ export class CompanyOrchestrator {
       action: "agent.runtime_changed",
       entityType: "agent",
       entityId: agentId,
-      details: { from: agent.runtime_provider, to: provider },
+      details: { from: agent.runtime_provider, to: provider, vesselId },
     });
-    return { ...agent, runtime_provider: provider };
+    return { ...agent, runtime_provider: provider, vessel_id: vesselId };
   }
 
   /**
@@ -1679,7 +1710,7 @@ export class CompanyOrchestrator {
     if (result.suggestedDepartment) {
       const row = this.db
         .prepare(
-          `SELECT a.* FROM crew_agents a
+          `${RESOLVED_AGENT_SELECT}
              JOIN crew_departments d ON d.id = a.department_id
             WHERE a.company_id = ? AND d.key = ? AND a.is_executive_assistant = 0
             ORDER BY a.key LIMIT 1`,
@@ -1737,7 +1768,7 @@ export class CompanyOrchestrator {
     const agentId = candidate.assigned_agent_id;
     if (!agentId) return null;
 
-    const agent = this.db.prepare("SELECT * FROM crew_agents WHERE id = ?").get(agentId) as AgentRow | undefined;
+    const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
     if (!agent) return null;
 
     const runtimeType = opts.runtimeType ?? agent.runtime_provider;
@@ -1813,13 +1844,8 @@ export class CompanyOrchestrator {
     });
 
     const seedAgentGuidance = buildAgentGuidance({
-      key: agent.key,
-      department: "",
       professional_role: agent.professional_role,
       role_summary: agent.role_summary,
-      seniority: agent.seniority,
-      is_executive_assistant: agent.is_executive_assistant === 1,
-      runtime_profile: agent.runtime_profile,
       skin: JSON.parse(agent.persona_json),
       policy: JSON.parse(agent.policy_json),
     });

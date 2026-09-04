@@ -415,8 +415,15 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     roleSummary: a.role_summary,
     seniority: a.seniority,
     departmentId: a.department_id,
-    runtimeProfile: a.runtime_profile,
+    // Vessel × Talent: which container executes this agent, and which
+    // capability package it carries. Both are ids the UI can follow, plus the
+    // resolved values so a caller need not fetch three things to show one row.
+    vesselId: a.vessel_id,
+    vesselKey: a.vessel_key,
     runtimeProvider: a.runtime_provider,
+    talentId: a.talent_id,
+    talentKey: a.talent_key,
+    skills: JSON.parse(a.skills_json) as string[],
     isExecutiveAssistant: a.is_executive_assistant === 1,
     // Persona is cosmetic; policy is authoritative. Both are exposed so the
     // UI can show that they are separate, but they are never merged.

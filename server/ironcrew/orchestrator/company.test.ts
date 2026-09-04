@@ -356,6 +356,12 @@ describe("runtime selection", () => {
     const updated = orc.setAgentRuntimeProvider(companyId, agent.id, "mock");
     expect(updated!.runtime_provider).toBe("mock");
 
+    // The move is a change of vessel, not of the agent's own fields — that is
+    // what makes the same talent runnable somewhere else.
+    expect(updated!.vessel_id).toBeTruthy();
+    expect(updated!.talent_id).toBe(agent.talent_id);
+    expect(updated!.professional_role).toBe(agent.professional_role);
+
     const rows = db
       .prepare("SELECT action, details_json FROM crew_audit_events WHERE action = 'agent.runtime_changed'")
       .all() as Array<{
@@ -363,7 +369,13 @@ describe("runtime selection", () => {
       details_json: string;
     }>;
     expect(rows).toHaveLength(1);
-    expect(JSON.parse(rows[0].details_json)).toEqual({ from: "mock", to: "mock" });
+    // The vessel it landed in is part of the record: "which runtime" is now
+    // answered by a row someone can go and look at.
+    expect(JSON.parse(rows[0].details_json)).toEqual({
+      from: "mock",
+      to: "mock",
+      vesselId: updated!.vessel_id,
+    });
   });
 
   it("returns null for an agent outside the company", () => {
