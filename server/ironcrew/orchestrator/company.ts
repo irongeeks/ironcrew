@@ -58,6 +58,7 @@ import type {
 } from "../mail/mail-provider.ts";
 import { sanitiseLine, wrapUntrusted } from "../policy/untrusted-content.ts";
 import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-resolution.ts";
+import { AgentLockStore } from "../domain/agent-lock-store.ts";
 import {
   MarketplaceStore,
   MarketplaceMutationError,
@@ -120,6 +121,7 @@ export class CompanyOrchestrator {
   readonly memories: MemoryStore;
   readonly mailboxes: MailboxStore;
   readonly marketplaces: MarketplaceStore;
+  readonly agentLocks: AgentLockStore;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -157,6 +159,7 @@ export class CompanyOrchestrator {
     this.memories = new MemoryStore(db);
     this.mailboxes = new MailboxStore(db);
     this.marketplaces = new MarketplaceStore(db);
+    this.agentLocks = new AgentLockStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -1836,6 +1839,27 @@ export class CompanyOrchestrator {
       return null;
     }
 
+    // One agent, one run. The task claim above stops two workers taking the
+    // same task; this stops two *different* tasks being dispatched to the
+    // same agent, which would have them share one workspace, one CLI session
+    // and one budget — and each would clear the pre-dispatch budget gate
+    // without seeing the other's spend.
+    //
+    // Fail-closed: no lease, no run. The task goes back to `ready` rather
+    // than sitting claimed by a run that never happened, so it is picked up
+    // again as soon as the agent is free.
+    if (!this.agentLocks.acquire(agentId, run.id)) {
+      this.tasks.releaseLock(candidate.id, run.id);
+      this.tasks.transition(claimed.id, "ready", {
+        reason: "agent busy with another run",
+        actorType: "system",
+        actorId: "scheduler",
+        correlationId: claimed.correlation_id,
+      });
+      this.runs.setStatus(run.id, "cancelled");
+      return null;
+    }
+
     this.tasks.transition(claimed.id, "running", {
       reason: "run started",
       actorType: "agent",
@@ -1936,6 +1960,9 @@ export class CompanyOrchestrator {
     }
 
     this.tasks.releaseLock(candidate.id, run.id);
+    // Guarded on run.id, so a run whose lease already expired and was taken
+    // over cannot free the new owner's lock on its way out.
+    this.agentLocks.release(agentId, run.id);
 
     const current = this.tasks.get(candidate.id)!;
     const target: TaskStatus = failed ? "failed" : waiting ? "waiting" : "review";

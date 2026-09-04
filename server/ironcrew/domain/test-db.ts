@@ -13,6 +13,7 @@ import { migration as crewMeetings } from "../../modules/bootstrap/migrations/00
 import { migration as crewMailboxes } from "../../modules/bootstrap/migrations/0009-crew-mailboxes.ts";
 import { migration as crewMarketplaces } from "../../modules/bootstrap/migrations/0010-crew-marketplaces.ts";
 import { migration as crewVesselsTalents } from "../../modules/bootstrap/migrations/0011-crew-vessels-talents.ts";
+import { migration as crewAgentRunLock } from "../../modules/bootstrap/migrations/0012-crew-agent-run-lock.ts";
 import { newId } from "./ids.ts";
 
 export function createTestDb(): DatabaseSync {
@@ -28,6 +29,7 @@ export function createTestDb(): DatabaseSync {
   crewMailboxes.up(db);
   crewMarketplaces.up(db);
   crewVesselsTalents.up(db);
+  crewAgentRunLock.up(db);
   return db;
 }
 

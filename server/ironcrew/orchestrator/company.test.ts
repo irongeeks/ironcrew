@@ -1848,3 +1848,81 @@ describe("marketplaces — browsing sources and installing what they offer", () 
     expect(verifyAuditChain(db, companyId).valid).toBe(true);
   });
 });
+
+describe("agent run lock — one agent never has two runs in flight", () => {
+  /** A delegated, ready task plus the agent it landed on. */
+  function readyTask(prompt = "Bitte dokumentiere das Deployment-Verfahren.") {
+    const r = orc.handleCeoMessage(companyId, prompt);
+    const task = r.task!;
+    return { task, agentId: orc.tasks.get(task.id)!.assigned_agent_id! };
+  }
+
+  it("takes the lease for the duration of a run and gives it back", async () => {
+    const { agentId } = readyTask();
+
+    expect(orc.agentLocks.isLocked(agentId)).toBe(false);
+    await orc.executeNextTask(companyId);
+    // Released on the way out, so the agent is free for the next task.
+    expect(orc.agentLocks.isLocked(agentId)).toBe(false);
+  });
+
+  it("refuses to dispatch a second task to an agent already running one", async () => {
+    const { task, agentId } = readyTask();
+
+    // Stand in for a run that is still in flight: something else holds the
+    // agent's lease.
+    expect(orc.agentLocks.acquire(agentId, "run_in_flight")).toBe(true);
+
+    const result = await orc.executeNextTask(companyId);
+    expect(result).toBeNull();
+
+    // Fail-closed, and the work is not lost: the task is back in the queue
+    // rather than parked as claimed by a run that never started.
+    expect(orc.tasks.get(task.id)!.status).toBe("ready");
+    expect(orc.tasks.get(task.id)!.execution_run_id).toBeNull();
+    // The in-flight run still owns the agent.
+    expect(orc.agentLocks.get(agentId)?.runId).toBe("run_in_flight");
+  });
+
+  it("dispatches again once the blocking run lets go", async () => {
+    const { task, agentId } = readyTask();
+
+    orc.agentLocks.acquire(agentId, "run_in_flight");
+    expect(await orc.executeNextTask(companyId)).toBeNull();
+
+    orc.agentLocks.release(agentId, "run_in_flight");
+    const result = await orc.executeNextTask(companyId);
+    expect(result).not.toBeNull();
+    expect(result!.task.id).toBe(task.id);
+  });
+
+  it("does not leave the lease held when a run fails", async () => {
+    orc.registerRuntime({
+      type: "exploding",
+      capabilities: async () => ({
+        streaming: false,
+        sessionResume: false,
+        usageReporting: false,
+        costReporting: false,
+        toolCalls: false,
+        subagents: false,
+        defaultConcurrency: 1,
+      }),
+      healthCheck: async () => ({ healthy: true, installed: true, detail: "", checkedAt: Date.now() }),
+      authStatus: async () => ({ authenticated: true, method: "none", detail: "" }),
+      // eslint-disable-next-line require-yield
+      startRun: async function* () {
+        throw new Error("runtime exploded");
+      },
+      cancelRun: async () => {},
+    } as unknown as AgentRuntime);
+
+    const { agentId } = readyTask();
+
+    await orc.executeNextTask(companyId, { runtimeType: "exploding" }).catch(() => undefined);
+
+    // A crashed run that kept its lease would park the agent until the lease
+    // expired — half an hour of an agent doing nothing.
+    expect(orc.agentLocks.isLocked(agentId)).toBe(false);
+  });
+});
