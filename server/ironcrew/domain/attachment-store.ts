@@ -7,12 +7,19 @@
  * headlessly like every other domain store here. An attachment is scoped by
  * exactly one of `task_id` / `project_id`, or neither for the general,
  * company-wide document store — see the migration's own comment.
+ *
+ * The filename is the one attacker-supplied field here, and it is displayed
+ * in lists beside other filenames. A right-to-left override turns
+ * `invoice\u202Efdp.exe` into something that reads as `invoice.pdf`, so names
+ * are sanitised on the way in (see policy/untrusted-content.ts) rather than
+ * every place they are rendered.
  */
 
 import type { DatabaseSync } from "node:sqlite";
 import { newId } from "./ids.ts";
 import { allRows, oneRow } from "./sql.ts";
 import { appendAuditEvent, type ActorType } from "./audit.ts";
+import { sanitiseLine } from "../policy/untrusted-content.ts";
 
 export interface AttachmentRow {
   id: string;
@@ -51,7 +58,8 @@ export class AttachmentStore {
     if (input.taskId && input.projectId) {
       throw new AttachmentMutationError("An attachment may be scoped to a task or a project, not both.");
     }
-    if (!input.filename.trim()) throw new AttachmentMutationError("An attachment needs a filename.");
+    const filename = sanitiseLine(input.filename, 255);
+    if (!filename) throw new AttachmentMutationError("An attachment needs a filename.");
     if (input.sizeBytes < 0) throw new AttachmentMutationError("sizeBytes must not be negative.");
 
     if (input.taskId) {
@@ -87,7 +95,7 @@ export class AttachmentStore {
         input.companyId,
         input.taskId ?? null,
         input.projectId ?? null,
-        input.filename,
+        filename,
         input.contentType ?? "application/octet-stream",
         input.sizeBytes,
         input.storageKey,
@@ -104,7 +112,7 @@ export class AttachmentStore {
       entityId: id,
       taskId: input.taskId ?? null,
       details: {
-        filename: input.filename,
+        filename,
         sizeBytes: input.sizeBytes,
         scope: input.taskId ? "task" : input.projectId ? "project" : "general",
       },
