@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { logger } from "../../../../observability/logger.ts";
+import {
+  LEGACY_WORKTREE_BRANCH_PREFIX,
+  LEGACY_WORKTREE_DIR_NAME,
+  WORKTREE_BRANCH_PREFIX,
+  WORKTREE_DIR_NAME,
+} from "./shared.ts";
 
 const log = logger.child({ module: "core-workflow" });
 
@@ -62,8 +68,8 @@ export function createWorktreeLifecycleTools(deps: CreateWorktreeLifecycleToolsD
     if (!isGitRepo(projectPath)) return null;
 
     const shortId = taskId.slice(0, 8);
-    const branchName = `octooffice/${shortId}`;
-    const worktreeBase = path.join(projectPath, ".octooffice-worktrees");
+    const branchName = `${WORKTREE_BRANCH_PREFIX}/${shortId}`;
+    const worktreeBase = path.join(projectPath, WORKTREE_DIR_NAME);
     const worktreePath = path.join(worktreeBase, shortId);
 
     try {
@@ -256,14 +262,22 @@ export function rehydrateWorktrees(
   for (const row of rows) {
     if (taskWorktrees.has(row.id)) continue;
     const shortId = row.id.slice(0, 8);
-    const worktreeBase = path.join(row.project_path, ".octooffice-worktrees");
-
-    const candidates = [
-      { dir: path.join(worktreeBase, shortId), branch: `octooffice/${shortId}` },
-      { dir: path.join(worktreeBase, `${shortId}-1`), branch: `octooffice/${shortId}-1` },
-      { dir: path.join(worktreeBase, `${shortId}-2`), branch: `octooffice/${shortId}-2` },
-      { dir: path.join(worktreeBase, `${shortId}-3`), branch: `octooffice/${shortId}-3` },
-    ];
+    // Both directory names, new first.
+    //
+    // A worktree created before the rename is a real git checkout that this
+    // project still has registered in `.git/worktrees`, with a task row
+    // pointing at it. Looking only under the new name would leave it
+    // unrehydrated — the directory, the registration and the branch would all
+    // leak, and the task would look as though nobody had ever started it.
+    // Rehydration is read-only, so recognising both costs a stat.
+    const candidates = [WORKTREE_DIR_NAME, LEGACY_WORKTREE_DIR_NAME].flatMap((dirName) => {
+      const base = path.join(row.project_path, dirName);
+      const prefix = dirName === WORKTREE_DIR_NAME ? WORKTREE_BRANCH_PREFIX : LEGACY_WORKTREE_BRANCH_PREFIX;
+      return ["", "-1", "-2", "-3"].map((suffix) => ({
+        dir: path.join(base, `${shortId}${suffix}`),
+        branch: `${prefix}/${shortId}${suffix}`,
+      }));
+    });
 
     for (const candidate of candidates) {
       if (!fs.existsSync(candidate.dir)) continue;

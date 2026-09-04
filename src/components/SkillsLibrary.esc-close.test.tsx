@@ -28,7 +28,7 @@ const startSkillLearningMock = vi.mocked(startSkillLearning);
 const getAvailableLearnedSkillsMock = vi.mocked(getAvailableLearnedSkills);
 const getCustomSkillsMock = vi.mocked(getCustomSkills);
 const unlearnSkillMock = vi.mocked(unlearnSkill);
-const LANGUAGE_STORAGE_KEY = "octooffice.language";
+const LANGUAGE_STORAGE_KEY = "ironcrew.language";
 type TestLocale = "ko" | "en" | "ja" | "zh";
 
 const UI_TEXT: Record<

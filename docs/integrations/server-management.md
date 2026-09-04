@@ -2,7 +2,7 @@
 
 ## Overview
 
-OctoOffice supports external runtime server management for jobs requiring shared infrastructure.
+IronCrew supports external runtime server management for jobs requiring shared infrastructure.
 
 - Supported server types: `comfyui`, `llm_api`, `database`, `file_storage`
 - Status model: `online`, `offline`, `busy`, `idle`

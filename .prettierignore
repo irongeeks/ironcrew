@@ -4,10 +4,16 @@ coverage
 test-results
 playwright-report
 pnpm-lock.yaml
+ironcrew.sqlite
+ironcrew.sqlite-shm
+ironcrew.sqlite-wal
+# Pre-rename names, still present in checkouts that predate IronCrew.
 octooffice.sqlite
 octooffice.sqlite-shm
 octooffice.sqlite-wal
 logs
+.ironcrew
+.ironcrew-worktrees
 .octooffice
 .octooffice-worktrees
 tools/playwright-mcp

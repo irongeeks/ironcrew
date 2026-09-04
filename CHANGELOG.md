@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to OctoOffice will be documented in this file.
+All notable changes to IronCrew will be documented in this file.
+
+Every entry below is inherited: releases up to and including 2.6.0 were made by
+[OctoOffice](https://github.com/Chepko932/OctoOffice), the project IronCrew is
+forked from. They are kept verbatim, under the names those releases actually
+shipped with, so the compare links still resolve and the history stays true.
+IronCrew's own releases start above this line.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

@@ -304,7 +304,7 @@ export function createOAuthTools(deps: CreateOAuthToolsDeps) {
       headers: {
         Authorization: `Bearer ${githubToken}`,
         Accept: "application/json",
-        "User-Agent": "octooffice",
+        "User-Agent": "ironcrew",
       },
     });
     if (!resp.ok) {

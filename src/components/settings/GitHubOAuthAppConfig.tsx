@@ -71,11 +71,11 @@ export default function GitHubOAuthAppConfig({ t }: { t: TFunction }) {
           <li>GitHub → Settings → Developer settings → OAuth Apps → New OAuth App</li>
           <li>
             {t({
-              ko: "Application name: 아무 이름 (예: My OctoOffice)",
-              en: "Application name: any name (e.g. My OctoOffice)",
-              ja: "Application name: 任意の名前（例: My OctoOffice）",
-              zh: "Application name: any name (e.g. My OctoOffice)",
-              de: "Application name: beliebiger Name (z. B. My OctoOffice)",
+              ko: "Application name: 아무 이름 (예: My IronCrew)",
+              en: "Application name: any name (e.g. My IronCrew)",
+              ja: "Application name: 任意の名前（例: My IronCrew）",
+              zh: "Application name: any name (e.g. My IronCrew)",
+              de: "Application name: beliebiger Name (z. B. My IronCrew)",
             })}
           </li>
           <li>Homepage URL: {window.location.origin}</li>

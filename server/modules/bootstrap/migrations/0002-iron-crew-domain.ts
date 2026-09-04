@@ -4,7 +4,7 @@
 //
 // This is ADDITIVE. It introduces the governance-grade domain
 // (companies, agents, tasks, runs, approvals, budgets, audit) alongside the
-// existing OctoOffice tables rather than rewriting them, so the 2500+ upstream
+// existing IronCrew tables rather than rewriting them, so the 2500+ upstream
 // tests keep passing while the new control plane is built out.
 //
 // Design decisions worth stating up front:

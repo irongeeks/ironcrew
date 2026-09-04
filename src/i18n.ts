@@ -1,9 +1,10 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { readStoredValue } from "./storage";
 
 export type UiLanguage = "ko" | "en" | "ja" | "zh" | "de";
-export const LANGUAGE_STORAGE_KEY = "octooffice.language";
-export const LANGUAGE_USER_SET_STORAGE_KEY = "octooffice.language.user_set";
+export const LANGUAGE_STORAGE_KEY = "ironcrew.language";
+export const LANGUAGE_USER_SET_STORAGE_KEY = "ironcrew.language.user_set";
 
 export type LangText = {
   ko: string;
@@ -53,16 +54,7 @@ export function detectBrowserLanguage(): UiLanguage {
 
 function detectRuntimeLanguage(): UiLanguage {
   if (typeof window === "undefined") return "en";
-  let storedLanguage: string | null = null;
-  try {
-    const storage = window.localStorage as { getItem?: (key: string) => string | null } | undefined;
-    if (storage && typeof storage.getItem === "function") {
-      storedLanguage = storage.getItem(LANGUAGE_STORAGE_KEY);
-    }
-  } catch {
-    storedLanguage = null;
-  }
-  return parseLanguage(storedLanguage) ?? detectBrowserLanguage();
+  return parseLanguage(readStoredValue(LANGUAGE_STORAGE_KEY)) ?? detectBrowserLanguage();
 }
 
 export function localeFromLanguage(lang: UiLanguage): string {
@@ -149,10 +141,10 @@ export function useI18n(languageOverride?: string | null): I18nContextValue {
       setRuntimeLanguage(detectRuntimeLanguage());
     };
     window.addEventListener("storage", sync);
-    window.addEventListener("octooffice-language-change", sync as EventListener);
+    window.addEventListener("ironcrew-language-change", sync as EventListener);
     return () => {
       window.removeEventListener("storage", sync);
-      window.removeEventListener("octooffice-language-change", sync as EventListener);
+      window.removeEventListener("ironcrew-language-change", sync as EventListener);
     };
   }, [context.__fromProvider]);
 

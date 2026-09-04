@@ -11,7 +11,7 @@ type OfficePackOption = {
   accent: number;
 };
 
-interface OctoOfficeTopBarProps {
+interface IronCrewTopBarProps {
   view: View;
   onChangeView: (view: View) => void;
   language: UiLanguage;
@@ -56,7 +56,7 @@ const NAV_TABS: NavTab[] = [
 
 const LANGUAGE_CYCLE: UiLanguage[] = ["en", "ko", "ja", "zh", "de"];
 
-export default function OctoOfficeTopBar({
+export default function IronCrewTopBar({
   view,
   onChangeView,
   language,
@@ -74,7 +74,7 @@ export default function OctoOfficeTopBar({
   officePackControl,
   connected,
   setupStatus,
-}: OctoOfficeTopBarProps) {
+}: IronCrewTopBarProps) {
   const [time, setTime] = useState(new Date());
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
@@ -153,8 +153,8 @@ export default function OctoOfficeTopBar({
           }}
         >
           <img
-            src={theme === "dark" ? "/assets/octooffice-logo-white.svg" : "/assets/octooffice-logo-black.svg"}
-            alt="OctoOffice"
+            src={theme === "dark" ? "/assets/ironcrew-logo-white.svg" : "/assets/ironcrew-logo-black.svg"}
+            alt="IronCrew"
             style={{
               height: 38,
               width: "auto",
@@ -185,7 +185,7 @@ export default function OctoOfficeTopBar({
             whiteSpace: "nowrap",
           }}
         >
-          OCTOOFFICE
+          IRONCREW
         </span>
       </div>
 

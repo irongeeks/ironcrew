@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 function makeLogsDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "octooffice-remotion-gate-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-remotion-gate-"));
   tempDirs.push(dir);
   return dir;
 }

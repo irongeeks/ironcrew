@@ -1,6 +1,26 @@
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
+/**
+ * Where a task's isolated checkout lives inside the user's own project, and
+ * the branch prefix that goes with it.
+ *
+ * Both names exist because the product was renamed from OctoOffice and these
+ * two strings are not ours to change unilaterally: they name directories and
+ * git branches inside *other people's repositories*. New worktrees take the
+ * new names; anything that scans, cleans up or refuses to auto-commit has to
+ * keep recognising the old ones, or a checkout created before the rename
+ * leaks — directory, git registration and branch alike — with the task that
+ * owns it looking untouched.
+ */
+export const WORKTREE_DIR_NAME = ".ironcrew-worktrees";
+export const WORKTREE_BRANCH_PREFIX = "ironcrew";
+export const LEGACY_WORKTREE_DIR_NAME = ".octooffice-worktrees";
+export const LEGACY_WORKTREE_BRANCH_PREFIX = "octooffice";
+/** The per-project state directory, same story. */
+export const PROJECT_STATE_DIR_NAME = ".ironcrew";
+export const LEGACY_PROJECT_STATE_DIR_NAME = ".octooffice";
+
 export const DIFF_SUMMARY_NONE = "__DIFF_NONE__";
 export const DIFF_SUMMARY_ERROR = "__DIFF_ERROR__";
 
@@ -80,8 +100,13 @@ const AUTO_COMMIT_ALLOWED_UNTRACKED_BASENAMES = new Set([
 ]);
 const AUTO_COMMIT_BLOCKED_DIR_SEGMENTS = new Set([
   ".git",
-  ".octooffice",
-  ".octooffice-worktrees",
+  // Both spellings. A project that predates the rename still has the old
+  // directories on disk, and an auto-commit that swept them in would commit
+  // another task's checkout into this one's branch.
+  PROJECT_STATE_DIR_NAME,
+  WORKTREE_DIR_NAME,
+  LEGACY_PROJECT_STATE_DIR_NAME,
+  LEGACY_WORKTREE_DIR_NAME,
   "node_modules",
   "dist",
   "build",

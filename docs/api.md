@@ -1,6 +1,6 @@
 # API Contract Baseline
 
-This document defines a contributor-facing API baseline for OctoOffice.
+This document defines a contributor-facing API baseline for IronCrew.
 It is intentionally compact and focused on frequently used endpoints.
 Current baseline target: `v2.6.0` (local snapshot, 2026-05-08).
 

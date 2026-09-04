@@ -188,7 +188,7 @@ export function registerServerSshRoutes(ctx: RuntimeContext): void {
       const { tmpdir } = await import("node:os");
       const { join } = await import("node:path");
       const { createReadStream, unlinkSync } = await import("node:fs");
-      const localTmp = join(tmpdir(), `octooffice-dl-${Date.now()}`);
+      const localTmp = join(tmpdir(), `ironcrew-dl-${Date.now()}`);
       await r.connector.downloadFile(remotePath, localTmp);
       const filename = remotePath.split("/").pop() || "download";
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -220,7 +220,7 @@ export function registerServerSshRoutes(ctx: RuntimeContext): void {
       const { writeFileSync, unlinkSync } = await import("node:fs");
       const { tmpdir } = await import("node:os");
       const { join } = await import("node:path");
-      const localTmp = join(tmpdir(), `octooffice-ul-${Date.now()}`);
+      const localTmp = join(tmpdir(), `ironcrew-ul-${Date.now()}`);
       writeFileSync(localTmp, Buffer.from(content_base64, "base64"));
       await r.connector.uploadFile(localTmp, remote_path);
       try {

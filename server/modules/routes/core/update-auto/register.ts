@@ -34,7 +34,15 @@ export function registerUpdateAutoRoutes(base: UpdateAutoRouteBaseDeps, util: Ut
   const killPidTree = util.killPidTree;
 
   const UPDATE_CHECK_ENABLED = String(process.env.UPDATE_CHECK_ENABLED ?? "1").trim() !== "0";
-  const UPDATE_CHECK_REPO = String(process.env.UPDATE_CHECK_REPO ?? "Chepko932/OctoOffice").trim();
+  // Where this build looks for a newer release.
+  //
+  // Not a mechanical rename: this is a GitHub repository slug, and turning
+  // "Chepko932/OctoOffice" into "Chepko932/IronCrew" names a repository that
+  // does not exist, so every update check would 404 while looking like it had
+  // simply found nothing. It now points at the repository that actually ships
+  // this product. An installation tracking a different fork sets
+  // UPDATE_CHECK_REPO and is unaffected either way.
+  const UPDATE_CHECK_REPO = String(process.env.UPDATE_CHECK_REPO ?? "irongeeks/ironcrew").trim();
   const UPDATE_CHECK_TTL_MS = Math.max(
     60_000,
     Number(process.env.UPDATE_CHECK_TTL_MS ?? 30 * 60 * 1000) || 30 * 60 * 1000,
@@ -245,7 +253,7 @@ export function registerUpdateAutoRoutes(base: UpdateAutoRouteBaseDeps, util: Ut
             method: "GET",
             headers: {
               accept: "application/vnd.github+json",
-              "user-agent": "octooffice-update-check",
+              "user-agent": "ironcrew-update-check",
             },
             signal: controller.signal,
           });
@@ -358,7 +366,7 @@ export function registerUpdateAutoRoutes(base: UpdateAutoRouteBaseDeps, util: Ut
   const buildHealthPayload = () => ({
     ok: true,
     version: PKG_VERSION,
-    app: "OctoOffice",
+    app: "IronCrew",
     dbPath,
   });
 

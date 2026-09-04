@@ -15,7 +15,7 @@ Please do not open public GitHub issues for security vulnerabilities.
 
 Use GitHub Private Vulnerability Reporting:
 
-- https://github.com/Chepko932/OctoOffice/security/advisories/new
+- https://github.com/irongeeks/ironcrew/security/advisories/new
 
 If private reporting is unavailable in your environment, open a minimal issue without exploit details and ask a maintainer for a private channel.
 

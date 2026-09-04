@@ -1,7 +1,7 @@
 /**
  * IronCrew — CLI runtime permission policy.
  *
- * Upstream OctoOffice hardcoded `--dangerously-skip-permissions` (Claude Code)
+ * Upstream IronCrew hardcoded `--dangerously-skip-permissions` (Claude Code)
  * and `--yolo` (Codex, Gemini) into every invocation, so every agent ran with
  * an unbounded capability surface. docs/THREAT_MODEL.md T-01 covers the impact.
  *

@@ -20,7 +20,7 @@ export default function AppLoadingScreen({ language, title, subtitle }: AppLoadi
               textShadow: "4px 4px 0px rgba(0,0,0,0.4)",
             }}
           >
-            OCTOOFFICE
+            IRONCREW
           </div>
           <div className="text-sm font-medium" style={{ color: "var(--th-text-secondary)" }}>
             {title}

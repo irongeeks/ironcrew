@@ -58,7 +58,9 @@ export default defineConfig({
     // Only allow Tailscale hosts in dev — restrict to specific subdomain if possible
     allowedHosts: process.env.VITE_ALLOWED_HOSTS ? process.env.VITE_ALLOWED_HOSTS.split(",") : [".ts.net"],
     watch: {
-      ignored: ["**/.octooffice-worktrees/**"],
+      // The pre-rename directory is still listed: a checkout that predates
+      // IronCrew keeps its worktrees there, and the watcher must not walk them.
+      ignored: ["**/.ironcrew-worktrees/**", "**/.octooffice-worktrees/**"],
     },
     proxy: {
       "/api": {

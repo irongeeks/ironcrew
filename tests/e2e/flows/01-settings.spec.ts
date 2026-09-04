@@ -45,7 +45,7 @@ test.describe("Settings Flow", () => {
     );
     await expect(nameInputAfterReload).toHaveValue(newName);
 
-    await nameInputAfterReload.fill(originalValue || "OctoOffice");
+    await nameInputAfterReload.fill(originalValue || "IronCrew");
     await page
       .getByRole("button", { name: /Speichern|speichern|save/i })
       .first()

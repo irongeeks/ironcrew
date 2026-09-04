@@ -117,7 +117,7 @@ const RESPONSE_EXAMPLE_OVERRIDES = {
   "GET /api/openapi.json 200": {
     openapi: "3.0.3",
     info: {
-      title: "OctoOffice API",
+      title: "IronCrew API",
     },
   },
 };

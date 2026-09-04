@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import {
   createWorktreeLifecycleTools,
+  rehydrateWorktrees,
   type WorktreeInfo,
 } from "../../../../modules/workflow/core/worktree/lifecycle.ts";
 
@@ -96,10 +97,10 @@ describe("createWorktree", () => {
 
   it("reuses existing worktree from taskWorktrees map if still valid", () => {
     const deps = makeDeps();
-    const existingPath = "/home/user/project/.octooffice-worktrees/abcdef12";
+    const existingPath = "/home/user/project/.ironcrew-worktrees/abcdef12";
     deps.taskWorktrees.set(TASK_ID, {
       worktreePath: existingPath,
-      branchName: `octooffice/${SHORT_ID}`,
+      branchName: `ironcrew/${SHORT_ID}`,
       projectPath: PROJECT,
     });
     mockExistsSync.mockReturnValue(true);
@@ -121,10 +122,10 @@ describe("createWorktree", () => {
 
   it("recreates if existing worktree is invalid (git rev-parse fails)", () => {
     const deps = makeDeps();
-    const existingPath = "/home/user/project/.octooffice-worktrees/abcdef12";
+    const existingPath = "/home/user/project/.ironcrew-worktrees/abcdef12";
     deps.taskWorktrees.set(TASK_ID, {
       worktreePath: existingPath,
-      branchName: `octooffice/${SHORT_ID}`,
+      branchName: `ironcrew/${SHORT_ID}`,
       projectPath: PROJECT,
     });
     // existsSync: true for existing worktree path, then false for .claude/skills checks
@@ -187,7 +188,7 @@ describe("createWorktree", () => {
     const { createWorktree } = createWorktreeLifecycleTools(deps);
     createWorktree(PROJECT, TASK_ID, AGENT);
 
-    expect(mockMkdirSync).toHaveBeenCalledWith(path.join(PROJECT, ".octooffice-worktrees"), { recursive: true });
+    expect(mockMkdirSync).toHaveBeenCalledWith(path.join(PROJECT, ".ironcrew-worktrees"), { recursive: true });
     expect(mockExec).toHaveBeenCalledWith("git", ["worktree", "prune"], expect.objectContaining({ cwd: PROJECT }));
   });
 
@@ -295,8 +296,8 @@ describe("createWorktree", () => {
     expect(worktreeAddAttempts).toBe(3);
     // Third candidate is branchName-2 with path shortId-2
     const info = deps.taskWorktrees.get(TASK_ID);
-    expect(info?.branchName).toBe(`octooffice/${SHORT_ID}-2`);
-    expect(info?.worktreePath).toBe(path.join(PROJECT, ".octooffice-worktrees", `${SHORT_ID}-2`));
+    expect(info?.branchName).toBe(`ironcrew/${SHORT_ID}-2`);
+    expect(info?.worktreePath).toBe(path.join(PROJECT, ".ironcrew-worktrees", `${SHORT_ID}-2`));
   });
 
   it("checks if branch exists before creating worktree", () => {
@@ -313,7 +314,7 @@ describe("createWorktree", () => {
       }
       if (cmd === "git" && args[0] === "show-ref") {
         // Branch exists
-        return Buffer.from(`abc123 refs/heads/octooffice/${SHORT_ID}\n`);
+        return Buffer.from(`abc123 refs/heads/ironcrew/${SHORT_ID}\n`);
       }
       if (cmd === "git" && args[0] === "worktree" && args[1] === "add") {
         return Buffer.from("");
@@ -332,7 +333,7 @@ describe("createWorktree", () => {
     expect(addCall).toBeDefined();
     const addArgs = addCall![1] as string[];
     expect(addArgs).not.toContain("-b");
-    expect(addArgs).toContain(`octooffice/${SHORT_ID}`);
+    expect(addArgs).toContain(`ironcrew/${SHORT_ID}`);
   });
 
   it("uses -b flag when branch does not exist", () => {
@@ -349,14 +350,14 @@ describe("createWorktree", () => {
     expect(addCall).toBeDefined();
     const addArgs = addCall![1] as string[];
     expect(addArgs).toContain("-b");
-    expect(addArgs).toContain(`octooffice/${SHORT_ID}`);
+    expect(addArgs).toContain(`ironcrew/${SHORT_ID}`);
     expect(addArgs).toContain("abc123");
   });
 
   it("propagates .claude/skills as symlink when skills dir exists", () => {
     stubGitRepoChecks();
     const serverSkillsDir = path.join(process.cwd(), ".claude", "skills");
-    const worktreePath = path.join(PROJECT, ".octooffice-worktrees", SHORT_ID);
+    const worktreePath = path.join(PROJECT, ".ironcrew-worktrees", SHORT_ID);
     const wtClaudeDir = path.join(worktreePath, ".claude");
     const wtSkillsLink = path.join(wtClaudeDir, "skills");
 
@@ -377,7 +378,7 @@ describe("createWorktree", () => {
   it("does not create symlink when skills link already exists", () => {
     stubGitRepoChecks();
     const serverSkillsDir = path.join(process.cwd(), ".claude", "skills");
-    const worktreePath = path.join(PROJECT, ".octooffice-worktrees", SHORT_ID);
+    const worktreePath = path.join(PROJECT, ".ironcrew-worktrees", SHORT_ID);
     const wtSkillsLink = path.join(worktreePath, ".claude", "skills");
 
     mockExistsSync.mockImplementation((p: string) => {
@@ -404,7 +405,7 @@ describe("createWorktree", () => {
     const info = deps.taskWorktrees.get(TASK_ID);
     expect(info).toBeDefined();
     expect(info!.worktreePath).toBe(result);
-    expect(info!.branchName).toBe(`octooffice/${SHORT_ID}`);
+    expect(info!.branchName).toBe(`ironcrew/${SHORT_ID}`);
     expect(info!.projectPath).toBe(PROJECT);
   });
 
@@ -439,7 +440,7 @@ describe("createWorktree", () => {
 
   it("cleans up existing candidate path before attempting worktree add", () => {
     stubGitRepoChecks();
-    const worktreePath = path.join(PROJECT, ".octooffice-worktrees", SHORT_ID);
+    const worktreePath = path.join(PROJECT, ".ironcrew-worktrees", SHORT_ID);
     mockExistsSync.mockImplementation((p: string) => {
       if (p === worktreePath) return true;
       return false;
@@ -457,8 +458,8 @@ describe("createWorktree", () => {
 // cleanupWorktree
 // ---------------------------------------------------------------------------
 describe("cleanupWorktree", () => {
-  const worktreePath = "/home/user/project/.octooffice-worktrees/abcdef12";
-  const branchName = `octooffice/${SHORT_ID}`;
+  const worktreePath = "/home/user/project/.ironcrew-worktrees/abcdef12";
+  const branchName = `ironcrew/${SHORT_ID}`;
 
   it("removes worktree via git command and deletes branch", () => {
     mockExec.mockReturnValue(Buffer.from(""));
@@ -614,5 +615,75 @@ describe("ensureVideoTaskDirectory", () => {
     const expectedDir = path.join(process.cwd(), "video_output", SHORT_ID);
     expect(result).toBe(expectedDir);
     expect(mockMkdirSync).toHaveBeenCalled();
+  });
+});
+
+describe("finding worktrees again after a restart", () => {
+  /**
+   * `rehydrateWorktrees` runs once at startup and rebuilds the in-memory map
+   * from what is actually on disk. It matters here because the product was
+   * renamed from OctoOffice: a checkout created before the rename lives in
+   * `.octooffice-worktrees`, is registered in the project's `.git/worktrees`,
+   * and belongs to a task that is still open.
+   *
+   * If rehydration only looked under the new name, that checkout would never
+   * be found again — the directory, the git registration and the branch would
+   * all leak, and the task would look as though nobody had ever started it.
+   * Nothing would error, which is what makes it worth a test.
+   */
+  function dbWith(rows: Array<{ id: string; project_path: string }>) {
+    return { prepare: () => ({ all: () => rows }) };
+  }
+
+  beforeEach(() => {
+    mockExistsSync.mockReset();
+    mockExec.mockReset();
+    mockExec.mockImplementation((cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
+        return Buffer.from("some-branch\n");
+      }
+      return Buffer.from("");
+    });
+  });
+
+  it("finds a worktree created before the rename", () => {
+    const legacyDir = path.join(PROJECT, ".octooffice-worktrees", SHORT_ID);
+    mockExistsSync.mockImplementation((p: string) => p === legacyDir);
+
+    const map = new Map<string, WorktreeInfo>();
+    rehydrateWorktrees(dbWith([{ id: TASK_ID, project_path: PROJECT }]), map);
+
+    expect(map.get(TASK_ID)?.worktreePath).toBe(legacyDir);
+  });
+
+  it("finds one created after it", () => {
+    const dir = path.join(PROJECT, ".ironcrew-worktrees", SHORT_ID);
+    mockExistsSync.mockImplementation((p: string) => p === dir);
+
+    const map = new Map<string, WorktreeInfo>();
+    rehydrateWorktrees(dbWith([{ id: TASK_ID, project_path: PROJECT }]), map);
+
+    expect(map.get(TASK_ID)?.worktreePath).toBe(dir);
+  });
+
+  it("prefers the new location when a project somehow has both", () => {
+    // Can happen mid-migration: an old checkout still open while a new task
+    // created one under the new name. The new one wins, and the old one is
+    // still reachable by the cleanup path.
+    const legacyDir = path.join(PROJECT, ".octooffice-worktrees", SHORT_ID);
+    const dir = path.join(PROJECT, ".ironcrew-worktrees", SHORT_ID);
+    mockExistsSync.mockImplementation((p: string) => p === dir || p === legacyDir);
+
+    const map = new Map<string, WorktreeInfo>();
+    rehydrateWorktrees(dbWith([{ id: TASK_ID, project_path: PROJECT }]), map);
+
+    expect(map.get(TASK_ID)?.worktreePath).toBe(dir);
+  });
+
+  it("leaves a task alone when neither directory is there", () => {
+    mockExistsSync.mockReturnValue(false);
+    const map = new Map<string, WorktreeInfo>();
+    rehydrateWorktrees(dbWith([{ id: TASK_ID, project_path: PROJECT }]), map);
+    expect(map.size).toBe(0);
   });
 });

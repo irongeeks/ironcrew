@@ -137,10 +137,10 @@ export function registerWorktreeAndUsageRoutes(ctx: RuntimeContext): {
     notifyCeo(
       pickL(
         l(
-          [`작업 브랜치가 폐기되었습니다: octooffice/${id.slice(0, 8)}`],
-          [`Task branch discarded: octooffice/${id.slice(0, 8)}`],
-          [`タスクブランチを破棄しました: octooffice/${id.slice(0, 8)}`],
-          [`任务分支已丢弃: octooffice/${id.slice(0, 8)}`],
+          [`작업 브랜치가 폐기되었습니다: ${wtInfo.branchName}`],
+          [`Task branch discarded: ${wtInfo.branchName}`],
+          [`タスクブランチを破棄しました: ${wtInfo.branchName}`],
+          [`任务分支已丢弃: ${wtInfo.branchName}`],
         ),
         lang,
       ),

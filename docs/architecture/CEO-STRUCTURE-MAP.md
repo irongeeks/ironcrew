@@ -1,6 +1,7 @@
 # CEO Structure Map
 
 Generated from parallel architecture analysis lanes:
+
 1. Frontend module map (`src/`)
 2. Backend module map (`server/`)
 3. Tooling/docs map (`scripts/`, `docs/`)
@@ -28,7 +29,7 @@ flowchart LR
     BE0["server/server-main.ts"]
     BE1["Express REST (/api/*)"]
     BE2["WebSocket broadcast"]
-    BE3["SQLite (octooffice.sqlite)"]
+    BE3["SQLite (ironcrew.sqlite)"]
     BE4["CLI/HTTP agents + logs + worktrees"]
     BE0 --> BE1
     BE0 --> BE2
@@ -46,7 +47,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  App["src/app/AppMainLayout.tsx"] --> Nav["OctoOfficeTopBar.tsx"]
+  App["src/app/AppMainLayout.tsx"] --> Nav["IronCrewTopBar.tsx"]
   App --> MC["MissionControl.tsx (3-col: AgentSidebar + Office+Kanban + Chat)"]
   App --> Office["RetroOfficeView.tsx (Pixi.js)"]
   App --> TaskBoard["taskboard/TaskBoard.tsx"]

@@ -43,7 +43,7 @@ describe("db runtime", () => {
   });
 
   it("initializeDatabaseRuntime는 DB/로그 디렉터리를 초기화한다", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "octooffice-runtime-test-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ironcrew-runtime-test-"));
     const dbPath = path.join(tmpDir, "test.sqlite");
     const logsDir = path.join(tmpDir, "logs");
     process.env.DB_PATH = dbPath;

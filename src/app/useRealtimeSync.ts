@@ -462,7 +462,7 @@ export function useRealtimeSync({
       on("scheduled_task_updated", () => {
         // SchedulesView listens for this custom event and re-fetches.
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("octooffice:schedules-changed"));
+          window.dispatchEvent(new CustomEvent("ironcrew:schedules-changed"));
         }
       }),
       on("task_interrupt", () => {

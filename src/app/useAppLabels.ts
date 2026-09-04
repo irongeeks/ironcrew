@@ -27,11 +27,11 @@ export function useAppLabels({
 }: UseAppLabelsParams) {
   const uiLanguage = normalizeLanguage(settings.language);
   const loadingTitle = pickLang(uiLanguage, {
-    ko: "OctoOffice 로딩 중...",
-    en: "Loading OctoOffice...",
-    ja: "OctoOfficeを読み込み中...",
-    zh: "Loading OctoOffice...",
-    de: "OctoOffice wird geladen...",
+    ko: "IronCrew 로딩 중...",
+    en: "Loading IronCrew...",
+    ja: "IronCrewを読み込み中...",
+    zh: "Loading IronCrew...",
+    de: "IronCrew wird geladen...",
   });
   const loadingSubtitle = pickLang(uiLanguage, {
     ko: "AI 에이전트 오피스를 준비하고 있습니다",
@@ -167,10 +167,10 @@ export function useAppLabels({
         current_version: updateStatus?.current_version ?? "1.1.0",
         latest_version: updateStatus?.latest_version ?? "1.1.1-test",
         update_available: true,
-        release_url: updateStatus?.release_url ?? "https://github.com/Chepko932/OctoOffice/releases/latest",
+        release_url: updateStatus?.release_url ?? "https://github.com/irongeeks/ironcrew/releases/latest",
         checked_at: Date.now(),
         enabled: true,
-        repo: updateStatus?.repo ?? "Chepko932/OctoOffice",
+        repo: updateStatus?.repo ?? "irongeeks/ironcrew",
         error: null,
       }
     : updateStatus;
@@ -182,7 +182,7 @@ export function useAppLabels({
   );
   const updateReleaseUrl =
     effectiveUpdateStatus?.release_url ??
-    `https://github.com/${effectiveUpdateStatus?.repo ?? "Chepko932/OctoOffice"}/releases/latest`;
+    `https://github.com/${effectiveUpdateStatus?.repo ?? "irongeeks/ironcrew"}/releases/latest`;
   const updateTitle = updateBannerVisible
     ? pickLang(uiLanguage, {
         ko: `새 버전 v${effectiveUpdateStatus?.latest_version} 사용 가능 (현재 v${effectiveUpdateStatus?.current_version}).`,

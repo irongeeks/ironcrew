@@ -173,8 +173,8 @@ export function createApiProviderTools(deps: CreateApiProviderToolsDeps) {
       headers["Authorization"] = `Bearer ${apiKey}`;
     }
     if (provider.type === "openrouter") {
-      headers["HTTP-Referer"] = "https://octooffice.app";
-      headers["X-Title"] = "OctoOffice";
+      headers["HTTP-Referer"] = "https://ironcrew.app";
+      headers["X-Title"] = "IronCrew";
     }
 
     return {

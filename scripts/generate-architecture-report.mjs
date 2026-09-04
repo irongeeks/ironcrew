@@ -10,7 +10,9 @@ const outputDir = path.join(repoRoot, "docs", "architecture");
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"];
 
-const SKIP_DIRS = new Set([".git", "node_modules", "dist", "logs", ".octooffice-worktrees"]);
+// Both worktree directory names are skipped: a checkout older than the rename
+// to IronCrew still has its worktrees under the pre-rename name.
+const SKIP_DIRS = new Set([".git", "node_modules", "dist", "logs", ".ironcrew-worktrees", ".octooffice-worktrees"]);
 
 function toPosix(p) {
   return p.split(path.sep).join("/");

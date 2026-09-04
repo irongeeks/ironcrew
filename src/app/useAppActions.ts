@@ -4,6 +4,7 @@ import * as api from "../api";
 import { buildDecisionInboxItems } from "../components/chat/decision-inbox";
 import type { DecisionInboxItem } from "../components/chat/decision-inbox";
 import { LANGUAGE_USER_SET_STORAGE_KEY, normalizeLanguage, pickLang } from "../i18n";
+import { writeStoredValue } from "../storage";
 import { normalizeOfficeWorkflowPack } from "./office-workflow-pack";
 import type {
   Agent,
@@ -241,9 +242,7 @@ export function useAppActions({
       const attemptedSnapshot = JSON.stringify(nextSettings);
       setSettings(nextSettings);
       syncClientLanguage(nextSettings.language);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(LANGUAGE_USER_SET_STORAGE_KEY, "1");
-      }
+      writeStoredValue(LANGUAGE_USER_SET_STORAGE_KEY, "1");
       try {
         await api.saveSettings(nextSettings);
         if (autoUpdateChanged) {

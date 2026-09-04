@@ -1,10 +1,18 @@
-# OctoOffice Docker Compose
+# IronCrew Docker Compose
 # Usage:
 #   Production:  docker compose --profile prod up --build
 #   Development: docker compose --profile dev up --build
+#
+# The `octooffice-data` volume and the `octooffice.sqlite` file inside it keep
+# their pre-rename names on purpose. A named volume is matched by name, and
+# DB_PATH here is explicit, so renaming either one would point a running
+# container at a brand-new empty database while the real company sat untouched
+# in the old volume. Nothing would error — the stack would come up and the
+# company would simply be gone. Existing deployments are worth more than a
+# consistent label; leave both as they are.
 
 services:
-  octooffice:
+  ironcrew:
     build:
       context: .
       target: production
@@ -21,7 +29,7 @@ services:
       HOST: "0.0.0.0"
     restart: unless-stopped
 
-  octooffice-dev:
+  ironcrew-dev:
     build:
       context: .
       target: dev

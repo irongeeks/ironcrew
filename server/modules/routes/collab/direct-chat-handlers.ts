@@ -125,12 +125,12 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
                 [
                   recentLines.length > 0
                     ? `기존 프로젝트를 선택해주세요. 최근 프로젝트 ${RECENT_EXISTING_PROJECT_LIMIT}개입니다.\n${recentLines.join("\n")}\n번호(1-${recentLines.length}) 또는 프로젝트 이름/절대경로를 보내주세요.`
-                    : "기존 프로젝트 목록이 비어 있습니다. 프로젝트 절대경로(예: /Users/you/Projects/octooffice) 또는 기존 프로젝트 이름을 보내주세요.",
+                    : "기존 프로젝트 목록이 비어 있습니다. 프로젝트 절대경로(예: /Users/you/Projects/ironcrew) 또는 기존 프로젝트 이름을 보내주세요.",
                 ],
                 [
                   recentLines.length > 0
                     ? `Choose an existing project. Recent ${RECENT_EXISTING_PROJECT_LIMIT} projects:\n${recentLines.join("\n")}\nSend a number (1-${recentLines.length}) or project name/absolute path.`
-                    : "No recent existing projects found. Send an absolute project path (e.g. /Users/you/Projects/octooffice) or an existing project name.",
+                    : "No recent existing projects found. Send an absolute project path (e.g. /Users/you/Projects/ironcrew) or an existing project name.",
                 ],
                 [
                   recentLines.length > 0
@@ -320,10 +320,10 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
           if (!newProjectName) {
             const askNameAgain = pickL(
               l(
-                ["신규 프로젝트 이름을 다시 알려주세요. 예: octooffice-redesign"],
-                ["Please provide the new project name again. Example: octooffice-redesign"],
-                ["新規プロジェクト名をもう一度送ってください。例: octooffice-redesign"],
-                ["请重新提供新项目名称。例如：octooffice-redesign"],
+                ["신규 프로젝트 이름을 다시 알려주세요. 예: ironcrew-redesign"],
+                ["Please provide the new project name again. Example: ironcrew-redesign"],
+                ["新規プロジェクト名をもう一度送ってください。例: ironcrew-redesign"],
+                ["请重新提供新项目名称。例如：ironcrew-redesign"],
               ),
               lang,
             );

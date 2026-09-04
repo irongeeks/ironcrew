@@ -307,7 +307,7 @@ export function registerOAuthRoutes(app: Express, oauth: OAuthContext, base: OAu
           const emailsResp = await fetch("https://api.github.com/user/emails", {
             headers: {
               Authorization: `Bearer ${accessToken}`,
-              "User-Agent": "octooffice",
+              "User-Agent": "ironcrew",
               Accept: "application/vnd.github+json",
             },
             signal: AbortSignal.timeout(5000),

@@ -5,7 +5,7 @@
  * snapshot of the SQLite database, every attachment blob, and any extra files
  * named by the caller, plus a manifest carrying a SHA-256 for each of them.
  *
- * ## Why not `cp octooffice.sqlite backup.sqlite`
+ * ## Why not `cp ironcrew.sqlite backup.sqlite`
  *
  * The server runs in WAL mode (`server/db/runtime.ts` sets
  * `PRAGMA journal_mode = WAL`). A live database is therefore *at least* three

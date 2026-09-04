@@ -290,8 +290,9 @@ curl -s localhost:8790/api/health
 ```
 
 `/api/health` is deliberately unauthenticated and returns `version` from
-`package.json`. (`app` still reads `OctoOffice` — that is the upstream name in
-the payload, not a sign that the wrong build is running.)
+`package.json`. (`app` reads `IronCrew`. On a build older than the rename it
+reads `OctoOffice` instead — that is the previous product name in the payload,
+not a sign that the wrong build is running.)
 
 **2. The migration state is what you expected.**
 

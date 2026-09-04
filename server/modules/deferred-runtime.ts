@@ -1,4 +1,4 @@
-const DEFERRED_RUNTIME_FN_TAG = Symbol.for("octooffice.deferredRuntimeFnName");
+const DEFERRED_RUNTIME_FN_TAG = Symbol.for("ironcrew.deferredRuntimeFnName");
 
 type RuntimeRecord = Record<string, any>;
 
@@ -74,7 +74,7 @@ export function assertNoUnresolvedDeferredRuntimeFunctions(
   const ignored = normalizeIgnoredNames(options?.ignoreNames);
   const unresolved = collectUnresolvedDeferredRuntimeFunctions(runtime).filter((name) => !ignored.has(name));
   if (unresolved.length > 0) {
-    throw new Error(`[OctoOffice] ${label} incomplete: ${unresolved.join(", ")}`);
+    throw new Error(`[IronCrew] ${label} incomplete: ${unresolved.join(", ")}`);
   }
 }
 
@@ -102,6 +102,6 @@ export function assertRuntimeFunctionsResolved(
     const parts: string[] = [];
     if (missing.length > 0) parts.push(`missing: ${missing.sort().join(", ")}`);
     if (unresolved.length > 0) parts.push(`unresolved: ${unresolved.sort().join(", ")}`);
-    throw new Error(`[OctoOffice] ${label} ${parts.join(" | ")}`);
+    throw new Error(`[IronCrew] ${label} ${parts.join(" | ")}`);
   }
 }

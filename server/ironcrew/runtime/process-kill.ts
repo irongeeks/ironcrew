@@ -3,7 +3,7 @@
  *
  * Standalone (no database, no logging dependency) so the runtime layer can
  * kill a spawned CLI cleanly without pulling in the upstream runtime
- * god-object. Mirrors the signal-escalation pattern OctoOffice already uses:
+ * god-object. Mirrors the signal-escalation pattern IronCrew already uses:
  * try the process GROUP first (children spawned by the CLI die with it),
  * fall back to the single pid, escalate from a graceful signal to SIGKILL
  * only if the process is still alive after a grace period.

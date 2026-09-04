@@ -1,6 +1,6 @@
 # Creating Community Packs
 
-This guide walks you through creating your own workflow pack for OctoOffice. No code changes required — just YAML and Markdown.
+This guide walks you through creating your own workflow pack for IronCrew. No code changes required — just YAML and Markdown.
 
 ## Quick Start
 

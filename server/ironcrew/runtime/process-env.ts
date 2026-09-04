@@ -1,7 +1,7 @@
 /**
  * IronCrew — spawn environment preparation.
  *
- * Pure functions, lifted from the pattern OctoOffice's cli-runtime.ts already
+ * Pure functions, lifted from the pattern IronCrew's cli-runtime.ts already
  * uses, so the CliAdapterRuntime spawn path behaves the same way an operator
  * already expects: strip nested-session markers, fall back to the common CLI
  * install directories a login shell would have but a service process might

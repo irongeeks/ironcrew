@@ -202,7 +202,7 @@ describe("CEO Orchestrator — tick loop", () => {
 
     expect(mockCallLlm).toHaveBeenCalledTimes(1);
     const systemPrompt = mockCallLlm.mock.calls[0][2] as string;
-    expect(systemPrompt).toContain("OctoOffice");
+    expect(systemPrompt).toContain("IronCrew");
   });
 
   // -------------------------------------------------------------------------

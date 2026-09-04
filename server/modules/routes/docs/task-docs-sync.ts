@@ -3,6 +3,7 @@ import path from "node:path";
 import { DOCS_SKILLS_PROFILE, createConnector, resolveTaskDocsProviders } from "./provider-service.ts";
 import { titleFromPath } from "./wikilinks.ts";
 import type { DocsProviderView, TaskDocsContextBundle } from "./types.ts";
+import { PROJECT_STATE_DIR_NAME } from "../../workflow/core/worktree/shared.ts";
 
 type DbLike = {
   prepare: (sql: string) => {
@@ -159,7 +160,7 @@ export function buildDocsExecutionContextBlock(input: {
       const connector = createConnector(provider);
       connector.assertVaultReady();
 
-      const snapshotRoot = path.join(input.worktreePath, ".octooffice", "docs", provider.id);
+      const snapshotRoot = path.join(input.worktreePath, PROJECT_STATE_DIR_NAME, "docs", provider.id);
       fs.mkdirSync(snapshotRoot, { recursive: true });
       const summary = copyMarkdownTree(provider.vaultPath, snapshotRoot);
       providerIds.push(provider.id);
@@ -237,7 +238,7 @@ export function syncTaskDocsBackToVault(input: {
       const connector = createConnector(provider);
       connector.assertVaultReady();
 
-      const snapshotRoot = path.join(wt.worktreePath, ".octooffice", "docs", provider.id);
+      const snapshotRoot = path.join(wt.worktreePath, PROJECT_STATE_DIR_NAME, "docs", provider.id);
       if (!fs.existsSync(snapshotRoot) || !fs.statSync(snapshotRoot).isDirectory()) continue;
 
       const summary = copyMarkdownTree(snapshotRoot, provider.vaultPath);

@@ -10,7 +10,7 @@ $rootDir = Resolve-Path (Join-Path $scriptDir "..")
 Set-Location $rootDir
 
 if (!(Test-Path "package.json") -or !(Test-Path "scripts/setup-wizard.mjs")) {
-  throw "Run this script from the OctoOffice repository."
+  throw "Run this script from the IronCrew repository."
 }
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
@@ -31,7 +31,7 @@ if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
   corepack prepare pnpm@latest --activate | Out-Null
 }
 
-Write-Host "[OctoOffice] Installing dependencies..."
+Write-Host "[IronCrew] Installing dependencies..."
 pnpm install
 
 $wizardArgs = @()
@@ -42,7 +42,7 @@ if ($Port -gt 0) {
 node scripts/setup-wizard.mjs @wizardArgs
 
 if ($Start) {
-  Write-Host "[OctoOffice] Starting development server..."
+  Write-Host "[IronCrew] Starting development server..."
   pnpm dev:local
   exit $LASTEXITCODE
 }

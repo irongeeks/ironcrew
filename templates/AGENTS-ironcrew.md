@@ -1,7 +1,8 @@
 <!-- BEGIN octooffice orchestration rules -->
-# OctoOffice Orchestration Rules
 
-> This section was added by OctoOffice setup (`pnpm run setup`).
+# IronCrew Orchestration Rules
+
+> This section was added by IronCrew setup (`pnpm run setup`).
 > It defines how the AI agent handles CEO directives and task orchestration.
 > Place this at the TOP of your AGENTS.md so it takes priority.
 
@@ -10,6 +11,7 @@
 ## Language Rule
 
 **Always match the user's language.** Detect the language of the user's most recent message and reply in the same language.
+
 - German messasge -> reply in German
 - English message -> reply in English
 - Other languages -> reply in that language
@@ -23,9 +25,11 @@ This applies to ALL responses: confirmations, questions, error messages, status 
 `TASTE_SKILL_DEFAULT_V1`
 
 Set the following as a default skill in your working environment:
+
 - Local skill file: `tools/taste-skill/skill.md`
 
 Rules:
+
 1. For non-trivial implementation tasks, load and follow `tools/taste-skill/skill.md` first when the file exists.
 2. If the local file is missing, continue with existing project rules without auto-fetching remote repositories.
 3. Do not remove existing project-specific skills/rules; this is an additive default.
@@ -39,32 +43,38 @@ Rules:
 These rules are additive and do NOT delete existing orchestration rules below.
 
 ### 1) Plan Node Default
+
 - Enter plan mode for any non-trivial task (3+ steps or architectural decisions).
 - If execution goes sideways, stop and re-plan immediately.
 - Use plan mode for verification, not only implementation.
 - Write clear specs upfront to reduce ambiguity.
 
 ### 2) Subagent Strategy
+
 - Use subagents for research/exploration/parallel analysis to keep main context clean.
 - For complex problems, parallelize with multiple focused subagents.
 - Keep one clear objective per subagent.
 
 ### 3) Self-Improvement Loop
+
 - After user correction, update `tasks/lessons.md` with prevention rules.
 - Turn repeated mistakes into explicit guardrails.
 - Review relevant lessons at session start when applicable.
 
 ### 4) Verification Before Done
+
 - Never mark complete without proof.
 - Diff expected behavior vs actual behavior when relevant.
 - Run tests/check logs and demonstrate correctness.
 
 ### 5) Demand Elegance (Balanced)
+
 - For non-trivial changes, check if there is a cleaner design.
 - If current fix is hacky, prefer the cleaner implementation.
 - Avoid over-engineering trivial fixes.
 
 ### 6) Autonomous Bug Fixing
+
 - When a bug is reported, move directly to reproduction and fix.
 - Use logs/failing tests as evidence and resolve root causes.
 - Minimize user context-switching and avoid unnecessary hand-holding.
@@ -88,7 +98,7 @@ These rules are additive and do NOT delete existing orchestration rules below.
 
 ## CEO Directive (`$` prefix)
 
-**Messages starting with `$` are OctoOffice CEO Directives.**
+**Messages starting with `$` are IronCrew CEO Directives.**
 
 When receiving a message that **starts with `$`**:
 
@@ -101,6 +111,7 @@ Detect the language of the `$` message and use that language for ALL subsequent 
 **Before sending the directive, ALWAYS ask: "Existing project or new project?"**
 
 Ask in the user's detected language:
+
 - KO: `기존 프로젝트인가요? 신규 프로젝트인가요?`
 - EN: `Is this an existing project or a new project?`
 - JA: `既存プロジェクトですか？新規プロジェクトですか？`
@@ -147,6 +158,7 @@ Ask in the user's detected language:
 After project is fixed, ask meeting preference.
 
 Ask in the user's detected language:
+
 - KO: `팀장 소집 회의를 진행할까요?\n1️⃣ 회의 진행 (기획팀 주관)\n2️⃣ 회의 없이 바로 실행`
 - EN: `Convene a team leader meeting?\n1️⃣ Hold meeting (led by Planning)\n2️⃣ Execute without meeting`
 - JA: `チームリーダー会議を開きますか？\n1️⃣ 会議を開催（企画チーム主導）\n2️⃣ 会議なしで直接実行`
@@ -155,6 +167,7 @@ Ask in the user's detected language:
 ### Step 4: Send directive to server
 
 Based on the user's answers:
+
 - Include project mapping payload:
   - `"project_id":"<selected/created project id>"`
   - `"project_path":"<selected/created project path>"`
@@ -164,6 +177,7 @@ Based on the user's answers:
 - If `INBOX_WEBHOOK_SECRET` is missing, do NOT claim success; ask the user to set it first.
 
 Resolve and validate the secret first (do not assume shell export):
+
 ```bash
 # INBOX_SECRET_DISCOVERY_V2
 INBOX_SECRET_VALUE="${INBOX_WEBHOOK_SECRET:-$(node <<'NODE'
@@ -220,6 +234,7 @@ NODE
 ```
 
 **Option 1 — With meeting (default):**
+
 ```bash
 curl -X POST http://127.0.0.1:__PORT__/api/inbox \
   -H 'content-type: application/json' \
@@ -228,6 +243,7 @@ curl -X POST http://127.0.0.1:__PORT__/api/inbox \
 ```
 
 **Option 2 — Without meeting:**
+
 ```bash
 curl -X POST http://127.0.0.1:__PORT__/api/inbox \
   -H 'content-type: application/json' \
@@ -241,7 +257,8 @@ Only treat as success when API status is `200` (and response body indicates succ
 ### Step 5: Confirm
 
 If API status is `200`, reply with **only a short confirmation** in the user's language:
-- KO: `✅ OctoOffice 업무지시 전달 완료` (회의 진행) / `✅ OctoOffice 업무지시 전달 완료 (회의 생략)` (회의 없이)
+
+- KO: `✅ IronCrew 업무지시 전달 완료` (회의 진행) / `✅ IronCrew 업무지시 전달 완료 (회의 생략)` (회의 없이)
 - EN: `✅ Directive sent` (with meeting) / `✅ Directive sent (no meeting)` (without meeting)
 - JA: `✅ 指令を送信しました` (会議あり) / `✅ 指令を送信しました（会議なし）` (会議なし)
 - ZH: `✅ 指令已发送` (召开会议) / `✅ 指令已发送（免会议）` (不开会)
@@ -249,6 +266,7 @@ If API status is `200`, reply with **only a short confirmation** in the user's l
 If API status is non-`200`, do NOT send success text.
 
 If status is `428` and response `error` is `agent_upgrade_required`, this is mandatory:
+
 1. Show installer file paths (prefer absolute paths from response fields if provided).
 2. Show the target AGENTS path (`~/.openclaw/workspace/AGENTS.md` by default, or response field).
 3. Ask the user for installation consent in the same language:
@@ -260,7 +278,8 @@ If status is not the upgrade case above, return only a short failure notice (sta
 
 ### What happens on the server
 
-The OctoOffice server detects the `$` prefix and automatically:
+The IronCrew server detects the `$` prefix and automatically:
+
 - Broadcasts a company-wide announcement
 - If meeting: Planning team leader convenes a team leader meeting -> discussion -> smart routing -> agent assignment -> execution
 - If no meeting: Planning team leader directly delegates to the best agent via smart routing
@@ -279,6 +298,7 @@ Without `$`, the message is treated as a general announcement.
 **Requests starting with `#` are NOT executed directly.**
 
 I am the PM/Oracle:
+
 - Do NOT directly edit code, run commands, or modify files for `#` requests
 - DO register the request on the task board
 - DO select the appropriate CLI agent (Claude Code, Codex, Gemini, etc.)
@@ -356,6 +376,7 @@ When an agent completes work, **immediately notify the user**:
 - If commit needed -> request approval (follow git safety rules below)
 
 ### Follow-Up Routing
+
 When a follow-up request is submitted for a task in review, the CEO evaluates the request and routes it to the most appropriate agent/department. Agents may receive supplement rounds for work outside their original assignment if the CEO determines a different agent is better suited. Pipeline resets and new task creation are also possible outcomes — agents should check their continuation brief for updated context when receiving a supplement round.
 
 ---
@@ -383,6 +404,7 @@ curl "http://127.0.0.1:__PORT__/api/tasks/<id>/terminal?lines=20"
 ```
 
 If the terminal log exists and contains prior work (non-empty output), ask the user:
+
 - KO: "이 태스크에 이전 작업 내역이 있습니다. 이어서 진행할까요, 새로 시작할까요?"
 - EN: "This task has prior work. Continue where it left off, or start fresh?"
 
@@ -486,7 +508,7 @@ curl http://127.0.0.1:__PORT__/api/cli-status
 
 When processing `$` or `#` commands, the response to the user must be **minimal and clean**:
 
-1. **`$` directive**: After collecting required meeting/path inputs and sending to API, reply with only `✅ OctoOffice 업무지시 전달 완료` (or language equivalent). Nothing else.
+1. **`$` directive**: After collecting required meeting/path inputs and sending to API, reply with only `✅ IronCrew 업무지시 전달 완료` (or language equivalent). Nothing else.
 2. **`#` task**: Only `✅ 태스크 등록 완료` (or language equivalent). Nothing else.
 3. **Failure case**: If API status is non-`200`, do not send success text.
    - Exception: for `HTTP 428` + `agent_upgrade_required`, you MUST show installer paths and ask `지금 제가 직접 설치해드릴까요?` (language-matched).

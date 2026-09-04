@@ -1,10 +1,11 @@
 import type { TaskStatus, TaskType } from "../../types";
 import type { LangText, UiLanguage } from "../../i18n";
+import { readStoredValue, writeStoredValue } from "../../storage";
 
 export type Locale = UiLanguage;
 export type TFunction = (messages: LangText) => string;
 
-const TASK_CREATE_DRAFTS_STORAGE_KEY = "octooffice.taskCreateDrafts";
+const TASK_CREATE_DRAFTS_STORAGE_KEY = "ironcrew.taskCreateDrafts";
 
 export const HIDEABLE_STATUSES = ["done", "pending", "cancelled"] as const;
 export type HideableStatus = (typeof HIDEABLE_STATUSES)[number];
@@ -72,10 +73,9 @@ export function normalizeTaskType(value: unknown): TaskType {
 }
 
 export function loadCreateTaskDrafts(): CreateTaskDraft[] {
-  if (typeof window === "undefined") return [];
+  const raw = readStoredValue(TASK_CREATE_DRAFTS_STORAGE_KEY);
+  if (!raw) return [];
   try {
-    const raw = window.localStorage.getItem(TASK_CREATE_DRAFTS_STORAGE_KEY);
-    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed
@@ -109,8 +109,7 @@ export function loadCreateTaskDrafts(): CreateTaskDraft[] {
 }
 
 export function saveCreateTaskDrafts(drafts: CreateTaskDraft[]): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(TASK_CREATE_DRAFTS_STORAGE_KEY, JSON.stringify(drafts.slice(0, 20)));
+  writeStoredValue(TASK_CREATE_DRAFTS_STORAGE_KEY, JSON.stringify(drafts.slice(0, 20)));
 }
 
 export const COLUMNS: {

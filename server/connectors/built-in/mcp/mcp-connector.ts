@@ -62,7 +62,7 @@ export class McpConnector implements Connector {
 
     try {
       const { env, headers } = await this.materialize();
-      this.client = new Client({ name: "octooffice", version: "2.7.0" });
+      this.client = new Client({ name: "ironcrew", version: "2.7.0" });
 
       if (this.config.transport === "stdio") {
         if (!this.config.command) {

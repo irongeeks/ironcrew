@@ -222,7 +222,8 @@ automatically.
 **What it costs.** Anyone holding both the database file and the encryption
 key can read mailbox credentials. On a single-owner, local-first host that is
 the same person who can read the mailbox anyway; on a shared or backed-up
-host it is a real exposure, and backups of `octooffice.sqlite` must be treated
+host it is a real exposure, and backups of `ironcrew.sqlite` (or
+`octooffice.sqlite`, on an installation older than the rename) must be treated
 as credential material.
 
 **What limits it.** `MailboxRow` omits the credentials column entirely and

@@ -140,7 +140,7 @@ describe("task intent upgrade", () => {
     ).toBe(true);
     expect(
       shouldPreserveStructuredFallback(
-        "기존 프로젝트를 선택해주세요.\n1. Doro [최신]\n   경로: /Users/you/Projects/octooffice\n2. OctoOffice\n   경로: /Users/you/Projects/octooffice",
+        "기존 프로젝트를 선택해주세요.\n1. Doro [최신]\n   경로: /Users/you/Projects/ironcrew\n2. IronCrew\n   경로: /Users/you/Projects/ironcrew",
       ),
     ).toBe(true);
     expect(shouldPreserveStructuredFallback("알겠습니다. 바로 진행하겠습니다.")).toBe(false);

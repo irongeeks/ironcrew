@@ -84,7 +84,7 @@ describe("light-theme WCAG AA contrast", () => {
   });
 
   it("--accent-text vs --bg-base meets WCAG 1.4.11 non-text UI (>= 3:1)", () => {
-    // OctoOfficeTopBar renders the accent variant as both text and as
+    // IronCrewTopBar renders the accent variant as both text and as
     // border/icon-adjacent UI (active tab indicator). Guard the 3:1 floor
     // for non-text UI components per WCAG 2.1 1.4.11.
     const accentText = readVar(block, "accent-text");

@@ -38,6 +38,9 @@ docs/reports/*
 !docs/reports/PPT_Sample.pptx
 docs/.bkit-*
 docs/.pdca-*
+.ironcrew-worktrees/*
+.ironcrew/
+# Pre-rename names, still present in checkouts that predate IronCrew.
 .octooffice-worktrees/*
 .octooffice/
 START
@@ -112,6 +115,7 @@ comfy_workflows/
 public/agentsoffice.svg
 public/agentsoffice-alt.svg
 public/agentsoffice.png
+public/assets/ironcrew-logo-text.png
 public/assets/octooffice-logo-text.png
 public/assets/Modern_Office_16x16.png
 public/assets/Room_Builder_Office_16x16.png

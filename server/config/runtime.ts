@@ -78,4 +78,51 @@ export const IS_PRODUCTION = !process.env.VITE_DEV && fs.existsSync(path.join(DI
 // ---------------------------------------------------------------------------
 // Database defaults
 // ---------------------------------------------------------------------------
-export const DEFAULT_DB_PATH = path.join(process.cwd(), "octooffice.sqlite");
+/**
+ * The database file, and the one place the rename from OctoOffice could have
+ * silently destroyed somebody's company.
+ *
+ * `ironcrew.sqlite` is the name now. But an installation that predates the
+ * rename has its entire history — every task, decision, approval and audit
+ * entry — in a file called `octooffice.sqlite`, and a bare rename of this
+ * constant would open a brand new empty database beside it. Nothing would
+ * error. The service would start, the Command Center would render, and the
+ * company would simply be gone: the worst possible failure, because it looks
+ * like success.
+ *
+ * So the old file is adopted when it is the only one there, and the operator
+ * is told, once, with the exact command to make it permanent. Adopted rather
+ * than renamed automatically: a database file is the one thing on this box
+ * that must not move without somebody deciding it should — a backup script,
+ * a systemd unit or a second process may still name the old path, and a
+ * surprise `mv` under a running service is how a restore turns into an
+ * outage.
+ *
+ * `DB_PATH` overrides both and is checked first by the callers, so an
+ * operator who already names the file explicitly is unaffected either way.
+ */
+export const DB_FILE_NAME = "ironcrew.sqlite";
+/** What the file was called before the rename. Read-only fallback. */
+export const LEGACY_DB_FILE_NAME = "octooffice.sqlite";
+
+function resolveDefaultDbPath(): string {
+  const preferred = path.join(process.cwd(), DB_FILE_NAME);
+  const legacy = path.join(process.cwd(), LEGACY_DB_FILE_NAME);
+  try {
+    if (!fs.existsSync(preferred) && fs.existsSync(legacy)) {
+      // Not `logger` — this module is imported before the logger exists.
+      console.warn(
+        `[ironcrew] Using the pre-rename database "${LEGACY_DB_FILE_NAME}". ` +
+          `Stop the service and run: mv ${LEGACY_DB_FILE_NAME} ${DB_FILE_NAME} ` +
+          `(and the -wal/-shm files beside it, if present).`,
+      );
+      return legacy;
+    }
+  } catch {
+    // An unreadable working directory is not this function's problem to
+    // report; fall through to the new name and let the opener say so.
+  }
+  return preferred;
+}
+
+export const DEFAULT_DB_PATH = resolveDefaultDbPath();

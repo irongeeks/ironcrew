@@ -8,7 +8,7 @@ cd "${ROOT_DIR}"
 # ---------- Validate environment ----------
 
 if [[ ! -f package.json || ! -f scripts/setup-wizard.mjs ]]; then
-  echo "Run this script from the OctoOffice repository." >&2
+  echo "Run this script from the IronCrew repository." >&2
   exit 1
 fi
 
@@ -34,7 +34,7 @@ fi
 
 # ---------- Install dependencies ----------
 
-echo "[OctoOffice] Installing dependencies..."
+echo "[IronCrew] Installing dependencies..."
 pnpm install
 
 # ---------- Run interactive wizard ----------
@@ -72,6 +72,6 @@ node scripts/setup-wizard.mjs "${WIZARD_ARGS[@]+"${WIZARD_ARGS[@]}"}"
 # ---------- Optionally start ----------
 
 if [[ "${START_AFTER_SETUP}" == "1" ]]; then
-  echo "[OctoOffice] Starting development server..."
+  echo "[IronCrew] Starting development server..."
   exec pnpm dev:local
 fi

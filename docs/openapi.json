@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "OctoOffice API",
+    "title": "IronCrew API",
     "version": "2.7.0",
-    "description": "Baseline OpenAPI contract for commonly used OctoOffice endpoints."
+    "description": "Baseline OpenAPI contract for commonly used IronCrew endpoints."
   },
   "servers": [
     {
@@ -3904,7 +3904,7 @@
                 "example": {
                   "openapi": "3.0.3",
                   "info": {
-                    "title": "OctoOffice API"
+                    "title": "IronCrew API"
                   }
                 }
               }
@@ -5252,7 +5252,7 @@
                       "id": "123456789012345678",
                       "name": "ops-alert",
                       "guildId": "987654321098765432",
-                      "guildName": "OctoOffice",
+                      "guildName": "IronCrew",
                       "type": 0
                     }
                   ]

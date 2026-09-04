@@ -9,7 +9,7 @@ failures=0
 pass() { printf '[PASS] %s\n' "$1"; }
 fail() { printf '[FAIL] %s\n' "$1"; failures=$((failures + 1)); }
 
-echo "== OctoOffice public release preflight =="
+echo "== IronCrew public release preflight =="
 
 for cmd in git rg node pnpm; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -50,6 +50,11 @@ blocked_tracked=(
   ".env"
   ".env.local"
   ".env.production"
+  "ironcrew.sqlite"
+  "ironcrew.sqlite-shm"
+  "ironcrew.sqlite-wal"
+  # Still checked under the pre-rename name: an installation older than the
+  # rename keeps its database there, and committing it would be just as bad.
   "octooffice.sqlite"
   "octooffice.sqlite-shm"
   "octooffice.sqlite-wal"
@@ -164,11 +169,11 @@ else
   pass ".env.example uses a consistent placeholder format for key variables"
 fi
 
-if pnpm run build >/tmp/octooffice-preflight-build.log 2>&1; then
+if pnpm run build >/tmp/ironcrew-preflight-build.log 2>&1; then
   pass "Build succeeded"
 else
-  fail "Build failed (see /tmp/octooffice-preflight-build.log)"
-  tail -n 80 /tmp/octooffice-preflight-build.log || true
+  fail "Build failed (see /tmp/ironcrew-preflight-build.log)"
+  tail -n 80 /tmp/ironcrew-preflight-build.log || true
 fi
 
 echo

@@ -17,6 +17,7 @@ import {
 import type { DeviceCodeStart, OAuthConnectProvider, OAuthStatus } from "../api";
 import type { OAuthCallbackResult } from "../App";
 import { LANGUAGE_STORAGE_KEY, normalizeLanguage, useI18n } from "../i18n";
+import { writeStoredValue } from "../storage";
 import ApiSettingsTab from "./settings/ApiSettingsTab";
 import CliSettingsTab from "./settings/CliSettingsTab";
 import GatewaySettingsTab from "./settings/GatewaySettingsTab";
@@ -145,8 +146,8 @@ export default function SettingsPanel({
   useEffect(() => {
     setForm(settings as LocalSettings);
     const syncedLocale = normalizeLanguage((settings as LocalSettings).language);
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, syncedLocale);
-    window.dispatchEvent(new Event("octooffice-language-change"));
+    writeStoredValue(LANGUAGE_STORAGE_KEY, syncedLocale);
+    window.dispatchEvent(new Event("ironcrew-language-change"));
   }, [settings]);
 
   useEffect(() => {
@@ -200,8 +201,8 @@ export default function SettingsPanel({
 
   function handleSave() {
     const nextLocale = normalizeLanguage(form.language);
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
-    window.dispatchEvent(new Event("octooffice-language-change"));
+    writeStoredValue(LANGUAGE_STORAGE_KEY, nextLocale);
+    window.dispatchEvent(new Event("ironcrew-language-change"));
     persistSettings(form);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);

@@ -11,6 +11,7 @@ import { DEFAULT_SETTINGS, MESSENGER_CHANNELS } from "../types";
 import { LANGUAGE_STORAGE_KEY, LANGUAGE_USER_SET_STORAGE_KEY, normalizeLanguage } from "../i18n";
 import type { RoomThemeMap, RuntimeOs } from "./types";
 import { ROOM_THEMES_STORAGE_KEY } from "./constants";
+import { readStoredValue, writeStoredValue } from "../storage";
 
 function isRoomTheme(value: unknown): value is RoomTheme {
   if (typeof value !== "object" || value === null) return false;
@@ -33,10 +34,9 @@ export function isRoomThemeMap(value: unknown): value is RoomThemeMap {
 }
 
 export function readStoredRoomThemes(): { themes: RoomThemeMap; hasStored: boolean } {
-  if (typeof window === "undefined") return { themes: {}, hasStored: false };
+  const raw = readStoredValue(ROOM_THEMES_STORAGE_KEY);
+  if (!raw) return { themes: {}, hasStored: false };
   try {
-    const raw = window.localStorage.getItem(ROOM_THEMES_STORAGE_KEY);
-    if (!raw) return { themes: {}, hasStored: false };
     const parsed: unknown = JSON.parse(raw);
     if (!isRoomThemeMap(parsed)) return { themes: {}, hasStored: false };
     return { themes: parsed, hasStored: true };
@@ -271,13 +271,11 @@ export function mergeSettingsWithDefaults(settings?: Partial<CompanySettings> | 
 }
 
 export function isUserLanguagePinned(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(LANGUAGE_USER_SET_STORAGE_KEY) === "1";
+  return readStoredValue(LANGUAGE_USER_SET_STORAGE_KEY) === "1";
 }
 
 export function readStoredClientLanguage(): string | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  const raw = readStoredValue(LANGUAGE_STORAGE_KEY);
   if (!raw) return null;
   return normalizeLanguage(raw);
 }
@@ -304,6 +302,6 @@ export function isForceUpdateBannerEnabled(): boolean {
 
 export function syncClientLanguage(language: string): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalizeLanguage(language));
-  window.dispatchEvent(new Event("octooffice-language-change"));
+  writeStoredValue(LANGUAGE_STORAGE_KEY, normalizeLanguage(language));
+  window.dispatchEvent(new Event("ironcrew-language-change"));
 }

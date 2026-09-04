@@ -294,7 +294,7 @@ describe("resolveAuditRequestIp", () => {
 // ---------------------------------------------------------------------------
 describe("chain hash computation", () => {
   it("is deterministic — same inputs produce same hash", () => {
-    const seed = "octooffice-security-audit-v1";
+    const seed = "ironcrew-security-audit-v1";
     const prevHash = "GENESIS";
     const entry = { id: "test-id", created_at: 1000, endpoint: "/api/messages" };
 
@@ -315,7 +315,7 @@ describe("chain hash computation", () => {
   });
 
   it("different entries produce different hashes", () => {
-    const seed = "octooffice-security-audit-v1";
+    const seed = "ironcrew-security-audit-v1";
     const prevHash = "GENESIS";
 
     function computeHash(entry: unknown): string {

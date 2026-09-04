@@ -8,7 +8,7 @@ export const terminalOutputButtonRe = /터미널 출력 보기|View terminal out
 export const terminalTabLabelRe = /터미널|Terminal|ターミナル|终端/i;
 
 export const TERMINAL_PANEL_CONTAINER_SELECTOR = "div.fixed.inset-0.z-50";
-export const THEME_STORAGE_KEY = "octooffice_theme";
+export const THEME_STORAGE_KEY = "ironcrew_theme";
 export const WCAG_AA_MIN_CONTRAST = 4.5;
 export const MAX_TEXT_ELEMENTS_PER_VIEW = 1800;
 export const MAX_DOM_ELEMENTS_PER_VIEW = 6000;
