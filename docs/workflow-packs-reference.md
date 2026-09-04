@@ -19,14 +19,14 @@
 > These names appear in the prose below and **no longer exist anywhere in the
 > tree** (verified, not assumed):
 >
-> | Gone                                                                                                                                  | Now                                                                     |
-> | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-> | `seedVideoPipelineSubtasks()`, `seedResearchPipelineSubtasks()`, `getCurrentPipelinePhase()`                                          | phases declared in `pack.yaml`, driven by `graph-runner.ts`             |
-> | `bridgePlanningForCrawlers()`, `bridgeCrawlerFindingsForSynthesis()`, `bridgeSynthesisForFactCheck()`, `bridgeFactCheckForFinalReport()` | one generic `bridgeArtifactsForPhase()` in `artifact-bridge.ts`         |
-> | `bridgeImagesForVideoGeneration()`, `bridgeClipsForAssembly()`                                                                        | the same generic `bridgeArtifactsForPhase()`                            |
-> | `buildWorkflowPackExecutionGuidance()`                                                                                                | Markdown under `guidance/`, loaded by `pack-loader.ts`                  |
-> | `areAllCrawlersComplete()`                                                                                                            | the fan-in is expressed as phase dependencies in `pack.yaml`            |
-> | `tts-stub-connector.ts`                                                                                                               | no TTS connector exists in this build at all — the phase is still a stub |
+> | Gone                                                                                                                                     | Now                                                                      |
+> | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+> | `seedVideoPipelineSubtasks()`, `seedResearchPipelineSubtasks()`, `getCurrentPipelinePhase()`                                             | phases declared in `pack.yaml`, driven by `graph-runner.ts`              |
+> | `bridgePlanningForCrawlers()`, `bridgeCrawlerFindingsForSynthesis()`, `bridgeSynthesisForFactCheck()`, `bridgeFactCheckForFinalReport()` | one generic `bridgeArtifactsForPhase()` in `artifact-bridge.ts`          |
+> | `bridgeImagesForVideoGeneration()`, `bridgeClipsForAssembly()`                                                                           | the same generic `bridgeArtifactsForPhase()`                             |
+> | `buildWorkflowPackExecutionGuidance()`                                                                                                   | Markdown under `guidance/`, loaded by `pack-loader.ts`                   |
+> | `areAllCrawlersComplete()`                                                                                                               | the fan-in is expressed as phase dependencies in `pack.yaml`             |
+> | `tts-stub-connector.ts`                                                                                                                  | no TTS connector exists in this build at all — the phase is still a stub |
 >
 > The [Appendix](#appendix-key-source-files) has the corrected file map. When
 > the prose and the appendix disagree about a path, the appendix is right.
@@ -964,46 +964,46 @@ tree rather than against the upstream README:
 
 **Where a pack lives now:**
 
-| Part                     | Path                                                    |
-| ------------------------ | ------------------------------------------------------- |
-| Pack manifest (phases)   | `server/packs/built-in/<pack>/pack.yaml`                |
-| Per-phase guidance       | `server/packs/built-in/<pack>/guidance/<phase>.<lang>.md` |
-| Output JSON schemas      | `server/packs/built-in/<pack>/schemas/*.schema.json`     |
-| Pack-specific hooks      | `server/packs/built-in/<pack>/hooks/*.ts`                |
+| Part                   | Path                                                      |
+| ---------------------- | --------------------------------------------------------- |
+| Pack manifest (phases) | `server/packs/built-in/<pack>/pack.yaml`                  |
+| Per-phase guidance     | `server/packs/built-in/<pack>/guidance/<phase>.<lang>.md` |
+| Output JSON schemas    | `server/packs/built-in/<pack>/schemas/*.schema.json`      |
+| Pack-specific hooks    | `server/packs/built-in/<pack>/hooks/*.ts`                 |
 
 The four built-in packs are `video-preprod`, `web-research`, `design-studio`
 and `development`.
 
-| Mechanism                           | File                                                                                     |
-| ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| Pack loading (manifest + guidance)  | `server/packs/pack-loader.ts`                                                             |
-| Pack manifest schema                | `server/packs/pack-schema.ts`                                                             |
-| Phase execution engine (all packs)  | `server/modules/workflow/orchestration/graph-runner.ts`                                   |
-| Artifact bridging (all packs)       | `server/modules/workflow/orchestration/artifact-bridge.ts`                                |
-| Artifact collection for prompts     | `server/modules/workflow/orchestration/pack-artifact-collector.ts`                        |
-| Per-task phase locking              | `server/modules/workflow/orchestration/phase-lock.ts`                                     |
-| Legacy pack definitions             | `server/modules/workflow/packs/definitions.ts`                                            |
-| Task → pack resolution              | `server/modules/workflow/packs/task-pack-resolver.ts`                                     |
-| Video output discovery              | `server/modules/workflow/packs/video-artifact.ts`                                         |
-| Video render-engine gate            | `server/modules/workflow/packs/video-render-engine-gate.ts`                               |
-| Video artifact probe (hook)         | `server/packs/built-in/video-preprod/hooks/probe-video-artifact.ts`                       |
-| Remotion gate (hook)                | `server/packs/built-in/video-preprod/hooks/remotion-gate.ts`                               |
-| Design artifact sync (hooks)        | `server/packs/built-in/design-studio/hooks/design-asset.ts`, `.../sync-design-assets.ts` |
-| Task execution entry point          | `server/modules/routes/core/tasks/execution-run.ts`                                       |
-| Agent auto-assignment               | `server/modules/routes/core/tasks/execution-run-auto-assign.ts`                            |
-| Run-complete handler chain          | `server/modules/workflow/orchestration/run-complete-handler.ts`                            |
-| Run-complete: success path          | `server/modules/workflow/orchestration/run-complete-success.ts`                            |
-| Run-complete: retry / hard failure  | `server/modules/workflow/orchestration/run-complete-failure.ts`                            |
-| Dept pipeline advancement           | `server/modules/workflow/orchestration/run-complete-dept-pipeline.ts`                     |
-| Meeting orchestrator                | `server/modules/workflow/orchestration/meetings.ts`                                        |
-| Review consensus                    | `server/modules/workflow/orchestration/meetings/review-consensus.ts`                       |
-| Leader selection                    | `server/modules/workflow/orchestration/meetings/leader-selection.ts`                       |
-| Meeting presence (CEO office)       | `server/modules/workflow/orchestration/meetings/presence.ts`                                |
-| Meeting minutes                     | `server/modules/workflow/orchestration/meetings/minutes.ts`                                 |
-| Office pack config (name pools)     | `src/app/office-workflow-pack.ts`                                                          |
-| CLI agent spawn                     | `server/modules/workflow/agents/cli-runtime.ts`                                             |
-| Subtask seeding                     | `server/modules/workflow/agents/subtask-seeding.ts`                                          |
-| Meeting prompt builder              | `server/modules/workflow/core/meeting-prompt-tools.ts`                                       |
+| Mechanism                          | File                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| Pack loading (manifest + guidance) | `server/packs/pack-loader.ts`                                                            |
+| Pack manifest schema               | `server/packs/pack-schema.ts`                                                            |
+| Phase execution engine (all packs) | `server/modules/workflow/orchestration/graph-runner.ts`                                  |
+| Artifact bridging (all packs)      | `server/modules/workflow/orchestration/artifact-bridge.ts`                               |
+| Artifact collection for prompts    | `server/modules/workflow/orchestration/pack-artifact-collector.ts`                       |
+| Per-task phase locking             | `server/modules/workflow/orchestration/phase-lock.ts`                                    |
+| Legacy pack definitions            | `server/modules/workflow/packs/definitions.ts`                                           |
+| Task → pack resolution             | `server/modules/workflow/packs/task-pack-resolver.ts`                                    |
+| Video output discovery             | `server/modules/workflow/packs/video-artifact.ts`                                        |
+| Video render-engine gate           | `server/modules/workflow/packs/video-render-engine-gate.ts`                              |
+| Video artifact probe (hook)        | `server/packs/built-in/video-preprod/hooks/probe-video-artifact.ts`                      |
+| Remotion gate (hook)               | `server/packs/built-in/video-preprod/hooks/remotion-gate.ts`                             |
+| Design artifact sync (hooks)       | `server/packs/built-in/design-studio/hooks/design-asset.ts`, `.../sync-design-assets.ts` |
+| Task execution entry point         | `server/modules/routes/core/tasks/execution-run.ts`                                      |
+| Agent auto-assignment              | `server/modules/routes/core/tasks/execution-run-auto-assign.ts`                          |
+| Run-complete handler chain         | `server/modules/workflow/orchestration/run-complete-handler.ts`                          |
+| Run-complete: success path         | `server/modules/workflow/orchestration/run-complete-success.ts`                          |
+| Run-complete: retry / hard failure | `server/modules/workflow/orchestration/run-complete-failure.ts`                          |
+| Dept pipeline advancement          | `server/modules/workflow/orchestration/run-complete-dept-pipeline.ts`                    |
+| Meeting orchestrator               | `server/modules/workflow/orchestration/meetings.ts`                                      |
+| Review consensus                   | `server/modules/workflow/orchestration/meetings/review-consensus.ts`                     |
+| Leader selection                   | `server/modules/workflow/orchestration/meetings/leader-selection.ts`                     |
+| Meeting presence (CEO office)      | `server/modules/workflow/orchestration/meetings/presence.ts`                             |
+| Meeting minutes                    | `server/modules/workflow/orchestration/meetings/minutes.ts`                              |
+| Office pack config (name pools)    | `src/app/office-workflow-pack.ts`                                                        |
+| CLI agent spawn                    | `server/modules/workflow/agents/cli-runtime.ts`                                          |
+| Subtask seeding                    | `server/modules/workflow/agents/subtask-seeding.ts`                                      |
+| Meeting prompt builder             | `server/modules/workflow/core/meeting-prompt-tools.ts`                                   |
 
 **Phase advancement is no longer per-pipeline.** Upstream had a
 `run-complete-video.ts` and a `run-complete-research.ts`; there is now one

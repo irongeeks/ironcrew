@@ -45,13 +45,13 @@ This loop only decides _when to look_.
 a timer, and the reasoning for each interval. **Five are registered on every
 install; `audit-ship` makes six when a sink is configured.**
 
-| job          | default | what it does                                                                    |
-| ------------ | ------- | ------------------------------------------------------------------------------- |
-| `run-queue`  | 15 s    | `drainRunQueue()` — turns queued run requests into runs, at most 3 per tick     |
-| `routines`   | 60 s    | `runDueRoutines()` — fires each routine whose `next_run_at` has passed          |
-| `mailboxes`  | 60 s    | `pollDueMailboxes()` — asks mailboxes whose own interval elapsed for new mail   |
-| `messengers` | 20 s    | polls every registered messenger channel                                        |
-| `audit-ship` | 60 s    | **only when a sink is configured** — carries new audit entries off the box      |
+| job          | default | what it does                                                                      |
+| ------------ | ------- | --------------------------------------------------------------------------------- |
+| `run-queue`  | 15 s    | `drainRunQueue()` — turns queued run requests into runs, at most 3 per tick       |
+| `routines`   | 60 s    | `runDueRoutines()` — fires each routine whose `next_run_at` has passed            |
+| `mailboxes`  | 60 s    | `pollDueMailboxes()` — asks mailboxes whose own interval elapsed for new mail     |
+| `messengers` | 20 s    | polls every registered messenger channel                                          |
+| `audit-ship` | 60 s    | **only when a sink is configured** — carries new audit entries off the box        |
 | `sweep`      | 300 s   | releases agent locks and run-request leases nobody released, and prunes the queue |
 
 **`run-queue` at 15 seconds** because this interval _is_ the latency between
@@ -251,7 +251,7 @@ Three lines prove the state of the loop, all under
 
 | log line                                             | means                                          |
 | ---------------------------------------------------- | ---------------------------------------------- |
-| `scheduler started` with a `jobs` array               | the loop is armed; see the expected list below |
+| `scheduler started` with a `jobs` array              | the loop is armed; see the expected list below |
 | `IronCrew scheduler disabled via IRONCREW_SCHEDULER` | the switch is off — nothing will run by itself |
 | `scheduled job failed`                               | one job threw; the loop is still running       |
 
@@ -259,7 +259,11 @@ Three lines prove the state of the loop, all under
 array reads:
 
 ```json
-{ "module": "ironcrew-scheduler", "jobs": ["run-queue", "routines", "mailboxes", "messengers", "sweep"], "msg": "scheduler started" }
+{
+  "module": "ironcrew-scheduler",
+  "jobs": ["run-queue", "routines", "mailboxes", "messengers", "sweep"],
+  "msg": "scheduler started"
+}
 ```
 
 **Five entries, and `routines` among them.** With an audit sink configured

@@ -112,9 +112,20 @@ user that owns them; the control plane receives capabilities and status, never
 tokens. `authStatus()` returns booleans and a non-identifying account hint by
 contract. Only `SecretRef` values are stored in the database — never plaintext.
 
-_Residual risk:_ the native runner daemon is not implemented yet
-(`IMPLEMENTATION_STATUS.md`). Today the control plane and the runtime share a
-process, so this boundary is a design commitment rather than an enforced one.
+**No longer only a design.** The native runner daemon shipped
+(`server/runner-main.ts`, `server/ironcrew/runner/`,
+`deploy/ironcrew-runner.service`), and **T-17** below is the full account of
+how the separation is enforced: its own OS user, its own home, a `0660` Unix
+socket, and a protocol that carries capabilities and events but never a token.
+
+_Residual risk:_ **the runner is installed by hand, and an install that skips
+it puts the boundary back where it was.** `scripts/install-service.sh`
+hardcodes `SERVICE_NAME="ironcrew"` and cannot install the second unit, so
+without `IRONCREW_RUNNER_SOCKET` set the CLI runtimes run inline in the control
+plane and this mitigation is a design commitment again. `deploy/README.md`
+carries the manual procedure and says so plainly. Nothing in the product warns
+an operator that they are running the un-separated arrangement — the only
+signal is the absence of a second unit.
 
 ### T-06 — Undetected tampering with the record — **Medium**
 
@@ -128,8 +139,17 @@ one. Every governance decision — approvals, budget blocks, claims, transitions
 elevation — writes an entry.
 
 _Residual risk:_ an attacker with write access to the database file can rewrite
-the entire chain from scratch. Off-box audit shipping would close this and is
-out of MVP scope.
+the entire chain from scratch. **Off-box shipping now closes this, and is
+implemented** — a file or HTTP sink drained by the `audit-ship` scheduler job,
+with the cursor advancing only over entries the sink accepted
+(`docs/AUDIT_SHIPPING.md`). The chain proves nobody edited the record; only the
+copy elsewhere survives somebody deleting it, which is why these are two
+mechanisms rather than a stronger hash.
+
+Two conditions on that, both real: shipping only happens **when a sink is
+configured** (`IRONCREW_AUDIT_SINK`) — with none, the job is not registered at
+all and the local file is the only copy — and it stops entirely under
+`IRONCREW_SCHEDULER=off`, along with every other background job.
 
 ### T-07 — Unwanted vendor exposure — **Medium**
 
@@ -410,12 +430,12 @@ reach the queue at all".
    callers, all of them in `server/ironcrew/orchestrator/company.ts`, and each
    one traces back to something the owner set in motion:
 
-   | caller                | `requestedBy`         | what put it there                    |
-   | --------------------- | --------------------- | ------------------------------------ |
-   | approval released     | the deciding owner    | the owner opened a gate              |
-   | EA delegation         | the requesting human  | the owner asked the EA for something |
-   | **a routine firing**  | `routine:<id>`        | a timer the owner created            |
-   | revision requested    | the reviewing owner   | the owner sent work back             |
+   | caller               | `requestedBy`        | what put it there                    |
+   | -------------------- | -------------------- | ------------------------------------ |
+   | approval released    | the deciding owner   | the owner opened a gate              |
+   | EA delegation        | the requesting human | the owner asked the EA for something |
+   | **a routine firing** | `routine:<id>`       | a timer the owner created            |
+   | revision requested   | the reviewing owner  | the owner sent work back             |
 
    External ingresses do not enqueue. Incoming mail (T-10) and a guest's chat
    message (T-13) become `inbox` tasks, which never enter the claimable queue
@@ -458,6 +478,7 @@ reach the queue at all".
    on the board, an audit entry (`routine.fired`) and a cost record, so a
    misfiring routine is discoverable the next morning rather than only by the
    damage it did.
+
 2. **Sensitive work is still gated by an approval.** Triage classifies before
    anything is queued, and a sensitive or high-risk request becomes an
    `approval_required` task rather than a run request. The gate is unchanged

@@ -3,13 +3,13 @@
 Everything needed to run IronCrew as a system service, so the machine keeps it
 alive and no console has to stay open.
 
-| File                            | What it is                                                            |
-| ------------------------------- | --------------------------------------------------------------------- |
-| `ironcrew.service`              | The control plane's systemd unit: hardened, journald, restart limits  |
-| `ironcrew.env.example`          | Every environment variable the server reads, grouped and commented    |
-| `../scripts/install-service.sh` | Idempotent installer for the **control plane only** — see the caveat  |
-| `ironcrew-runner.service`       | The runner's systemd unit — **installed by hand**, see [The runner]   |
-| `ironcrew-runner.env.example`   | The runner's environment file; nothing copies it for you              |
+| File                            | What it is                                                           |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `ironcrew.service`              | The control plane's systemd unit: hardened, journald, restart limits |
+| `ironcrew.env.example`          | Every environment variable the server reads, grouped and commented   |
+| `../scripts/install-service.sh` | Idempotent installer for the **control plane only** — see the caveat |
+| `ironcrew-runner.service`       | The runner's systemd unit — **installed by hand**, see [The runner]  |
+| `ironcrew-runner.env.example`   | The runner's environment file; nothing copies it for you             |
 
 There are **two** services here, not one. The control plane is the whole
 product on a single-box install and everything below applies to it. The runner
@@ -219,24 +219,24 @@ the runner goes first. See
 
 ## Where things live
 
-| Thing                | Path                                                                     |
-| -------------------- | ------------------------------------------------------------------------ |
-| Application          | `/opt/ironcrew` (read-only for both services)                            |
-| Database             | `/opt/ironcrew/data/ironcrew.sqlite` (`DB_PATH`) — control plane only    |
-| Logs (application)   | `/opt/ironcrew/data/logs` (`LOGS_DIR`)                                   |
-| Configuration        | `/etc/ironcrew/ironcrew.env` (mode 600)                                  |
-| Service account home | `/var/lib/ironcrew`                                                      |
-| Unit                 | `/etc/systemd/system/ironcrew.service`                                   |
+| Thing                | Path                                                                  |
+| -------------------- | --------------------------------------------------------------------- |
+| Application          | `/opt/ironcrew` (read-only for both services)                         |
+| Database             | `/opt/ironcrew/data/ironcrew.sqlite` (`DB_PATH`) — control plane only |
+| Logs (application)   | `/opt/ironcrew/data/logs` (`LOGS_DIR`)                                |
+| Configuration        | `/etc/ironcrew/ironcrew.env` (mode 600)                               |
+| Service account home | `/var/lib/ironcrew`                                                   |
+| Unit                 | `/etc/systemd/system/ironcrew.service`                                |
 
 And, when the runner is installed:
 
-| Thing               | Path                                                                            |
-| ------------------- | ------------------------------------------------------------------------------- |
-| Runner config       | `/etc/ironcrew/runner.env` (mode 600, owner `ironcrew-runner`)                  |
-| Runner home         | `/var/lib/ironcrew-runner` — the CLI logins (`~/.claude`, `~/.codex`) live here |
-| Job workspaces      | `/var/lib/ironcrew/workspaces`                                                  |
-| Socket              | `/run/ironcrew/runner.sock` (`0660`, removed when the unit stops)               |
-| Unit                | `/etc/systemd/system/ironcrew-runner.service`                                   |
+| Thing          | Path                                                                            |
+| -------------- | ------------------------------------------------------------------------------- |
+| Runner config  | `/etc/ironcrew/runner.env` (mode 600, owner `ironcrew-runner`)                  |
+| Runner home    | `/var/lib/ironcrew-runner` — the CLI logins (`~/.claude`, `~/.codex`) live here |
+| Job workspaces | `/var/lib/ironcrew/workspaces`                                                  |
+| Socket         | `/run/ironcrew/runner.sock` (`0660`, removed when the unit stops)               |
+| Unit           | `/etc/systemd/system/ironcrew-runner.service`                                   |
 
 The CLI credentials belong in exactly one of those two homes, never both:
 `/var/lib/ironcrew-runner` when the runner is installed, `/var/lib/ironcrew`

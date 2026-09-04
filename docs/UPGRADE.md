@@ -364,7 +364,7 @@ as one.** What it actually does, in this order:
    it.
 3. Statically greps `server/modules/routes/` for `.get("…")`-shaped calls and
    compares them against the spec. It reports roughly `197 in code but missing
-   from spec` and prints the first fifty. That number is **information, not a
+from spec` and prints the first fifty. That number is **information, not a
    failure**: the command exits 0 with it. (`server/ironcrew/api/routes.ts` is
    not in the scanned directory at all, so those routes are counted by
    neither side.)
