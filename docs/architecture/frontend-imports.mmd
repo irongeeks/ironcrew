@@ -1,56 +1,1399 @@
 flowchart LR
   N1["src/App.tsx"]
-  N2["src/api.ts"]
-  N3["src/components/AgentAvatar.tsx"]
-  N4["src/components/AgentDetail.tsx"]
-  N5["src/components/AgentSelect.tsx"]
-  N6["src/components/ChatPanel.tsx"]
-  N7["src/components/Dashboard.tsx"]
-  N8["src/components/MessageContent.tsx"]
-  N9["src/components/OfficeView.tsx"]
-  N10["src/components/SettingsPanel.tsx"]
-  N11["src/components/Sidebar.tsx"]
-  N12["src/components/TaskBoard.tsx"]
-  N13["src/components/TerminalPanel.tsx"]
-  N14["src/hooks/usePolling.ts"]
-  N15["src/hooks/useWebSocket.ts"]
-  N16["src/main.tsx"]
-  N17["src/types/index.ts"]
+  N2["src/ThemeContext.tsx"]
+  N3["src/api.test.ts"]
+  N4["src/api.ts"]
+  N5["src/api/comfyui-workflows.ts"]
+  N6["src/api/connectors.ts"]
+  N7["src/api/core.ts"]
+  N8["src/api/knowledge-docs.ts"]
+  N9["src/api/mcp-servers.ts"]
+  N10["src/api/messaging-runtime-oauth.ts"]
+  N11["src/api/observability.ts"]
+  N12["src/api/organization-projects.ts"]
+  N13["src/api/providers-reports-github.ts"]
+  N14["src/api/scheduled-tasks.ts"]
+  N15["src/api/server-ssh.ts"]
+  N16["src/api/task-browse.ts"]
+  N17["src/api/workflow-packs-cache.test.ts"]
+  N18["src/api/workflow-packs.ts"]
+  N19["src/api/workflow-skills-subtasks.ts"]
+  N20["src/app/AppHeaderBar.mobile-office-pack.test.tsx"]
+  N21["src/app/AppHeaderBar.tsx"]
+  N22["src/app/AppLoadingScreen.tsx"]
+  N23["src/app/AppMainLayout.tsx"]
+  N24["src/app/AppOverlays.tsx"]
+  N25["src/app/MobileHeader.tsx"]
+  N26["src/app/constants.ts"]
+  N27["src/app/contexts/DecisionInboxContext.test.tsx"]
+  N28["src/app/contexts/DecisionInboxContext.tsx"]
+  N29["src/app/contexts/RoomThemesContext.test.tsx"]
+  N30["src/app/contexts/RoomThemesContext.tsx"]
+  N31["src/app/decision-inbox.ts"]
+  N32["src/app/hooks/useOfficePackBootstrap.test.tsx"]
+  N33["src/app/hooks/useOfficePackBootstrap.ts"]
+  N34["src/app/office-pack-display.test.ts"]
+  N35["src/app/office-pack-display.ts"]
+  N36["src/app/office-pack-localization.ts"]
+  N37["src/app/office-pack-name-pools.ts"]
+  N38["src/app/office-pack-presets.ts"]
+  N39["src/app/office-pack-registry.ts"]
+  N40["src/app/office-pack-seed.ts"]
+  N41["src/app/office-workflow-pack.test.ts"]
+  N42["src/app/office-workflow-pack.ts"]
+  N43["src/app/sub-agent-events.ts"]
+  N44["src/app/task-workflow-pack.test.ts"]
+  N45["src/app/task-workflow-pack.ts"]
+  N46["src/app/types.ts"]
+  N47["src/app/useActiveMeetingTaskId.ts"]
+  N48["src/app/useAppActions.ts"]
+  N49["src/app/useAppBootstrapData.ts"]
+  N50["src/app/useAppLabels.ts"]
+  N51["src/app/useAppViewEffects.ts"]
+  N52["src/app/useLiveSyncScheduler.ts"]
+  N53["src/app/useOfficePackResolution.test.ts"]
+  N54["src/app/useOfficePackResolution.ts"]
+  N55["src/app/useRealtimeSync.ts"]
+  N56["src/app/useUpdateStatusPolling.ts"]
+  N57["src/app/utils.ts"]
+  N58["src/app/ws-payload-guards.ts"]
+  N59["src/components/AgentAvatar.tsx"]
+  N60["src/components/AgentDetail.tsx"]
+  N61["src/components/AgentManager.tsx"]
+  N62["src/components/AgentSelect.tsx"]
+  N63["src/components/AgentSidebar.tsx"]
+  N64["src/components/AgentStatusPanel.tsx"]
+  N65["src/components/ChatPanel.tsx"]
+  N66["src/components/DecisionInboxModal.tsx"]
+  N67["src/components/DepartmentDetail.tsx"]
+  N68["src/components/ErrorBoundary.tsx"]
+  N69["src/components/GitHubImportPanel.tsx"]
+  N70["src/components/IronCrewTopBar.test.tsx"]
+  N71["src/components/IronCrewTopBar.tsx"]
+  N72["src/components/MessageContent.tsx"]
+  N73["src/components/NotificationToast.tsx"]
+  N74["src/components/OfficeRoomManager.tsx"]
+  N75["src/components/OperationsCenter.tsx"]
+  N76["src/components/ProjectManagerContent.tsx"]
+  N77["src/components/ProjectManagerModal.tsx"]
+  N78["src/components/ProjectsView.tsx"]
+  N79["src/components/ReportHistory.tsx"]
+  N80["src/components/RetroOfficeView.test.tsx"]
+  N81["src/components/RetroOfficeView.tsx"]
+  N82["src/components/RetroSidebar.tsx"]
+  N83["src/components/ServerConfigPanel.tsx"]
+  N84["src/components/ServerFileBrowser.tsx"]
+  N85["src/components/SettingsPanel.tsx"]
+  N86["src/components/SkillHistoryPanel.tsx"]
+  N87["src/components/SkillHistoryPanel.unlearn.test.tsx"]
+  N88["src/components/SkillsLibrary.esc-close.test.tsx"]
+  N89["src/components/SkillsLibrary.tsx"]
+  N90["src/components/SubsystemErrorBoundary.tsx"]
+  N91["src/components/TaskBoard.tsx"]
+  N92["src/components/TaskReportPopup.tsx"]
+  N93["src/components/TerminalPanel.tsx"]
+  N94["src/components/__tests__/MessageContent.test.tsx"]
+  N95["src/components/__tests__/SubsystemErrorBoundary.test.tsx"]
+  N96["src/components/agent-detail/AgentDetailHeader.tsx"]
+  N97["src/components/agent-detail/AgentDetailTabContent.tsx"]
+  N98["src/components/agent-detail/CliEditorInline.tsx"]
+  N99["src/components/agent-detail/constants.ts"]
+  N100["src/components/agent-detail/useAgentDetailState.test.ts"]
+  N101["src/components/agent-detail/useAgentDetailState.ts"]
+  N102["src/components/agent-manager/AgentCard.tsx"]
+  N103["src/components/agent-manager/AgentFormModal.tsx"]
+  N104["src/components/agent-manager/AgentsTab.tsx"]
+  N105["src/components/agent-manager/DepartmentFormModal.tsx"]
+  N106["src/components/agent-manager/DepartmentsTab.tsx"]
+  N107["src/components/agent-manager/EmojiPicker.tsx"]
+  N108["src/components/agent-manager/__tests__/AgentManager.test.tsx"]
+  N109["src/components/agent-manager/constants.ts"]
+  N110["src/components/agent-manager/office-pack-sync.test.ts"]
+  N111["src/components/agent-manager/office-pack-sync.ts"]
+  N112["src/components/agent-manager/types.ts"]
+  N113["src/components/agent-manager/useAgentCrud.ts"]
+  N114["src/components/agent-manager/useDeptReorder.ts"]
+  N115["src/components/agent-manager/useIsolatedPackPersist.ts"]
+  N116["src/components/agent-manager/utils.ts"]
+  N117["src/components/chat-panel/ChatComposer.tsx"]
+  N118["src/components/chat-panel/ChatMessageList.sender-fallback.test.tsx"]
+  N119["src/components/chat-panel/ChatMessageList.tsx"]
+  N120["src/components/chat-panel/ChatModeHint.tsx"]
+  N121["src/components/chat-panel/ChatPanelHeader.tsx"]
+  N122["src/components/chat-panel/ProjectFlowDialog.tsx"]
+  N123["src/components/chat-panel/model.ts"]
+  N124["src/components/chat-panel/useDecisionReply.ts"]
+  N125["src/components/chat/decision-inbox-modal.meta.ts"]
+  N126["src/components/chat/decision-inbox.test.ts"]
+  N127["src/components/chat/decision-inbox.ts"]
+  N128["src/components/chat/decision-request.test.ts"]
+  N129["src/components/chat/decision-request.ts"]
+  N130["src/components/cli-auth/CliAuthApiKeyFlow.tsx"]
+  N131["src/components/cli-auth/CliAuthMethodPicker.tsx"]
+  N132["src/components/cli-auth/CliAuthModal.tsx"]
+  N133["src/components/cli-auth/CliAuthTerminal.tsx"]
+  N134["src/components/cli-auth/__tests__/CliAuthModal.test.tsx"]
+  N135["src/components/decision-inbox/FileTree.tsx"]
+  N136["src/components/decision-inbox/FileViewer.tsx"]
+  N137["src/components/decision-inbox/TaskFileBrowser.tsx"]
+  N138["src/components/github-import/GitHubDeviceConnect.tsx"]
+  N139["src/components/github-import/GitHubImportWizard.tsx"]
+  N140["src/components/github-import/model.ts"]
+  N141["src/components/live-task-view/ActivityTimeline.tsx"]
+  N142["src/components/live-task-view/AgentTabs.tsx"]
+  N143["src/components/live-task-view/LiveTaskView.tsx"]
+  N144["src/components/live-task-view/TaskContextBar.tsx"]
+  N145["src/components/live-task-view/TerminalPanel.tsx"]
+  N146["src/components/mission-control/AgentSidebarPanel.tsx"]
+  N147["src/components/mission-control/MetricsStrip.tsx"]
+  N148["src/components/mission-control/MiniKanban.tsx"]
+  N149["src/components/mission-control/MissionControl.tsx"]
+  N150["src/components/mission-control/TokenBars.tsx"]
+  N151["src/components/mission-control/TokenDonut.tsx"]
+  N152["src/components/mission-control/__tests__/MissionControl.test.tsx"]
+  N153["src/components/mobile/MobileBottomSheet.test.tsx"]
+  N154["src/components/mobile/MobileBottomSheet.tsx"]
+  N155["src/components/mobile/MobileBottomTabBar.test.tsx"]
+  N156["src/components/mobile/MobileBottomTabBar.tsx"]
+  N157["src/components/mobile/MobileChatPanel.test.tsx"]
+  N158["src/components/mobile/MobileChatPanel.tsx"]
+  N159["src/components/mobile/MobileMissionControl.test.tsx"]
+  N160["src/components/mobile/MobileMissionControl.tsx"]
+  N161["src/components/mobile/MobileProjectsView.tsx"]
+  N162["src/components/mobile/MobileTaskBoard.test.tsx"]
+  N163["src/components/mobile/MobileTaskBoard.tsx"]
+  N164["src/components/mobile/MobileTerminalPanel.tsx"]
+  N165["src/components/office-view/TiledRenderer.ts"]
+  N166["src/components/office-view/agentSprites.ts"]
+  N167["src/components/office-view/animation-policy.test.ts"]
+  N168["src/components/office-view/animation-policy.ts"]
+  N169["src/components/office-view/character-motion.test.ts"]
+  N170["src/components/office-view/character-motion.ts"]
+  N171["src/components/office-view/motion-status.ts"]
+  N172["src/components/office-view/office-layers.test.ts"]
+  N173["src/components/office-view/pathfinding.test.ts"]
+  N174["src/components/office-view/pathfinding.ts"]
+  N175["src/components/office-view/render-quality.test.ts"]
+  N176["src/components/office-view/render-quality.ts"]
+  N177["src/components/office-view/useAgentLayer.test.tsx"]
+  N178["src/components/office-view/useAgentLayer.ts"]
+  N179["src/components/office-view/useAgentPositions.ts"]
+  N180["src/components/office-view/useParticleLayer.ts"]
+  N181["src/components/office-view/usePixiApp.ts"]
+  N182["src/components/office-view/useServerLayer.ts"]
+  N183["src/components/office-view/useShadowLayer.ts"]
+  N184["src/components/onboarding/ExtrasStep.tsx"]
+  N185["src/components/onboarding/KnowledgeStep.test.tsx"]
+  N186["src/components/onboarding/KnowledgeStep.tsx"]
+  N187["src/components/onboarding/ProviderStep.tsx"]
+  N188["src/components/onboarding/ReadyStep.tsx"]
+  N189["src/components/onboarding/SetupWizard.tsx"]
+  N190["src/components/onboarding/WelcomeStep.tsx"]
+  N191["src/components/operations/AlertFeed.tsx"]
+  N192["src/components/operations/NodeGrid.tsx"]
+  N193["src/components/operations/SessionStream.tsx"]
+  N194["src/components/pack-editor/CreatePackDialog.tsx"]
+  N195["src/components/pack-editor/GraphCanvas.tsx"]
+  N196["src/components/pack-editor/NodePalette.tsx"]
+  N197["src/components/pack-editor/PackMetaPanel.tsx"]
+  N198["src/components/pack-editor/PreviewPanel.tsx"]
+  N199["src/components/pack-editor/PropertyPanel.tsx"]
+  N200["src/components/pack-editor/__tests__/PropertyPanel.node-type.test.tsx"]
+  N201["src/components/pack-editor/__tests__/pack-deserializer.test.ts"]
+  N202["src/components/pack-editor/__tests__/useExecutionSync.test.ts"]
+  N203["src/components/pack-editor/__tests__/usePackEditorState.test.ts"]
+  N204["src/components/pack-editor/__tests__/usePackSerializer.test.ts"]
+  N205["src/components/pack-editor/__tests__/usePackValidator.test.ts"]
+  N206["src/components/pack-editor/edges/ArtifactEdge.tsx"]
+  N207["src/components/pack-editor/execution-types.ts"]
+  N208["src/components/pack-editor/hooks/useExecutionSync.ts"]
+  N209["src/components/pack-editor/hooks/usePackEditorState.ts"]
+  N210["src/components/pack-editor/hooks/usePackSerializer.ts"]
+  N211["src/components/pack-editor/hooks/usePackValidator.ts"]
+  N212["src/components/pack-editor/nodes/FanOutGroup.tsx"]
+  N213["src/components/pack-editor/nodes/PhaseNode.tsx"]
+  N214["src/components/pack-editor/pack-deserializer.ts"]
+  N215["src/components/pack-editor/panels/GuidanceEditor.tsx"]
+  N216["src/components/pack-editor/types.ts"]
+  N217["src/components/project-manager/ManualAssignmentSelector.tsx"]
+  N218["src/components/project-manager/ManualAssignmentWarningDialog.tsx"]
+  N219["src/components/project-manager/ManualPathPickerDialog.tsx"]
+  N220["src/components/project-manager/MissingPathPromptDialog.tsx"]
+  N221["src/components/project-manager/ProjectContextEditor.tsx"]
+  N222["src/components/project-manager/ProjectEditorPanel.tsx"]
+  N223["src/components/project-manager/ProjectFileBrowser.tsx"]
+  N224["src/components/project-manager/ProjectInsightsPanel.tsx"]
+  N225["src/components/project-manager/ProjectSidebar.tsx"]
+  N226["src/components/project-manager/types.ts"]
+  N227["src/components/project-manager/useProjectManagerPathTools.ts"]
+  N228["src/components/project-manager/useProjectSaveHandler.ts"]
+  N229["src/components/project-manager/utils.ts"]
+  N230["src/components/schedules/CronPicker.tsx"]
+  N231["src/components/schedules/ScheduleModal.tsx"]
+  N232["src/components/schedules/SchedulesView.tsx"]
+  N233["src/components/settings/ApiAssignModal.tsx"]
+  N234["src/components/settings/ApiSettingsTab.tsx"]
+  N235["src/components/settings/CliSettingsTab.tsx"]
+  N236["src/components/settings/ComfyUiSettingsTab.tsx"]
+  N237["src/components/settings/ConnectorSettingsTab.tsx"]
+  N238["src/components/settings/GatewaySettingsTab.characterization.test.tsx"]
+  N239["src/components/settings/GatewaySettingsTab.tsx"]
+  N240["src/components/settings/GeneralSettingsTab.tsx"]
+  N241["src/components/settings/GitHubOAuthAppConfig.tsx"]
+  N242["src/components/settings/KnowledgeSettingsTab.tsx"]
+  N243["src/components/settings/Logos.tsx"]
+  N244["src/components/settings/McpSettingsTab.test.tsx"]
+  N245["src/components/settings/McpSettingsTab.tsx"]
+  N246["src/components/settings/OAuthConnectCards.tsx"]
+  N247["src/components/settings/OAuthConnectedProvidersSection.tsx"]
+  N248["src/components/settings/OAuthSettingsTab.tsx"]
+  N249["src/components/settings/ObservabilitySettingsTab.tsx"]
+  N250["src/components/settings/ServersSettingsTab.tsx"]
+  N251["src/components/settings/SettingsTabNav.tsx"]
+  N252["src/components/settings/WorkflowPackSettingsTab.tsx"]
+  N253["src/components/settings/__tests__/SettingsPanel.test.tsx"]
+  N254["src/components/settings/__tests__/SettingsTabNav.test.tsx"]
+  N255["src/components/settings/comfyui/WorkflowForm.tsx"]
+  N256["src/components/settings/comfyui/WorkflowList.tsx"]
+  N257["src/components/settings/comfyui/constants.ts"]
+  N258["src/components/settings/comfyui/useComfyUiWorkflowForm.ts"]
+  N259["src/components/settings/comfyui/workflowNodeParser.ts"]
+  N260["src/components/settings/constants.tsx"]
+  N261["src/components/settings/gateway-settings/ChatEditorModal.tsx"]
+  N262["src/components/settings/gateway-settings/ChatSessionList.tsx"]
+  N263["src/components/settings/gateway-settings/ReceiverStatusPanel.tsx"]
+  N264["src/components/settings/gateway-settings/RuntimeSessionsPanel.tsx"]
+  N265["src/components/settings/gateway-settings/constants.ts"]
+  N266["src/components/settings/gateway-settings/state.ts"]
+  N267["src/components/settings/gateway-settings/useChatEditor.ts"]
+  N268["src/components/settings/gateway-settings/useDiscordChannelLookup.ts"]
+  N269["src/components/settings/gateway-settings/useGatewayData.ts"]
+  N270["src/components/settings/observability/ConfigSegment.tsx"]
+  N271["src/components/settings/observability/LogsSegment.tsx"]
+  N272["src/components/settings/observability/MetricsSegment.tsx"]
+  N273["src/components/settings/observability/TracesSegment.tsx"]
+  N274["src/components/settings/observability/constants.ts"]
+  N275["src/components/settings/observability/utils.ts"]
+  N276["src/components/settings/types.ts"]
+  N277["src/components/settings/useApiProvidersState.ts"]
+  N278["src/components/skill-history/utils.ts"]
+  N279["src/components/skills-library/ClassroomOverlay.tsx"]
+  N280["src/components/skills-library/CustomSkillModal.tsx"]
+  N281["src/components/skills-library/CustomSkillSection.tsx"]
+  N282["src/components/skills-library/LearningModal.tsx"]
+  N283["src/components/skills-library/SkillsCategoryBar.tsx"]
+  N284["src/components/skills-library/SkillsGrid.tsx"]
+  N285["src/components/skills-library/SkillsHeader.core.test.tsx"]
+  N286["src/components/skills-library/SkillsHeader.tsx"]
+  N287["src/components/skills-library/SkillsMemorySection.tsx"]
+  N288["src/components/skills-library/model.tsx"]
+  N289["src/components/skills-library/useCustomSkillsState.ts"]
+  N290["src/components/skills-library/useSkillsLibraryState.ts"]
+  N291["src/components/task-board/__tests__/TaskBoard.test.tsx"]
+  N292["src/components/task-report/PlanningSummaryTab.tsx"]
+  N293["src/components/task-report/ReportDocumentList.tsx"]
+  N294["src/components/task-report/TeamReportTab.tsx"]
+  N295["src/components/task-report/utils.ts"]
+  N296["src/components/taskboard/BulkHideModal.tsx"]
+  N297["src/components/taskboard/CreateTaskModal.tsx"]
+  N298["src/components/taskboard/DiffModal.tsx"]
+  N299["src/components/taskboard/FilterBar.tsx"]
+  N300["src/components/taskboard/TaskCard.tsx"]
+  N301["src/components/taskboard/constants.ts"]
+  N302["src/components/taskboard/create-modal/CreateTaskModalView.tsx"]
+  N303["src/components/taskboard/create-modal/Overlays.tsx"]
+  N304["src/components/taskboard/create-modal/PackInputsSection.tsx"]
+  N305["src/components/taskboard/create-modal/PhaseSelectionSection.tsx"]
+  N306["src/components/taskboard/create-modal/PipelineSection.tsx"]
+  N307["src/components/taskboard/create-modal/Sections.tsx"]
+  N308["src/components/taskboard/create-modal/overlay-types.ts"]
+  N309["src/components/taskboard/create-modal/submit-task.ts"]
+  N310["src/components/taskboard/create-modal/useDraftState.ts"]
+  N311["src/components/taskboard/create-modal/usePathHelperMessages.ts"]
+  N312["src/components/taskboard/create-modal/useProjectPickerState.test.tsx"]
+  N313["src/components/taskboard/create-modal/useProjectPickerState.ts"]
+  N314["src/components/terminal-panel/InterventionPanel.tsx"]
+  N315["src/components/terminal-panel/MeetingMinutesTab.tsx"]
+  N316["src/components/terminal-panel/ProgressHintsStrip.tsx"]
+  N317["src/components/terminal-panel/TerminalTab.tsx"]
+  N318["src/components/terminal-panel/model.ts"]
+  N319["src/components/terminal-panel/useInterventionState.ts"]
+  N320["src/components/terminal-panel/useTerminalData.ts"]
+  N321["src/components/workflow-editor/WorkflowEditorPage.tsx"]
+  N322["src/components/workflow-editor/WorkflowPackSelector.tsx"]
+  N323["src/components/workflow-editor/WorkflowToolbar.tsx"]
+  N324["src/hooks/useDialog.ts"]
+  N325["src/hooks/useMobile.test.tsx"]
+  N326["src/hooks/useMobile.ts"]
+  N327["src/hooks/usePrefersReducedMotion.test.ts"]
+  N328["src/hooks/usePrefersReducedMotion.ts"]
+  N329["src/hooks/useTokenUsage.ts"]
+  N330["src/hooks/useWebSocket.test.tsx"]
+  N331["src/hooks/useWebSocket.ts"]
+  N332["src/i18n.test.ts"]
+  N333["src/i18n.ts"]
+  N334["src/ironcrew/AccountPanel.tsx"]
+  N335["src/ironcrew/CommandCenterView.test.tsx"]
+  N336["src/ironcrew/CommandCenterView.tsx"]
+  N337["src/ironcrew/IdentityGate.test.tsx"]
+  N338["src/ironcrew/IdentityGate.tsx"]
+  N339["src/ironcrew/PacksPanel.test.tsx"]
+  N340["src/ironcrew/PacksPanel.tsx"]
+  N341["src/ironcrew/api.ts"]
+  N342["src/ironcrew/types.ts"]
+  N343["src/main.tsx"]
+  N344["src/pages/LoginPage.tsx"]
+  N345["src/storage.test.ts"]
+  N346["src/storage.ts"]
+  N347["src/styles/light-theme-contrast.test.ts"]
+  N348["src/test/setup.ts"]
+  N349["src/test/smoke.test.ts"]
+  N350["src/types/index.ts"]
+  N351["src/vite-env.d.ts"]
   N1 --> N2
   N1 --> N4
-  N1 --> N6
   N1 --> N7
-  N1 --> N9
   N1 --> N10
-  N1 --> N11
-  N1 --> N12
-  N1 --> N13
-  N1 --> N15
-  N1 --> N17
-  N2 --> N17
-  N3 --> N17
-  N4 --> N2
-  N4 --> N3
-  N4 --> N17
-  N5 --> N3
-  N5 --> N17
-  N6 --> N3
-  N6 --> N8
-  N6 --> N17
-  N7 --> N3
-  N7 --> N17
-  N9 --> N2
-  N9 --> N17
-  N10 --> N1
-  N10 --> N2
-  N10 --> N17
-  N11 --> N17
-  N12 --> N2
-  N12 --> N3
-  N12 --> N5
-  N12 --> N17
-  N13 --> N2
-  N13 --> N3
-  N13 --> N17
-  N15 --> N17
-  N16 --> N1
+  N1 --> N22
+  N1 --> N23
+  N1 --> N24
+  N1 --> N26
+  N1 --> N28
+  N1 --> N30
+  N1 --> N33
+  N1 --> N35
+  N1 --> N42
+  N1 --> N46
+  N1 --> N47
+  N1 --> N48
+  N1 --> N49
+  N1 --> N50
+  N1 --> N51
+  N1 --> N52
+  N1 --> N55
+  N1 --> N56
+  N1 --> N57
+  N1 --> N73
+  N1 --> N189
+  N1 --> N298
+  N1 --> N331
+  N1 --> N333
+  N1 --> N344
+  N1 --> N346
+  N1 --> N350
+  N2 --> N346
+  N3 --> N4
+  N3 --> N7
+  N4 --> N7
+  N4 --> N8
+  N4 --> N10
+  N4 --> N12
+  N4 --> N13
+  N4 --> N19
+  N8 --> N7
+  N9 --> N7
+  N10 --> N7
+  N10 --> N350
+  N11 --> N7
+  N12 --> N7
+  N12 --> N350
+  N13 --> N7
+  N14 --> N7
+  N15 --> N7
+  N15 --> N350
+  N16 --> N7
+  N17 --> N7
+  N17 --> N18
+  N18 --> N7
+  N18 --> N350
+  N19 --> N7
+  N19 --> N350
+  N20 --> N21
+  N21 --> N46
+  N21 --> N350
+  N22 --> N333
+  N23 --> N4
+  N23 --> N10
+  N23 --> N25
+  N23 --> N46
+  N23 --> N54
+  N23 --> N61
+  N23 --> N63
+  N23 --> N65
+  N23 --> N71
+  N23 --> N75
+  N23 --> N78
+  N23 --> N81
+  N23 --> N82
+  N23 --> N85
+  N23 --> N89
+  N23 --> N90
+  N23 --> N91
+  N23 --> N149
+  N23 --> N156
+  N23 --> N232
+  N23 --> N276
+  N23 --> N321
+  N23 --> N326
+  N23 --> N333
+  N23 --> N336
+  N23 --> N338
+  N23 --> N350
+  N24 --> N4
+  N24 --> N46
+  N24 --> N60
+  N24 --> N64
+  N24 --> N65
+  N24 --> N66
+  N24 --> N67
+  N24 --> N74
+  N24 --> N79
+  N24 --> N83
+  N24 --> N92
+  N24 --> N93
+  N24 --> N127
+  N24 --> N333
+  N24 --> N350
+  N25 --> N46
+  N25 --> N333
+  N27 --> N28
+  N27 --> N127
+  N28 --> N127
+  N29 --> N4
+  N29 --> N26
+  N29 --> N30
+  N29 --> N46
+  N29 --> N350
+  N30 --> N4
+  N30 --> N26
+  N30 --> N46
+  N30 --> N57
+  N30 --> N346
+  N30 --> N350
+  N31 --> N4
+  N31 --> N127
+  N31 --> N333
+  N32 --> N4
+  N32 --> N33
+  N32 --> N46
+  N32 --> N57
+  N32 --> N350
+  N33 --> N4
+  N33 --> N42
+  N33 --> N46
+  N33 --> N57
+  N33 --> N333
+  N33 --> N350
+  N34 --> N35
+  N34 --> N350
+  N35 --> N350
+  N36 --> N37
+  N36 --> N38
+  N36 --> N350
+  N37 --> N38
+  N37 --> N350
+  N38 --> N350
+  N39 --> N36
+  N39 --> N37
+  N39 --> N38
+  N39 --> N350
+  N40 --> N36
+  N40 --> N38
+  N40 --> N350
+  N41 --> N42
+  N41 --> N350
+  N42 --> N36
+  N42 --> N37
+  N42 --> N38
+  N42 --> N39
+  N42 --> N40
+  N43 --> N26
+  N43 --> N46
+  N44 --> N45
+  N44 --> N350
+  N45 --> N42
+  N45 --> N350
+  N46 --> N350
+  N47 --> N350
+  N48 --> N4
+  N48 --> N31
+  N48 --> N42
+  N48 --> N46
+  N48 --> N57
+  N48 --> N127
+  N48 --> N333
+  N48 --> N346
+  N48 --> N350
+  N49 --> N4
+  N49 --> N7
+  N49 --> N26
+  N49 --> N31
+  N49 --> N42
+  N49 --> N46
+  N49 --> N57
+  N49 --> N127
+  N49 --> N333
+  N49 --> N346
+  N49 --> N350
+  N50 --> N4
+  N50 --> N46
+  N50 --> N333
+  N50 --> N350
+  N51 --> N4
+  N51 --> N46
+  N51 --> N350
+  N52 --> N4
+  N52 --> N31
+  N52 --> N57
+  N52 --> N127
+  N52 --> N350
+  N53 --> N54
+  N54 --> N18
+  N54 --> N35
+  N54 --> N42
+  N54 --> N45
+  N54 --> N46
+  N54 --> N350
+  N55 --> N4
+  N55 --> N26
+  N55 --> N43
+  N55 --> N46
+  N55 --> N57
+  N55 --> N58
+  N55 --> N350
+  N56 --> N4
+  N56 --> N7
+  N57 --> N26
+  N57 --> N46
+  N57 --> N333
+  N57 --> N346
+  N57 --> N350
+  N59 --> N350
+  N60 --> N96
+  N60 --> N97
+  N60 --> N101
+  N60 --> N333
+  N60 --> N350
+  N61 --> N42
+  N61 --> N59
+  N61 --> N103
+  N61 --> N104
+  N61 --> N105
+  N61 --> N106
+  N61 --> N107
+  N61 --> N109
+  N61 --> N112
+  N61 --> N113
+  N61 --> N114
+  N61 --> N115
+  N61 --> N116
+  N61 --> N333
+  N61 --> N350
+  N62 --> N59
+  N62 --> N333
+  N62 --> N350
+  N63 --> N350
+  N64 --> N4
+  N64 --> N59
+  N64 --> N333
+  N64 --> N350
+  N65 --> N4
+  N65 --> N59
+  N65 --> N117
+  N65 --> N119
+  N65 --> N121
+  N65 --> N122
+  N65 --> N123
+  N65 --> N124
+  N65 --> N129
+  N65 --> N158
+  N65 --> N326
+  N65 --> N333
+  N65 --> N350
+  N66 --> N59
+  N66 --> N72
+  N66 --> N125
+  N66 --> N127
+  N66 --> N137
+  N66 --> N333
+  N66 --> N350
+  N67 --> N59
+  N67 --> N154
+  N67 --> N326
+  N67 --> N333
+  N67 --> N350
+  N69 --> N4
+  N69 --> N138
+  N69 --> N139
+  N69 --> N140
+  N69 --> N333
+  N70 --> N71
+  N71 --> N46
+  N71 --> N333
+  N71 --> N350
+  N73 --> N350
+  N74 --> N333
+  N75 --> N4
+  N75 --> N191
+  N75 --> N192
+  N75 --> N193
+  N75 --> N333
+  N75 --> N350
+  N76 --> N4
+  N76 --> N59
+  N76 --> N69
+  N76 --> N92
+  N76 --> N218
+  N76 --> N219
+  N76 --> N220
+  N76 --> N222
+  N76 --> N224
+  N76 --> N225
+  N76 --> N226
+  N76 --> N227
+  N76 --> N228
+  N76 --> N229
+  N76 --> N333
+  N76 --> N350
+  N77 --> N76
+  N77 --> N226
+  N78 --> N76
+  N78 --> N161
+  N78 --> N326
+  N78 --> N350
+  N79 --> N4
+  N79 --> N59
+  N79 --> N92
+  N79 --> N333
+  N79 --> N350
+  N80 --> N81
+  N80 --> N350
+  N81 --> N165
+  N81 --> N166
+  N81 --> N176
+  N81 --> N178
+  N81 --> N179
+  N81 --> N180
+  N81 --> N181
+  N81 --> N182
+  N81 --> N183
+  N81 --> N350
+  N82 --> N46
+  N83 --> N4
+  N83 --> N15
+  N83 --> N84
+  N83 --> N333
+  N83 --> N350
+  N84 --> N15
+  N84 --> N350
+  N85 --> N1
+  N85 --> N4
+  N85 --> N234
+  N85 --> N235
+  N85 --> N236
+  N85 --> N237
+  N85 --> N239
+  N85 --> N240
+  N85 --> N242
+  N85 --> N245
+  N85 --> N248
+  N85 --> N249
+  N85 --> N250
+  N85 --> N251
+  N85 --> N252
+  N85 --> N276
+  N85 --> N277
+  N85 --> N326
+  N85 --> N333
+  N85 --> N346
+  N85 --> N350
+  N86 --> N4
+  N86 --> N59
+  N86 --> N278
+  N86 --> N350
+  N87 --> N4
+  N87 --> N86
+  N87 --> N350
+  N88 --> N4
+  N88 --> N89
+  N88 --> N350
+  N89 --> N279
+  N89 --> N280
+  N89 --> N281
+  N89 --> N282
+  N89 --> N283
+  N89 --> N284
+  N89 --> N286
+  N89 --> N287
+  N89 --> N290
+  N89 --> N333
+  N89 --> N350
+  N91 --> N4
+  N91 --> N77
+  N91 --> N163
+  N91 --> N296
+  N91 --> N297
+  N91 --> N299
+  N91 --> N300
+  N91 --> N301
+  N91 --> N326
+  N91 --> N333
+  N91 --> N350
+  N92 --> N4
+  N92 --> N59
+  N92 --> N292
+  N92 --> N294
+  N92 --> N295
+  N92 --> N333
+  N92 --> N350
+  N93 --> N59
+  N93 --> N164
+  N93 --> N314
+  N93 --> N315
+  N93 --> N316
+  N93 --> N317
+  N93 --> N318
+  N93 --> N319
+  N93 --> N320
+  N93 --> N326
+  N93 --> N333
+  N94 --> N72
+  N95 --> N90
+  N96 --> N59
+  N96 --> N98
+  N96 --> N99
+  N96 --> N101
+  N96 --> N333
+  N96 --> N350
+  N97 --> N99
+  N97 --> N333
+  N97 --> N350
+  N98 --> N99
+  N98 --> N101
+  N98 --> N350
+  N99 --> N4
+  N99 --> N333
+  N100 --> N101
+  N101 --> N4
+  N101 --> N99
+  N101 --> N333
+  N101 --> N350
+  N102 --> N59
+  N102 --> N109
+  N102 --> N112
+  N102 --> N333
+  N102 --> N350
+  N103 --> N4
+  N103 --> N59
+  N103 --> N107
+  N103 --> N109
+  N103 --> N112
+  N103 --> N333
+  N103 --> N350
+  N104 --> N102
+  N104 --> N107
+  N104 --> N112
+  N104 --> N333
+  N104 --> N350
+  N105 --> N4
+  N105 --> N18
+  N105 --> N107
+  N105 --> N109
+  N105 --> N112
+  N105 --> N333
+  N105 --> N350
+  N106 --> N112
+  N106 --> N333
+  N106 --> N350
+  N107 --> N109
+  N108 --> N61
+  N109 --> N112
+  N109 --> N350
+  N110 --> N111
+  N110 --> N350
+  N111 --> N350
+  N112 --> N350
+  N113 --> N4
+  N113 --> N59
+  N113 --> N109
+  N113 --> N112
+  N113 --> N350
+  N114 --> N4
+  N114 --> N112
+  N114 --> N350
+  N115 --> N112
+  N115 --> N350
+  N117 --> N120
+  N117 --> N350
+  N118 --> N119
+  N118 --> N350
+  N119 --> N59
+  N119 --> N72
+  N119 --> N129
+  N119 --> N350
+  N121 --> N59
+  N121 --> N350
+  N122 --> N350
+  N123 --> N333
+  N124 --> N123
+  N124 --> N129
+  N124 --> N350
+  N125 --> N127
+  N125 --> N333
+  N125 --> N350
+  N126 --> N127
+  N126 --> N350
+  N127 --> N129
+  N127 --> N350
+  N128 --> N129
+  N130 --> N4
+  N130 --> N333
+  N131 --> N333
+  N132 --> N130
+  N132 --> N131
+  N132 --> N133
+  N132 --> N333
+  N133 --> N333
+  N134 --> N132
+  N135 --> N16
+  N136 --> N16
+  N136 --> N72
+  N136 --> N333
+  N137 --> N16
+  N137 --> N135
+  N137 --> N136
+  N137 --> N333
+  N138 --> N4
+  N138 --> N333
+  N139 --> N4
+  N139 --> N140
+  N139 --> N333
+  N141 --> N333
+  N141 --> N350
+  N142 --> N350
+  N143 --> N141
+  N143 --> N142
+  N143 --> N144
+  N143 --> N145
+  N143 --> N350
+  N144 --> N350
+  N145 --> N333
+  N146 --> N150
+  N146 --> N329
+  N146 --> N350
+  N147 --> N151
+  N147 --> N329
+  N147 --> N350
+  N148 --> N350
+  N149 --> N81
+  N149 --> N90
+  N149 --> N143
+  N149 --> N146
+  N149 --> N147
+  N149 --> N148
+  N149 --> N160
+  N149 --> N297
+  N149 --> N326
+  N149 --> N329
+  N149 --> N350
+  N152 --> N149
+  N153 --> N154
+  N154 --> N324
+  N155 --> N156
+  N156 --> N46
+  N156 --> N154
+  N156 --> N350
+  N157 --> N158
+  N158 --> N4
+  N158 --> N59
+  N158 --> N117
+  N158 --> N119
+  N158 --> N122
+  N158 --> N123
+  N158 --> N124
+  N158 --> N129
+  N158 --> N154
+  N158 --> N333
+  N158 --> N350
+  N159 --> N160
+  N160 --> N81
+  N160 --> N146
+  N160 --> N147
+  N160 --> N148
+  N160 --> N297
+  N160 --> N329
+  N160 --> N350
+  N161 --> N4
+  N161 --> N76
+  N161 --> N333
+  N161 --> N350
+  N162 --> N163
+  N162 --> N301
+  N162 --> N350
+  N163 --> N19
+  N163 --> N297
+  N163 --> N301
+  N163 --> N333
+  N163 --> N350
+  N164 --> N154
+  N164 --> N314
+  N164 --> N315
+  N164 --> N316
+  N164 --> N317
+  N164 --> N318
+  N164 --> N319
+  N164 --> N320
+  N164 --> N333
+  N166 --> N59
+  N166 --> N174
+  N167 --> N168
+  N169 --> N170
+  N169 --> N171
+  N170 --> N171
+  N172 --> N166
+  N172 --> N179
+  N173 --> N165
+  N173 --> N174
+  N174 --> N165
+  N175 --> N176
+  N177 --> N166
+  N177 --> N178
+  N177 --> N350
+  N178 --> N59
+  N178 --> N166
+  N178 --> N350
+  N179 --> N59
+  N179 --> N165
+  N179 --> N166
+  N179 --> N174
+  N179 --> N350
+  N180 --> N166
+  N180 --> N350
+  N181 --> N59
+  N181 --> N165
+  N181 --> N166
+  N181 --> N168
+  N181 --> N170
+  N181 --> N171
+  N181 --> N174
+  N181 --> N176
+  N181 --> N328
+  N181 --> N350
+  N182 --> N350
+  N183 --> N166
+  N183 --> N350
+  N185 --> N8
+  N185 --> N10
+  N185 --> N186
+  N186 --> N8
+  N186 --> N10
+  N187 --> N132
+  N187 --> N350
+  N188 --> N10
+  N189 --> N10
+  N189 --> N184
+  N189 --> N186
+  N189 --> N187
+  N189 --> N188
+  N189 --> N190
+  N189 --> N350
+  N191 --> N350
+  N192 --> N350
+  N193 --> N4
+  N193 --> N350
+  N194 --> N18
+  N195 --> N18
+  N195 --> N206
+  N195 --> N207
+  N195 --> N212
+  N195 --> N213
+  N195 --> N214
+  N195 --> N216
+  N195 --> N326
+  N196 --> N18
+  N196 --> N216
+  N197 --> N209
+  N197 --> N216
+  N198 --> N18
+  N199 --> N18
+  N199 --> N215
+  N199 --> N216
+  N200 --> N199
+  N200 --> N216
+  N201 --> N214
+  N201 --> N216
+  N202 --> N208
+  N202 --> N350
+  N203 --> N209
+  N203 --> N216
+  N204 --> N209
+  N204 --> N210
+  N205 --> N211
+  N205 --> N216
+  N206 --> N216
+  N207 --> N350
+  N208 --> N207
+  N208 --> N350
+  N209 --> N216
+  N210 --> N209
+  N211 --> N216
+  N212 --> N207
+  N212 --> N214
+  N212 --> N216
+  N213 --> N207
+  N213 --> N214
+  N213 --> N216
+  N214 --> N216
+  N215 --> N18
+  N217 --> N4
+  N217 --> N59
+  N217 --> N226
+  N217 --> N350
+  N218 --> N226
+  N219 --> N226
+  N220 --> N226
+  N221 --> N12
+  N221 --> N333
+  N221 --> N350
+  N222 --> N4
+  N222 --> N217
+  N222 --> N226
+  N222 --> N350
+  N223 --> N7
+  N224 --> N4
+  N224 --> N221
+  N224 --> N223
+  N224 --> N226
+  N224 --> N229
+  N224 --> N350
+  N225 --> N226
+  N225 --> N350
+  N226 --> N4
+  N226 --> N350
+  N227 --> N4
+  N227 --> N226
+  N228 --> N4
+  N228 --> N226
+  N228 --> N227
+  N228 --> N350
+  N229 --> N4
+  N229 --> N226
+  N231 --> N14
+  N231 --> N230
+  N231 --> N350
+  N232 --> N14
+  N232 --> N18
+  N232 --> N230
+  N232 --> N231
+  N232 --> N350
+  N233 --> N59
+  N233 --> N276
+  N233 --> N333
+  N233 --> N350
+  N234 --> N233
+  N234 --> N260
+  N234 --> N276
+  N234 --> N277
+  N235 --> N132
+  N235 --> N260
+  N235 --> N276
+  N236 --> N255
+  N236 --> N256
+  N236 --> N258
+  N236 --> N276
+  N237 --> N6
+  N237 --> N18
+  N237 --> N276
+  N238 --> N239
+  N239 --> N4
+  N239 --> N261
+  N239 --> N262
+  N239 --> N263
+  N239 --> N264
+  N239 --> N265
+  N239 --> N266
+  N239 --> N267
+  N239 --> N268
+  N239 --> N269
+  N239 --> N276
+  N239 --> N350
+  N240 --> N7
+  N240 --> N18
+  N240 --> N276
+  N240 --> N350
+  N241 --> N4
+  N241 --> N276
+  N242 --> N4
+  N242 --> N276
+  N242 --> N350
+  N244 --> N245
+  N245 --> N9
+  N245 --> N276
+  N246 --> N260
+  N246 --> N276
+  N247 --> N4
+  N247 --> N243
+  N247 --> N260
+  N247 --> N276
+  N248 --> N4
+  N248 --> N241
+  N248 --> N246
+  N248 --> N247
+  N248 --> N260
+  N248 --> N276
+  N249 --> N270
+  N249 --> N271
+  N249 --> N272
+  N249 --> N273
+  N249 --> N276
+  N250 --> N4
+  N250 --> N83
+  N250 --> N276
+  N250 --> N350
+  N251 --> N276
+  N252 --> N18
+  N252 --> N276
+  N253 --> N85
+  N254 --> N251
+  N255 --> N257
+  N255 --> N259
+  N255 --> N276
+  N256 --> N5
+  N256 --> N276
+  N258 --> N5
+  N258 --> N257
+  N258 --> N259
+  N258 --> N276
+  N260 --> N4
+  N260 --> N243
+  N261 --> N62
+  N261 --> N265
+  N261 --> N266
+  N261 --> N276
+  N261 --> N350
+  N262 --> N59
+  N262 --> N265
+  N262 --> N266
+  N262 --> N276
+  N262 --> N350
+  N263 --> N4
+  N263 --> N276
+  N264 --> N276
+  N265 --> N350
+  N266 --> N265
+  N266 --> N276
+  N266 --> N350
+  N267 --> N265
+  N267 --> N266
+  N267 --> N276
+  N267 --> N350
+  N268 --> N4
+  N268 --> N276
+  N268 --> N350
+  N269 --> N4
+  N269 --> N18
+  N269 --> N59
+  N269 --> N265
+  N269 --> N266
+  N269 --> N276
+  N269 --> N350
+  N270 --> N7
+  N270 --> N276
+  N271 --> N11
+  N271 --> N275
+  N271 --> N276
+  N272 --> N11
+  N272 --> N274
+  N272 --> N275
+  N272 --> N276
+  N273 --> N11
+  N273 --> N275
+  N273 --> N276
+  N275 --> N11
+  N275 --> N274
+  N276 --> N4
+  N276 --> N333
+  N276 --> N350
+  N277 --> N4
+  N277 --> N276
+  N277 --> N350
+  N278 --> N4
+  N278 --> N350
+  N279 --> N4
+  N279 --> N59
+  N279 --> N288
+  N279 --> N350
+  N280 --> N4
+  N280 --> N59
+  N280 --> N288
+  N280 --> N350
+  N281 --> N4
+  N281 --> N288
+  N282 --> N4
+  N282 --> N59
+  N282 --> N288
+  N282 --> N350
+  N283 --> N288
+  N284 --> N4
+  N284 --> N59
+  N284 --> N288
+  N284 --> N350
+  N285 --> N286
+  N286 --> N288
+  N287 --> N86
+  N287 --> N288
+  N287 --> N350
+  N288 --> N4
+  N288 --> N333
+  N288 --> N350
+  N289 --> N4
+  N289 --> N288
+  N290 --> N4
+  N290 --> N288
+  N290 --> N289
+  N290 --> N350
+  N291 --> N91
+  N292 --> N4
+  N292 --> N293
+  N292 --> N295
+  N292 --> N333
+  N293 --> N4
+  N293 --> N333
+  N294 --> N4
+  N294 --> N293
+  N294 --> N295
+  N294 --> N333
+  N294 --> N350
+  N296 --> N301
+  N296 --> N333
+  N296 --> N350
+  N297 --> N301
+  N297 --> N302
+  N297 --> N308
+  N297 --> N309
+  N297 --> N310
+  N297 --> N311
+  N297 --> N313
+  N297 --> N333
+  N297 --> N350
+  N298 --> N4
+  N298 --> N333
+  N299 --> N62
+  N299 --> N301
+  N299 --> N333
+  N299 --> N350
+  N300 --> N19
+  N300 --> N59
+  N300 --> N62
+  N300 --> N298
+  N300 --> N301
+  N300 --> N333
+  N300 --> N350
+  N301 --> N333
+  N301 --> N346
+  N301 --> N350
+  N302 --> N301
+  N302 --> N303
+  N302 --> N304
+  N302 --> N305
+  N302 --> N306
+  N302 --> N307
+  N302 --> N308
+  N302 --> N350
+  N303 --> N301
+  N303 --> N308
+  N304 --> N18
+  N304 --> N216
+  N305 --> N18
+  N305 --> N216
+  N306 --> N301
+  N306 --> N350
+  N307 --> N62
+  N307 --> N301
+  N307 --> N350
+  N308 --> N301
+  N309 --> N4
+  N309 --> N301
+  N309 --> N333
+  N309 --> N350
+  N310 --> N301
+  N310 --> N350
+  N311 --> N4
+  N311 --> N301
+  N311 --> N333
+  N312 --> N313
+  N313 --> N4
+  N313 --> N301
+  N313 --> N333
+  N313 --> N350
+  N314 --> N318
+  N314 --> N320
+  N314 --> N350
+  N315 --> N318
+  N315 --> N350
+  N316 --> N4
+  N317 --> N318
+  N318 --> N333
+  N318 --> N350
+  N319 --> N4
+  N319 --> N318
+  N319 --> N320
+  N319 --> N350
+  N320 --> N4
+  N320 --> N318
+  N320 --> N350
+  N321 --> N18
+  N321 --> N90
+  N321 --> N194
+  N321 --> N195
+  N321 --> N196
+  N321 --> N197
+  N321 --> N198
+  N321 --> N199
+  N321 --> N208
+  N321 --> N209
+  N321 --> N210
+  N321 --> N211
+  N321 --> N216
+  N321 --> N322
+  N321 --> N323
+  N321 --> N350
+  N322 --> N18
+  N322 --> N350
+  N323 --> N216
+  N325 --> N326
+  N327 --> N328
+  N329 --> N7
+  N330 --> N4
+  N330 --> N331
+  N331 --> N4
+  N331 --> N350
+  N332 --> N333
+  N333 --> N346
+  N334 --> N341
+  N334 --> N342
+  N335 --> N7
+  N335 --> N336
+  N335 --> N341
+  N335 --> N342
+  N336 --> N341
+  N336 --> N342
+  N337 --> N338
+  N337 --> N342
+  N338 --> N334
+  N338 --> N340
+  N338 --> N341
+  N338 --> N342
+  N339 --> N340
+  N339 --> N342
+  N340 --> N341
+  N340 --> N342
+  N341 --> N7
+  N341 --> N342
+  N343 --> N1
+  N343 --> N2
+  N343 --> N7
+  N343 --> N68
+  N344 --> N7
+  N345 --> N346
+  N350 --> N333
