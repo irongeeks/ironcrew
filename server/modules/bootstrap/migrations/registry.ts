@@ -19,9 +19,11 @@ import { migration as m0013CrewExternalEvents } from "./0013-crew-external-event
 import { migration as m0014CrewChangeProposals } from "./0014-crew-change-proposals.ts";
 import { migration as m0015CrewMessengerPairings } from "./0015-crew-messenger-pairings.ts";
 import { migration as m0016CrewRunRequests } from "./0016-crew-run-requests.ts";
+import { migration as m0017CrewUsers } from "./0017-crew-users.ts";
+import { migration as m0018CrewTools } from "./0018-crew-tools.ts";
 
 // Import future migrations here:
-// import { migration as m0017 } from "./0017-example.ts";
+// import { migration as m0019 } from "./0019-example.ts";
 
 /**
  * Entry in the registry — pairs each Migration with the on-disk filename that
@@ -51,6 +53,8 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0014-crew-change-proposals.ts", migration: m0014CrewChangeProposals },
   { filename: "0015-crew-messenger-pairings.ts", migration: m0015CrewMessengerPairings },
   { filename: "0016-crew-run-requests.ts", migration: m0016CrewRunRequests },
+  { filename: "0017-crew-users.ts", migration: m0017CrewUsers },
+  { filename: "0018-crew-tools.ts", migration: m0018CrewTools },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

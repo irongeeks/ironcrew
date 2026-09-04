@@ -64,6 +64,7 @@ import { MessengerPairingStore, type PairingRole } from "../domain/messenger-pai
 import { VesselStore, VesselMutationError } from "../domain/vessel-store.ts";
 import { TalentStore, TalentMutationError } from "../domain/talent-store.ts";
 import { RunRequestStore, type RunRequestRow } from "../domain/run-request-store.ts";
+import { ToolStore, type ToolDecision } from "../domain/tool-store.ts";
 import type { InboundMessage, MessengerChannel } from "../notify/messenger-channel.ts";
 import {
   ChangeProposalStore,
@@ -167,6 +168,7 @@ export class CompanyOrchestrator {
   readonly vessels: VesselStore;
   readonly talents: TalentStore;
   readonly runRequests: RunRequestStore;
+  readonly tools: ToolStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
@@ -212,6 +214,7 @@ export class CompanyOrchestrator {
     this.vessels = new VesselStore(db);
     this.talents = new TalentStore(db);
     this.runRequests = new RunRequestStore(db);
+    this.tools = new ToolStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -2246,6 +2249,76 @@ export class CompanyOrchestrator {
     });
 
     return (this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined) ?? null;
+  }
+
+  // --- tools: what an agent may reach for ----------------------------------
+
+  /**
+   * Decides whether an agent may use a tool right now, raising an approval
+   * when the grant says one is needed.
+   *
+   * The two halves are deliberately one call. A caller that asked "may I?"
+   * and separately "should I request approval?" could act on the first
+   * answer and skip the second — and the tools this matters for are exactly
+   * the ones that submit forms and spend money.
+   *
+   * Returns `"denied"` without saying why: the reason is in the audit log for
+   * an operator, not in the return value for a caller that might branch on it.
+   */
+  requestToolUse(
+    companyId: string,
+    agentId: string,
+    toolKey: string,
+    context: { taskId?: string | null; runId?: string | null; summary?: string } = {},
+  ): { outcome: "allowed" } | { outcome: "denied" } | { outcome: "approval_required"; approvalId: string } {
+    const decision: ToolDecision = this.tools.resolve(companyId, agentId, toolKey);
+
+    if (!decision.allowed) {
+      appendAuditEvent(this.db, {
+        companyId,
+        actorType: "agent",
+        actorId: agentId,
+        action: "tool.denied",
+        entityType: "tool",
+        entityId: toolKey,
+        taskId: context.taskId ?? null,
+        runId: context.runId ?? null,
+        outcome: "denied",
+        details: { toolKey, reason: decision.reason },
+      });
+      return { outcome: "denied" };
+    }
+
+    if (!decision.requiresApproval) {
+      appendAuditEvent(this.db, {
+        companyId,
+        actorType: "agent",
+        actorId: agentId,
+        action: "tool.used",
+        entityType: "tool",
+        entityId: decision.tool.id,
+        taskId: context.taskId ?? null,
+        runId: context.runId ?? null,
+        details: { toolKey, riskClass: decision.tool.risk_class, via: decision.via },
+      });
+      return { outcome: "allowed" };
+    }
+
+    const approval = this.approvals.request(
+      companyId,
+      {
+        approvalType: "irreversible_data_change",
+        requestedBy: agentId,
+        summary: context.summary ?? `Werkzeug "${decision.tool.label || decision.tool.key}" verwenden`,
+        riskLevel: decision.tool.risk_class === "external" ? "high" : "medium",
+        impact: `Das Werkzeug wirkt ${decision.tool.risk_class === "external" ? "nach außen" : "im Arbeitsbereich"}.`,
+        rollbackPlan: "Die Freigabe verweigern; ohne Freigabe wird das Werkzeug nicht verwendet.",
+        proposedAction: decision.tool.key,
+      },
+      { taskId: context.taskId ?? null, runId: context.runId ?? null },
+    );
+    this.notifyApprovalRequested(companyId, approval);
+    return { outcome: "approval_required", approvalId: approval.id };
   }
 
   // --- the run queue: intent to run, kept until it happened ----------------

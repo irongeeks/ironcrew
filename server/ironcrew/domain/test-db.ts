@@ -18,10 +18,21 @@ import { migration as crewExternalEvents } from "../../modules/bootstrap/migrati
 import { migration as crewChangeProposals } from "../../modules/bootstrap/migrations/0014-crew-change-proposals.ts";
 import { migration as crewMessengerPairings } from "../../modules/bootstrap/migrations/0015-crew-messenger-pairings.ts";
 import { migration as crewRunRequests } from "../../modules/bootstrap/migrations/0016-crew-run-requests.ts";
+import { migration as crewUsers } from "../../modules/bootstrap/migrations/0017-crew-users.ts";
+import { migration as crewTools } from "../../modules/bootstrap/migrations/0018-crew-tools.ts";
 import { newId } from "./ids.ts";
 
-export function createTestDb(): DatabaseSync {
-  const db = new DatabaseSync(":memory:");
+/**
+ * A database with the real schema.
+ *
+ * In memory by default, which is what almost every test wants. A `filePath`
+ * makes it a real file on disk — needed by anything that has to reopen the
+ * database in a second connection or copy it, such as the backup tests: an
+ * in-memory database cannot be snapshotted from outside the process holding
+ * it, so testing a backup against one would test nothing.
+ */
+export function createTestDb(filePath?: string): DatabaseSync {
+  const db = new DatabaseSync(filePath ?? ":memory:");
   db.exec("PRAGMA foreign_keys = ON");
   ironCrewDomain.up(db);
   crewMilestones.up(db);
@@ -38,6 +49,8 @@ export function createTestDb(): DatabaseSync {
   crewChangeProposals.up(db);
   crewMessengerPairings.up(db);
   crewRunRequests.up(db);
+  crewUsers.up(db);
+  crewTools.up(db);
   return db;
 }
 
