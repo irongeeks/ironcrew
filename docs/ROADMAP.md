@@ -124,15 +124,18 @@ Requested mid-stream and built with the same standard (domain → orchestrator
 Phase 3 is done. Two things it turned up, both open and both honest about
 their size:
 
-- **Identity is built but not wired.** `UserStore` and `SessionStore` exist,
-  with password hashing, roles and expiring sessions, and are tested. Nothing
-  calls them: `/api/crew` has no login, no session middleware and no role
-  guard, and the audit log still records the constant `"ceo"` as the actor.
-  On a single-operator machine behind loopback that is defensible; the moment
-  a second person or a tailnet address is involved it is not. Wiring it means
-  a login route, middleware, role guards on the mutating routes, and threading
-  the real actor into every `actorId` — a change that touches every route, not
-  a switch to flip.
+- **Identity — shipped** (`docs/IDENTITY.md`, T-19). Accounts, three roles,
+  expiring revocable sessions, a login gate in the Command Center, and a real
+  `usr_…` in the audit log instead of the constant `"ceo"`. An installation
+  with no accounts still works exactly as before: the switch happens when the
+  first account is created, checked per request rather than at startup, so
+  updating changes nothing until an operator decides it should.
+
+  What is deliberately not in it: no SSO, no per-object permissions, and no
+  second factor. Each would be a dependency or a permission system in its own
+  right, and none of the three is what a self-hosted single-operator install
+  is missing today.
+
 - **A flag-delivery adapter used to run with no prompt.** Found while building
   the `agy` adapter: `CliAdapterRuntime` only ever wrote the prompt to stdin,
   and the CLIs that take it as a flag (`agy`, OpenClaw) ignore stdin. Fixed,

@@ -148,6 +148,7 @@ pnpm lint
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)                                                      | trust boundaries, findings, mitigations, residual risk                                     |
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)                                                          | schema and why it is shaped that way                                                       |
 | [`docs/PROVIDER_AUTH.md`](docs/PROVIDER_AUTH.md)                                                    | runtime authentication and permission modes                                                |
+| [`docs/IDENTITY.md`](docs/IDENTITY.md)                                                              | accounts, roles, sessions — and whose name the audit log carries                           |
 | [`docs/VESSELS_TALENTS.md`](docs/VESSELS_TALENTS.md)                                                | an agent is a Vessel × Talent — and what a vessel deliberately cannot grant                |
 | [`docs/RUN_QUEUE.md`](docs/RUN_QUEUE.md)                                                            | the durable queue between "this should run" and "this is running"                          |
 | [`docs/SERVICE.md`](docs/SERVICE.md)                                                                | running as a systemd service, and the scheduler that works while nobody watches            |

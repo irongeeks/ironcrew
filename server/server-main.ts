@@ -36,6 +36,7 @@ import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
 import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
+import { setCrewSessionResolver } from "./security/auth.ts";
 import { Scheduler } from "./ironcrew/scheduler/scheduler.ts";
 import { SearxngProvider } from "./ironcrew/search/searxng-provider.ts";
 import { BraveProvider } from "./ironcrew/search/brave-provider.ts";
@@ -531,6 +532,13 @@ const ironCrewApi = registerIronCrewRoutes(app, {
   orchestrator: ironCrewOrchestrator,
   scheduler: () => ironCrewScheduler,
 });
+
+// One login, not two. Someone who signed in with their own account satisfies
+// the generic HTTP security layer as well: a crew session is the stronger
+// credential — it names a person, expires and can be revoked — and asking for
+// the shared password on top would keep that password in circulation, which
+// is precisely what accounts are meant to end (docs/IDENTITY.md).
+setCrewSessionResolver((token, ip, userAgent) => ironCrewApi.auth.sessions.resolve(token, { ip, userAgent }) !== null);
 
 // The background loop — the difference between a program someone operates and
 // a service that runs. Without it the run queue only drains when a person

@@ -13,6 +13,9 @@ import type {
   Agent,
   AgentTool,
   Approval,
+  AuthStatus,
+  CrewSession,
+  CrewUser,
   Attachment,
   ChangeApplyConflict,
   ChangeProposal,
@@ -121,6 +124,30 @@ export function serverErrorCode(err: unknown): string | null {
 }
 
 export const api = {
+  // --- identity ---
+  //
+  // `authStatus` is the only call the UI may make before anyone is signed in.
+  // It answers whether accounts exist at all, so the gate can tell "create the
+  // first owner" apart from "log in" — without revealing who those accounts
+  // belong to.
+  authStatus: () => get<AuthStatus>("/auth/status"),
+  login: (email: string, password: string) =>
+    send<{ ok: boolean; user: CrewUser }>("/auth/login", "POST", { email, password }),
+  logout: () => send<{ ok: boolean }>("/auth/logout", "POST"),
+  ownSessions: () => get<{ sessions: CrewSession[] }>("/auth/sessions"),
+  revokeOwnSession: (id: string) => send<{ ok: boolean }>(`/auth/sessions/${id}`, "DELETE"),
+  changeOwnPassword: (currentPassword: string, newPassword: string) =>
+    send<{ ok: boolean; revokedSessions: number }>("/auth/password", "POST", { currentPassword, newPassword }),
+
+  users: () => get<{ users: CrewUser[] }>("/users"),
+  createUser: (input: { email: string; password: string; displayName?: string; role?: CrewUser["role"] }) =>
+    send<{ ok: boolean; user: CrewUser }>("/users", "POST", input),
+  updateUser: (id: string, patch: { displayName?: string; role?: CrewUser["role"]; status?: CrewUser["status"] }) =>
+    send<{ ok: boolean; user: CrewUser }>(`/users/${id}`, "PATCH", patch),
+  setUserPassword: (id: string, newPassword: string) =>
+    send<{ ok: boolean }>(`/users/${id}/password`, "POST", { newPassword }),
+  deleteUser: (id: string) => send<{ ok: boolean }>(`/users/${id}`, "DELETE"),
+
   company: () => get<{ company: { name: string }; departments: Department[] }>("/company"),
   agents: () => get<{ agents: Agent[] }>("/agents"),
   chat: () => get<{ conversationId: string; messages: Message[] }>("/chat"),

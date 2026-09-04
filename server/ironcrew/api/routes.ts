@@ -15,6 +15,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { CompanyOrchestrator, type AgentRow } from "../orchestrator/company.ts";
+import { createCrewAuth, methodGuard, type CrewAuth } from "../auth/crew-auth.ts";
+import { registerCrewAuthRoutes } from "./auth-routes.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
 import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
@@ -533,11 +535,14 @@ export interface IronCrewApiOptions {
   orchestrator?: CompanyOrchestrator;
   /** Resolved per request; absent means IRONCREW_SCHEDULER=off. */
   scheduler?: () => SchedulerHandle | null;
+  /** Injectable so a test can drive the guards without a second database. */
+  auth?: CrewAuth;
 }
 
 export interface IronCrewApi {
   orchestrator: CompanyOrchestrator;
   companyId: string;
+  auth: CrewAuth;
 }
 
 export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): IronCrewApi {
@@ -553,6 +558,42 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   });
 
   const base = "/api/crew";
+
+  // --- identity -----------------------------------------------------------
+  //
+  // Order matters and is the whole design (server/ironcrew/auth/crew-auth.ts):
+  //
+  //   1. `identify` runs for everything under /api/crew and never rejects, so
+  //      even the login endpoint knows whether someone is already signed in.
+  //   2. the auth routes register next, carrying their own guards — logging in
+  //      must not require being logged in.
+  //   3. the blanket guards come after, so every route below is covered
+  //      without 135 individual registrations to keep in sync. The endpoint
+  //      somebody forgets to add to a list is the one that ends up open.
+  //
+  // While `crew_users` is empty nothing changes for an existing installation:
+  // the guards let every request through, because there is no person to name
+  // and the shared password (server/security/auth.ts) is still the only
+  // credential. Creating the first account switches the surface over in the
+  // same instant.
+  const auth = opts.auth ?? createCrewAuth(db);
+  app.use(base, auth.identify);
+  registerCrewAuthRoutes(app, { base, auth });
+  app.use(base, auth.requireUser);
+  app.use(base, methodGuard(auth));
+
+  /** Who to record for this request — a real user id once anyone is signed in. */
+  const actorOf = (req: Request) => auth.actorOf(req);
+
+  /**
+   * Endpoints that need more than "may change things".
+   *
+   * Approving is the owner's alone (docs/THREAT_MODEL.md T-01), and so is
+   * anything that hands out authority: a vault secret, a tool grant, a chat
+   * pairing that reaches the CEO path. An operator runs the company; an owner
+   * decides what the company is allowed to do.
+   */
+  const ownerOnly = auth.requireRole("owner");
 
   // --- company / org ------------------------------------------------------
 
@@ -614,7 +655,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
           .json({ error: "unknown_runtime", message: `No runtime registered for "${runtimeProvider}".`, registered });
         return;
       }
-      const agent = orchestrator.setAgentRuntimeProvider(companyId, param(req, "id"), runtimeProvider);
+      const agent = orchestrator.setAgentRuntimeProvider(companyId, param(req, "id"), runtimeProvider, actorOf(req));
       if (!agent) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -663,7 +704,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/chat`,
     wrap((req, res) => {
       const { body } = ceoMessageSchema.parse(req.body);
-      const result = orchestrator.handleCeoMessage(companyId, body);
+      const result = orchestrator.handleCeoMessage(companyId, body, actorOf(req));
       broadcast("crew_chat_message", { conversationId: result.conversationId, reply: result.reply });
       if (result.task) broadcast("crew_task_changed", { taskId: result.task.id, status: result.task.status });
       res.status(201).json({
@@ -726,7 +767,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/tasks/:id/accept`,
     wrap((req, res) => {
       const { note } = reviewSchema.parse(req.body ?? {});
-      const task = orchestrator.acceptReview(companyId, param(req, "id"), note ?? "");
+      const task = orchestrator.acceptReview(companyId, param(req, "id"), note ?? "", actorOf(req));
       if (!task) {
         res.status(409).json({ error: "cannot_accept", message: "Task is not in a reviewable state." });
         return;
@@ -740,7 +781,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/tasks/:id/revise`,
     wrap((req, res) => {
       const { reason } = revisionSchema.parse(req.body ?? {});
-      const task = orchestrator.requestRevision(companyId, param(req, "id"), reason);
+      const task = orchestrator.requestRevision(companyId, param(req, "id"), reason, actorOf(req));
       if (!task) {
         res.status(409).json({ error: "cannot_revise", message: "Task is not in a reviewable state." });
         return;
@@ -770,8 +811,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       const task = orchestrator.tasks.transition(existing.id, status, {
         reason: reason ?? "moved on the board",
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
         correlationId: existing.correlation_id,
       });
       if (!task) {
@@ -797,7 +837,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "depends_on_not_found" });
         return;
       }
-      orchestrator.tasks.addDependency(companyId, task.id, dependsOnId, { actorType: "owner", actorId: "ceo" });
+      orchestrator.tasks.addDependency(companyId, task.id, dependsOnId, actorOf(req));
       broadcast("crew_task_changed", { taskId: task.id, status: task.status });
       res.status(201).json({ blockers: orchestrator.tasks.blockers(task.id) });
     }),
@@ -812,8 +852,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       orchestrator.tasks.removeDependency(companyId, task.id, param(req, "dependsOnId"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_task_changed", { taskId: task.id, status: task.status });
       res.json({ blockers: orchestrator.tasks.blockers(task.id) });
@@ -861,7 +900,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/goals`,
     wrap((req, res) => {
       const input = createGoalSchema.parse(req.body ?? {});
-      const goal = orchestrator.goals.create({ companyId, ...input });
+      const goal = orchestrator.goals.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_goal_changed", { goalId: goal.id });
       res.status(201).json({ goal });
     }),
@@ -876,7 +915,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const goal = orchestrator.goals.update(existing.id, patch);
+      const goal = orchestrator.goals.update(existing.id, patch, actorOf(req));
       broadcast("crew_goal_changed", { goalId: existing.id });
       res.json({ goal });
     }),
@@ -891,7 +930,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const goal = orchestrator.goals.setStatus(existing.id, status, { actorType: "owner", actorId: "ceo" });
+      const goal = orchestrator.goals.setStatus(existing.id, status, actorOf(req));
       broadcast("crew_goal_changed", { goalId: existing.id, status });
       res.json({ goal });
     }),
@@ -913,7 +952,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
           return;
         }
       }
-      const goal = orchestrator.goals.reparent(existing.id, parentId, { actorType: "owner", actorId: "ceo" });
+      const goal = orchestrator.goals.reparent(existing.id, parentId, actorOf(req));
       broadcast("crew_goal_changed", { goalId: existing.id });
       res.json({ goal });
     }),
@@ -955,7 +994,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/projects`,
     wrap((req, res) => {
       const input = createProjectSchema.parse(req.body ?? {});
-      const project = orchestrator.projects.create({ companyId, ...input });
+      const project = orchestrator.projects.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_project_changed", { projectId: project.id });
       res.status(201).json({ project });
     }),
@@ -970,7 +1009,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const project = orchestrator.projects.update(existing.id, patch);
+      const project = orchestrator.projects.update(existing.id, patch, actorOf(req));
       broadcast("crew_project_changed", { projectId: existing.id });
       res.json({ project });
     }),
@@ -985,7 +1024,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const project = orchestrator.projects.setStatus(existing.id, status, { actorType: "owner", actorId: "ceo" });
+      const project = orchestrator.projects.setStatus(existing.id, status, actorOf(req));
       broadcast("crew_project_changed", { projectId: existing.id, status });
       res.json({ project });
     }),
@@ -1000,7 +1039,12 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const milestone = orchestrator.projects.addMilestone({ companyId, projectId: project.id, ...input });
+      const milestone = orchestrator.projects.addMilestone({
+        companyId,
+        projectId: project.id,
+        ...input,
+        ...actorOf(req),
+      });
       broadcast("crew_project_changed", { projectId: project.id });
       res.status(201).json({ milestone });
     }),
@@ -1031,8 +1075,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const milestone = orchestrator.projects.setMilestoneStatus(existing.id, status, {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_project_changed", { projectId: existing.project_id, status });
       res.json({ milestone });
@@ -1065,9 +1108,10 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/approvals/:id/decide`,
+    ownerOnly,
     wrap((req, res) => {
       const { decision, reason } = decisionSchema.parse(req.body ?? {});
-      const approval = orchestrator.decideApproval(companyId, param(req, "id"), decision, reason ?? "");
+      const approval = orchestrator.decideApproval(companyId, param(req, "id"), decision, reason ?? "", actorOf(req));
       if (!approval) {
         res.status(409).json({ error: "already_decided", message: "This approval is no longer pending." });
         return;
@@ -1144,9 +1188,10 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/secrets`,
+    ownerOnly,
     wrap((req, res) => {
       const input = createSecretSchema.parse(req.body ?? {});
-      const secret = orchestrator.secrets.create({ companyId, ...input, actorType: "owner", actorId: "ceo" });
+      const secret = orchestrator.secrets.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_secret_changed", { secretId: secret.id });
       res.status(201).json({ secret });
     }),
@@ -1154,6 +1199,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.patch(
     `${base}/secrets/:id`,
+    ownerOnly,
     wrap((req, res) => {
       const patch = updateSecretSchema.parse(req.body ?? {});
       const existing = orchestrator.secrets.get(param(req, "id"));
@@ -1161,7 +1207,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const secret = orchestrator.secrets.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      const secret = orchestrator.secrets.update(existing.id, patch, actorOf(req));
       broadcast("crew_secret_changed", { secretId: existing.id });
       res.json({ secret });
     }),
@@ -1169,13 +1215,14 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.delete(
     `${base}/secrets/:id`,
+    ownerOnly,
     wrap((req, res) => {
       const existing = orchestrator.secrets.get(param(req, "id"));
       if (!existing || existing.company_id !== companyId) {
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.secrets.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.secrets.delete(existing.id, actorOf(req));
       broadcast("crew_secret_changed", { secretId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -1183,6 +1230,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/secrets/:id/test`,
+    ownerOnly,
     wrap(async (req, res) => {
       const existing = orchestrator.secrets.get(param(req, "id"));
       if (!existing || existing.company_id !== companyId) {
@@ -1190,7 +1238,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       try {
-        const value = await orchestrator.resolveSecret(companyId, existing.id, { actorType: "owner", actorId: "ceo" });
+        const value = await orchestrator.resolveSecret(companyId, existing.id, actorOf(req));
         res.json({ ok: true, length: value.length });
       } catch (err) {
         if (err instanceof SecretResolutionError) {
@@ -1237,8 +1285,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         buffer,
         taskId: input.taskId ?? null,
         projectId: input.projectId ?? null,
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_attachment_changed", { attachmentId: attachment.id });
       res.status(201).json({ attachment });
@@ -1268,8 +1315,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/attachments/:id`,
     wrap((req, res) => {
       const deleted = orchestrator.deleteAttachment(companyId, param(req, "id"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       if (!deleted) {
         res.status(404).json({ error: "not_found" });
@@ -1311,7 +1357,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/remote-workers`,
     wrap((req, res) => {
       const input = createRemoteWorkerSchema.parse(req.body ?? {});
-      const worker = orchestrator.remoteWorkers.create({ companyId, ...input, actorType: "owner", actorId: "ceo" });
+      const worker = orchestrator.remoteWorkers.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_remote_worker_changed", { remoteWorkerId: worker.id });
       res.status(201).json({ remoteWorker: worker });
     }),
@@ -1325,7 +1371,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.remoteWorkers.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.remoteWorkers.delete(existing.id, actorOf(req));
       broadcast("crew_remote_worker_changed", { remoteWorkerId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -1372,8 +1418,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const meeting = orchestrator.meetings.create({
         companyId,
         ...input,
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.status(201).json({ meeting });
@@ -1405,7 +1450,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const started = orchestrator.meetings.start(meeting.id, { actorType: "owner", actorId: "ceo" });
+      const started = orchestrator.meetings.start(meeting.id, actorOf(req));
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.json({ meeting: started });
     }),
@@ -1436,8 +1481,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       const { minutes } = meetingEndSchema.parse(req.body ?? {});
       const ended = orchestrator.meetings.end(meeting.id, minutes ?? meeting.minutes, {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.json({ meeting: ended });
@@ -1452,7 +1496,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const cancelled = orchestrator.meetings.cancel(meeting.id, { actorType: "owner", actorId: "ceo" });
+      const cancelled = orchestrator.meetings.cancel(meeting.id, actorOf(req));
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.json({ meeting: cancelled });
     }),
@@ -1470,8 +1514,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const item = orchestrator.meetings.addActionItem({
         meetingId: meeting.id,
         ...input,
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_meeting_changed", { meetingId: meeting.id });
       res.status(201).json({ actionItem: item });
@@ -1486,7 +1529,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const task = orchestrator.convertActionItemToTask(companyId, item.id, { actorType: "owner", actorId: "ceo" });
+      const task = orchestrator.convertActionItemToTask(companyId, item.id, actorOf(req));
       if (!task) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -1552,8 +1595,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     wrap(async (req, res) => {
       const input = createMemorySchema.parse(req.body ?? {});
       const ref = await orchestrator.recordMemory(companyId, input.provider, input, {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_memory_changed", { memoryId: ref.id });
       res.status(201).json({ memory: ref });
@@ -1576,8 +1618,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/memory/:id`,
     wrap(async (req, res) => {
       const deleted = await orchestrator.deleteMemory(companyId, param(req, "id"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       if (!deleted) {
         res.status(404).json({ error: "not_found" });
@@ -1624,8 +1665,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const mailbox = orchestrator.mailboxes.create({
         companyId,
         ...input,
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_mailbox_changed", { mailboxId: mailbox.id });
       res.status(201).json({ mailbox });
@@ -1657,7 +1697,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const { credentials, ...patch } = updateMailboxSchema.parse(req.body ?? {});
-      const mailbox = orchestrator.mailboxes.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      const mailbox = orchestrator.mailboxes.update(existing.id, patch, actorOf(req));
       // Credentials are replaced wholesale rather than merged: a partial
       // update of a secret is how stale halves of a credential survive.
       if (credentials) orchestrator.mailboxes.writeCredentials(existing.id, credentials);
@@ -1674,7 +1714,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.mailboxes.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.mailboxes.delete(existing.id, actorOf(req));
       broadcast("crew_mailbox_changed", { mailboxId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -1704,8 +1744,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       const { agentId, access } = grantMailboxAgentSchema.parse(req.body ?? {});
       const agents = orchestrator.mailboxes.grantAgent(existing.id, agentId, access ?? "read", {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_mailbox_changed", { mailboxId: existing.id });
       res.status(201).json({ agents });
@@ -1721,8 +1760,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const revoked = orchestrator.mailboxes.revokeAgent(existing.id, param(req, "agentId"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       if (!revoked) {
         res.status(404).json({ error: "not_found" });
@@ -1892,9 +1930,10 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/messenger-pairings/:id/accept`,
+    ownerOnly,
     wrap((req, res) => {
       const { role } = acceptPairingSchema.parse(req.body ?? {});
-      const pairing = orchestrator.acceptMessengerPairing(companyId, param(req, "id"), role);
+      const pairing = orchestrator.acceptMessengerPairing(companyId, param(req, "id"), role, actorOf(req));
       if (!pairing) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -1911,13 +1950,14 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   for (const action of ["block", "revoke", "unblock"] as const) {
     app.post(
       `${base}/messenger-pairings/:id/${action}`,
+      ownerOnly,
       wrap((req, res) => {
         const existing = orchestrator.messengerPairings.get(param(req, "id"));
         if (!existing || existing.company_id !== companyId) {
           res.status(404).json({ error: "not_found" });
           return;
         }
-        const pairing = orchestrator.messengerPairings[action](existing.id, { actorType: "owner", actorId: "ceo" });
+        const pairing = orchestrator.messengerPairings[action](existing.id, actorOf(req));
         broadcast("crew_messenger_changed", { pairingId: existing.id, action });
         res.json({ pairing });
       }),
@@ -1961,9 +2001,13 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/change-proposals/:id/decision`,
+    ownerOnly,
     wrap((req, res) => {
       const { decision, reason } = changeProposalDecisionSchema.parse(req.body ?? {});
-      const proposal = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, { reason });
+      const proposal = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, {
+        reason,
+        ...actorOf(req),
+      });
       if (!proposal) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -1976,8 +2020,9 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/change-proposals/:id/apply`,
+    ownerOnly,
     wrap((req, res) => {
-      const result = orchestrator.applyChangeProposal(companyId, param(req, "id"));
+      const result = orchestrator.applyChangeProposal(companyId, param(req, "id"), actorOf(req));
       broadcast("crew_change_proposal_changed", { proposalId: result.proposal.id, status: result.proposal.status });
       res.json(result);
     }),
@@ -2047,7 +2092,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/vessels`,
     wrap((req, res) => {
       const input = createVesselSchema.parse(req.body ?? {});
-      const vessel = orchestrator.vessels.create({ companyId, ...input }, { actorType: "owner", actorId: "ceo" });
+      const vessel = orchestrator.vessels.create({ companyId, ...input }, actorOf(req));
       broadcast("crew_vessel_changed", { vesselId: vessel.id });
       res.status(201).json({ vessel });
     }),
@@ -2062,7 +2107,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const patch = updateVesselSchema.parse(req.body ?? {});
-      const vessel = orchestrator.vessels.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      const vessel = orchestrator.vessels.update(existing.id, patch, actorOf(req));
       broadcast("crew_vessel_changed", { vesselId: existing.id });
       res.json({ vessel });
     }),
@@ -2079,7 +2124,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       // A vessel still bound to agents refuses to go, and the store's message
       // names them — which is the whole value of the refusal, so it reaches
       // the client as a 409 rather than being flattened into "delete failed".
-      orchestrator.vessels.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.vessels.delete(existing.id, actorOf(req));
       broadcast("crew_vessel_changed", { vesselId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -2108,7 +2153,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/talents`,
     wrap((req, res) => {
       const input = createTalentSchema.parse(req.body ?? {});
-      const talent = orchestrator.talents.create({ companyId, ...input }, { actorType: "owner", actorId: "ceo" });
+      const talent = orchestrator.talents.create({ companyId, ...input }, actorOf(req));
       broadcast("crew_talent_changed", { talentId: talent.id });
       res.status(201).json({ talent });
     }),
@@ -2123,7 +2168,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const patch = updateTalentSchema.parse(req.body ?? {});
-      const talent = orchestrator.talents.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      const talent = orchestrator.talents.update(existing.id, patch, actorOf(req));
       broadcast("crew_talent_changed", { talentId: existing.id });
       res.json({ talent });
     }),
@@ -2137,7 +2182,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.talents.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.talents.delete(existing.id, actorOf(req));
       broadcast("crew_talent_changed", { talentId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -2148,7 +2193,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/agents/:id/pairing`,
     wrap((req, res) => {
       const pairing = agentPairingSchema.parse(req.body ?? {});
-      const agent = orchestrator.setAgentPairing(companyId, param(req, "id"), pairing);
+      const agent = orchestrator.setAgentPairing(companyId, param(req, "id"), pairing, actorOf(req));
       if (!agent) {
         res.status(404).json({ error: "not_found" });
         return;
@@ -2268,6 +2313,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   app.post(
     `${base}/tools/:id/grants`,
+    ownerOnly,
     wrap((req, res) => {
       const existing = orchestrator.tools.get(param(req, "id"));
       if (!existing || existing.company_id !== companyId) {
@@ -2275,7 +2321,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const input = grantToolSchema.parse(req.body ?? {});
-      const grant = orchestrator.tools.grant({ toolId: existing.id, ...input }, { actorType: "owner", actorId: "ceo" });
+      const grant = orchestrator.tools.grant({ toolId: existing.id, ...input }, actorOf(req));
       broadcast("crew_tool_changed", { toolId: existing.id });
       res.status(201).json({ grant });
     }),
@@ -2290,7 +2336,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.tools.revoke(grant.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.tools.revoke(grant.id, actorOf(req));
       broadcast("crew_tool_changed", { toolId: tool.id });
       res.json({ ok: true });
     }),
@@ -2305,7 +2351,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const { enabled } = toolEnabledSchema.parse(req.body ?? {});
-      const tool = orchestrator.tools.setEnabled(existing.id, enabled, { actorType: "owner", actorId: "ceo" });
+      const tool = orchestrator.tools.setEnabled(existing.id, enabled, actorOf(req));
       broadcast("crew_tool_changed", { toolId: existing.id, enabled });
       res.json({ tool });
     }),
@@ -2369,7 +2415,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/routines`,
     wrap((req, res) => {
       const input = createRoutineSchema.parse(req.body ?? {});
-      const routine = orchestrator.routines.create({ companyId, ...input }, { actorType: "owner", actorId: "ceo" });
+      const routine = orchestrator.routines.create({ companyId, ...input }, actorOf(req));
       broadcast("crew_routine_changed", { routineId: routine.id });
       res.status(201).json({ routine });
     }),
@@ -2384,7 +2430,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const patch = updateRoutineSchema.parse(req.body ?? {});
-      const routine = orchestrator.routines.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      const routine = orchestrator.routines.update(existing.id, patch, actorOf(req));
       broadcast("crew_routine_changed", { routineId: existing.id });
       res.json({ routine });
     }),
@@ -2399,7 +2445,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const { enabled } = toolEnabledSchema.parse(req.body ?? {});
-      const routine = orchestrator.routines.setEnabled(existing.id, enabled, { actorType: "owner", actorId: "ceo" });
+      const routine = orchestrator.routines.setEnabled(existing.id, enabled, actorOf(req));
       broadcast("crew_routine_changed", { routineId: existing.id, enabled });
       res.json({ routine });
     }),
@@ -2413,7 +2459,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found" });
         return;
       }
-      orchestrator.routines.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.routines.delete(existing.id, actorOf(req));
       broadcast("crew_routine_changed", { routineId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -2574,7 +2620,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/marketplaces`,
     wrap(async (req, res) => {
       const input = createMarketplaceSchema.parse(req.body ?? {});
-      const marketplace = orchestrator.marketplaces.create({ companyId, ...input });
+      const marketplace = orchestrator.marketplaces.create({ companyId, ...input, ...actorOf(req) });
       broadcast("crew_marketplace_changed", { marketplaceId: marketplace.id });
       res.status(201).json({ marketplace });
     }),
@@ -2590,8 +2636,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       const patch = updateMarketplaceSchema.parse(req.body ?? {});
       const marketplace = orchestrator.marketplaces.update(existing.id, patch, {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       broadcast("crew_marketplace_changed", { marketplaceId: existing.id });
       res.json({ marketplace });
@@ -2606,7 +2651,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         res.status(404).json({ error: "not_found", message: "Marketplace not found" });
         return;
       }
-      orchestrator.marketplaces.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      orchestrator.marketplaces.delete(existing.id, actorOf(req));
       broadcast("crew_marketplace_changed", { marketplaceId: existing.id, deleted: true });
       res.json({ ok: true });
     }),
@@ -2629,7 +2674,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         param(req, "id"),
         input.entryId,
         { env: input.env, headers: input.headers, nameOverride: input.name },
-        { actorType: "owner", actorId: "ceo" },
+        actorOf(req),
       );
       broadcast("crew_marketplace_changed", { marketplaceId: param(req, "id"), installed: result.name });
       res.status(201).json({ install, result });
@@ -2645,8 +2690,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const removed = await orchestrator.uninstallFromMarketplace(companyId, entryType, param(req, "name"), {
-        actorType: "owner",
-        actorId: "ceo",
+        ...actorOf(req),
       });
       if (!removed) {
         res.status(404).json({ error: "not_found", message: "Nothing installed under that name" });
@@ -2657,5 +2701,5 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     }),
   );
 
-  return { orchestrator, companyId };
+  return { orchestrator, companyId, auth };
 }

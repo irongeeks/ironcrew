@@ -151,6 +151,25 @@ export interface CeoMessageResult {
   correlationId: string;
 }
 
+/**
+ * Which human asked for this.
+ *
+ * Every API-reachable action takes one, and it is optional with a documented
+ * default rather than required: an installation with no user accounts has no
+ * name to give (docs/IDENTITY.md), and the scheduler, the messenger owner
+ * path and the routines call these same methods with no person behind them.
+ * "ceo" is the honest answer in exactly those cases — a single fictional
+ * actor, but one that only appears where there genuinely is nobody.
+ */
+export interface HumanActor {
+  /** A `usr_…` id from a resolved session, when one exists. */
+  actorId?: string;
+}
+
+export function humanActor(opts: HumanActor): string {
+  return opts.actorId ?? "ceo";
+}
+
 export class CompanyOrchestrator {
   readonly tasks: TaskStore;
   readonly runs: RunStore;
@@ -465,7 +484,7 @@ export class CompanyOrchestrator {
       description: `Aus Meeting "${meeting.topic}": ${item.description}`,
       projectId: meeting.project_id,
       assignedAgentId: item.assigned_agent_id,
-      createdBy: opts.actorId ?? "ceo",
+      createdBy: humanActor(opts),
     });
 
     this.meetings.linkActionItemToTask(actionItemId, task.id, opts);
@@ -1122,10 +1141,10 @@ export class CompanyOrchestrator {
   }
 
   /** The owner accepts a pending pairing, choosing what authority it carries. */
-  acceptMessengerPairing(companyId: string, pairingId: string, role: PairingRole) {
+  acceptMessengerPairing(companyId: string, pairingId: string, role: PairingRole, opts: HumanActor = {}) {
     const pairing = this.messengerPairings.get(pairingId);
     if (!pairing || pairing.company_id !== companyId) return null;
-    return this.messengerPairings.accept(pairingId, role, { actorType: "owner", actorId: "ceo" });
+    return this.messengerPairings.accept(pairingId, role, { actorType: "owner", actorId: humanActor(opts) });
   }
 
   // --- change proposals: file edits an owner sees before they happen -------
@@ -1192,15 +1211,16 @@ export class CompanyOrchestrator {
     companyId: string,
     proposalId: string,
     decision: "approved" | "rejected",
-    opts: { reason?: string } = {},
+    opts: { reason?: string } & HumanActor = {},
   ): ChangeProposalRow | null {
     const proposal = this.changeProposals.get(proposalId);
     if (!proposal || proposal.company_id !== companyId) return null;
 
+    const actorId = humanActor(opts);
     if (proposal.approval_id) {
-      this.approvals.decide(proposal.approval_id, decision, "ceo", opts.reason ?? "");
+      this.approvals.decide(proposal.approval_id, decision, actorId, opts.reason ?? "");
     }
-    return this.changeProposals.decide(proposalId, decision, { actorType: "owner", actorId: "ceo", ...opts });
+    return this.changeProposals.decide(proposalId, decision, { ...opts, actorType: "owner", actorId });
   }
 
   /**
@@ -1211,7 +1231,7 @@ export class CompanyOrchestrator {
    * marked approved must stop the write, and the approval is where that
    * lives.
    */
-  applyChangeProposal(companyId: string, proposalId: string): ApplyResult {
+  applyChangeProposal(companyId: string, proposalId: string, opts: HumanActor = {}): ApplyResult {
     const proposal = this.changeProposals.get(proposalId);
     if (!proposal || proposal.company_id !== companyId) {
       throw new ChangeProposalError(`Proposal "${proposalId}" does not exist.`);
@@ -1226,7 +1246,7 @@ export class CompanyOrchestrator {
       }
     }
 
-    return this.changeProposals.apply(proposalId, { actorType: "owner", actorId: "ceo" });
+    return this.changeProposals.apply(proposalId, { actorType: "owner", actorId: humanActor(opts) });
   }
 
   /** A file change waiting on the owner reaches the decision inbox and every channel. */
@@ -1310,8 +1330,10 @@ export class CompanyOrchestrator {
     approvalId: string,
     decision: "approved" | "rejected",
     reason = "",
+    opts: HumanActor = {},
   ): ApprovalRow | null {
-    const approval = this.approvals.decide(approvalId, decision, "ceo", reason);
+    const decidedBy = humanActor(opts);
+    const approval = this.approvals.decide(approvalId, decision, decidedBy, reason);
     if (!approval) return null;
 
     this.decisions.create({
@@ -1320,12 +1342,12 @@ export class CompanyOrchestrator {
       decision,
       context: approval.impact,
       rationale: reason,
-      decidedBy: "ceo",
+      decidedBy,
       taskId: approval.task_id,
     });
     this.notifications.markReadByApproval(companyId, approval.id);
 
-    this.settleApprovedTask(companyId, approval, decision, reason);
+    this.settleApprovedTask(companyId, approval, decision, reason, opts);
 
     return approval;
   }
@@ -1352,7 +1374,9 @@ export class CompanyOrchestrator {
     approval: ApprovalRow,
     decision: "approved" | "rejected",
     reason: string,
+    opts: HumanActor = {},
   ): void {
+    const actorId = humanActor(opts);
     if (!approval.task_id) return;
     const task = this.tasks.get(approval.task_id);
     if (!task || task.company_id !== companyId) return;
@@ -1365,7 +1389,7 @@ export class CompanyOrchestrator {
       this.tasks.transition(task.id, "cancelled", {
         reason: `Freigabe abgelehnt: ${reason || "ohne Begründung"}`,
         actorType: "owner",
-        actorId: "ceo",
+        actorId,
         correlationId: task.correlation_id,
       });
       this.syncAgentStatuses(companyId);
@@ -1382,14 +1406,14 @@ export class CompanyOrchestrator {
       assignedAgentId: agentId,
       reason: "vom Chef freigegeben",
       actorType: "owner",
-      actorId: "ceo",
+      actorId,
       correlationId: task.correlation_id,
     });
 
     // And the intent to run becomes a row, the same as any other delegation —
     // otherwise the approved task would sit at `ready` waiting for someone to
     // press a button, which is the gap the run queue exists to close.
-    if (agentId) this.enqueueRun(companyId, task.id, { requestedBy: "ceo" });
+    if (agentId) this.enqueueRun(companyId, task.id, { requestedBy: actorId });
 
     this.syncAgentStatuses(companyId);
   }
@@ -1787,7 +1811,12 @@ export class CompanyOrchestrator {
    * the provider itself is validated separately (against listRuntimes())
    * before this is ever called.
    */
-  setAgentRuntimeProvider(companyId: string, agentId: string, provider: string): AgentRow | null {
+  setAgentRuntimeProvider(
+    companyId: string,
+    agentId: string,
+    provider: string,
+    opts: HumanActor = {},
+  ): AgentRow | null {
     const agent = this.db
       .prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ? AND a.company_id = ?`)
       .get(agentId, companyId) as AgentRow | undefined;
@@ -1806,7 +1835,7 @@ export class CompanyOrchestrator {
     appendAuditEvent(this.db, {
       companyId,
       actorType: "owner",
-      actorId: "ceo",
+      actorId: humanActor(opts),
       action: "agent.runtime_changed",
       entityType: "agent",
       entityId: agentId,
@@ -1911,7 +1940,8 @@ export class CompanyOrchestrator {
    * The EA never approves anything and never executes a sensitive action
    * itself — it raises an approval request and reports back.
    */
-  handleCeoMessage(companyId: string, body: string): CeoMessageResult {
+  handleCeoMessage(companyId: string, body: string, opts: HumanActor = {}): CeoMessageResult {
+    const actorId = humanActor(opts);
     const correlationId = newCorrelationId();
     const conversationId = this.ensureCeoConversation(companyId);
     const ea = this.executiveAssistant(companyId);
@@ -1929,7 +1959,7 @@ export class CompanyOrchestrator {
     appendAuditEvent(this.db, {
       companyId,
       actorType: "owner",
-      actorId: "ceo",
+      actorId: actorId,
       action: "ceo.message_received",
       entityType: "message",
       entityId: messageId,
@@ -2069,7 +2099,7 @@ export class CompanyOrchestrator {
       // "queued for execution" used to be a hope. Now it is a row: the run
       // request outlives this process, so work delegated at three in the
       // morning is still waiting to be picked up at eight.
-      this.enqueueRun(companyId, task.id, { requestedBy: "ceo" });
+      this.enqueueRun(companyId, task.id, { requestedBy: actorId });
     }
 
     this.addMessage({
@@ -2216,6 +2246,7 @@ export class CompanyOrchestrator {
     companyId: string,
     agentId: string,
     pairing: { vesselId?: string; talentId?: string },
+    opts: HumanActor = {},
   ): AgentRow | null {
     const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
     if (!agent || agent.company_id !== companyId) return null;
@@ -2248,7 +2279,7 @@ export class CompanyOrchestrator {
     appendAuditEvent(this.db, {
       companyId,
       actorType: "owner",
-      actorId: "ceo",
+      actorId: humanActor(opts),
       action: "agent.repaired",
       entityType: "agent",
       entityId: agentId,
@@ -3034,7 +3065,7 @@ export class CompanyOrchestrator {
    * CEO accepts a result in review. The EA records the outcome and the task
    * is done.
    */
-  acceptReview(companyId: string, taskId: string, note = ""): TaskRow | null {
+  acceptReview(companyId: string, taskId: string, note = "", opts: HumanActor = {}): TaskRow | null {
     const ea = this.executiveAssistant(companyId);
     const task = this.tasks.get(taskId);
     if (!task) return null;
@@ -3045,7 +3076,7 @@ export class CompanyOrchestrator {
     const done = this.tasks.transition(taskId, "done", {
       reason: "accepted by CEO",
       actorType: "owner",
-      actorId: "ceo",
+      actorId: humanActor(opts),
       reviewNotes: note || null,
       correlationId: task.correlation_id,
     });
@@ -3065,7 +3096,7 @@ export class CompanyOrchestrator {
   }
 
   /** CEO requests a revision: the task goes back to ready for another attempt. */
-  requestRevision(companyId: string, taskId: string, reason: string): TaskRow | null {
+  requestRevision(companyId: string, taskId: string, reason: string, opts: HumanActor = {}): TaskRow | null {
     const ea = this.executiveAssistant(companyId);
     const task = this.tasks.get(taskId);
     if (!task) return null;
@@ -3074,7 +3105,7 @@ export class CompanyOrchestrator {
     const revised = this.tasks.transition(taskId, "ready", {
       reason: `revision requested: ${reason}`,
       actorType: "owner",
-      actorId: "ceo",
+      actorId: humanActor(opts),
       reviewNotes: reason,
       correlationId: task.correlation_id,
     });
@@ -3082,7 +3113,7 @@ export class CompanyOrchestrator {
 
     // A revision is a new run that has to actually happen; without this the
     // task would sit at `ready` waiting for someone to press a button.
-    this.enqueueRun(companyId, taskId, { requestedBy: "ceo" });
+    this.enqueueRun(companyId, taskId, { requestedBy: humanActor(opts) });
 
     this.addMessage({
       companyId,

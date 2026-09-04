@@ -6,6 +6,7 @@ import { ChatPanel } from "../components/ChatPanel";
 import AgentSidebar from "../components/AgentSidebar";
 import RetroOfficeView from "../components/RetroOfficeView";
 import { CommandCenterView } from "../ironcrew/CommandCenterView";
+import { IdentityGate } from "../ironcrew/IdentityGate";
 import TaskBoard from "../components/TaskBoard";
 import AgentManager from "../components/AgentManager";
 import SkillsLibrary from "../components/SkillsLibrary";
@@ -396,7 +397,11 @@ export default function AppMainLayout({
           {/* IronCrew control plane. Its own full-surface shell: it owns
               the CEO chat, the board and the decision inbox, so it renders
               standalone rather than inside the office chrome. */}
-          {view === "command" && <CommandCenterView />}
+          {view === "command" && (
+            <IdentityGate>
+              <CommandCenterView />
+            </IdentityGate>
+          )}
 
           {/* Office view: MissionControl (normal) or fullscreen RetroOfficeView (expanded) */}
           {view === "office" && !officeExpanded && (

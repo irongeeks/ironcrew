@@ -991,3 +991,46 @@ export interface SearchApprovalPending {
 }
 
 export type SearchOutcome = SearchHits | SearchApprovalPending;
+
+/**
+ * Identity — the three roles, kept coarse on purpose.
+ *
+ * Mirrors server/ironcrew/auth/user-store.ts: three roles that map to real
+ * jobs beat a permission matrix nobody maintains. A viewer reads, an operator
+ * runs the company, an owner decides what the company may do.
+ */
+export type UserRole = "owner" | "operator" | "viewer";
+export type UserStatus = "active" | "disabled";
+
+export interface CrewUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  lastLoginAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * `bootstrap` means no account exists yet, so the installation still runs on
+ * the shared password and the UI should offer to create the first owner
+ * rather than a login form.
+ */
+export interface AuthStatus {
+  bootstrap: boolean;
+  authenticated: boolean;
+  user: CrewUser | null;
+}
+
+export interface CrewSession {
+  id: string;
+  ip: string;
+  userAgent: string;
+  createdAt: number;
+  lastSeenAt: number | null;
+  expiresAt: number;
+  /** The session this request itself is using. */
+  current: boolean;
+}

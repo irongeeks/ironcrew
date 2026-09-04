@@ -533,6 +533,37 @@ start. Servers configured with literals are unchanged and still run inline:
 this bounds where credentials may live, it does not stop an operator from
 pasting one in.
 
+### T-19 — An audit log that names nobody — **Medium**
+
+Every entry in `crew_audit_events` named the constant `"ceo"`, because that
+was the only actor the system had. The chain was intact, the hashes verified,
+and the log could still not answer the one question it exists for: who did
+this. A log like that is worse than none, because it looks like
+accountability while providing it only for the case where there is exactly one
+person and they never dispute anything.
+
+**Mitigation.**
+
+1. **Accounts, roles and sessions**, wired to `/api/crew`
+   (`docs/IDENTITY.md`). `actor_id` is a real `usr_…` for anything a
+   signed-in person does.
+2. **The constant survives only where it is true**: an installation with no
+   accounts, and work with no person behind it (the scheduler, a routine, the
+   messenger owner path). It is the honest answer there, not a placeholder.
+3. **Approving stays the owner's alone** (T-01), and so does everything else
+   that hands out authority — a vault secret, a tool grant, a chat pairing
+   that reaches the CEO path. An operator runs the company; an owner decides
+   what the company may do.
+4. **Disabling an account ends its sessions now**, not at the end of a
+   seven-day TTL: the session resolver re-reads the account on every request.
+
+**Residual risk.** The pre-identity regime is a real gap for as long as an
+installation stays in it: a shared password names nobody, and this change does
+not force anyone out of it. What it does is make leaving it a two-minute job
+and make the log say plainly which regime it was written under. There is also
+no second factor: a stolen session cookie or password is full access at that
+account's role until it is revoked.
+
 ## Non-negotiable defaults
 
 | Setting                     | Value                                                                        |
@@ -551,3 +582,4 @@ pasting one in.
 | Background execution        | only delegated work is enqueued; `inbox` tasks never are (T-16)              |
 | CLI credentials             | held by the runner's own OS user; the control plane never sees one (T-17)    |
 | MCP credentials             | references in the config; resolved by the runner at start (T-18)             |
+| Audit actor                 | the signed-in user's id; "ceo" only where nobody has a name (T-19)           |
