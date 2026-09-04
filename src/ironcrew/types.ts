@@ -128,6 +128,39 @@ export interface Message {
   created_at: number;
 }
 
+/**
+ * Where a vote on one approval stands.
+ *
+ * `satisfied` and `blocked` are both computed server-side rather than left to
+ * the client to derive from the three counts. The precedence between them is
+ * not obvious — a rejection outranks any number of approvals — and a UI that
+ * got it wrong would show "freigegeben" next to a refusal.
+ */
+export interface ApprovalTally {
+  approvals: number;
+  rejections: number;
+  required: number;
+  satisfied: boolean;
+  blocked: boolean;
+  outstanding: number;
+  selfApproved: boolean;
+}
+
+export interface ApprovalReview {
+  id: string;
+  approval_id: string;
+  reviewer_id: string;
+  verdict: "approved" | "rejected";
+  reason: string;
+  reviewed_at: number;
+  /**
+   * A name a colleague recognises, resolved server-side. Falls back to the
+   * account id — a deleted account is still evidence, and an id is at least
+   * traceable, where "Unbekannt" is not.
+   */
+  reviewer_label?: string;
+}
+
 export interface Approval {
   id: string;
   approval_type: string;
@@ -138,6 +171,14 @@ export interface Approval {
   status: string;
   task_id: string | null;
   created_at: number;
+  /**
+   * Optional because the list endpoint attaches them and other places that
+   * hand back a bare approval row do not. A missing tally means "quorum of
+   * one, nobody has voted" — which is what an approval without reviews is —
+   * and the panel renders nothing extra rather than an empty vote counter.
+   */
+  tally?: ApprovalTally;
+  reviews?: ApprovalReview[];
 }
 
 export type NotificationSeverity = "info" | "warning" | "critical";
@@ -199,6 +240,13 @@ export interface Dashboard {
   approvalsPending: number;
   budgets: Array<{ budget: { scope_type: string; limit_micros: number }; spentMicros: number; state: string }>;
   auditChainValid: boolean;
+  /**
+   * When that answer was taken. The dashboard serves a cached verification
+   * (the chain is re-hashed end to end, which is linear in an ever-growing
+   * table and must not happen on every poll), so the panel says how old the
+   * answer is rather than implying it is live.
+   */
+  auditChainCheckedAt?: number;
 }
 
 export interface Department {
@@ -1022,6 +1070,14 @@ export interface AuthStatus {
   bootstrap: boolean;
   authenticated: boolean;
   user: CrewUser | null;
+  /**
+   * Whether a directory login exists at all, and which directory it is.
+   *
+   * Optional so an older server that does not report it renders exactly as
+   * before — an absent field means "no second door", which is the correct
+   * reading either way.
+   */
+  oidc?: { configured: boolean; issuer?: string };
 }
 
 export interface CrewSession {
@@ -1033,4 +1089,58 @@ export interface CrewSession {
   expiresAt: number;
   /** The session this request itself is using. */
   current: boolean;
+}
+
+/**
+ * A business pack — what a trade adds to the company.
+ *
+ * `configured` on an integration is the honest half: it is true only when the
+ * server registered an adapter for it at boot, which happens only when its
+ * environment variables are set. A switch that is always on is the fake
+ * button Phase 4 forbids.
+ */
+export interface PackIntegrationStatus {
+  key: string;
+  label: string;
+  summary: string;
+  configured: boolean;
+  env: Array<{ name: string; optional: boolean }>;
+  docsUrl: string | null;
+}
+
+export interface BusinessPackSummary {
+  key: string;
+  label: string;
+  summary: string;
+  version: string;
+  installed: boolean;
+  installedAt: number | null;
+  installedVersion: string | null;
+  counts: { departments: number; agents: number; tools: number; routines: number };
+  integrations: PackIntegrationStatus[];
+}
+
+export interface PackAgentPreview {
+  key: string;
+  department: string;
+  displayName: string;
+  professionalRole: string;
+  roleSummary: string;
+  seniority: string;
+  maxRiskLevel: string;
+}
+
+export interface PackDetail {
+  pack: BusinessPackSummary;
+  departments: Array<{ key: string; name: string; description: string; sort_order: number }>;
+  agents: PackAgentPreview[];
+  tools: Array<{ key: string; label: string; description: string; risk_class: string; integration?: string }>;
+  routines: Array<{ key: string; name: string; instruction: string; interval_minutes: number }>;
+}
+
+export interface PackKeptObject {
+  type: string;
+  id: string;
+  key: string;
+  reason: string;
 }

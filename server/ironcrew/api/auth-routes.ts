@@ -36,6 +36,8 @@ import { shouldUseSecureCookie } from "../../security/auth.ts";
 import { CREW_SESSION_COOKIE, crewOf, tokenFromRequest, type CrewAuth } from "../auth/crew-auth.ts";
 import { UserMutationError, USER_ROLES, type UserRow } from "../auth/user-store.ts";
 import type { SessionRow } from "../auth/session-store.ts";
+import { randomBytes } from "node:crypto";
+import type { OidcProvider, PendingLogin } from "../auth/oidc-provider.ts";
 import { logger } from "../../observability/logger.ts";
 
 const log = logger.child({ module: "ironcrew-auth" });
@@ -96,10 +98,45 @@ function clientIp(req: Request): string {
 export interface AuthRoutesOptions {
   base: string;
   auth: CrewAuth;
+  /**
+   * The directory, when an operator configured one. Absent means the password
+   * login is the only way in, and `/auth/status` reports that so the gate
+   * shows no button behind which nothing stands.
+   */
+  oidc?: OidcProvider | null;
+}
+
+/** Cookie carrying the handle to a login in progress. Not the login itself. */
+export const OIDC_PENDING_COOKIE = "ironcrew_oidc_pending";
+
+/**
+ * How long a browser has to come back from the identity provider.
+ *
+ * Long enough to type a password and answer a second factor at an unfamiliar
+ * prompt; short enough that an abandoned login is not a credential lying
+ * around. The provider enforces its own expiry on the pending login too, so
+ * this is the outer of two bounds, not the only one.
+ */
+const OIDC_PENDING_TTL_MS = 10 * 60_000;
+
+/**
+ * Where a redirect after login is allowed to go.
+ *
+ * Only a path on this origin. `//evil.example` and `/\evil.example` are how a
+ * protocol-relative URL sneaks past a naive `startsWith("/")`, and an open
+ * redirect on a login callback is the classic way to make a phishing link look
+ * like it came from the real system.
+ */
+function safeRedirect(value: unknown): string {
+  if (typeof value !== "string" || value === "") return "/";
+  if (!value.startsWith("/")) return "/";
+  if (value.startsWith("//") || value.startsWith("/\\")) return "/";
+  return value;
 }
 
 export function registerCrewAuthRoutes(app: Express, opts: AuthRoutesOptions): void {
   const { base, auth } = opts;
+  const oidc = opts.oidc ?? null;
   const { users, sessions } = auth;
 
   const setSessionCookie = (req: Request, res: Response, token: string, expiresAt: number): void => {
@@ -133,7 +170,157 @@ export function registerCrewAuthRoutes(app: Express, opts: AuthRoutesOptions): v
       bootstrap: auth.isBootstrap(),
       authenticated: principal !== null,
       user: principal ? presentUser(principal.user) : null,
+      // Whether there is a second way in at all. Reported rather than left to
+      // the UI to guess, so an installation without a directory shows no
+      // "Mit Authentik anmelden" button with nothing behind it. The issuer is
+      // named because an operator needs to see *which* directory this box
+      // trusts; nothing else about the configuration is exposed, and never
+      // the client secret.
+      oidc: oidc ? { configured: true, issuer: oidc.issuer } : { configured: false },
     });
+  });
+
+  // --- signing in through the directory ------------------------------------
+  //
+  // WHY THE LOGIN IN PROGRESS LIVES ON THE SERVER
+  //
+  // Between the redirect out and the callback back, three secrets have to
+  // survive: the PKCE code verifier, the nonce, and the state. The obvious
+  // place is a cookie, and it is the wrong one here. A cookie is a value the
+  // browser holds and anything that can set cookies for this origin can
+  // replace — swap the issuer in it and the callback would exchange the code
+  // at somewhere else entirely. Signing it would fix that and needs a signing
+  // key this installation does not have.
+  //
+  // So the pending login stays here, in memory, and the browser carries only
+  // an opaque handle. There is nothing in the cookie to tamper with.
+  //
+  // The cost, stated plainly: a restart during a login loses it and the person
+  // starts again, and a second control-plane process would not find the
+  // handle. The provider's own replay registry is already in-process for the
+  // same reason (see oidc-provider.ts), so this adds no new limitation.
+  const pendingLogins = new Map<string, { pending: PendingLogin; expiresAt: number }>();
+
+  function rememberPending(pending: PendingLogin): string {
+    const now = Date.now();
+    // Swept on write rather than on a timer: an abandoned login is a few
+    // hundred bytes, and a timer here would be a second thing to shut down.
+    for (const [key, value] of pendingLogins) if (value.expiresAt <= now) pendingLogins.delete(key);
+    const handle = randomBytes(32).toString("base64url");
+    pendingLogins.set(handle, { pending, expiresAt: now + OIDC_PENDING_TTL_MS });
+    return handle;
+  }
+
+  function takePending(handle: string | undefined): PendingLogin | null {
+    if (!handle) return null;
+    const found = pendingLogins.get(handle);
+    // Single use, whatever the outcome: a login attempt is consumed by being
+    // answered, so a replayed callback finds nothing.
+    pendingLogins.delete(handle);
+    if (!found || found.expiresAt <= Date.now()) return null;
+    return found.pending;
+  }
+
+  const setPendingCookie = (req: Request, res: Response, handle: string): void => {
+    const cookie = [
+      `${OIDC_PENDING_COOKIE}=${handle}`,
+      "Path=/",
+      "HttpOnly",
+      // Lax, not Strict, and this is the one place that difference matters:
+      // the callback arrives as a top-level navigation from the identity
+      // provider's origin, and a Strict cookie is not sent on one. The cookie
+      // holds an opaque handle to a single-use login attempt, so Lax costs
+      // nothing here.
+      "SameSite=Lax",
+      `Max-Age=${Math.floor(OIDC_PENDING_TTL_MS / 1000)}`,
+    ];
+    if (shouldUseSecureCookie(req)) cookie.push("Secure");
+    res.append("Set-Cookie", cookie.join("; "));
+  };
+
+  const clearPendingCookie = (req: Request, res: Response): void => {
+    const cookie = [`${OIDC_PENDING_COOKIE}=`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+    if (shouldUseSecureCookie(req)) cookie.push("Secure");
+    res.append("Set-Cookie", cookie.join("; "));
+  };
+
+  function pendingHandle(req: Request): string | undefined {
+    const raw = req.headers.cookie;
+    if (!raw) return undefined;
+    for (const part of raw.split(";")) {
+      const [name, ...rest] = part.trim().split("=");
+      if (name === OIDC_PENDING_COOKIE) return rest.join("=") || undefined;
+    }
+    return undefined;
+  }
+
+  app.get(`${base}/auth/oidc/start`, loginRateLimiter, async (req, res) => {
+    if (!oidc) {
+      return void res.status(404).json({ ok: false, error: "oidc_not_configured" });
+    }
+    try {
+      const { authorizationUrl, pending } = await oidc.beginLogin({
+        redirectTo: safeRedirect(req.query.redirectTo),
+      });
+      setPendingCookie(req, res, rememberPending(pending));
+      res.redirect(302, authorizationUrl);
+    } catch (err) {
+      // Discovery failed: the directory is down or misconfigured. Said here
+      // rather than swallowed, because the person is staring at a login page
+      // that did nothing.
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, "oidc login could not be started");
+      res.redirect(302, "/?oidc_error=provider_unreachable");
+    }
+  });
+
+  app.get(`${base}/auth/oidc/callback`, loginRateLimiter, async (req, res) => {
+    if (!oidc) {
+      return void res.status(404).json({ ok: false, error: "oidc_not_configured" });
+    }
+
+    const pending = takePending(pendingHandle(req));
+    clearPendingCookie(req, res);
+
+    // The identity provider's own refusal comes back as `error`, and the
+    // person needs to land somewhere that says so rather than on a blank
+    // callback URL. Only the code travels, never `error_description`, which
+    // is attacker-influenced text on its way into a URL.
+    const idpError = typeof req.query.error === "string" ? req.query.error : null;
+    if (idpError) {
+      log.warn({ error: idpError }, "identity provider refused the login");
+      return void res.redirect(302, "/?oidc_error=provider_refused");
+    }
+
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    if (!pending || !code || !state) {
+      // No pending login means a callback nobody here started: a replay, a
+      // bookmark, or a restart mid-login. Indistinguishable on purpose.
+      return void res.redirect(302, "/?oidc_error=no_login_in_progress");
+    }
+
+    const issuerParam = typeof req.query.iss === "string" ? req.query.iss : undefined;
+    const result = await oidc.completeLogin({ code, state, pending, issuer: issuerParam });
+
+    if (!result.ok) {
+      // The reason is logged in full for an operator and reduced to a code in
+      // the URL. Refusal messages name the issuer and subject so an owner can
+      // link an account, and neither belongs in a browser's history.
+      log.warn({ reason: result.reason, message: result.message }, "oidc login refused");
+      return void res.redirect(302, `/?oidc_error=${encodeURIComponent(result.reason)}`);
+    }
+
+    const ip = clientIp(req);
+    const { token, session } = sessions.create(result.userId, {
+      ip,
+      userAgent: req.get("user-agent") ?? undefined,
+    });
+    setSessionCookie(req, res, token, session.expires_at);
+    // Ends in exactly the row a password login would have produced. There is
+    // one kind of session in this system, and `actor_id` stays the same
+    // `usr_…` whichever door the person came through (docs/IDENTITY.md).
+    log.info({ userId: result.userId, issuer: result.issuer, link: result.link }, "crew login via directory");
+    res.redirect(302, safeRedirect(pending.redirectTo));
   });
 
   app.post(`${base}/auth/login`, loginRateLimiter, async (req, res) => {

@@ -7,7 +7,7 @@
  * is faithful rather than merely present.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -25,6 +25,25 @@ import {
   sha256File,
   snapshotDatabase,
 } from "./backup.ts";
+
+/**
+ * These tests run against a real file, not `:memory:`, and that is the whole
+ * point: an in-memory database cannot be snapshotted from outside the process
+ * holding it, so a backup tested against one would test nothing.
+ *
+ * The price is real disk work per test — `createTestDb(dbPath)` applies every
+ * migration to a fresh file, each with its own fsync, and `snapshotDatabase`
+ * then runs `VACUUM INTO`. Locally that is roughly 200 ms a test; on a shared
+ * CI runner under v8 coverage instrumentation it is several times that, and
+ * vitest's 5-second default is not a bound that describes what these tests do.
+ * It went red the moment the migration list grew by two.
+ *
+ * So the bound is stated here rather than left at a default that happens to
+ * fit on a fast machine. It is not a device for hiding a slow test: nothing is
+ * skipped, every assertion still runs, and a genuine hang still fails the
+ * suite — just after twenty seconds rather than five.
+ */
+vi.setConfig({ testTimeout: 20_000, hookTimeout: 20_000 });
 
 let workdir: string;
 let dbPath: string;

@@ -153,3 +153,85 @@ describe("IdentityGate", () => {
     expect(await screen.findByText("Command Center")).toBeTruthy();
   });
 });
+
+describe("the directory login, next to the password login", () => {
+  const LOGIN: AuthStatus = { bootstrap: false, authenticated: false, user: null };
+
+  it("shows no button when no directory is configured", async () => {
+    // The rule this whole codebase keeps: a control that has nothing behind
+    // it is worse than no control, because pressing it teaches the operator
+    // the system is broken.
+    const gate = client({}, { ...LOGIN, oidc: { configured: false } });
+    render(
+      <IdentityGate client={gate}>
+        <div>Command Center</div>
+      </IdentityGate>,
+    );
+    await screen.findByLabelText(/Passwort/);
+    expect(screen.queryByTestId("oidc-start")).toBeNull();
+  });
+
+  it("shows none either when the server does not mention a directory at all", async () => {
+    // An older control plane. An absent field reads as "no second door",
+    // which is the correct interpretation.
+    const gate = client({}, LOGIN);
+    render(
+      <IdentityGate client={gate}>
+        <div>Command Center</div>
+      </IdentityGate>,
+    );
+    await screen.findByLabelText(/Passwort/);
+    expect(screen.queryByTestId("oidc-start")).toBeNull();
+  });
+
+  it("offers the directory beside the password form, and names which one", async () => {
+    const gate = client({}, { ...LOGIN, oidc: { configured: true, issuer: "https://idp.example.com" } });
+    render(
+      <IdentityGate client={gate}>
+        <div>Command Center</div>
+      </IdentityGate>,
+    );
+
+    const link = await screen.findByTestId("oidc-start");
+    // A link, not a button that fetches: the flow is a top-level navigation
+    // to somebody else's origin and back, which an XHR cannot do.
+    expect(link.getAttribute("href")).toBe("/api/crew/auth/oidc/start");
+    expect(screen.getByText(/idp\.example\.com/)).toBeTruthy();
+    // The password form stays. The day the directory is down is the day
+    // somebody has to sign in and fix it.
+    expect(screen.getByLabelText(/Passwort/)).toBeTruthy();
+  });
+
+  it("explains a refusal the callback sent back, and clears it from the URL", async () => {
+    window.history.replaceState({}, "", "/?oidc_error=subject_not_linked");
+    const gate = client({}, { ...LOGIN, oidc: { configured: true } });
+    render(
+      <IdentityGate client={gate}>
+        <div>Command Center</div>
+      </IdentityGate>,
+    );
+
+    const shown = await screen.findByTestId("oidc-error");
+    // The one refusal an owner can actually act on says what to do about it.
+    expect(shown.textContent).toMatch(/verknüpft/);
+    // Gone from the address bar, so a refresh does not re-show it and the
+    // code is not carried into a bookmark.
+    expect(window.location.search).toBe("");
+  });
+
+  it("falls back to a plain sentence for a code it does not know", async () => {
+    // Twenty refusal codes exist and the person at a login form can act on
+    // three of them. An unknown one must never surface as a raw identifier.
+    window.history.replaceState({}, "", "/?oidc_error=id_token_audience_mismatch");
+    const gate = client({}, { ...LOGIN, oidc: { configured: true } });
+    render(
+      <IdentityGate client={gate}>
+        <div>Command Center</div>
+      </IdentityGate>,
+    );
+
+    const shown = await screen.findByTestId("oidc-error");
+    expect(shown.textContent).toMatch(/fehlgeschlagen/);
+    expect(shown.textContent).not.toContain("id_token_audience_mismatch");
+  });
+});

@@ -20,12 +20,34 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, serverMessage } from "./api";
 import { AccountPanel } from "./AccountPanel";
+import { PacksPanel } from "./PacksPanel";
 import type { AuthStatus, CrewUser } from "./types";
 
 interface IdentityGateProps {
   children: React.ReactNode;
   client?: Pick<typeof api, "authStatus" | "login" | "logout" | "createUser">;
 }
+
+/**
+ * What each refusal code means to the person looking at the screen.
+ *
+ * Deliberately not a mirror of the provider's twenty codes. Somebody at a
+ * login form can act on three things: retry, check the clock, or ask an owner
+ * to link their account. Every code that means "the token was wrong in some
+ * way" therefore lands on the same sentence — the distinction between a bad
+ * audience and a bad signature is an operator's question, and the log has it
+ * in full. Anything not listed gets the generic line rather than a raw code.
+ */
+const SSO_ERROR_LABEL: Record<string, string> = {
+  provider_unreachable: "Das Verzeichnis war nicht erreichbar. Melde dich mit E-Mail und Passwort an.",
+  provider_refused: "Das Verzeichnis hat die Anmeldung abgelehnt.",
+  no_login_in_progress: "Diese Anmeldung ist abgelaufen oder wurde schon verwendet. Bitte neu starten.",
+  login_expired: "Diese Anmeldung ist abgelaufen. Bitte neu starten.",
+  // The one refusal an owner can actually fix, so it says what to do.
+  subject_not_linked:
+    "Dieses Verzeichnis-Konto ist mit keinem IronCrew-Konto verknüpft. Ein Inhaber muss es zuerst verknüpfen.",
+  account_unavailable: "Das zugehörige IronCrew-Konto ist deaktiviert.",
+};
 
 const ROLE_LABEL: Record<CrewUser["role"], string> = {
   owner: "Inhaber",
@@ -42,6 +64,25 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [showAccounts, setShowAccounts] = useState(false);
+  const [showPacks, setShowPacks] = useState(false);
+  /**
+   * What the directory login came back with, if it failed.
+   *
+   * The callback redirects to `/?oidc_error=<code>` rather than rendering a
+   * message: the person is mid-navigation at that point and there is no React
+   * app to hand an error to. Only a code from a fixed vocabulary travels — the
+   * full reason names the issuer and the subject, which do not belong in a
+   * browser's history.
+   */
+  const [ssoError] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const code = new URLSearchParams(window.location.search).get("oidc_error");
+    if (!code) return null;
+    // Cleared from the address bar so a refresh does not re-show it, and so
+    // the code is not carried into a bookmark.
+    window.history.replaceState({}, "", window.location.pathname);
+    return code;
+  });
 
   const refresh = useCallback(async () => {
     try {
@@ -184,6 +225,32 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
             {busy ? "Anmelden …" : "Anmelden"}
           </button>
           {error && <p className="ic-identity-error">{error}</p>}
+          {ssoError && (
+            <p className="ic-identity-error" data-testid="oidc-error">
+              {SSO_ERROR_LABEL[ssoError] ?? "Die Anmeldung über das Verzeichnis ist fehlgeschlagen."}
+            </p>
+          )}
+
+          {status?.oidc?.configured && (
+            // A plain link, not a fetch: the whole point of the flow is a
+            // top-level navigation to the identity provider and back, and an
+            // XHR cannot carry the person through a password prompt and a
+            // second factor at somebody else's origin.
+            //
+            // Shown only when the server says a directory is configured. The
+            // password form stays above it either way — the day the directory
+            // is down is exactly the day somebody has to sign in and fix it.
+            <p className="ic-identity-alt">
+              <a className="ic-identity-sso" href="/api/crew/auth/oidc/start" data-testid="oidc-start">
+                Mit dem Verzeichnis anmelden
+              </a>
+              {status.oidc.issuer && (
+                // Named, because an operator has to be able to see *which*
+                // directory this box trusts before they hand it a password.
+                <span className="ic-identity-issuer"> ({status.oidc.issuer})</span>
+              )}
+            </p>
+          )}
         </form>
       </div>
     );
@@ -196,6 +263,9 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
         <span>
           {user.displayName || user.email} · {ROLE_LABEL[user.role]}
         </span>
+        <button type="button" onClick={() => setShowPacks(true)}>
+          Gewerke
+        </button>
         <button type="button" onClick={() => setShowAccounts(true)}>
           Konto
         </button>
@@ -204,6 +274,7 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
         </button>
       </div>
       {showAccounts && <AccountPanel user={user} onClose={() => setShowAccounts(false)} />}
+      {showPacks && <PacksPanel onClose={() => setShowPacks(false)} />}
       {children}
     </>
   );

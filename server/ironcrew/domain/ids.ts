@@ -48,6 +48,8 @@ export type IdPrefix =
   | "tool"
   | "tgrant"
   | "bkp"
+  | "pack"
+  | "pobj"
   | "turn"
   | "action"
   | "corr";

@@ -16,11 +16,16 @@ import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { CompanyOrchestrator, type AgentRow } from "../orchestrator/company.ts";
 import { createCrewAuth, methodGuard, type CrewAuth } from "../auth/crew-auth.ts";
+import { BUSINESS_PACKS, findPack } from "../packs/catalog.ts";
+import type { BusinessPack } from "../packs/business-pack.ts";
+import { PackMutationError } from "../packs/pack-store.ts";
 import { registerCrewAuthRoutes } from "./auth-routes.ts";
+import type { OidcProvider } from "../auth/oidc-provider.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
 import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
 import { ApprovalRequiredError } from "../policy/approval-policy.ts";
+import { ApprovalReviewError, MAX_REQUIRED_APPROVALS } from "../domain/approval-review-store.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
 import { InvalidTransitionError, TASK_STATUSES } from "../domain/task-state.ts";
 import { TaskDependencyError } from "../domain/task-store.ts";
@@ -69,6 +74,13 @@ const reviewSchema = z.object({ note: z.string().max(5000).optional() });
 const revisionSchema = z.object({ reason: z.string().min(1).max(5000) });
 const taskStatusSchema = z.object({ status: z.enum(TASK_STATUSES), reason: z.string().max(2000).optional() });
 const taskDependencySchema = z.object({ dependsOnId: z.string().min(1).max(200) });
+const quorumSchema = z.object({
+  // The upper bound lives in the store (a quorum nobody can satisfy is a
+  // deadlock dressed as diligence); repeated here so a typo is refused at the
+  // edge with a field name attached rather than as a domain error.
+  required: z.number().int().min(1).max(MAX_REQUIRED_APPROVALS),
+});
+
 const decisionSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
   reason: z.string().max(5000).optional(),
@@ -356,6 +368,15 @@ function sendDomainError(res: Response, err: unknown): boolean {
     });
     return true;
   }
+  if (err instanceof ApprovalReviewError) {
+    // Covers the second vote from one person, a vote on an approval that has
+    // already been decided, and an out-of-range quorum. All of them are the
+    // caller asking for something that cannot be, so 409 rather than 500 —
+    // and the message is the store's German sentence, which already explains
+    // itself to whoever is looking at the screen.
+    res.status(409).json({ error: "invalid_approval_review", message: err.message });
+    return true;
+  }
   if (err instanceof BudgetExceededError) {
     res.status(402).json({
       error: "budget_exceeded",
@@ -468,6 +489,10 @@ function sendDomainError(res: Response, err: unknown): boolean {
   // A vessel or talent that agents still hold refuses to be deleted, and the
   // message names them — 409, because the request was fine and the *state* is
   // what said no.
+  if (err instanceof PackMutationError) {
+    res.status(409).json({ error: "invalid_pack_mutation", message: err.message });
+    return true;
+  }
   if (err instanceof VesselMutationError || err instanceof TalentMutationError) {
     res.status(409).json({ error: "invalid_pairing_mutation", message: err.message });
     return true;
@@ -537,6 +562,12 @@ export interface IronCrewApiOptions {
   scheduler?: () => SchedulerHandle | null;
   /** Injectable so a test can drive the guards without a second database. */
   auth?: CrewAuth;
+  /**
+   * The directory, when an operator configured one. Absent means the password
+   * login is the only door — which is the correct default for a self-hosted
+   * single-operator box.
+   */
+  oidc?: OidcProvider | null;
 }
 
 export interface IronCrewApi {
@@ -578,7 +609,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   // same instant.
   const auth = opts.auth ?? createCrewAuth(db);
   app.use(base, auth.identify);
-  registerCrewAuthRoutes(app, { base, auth });
+  registerCrewAuthRoutes(app, { base, auth, oidc: opts.oidc ?? null });
   app.use(base, auth.requireUser);
   app.use(base, methodGuard(auth));
 
@@ -1099,10 +1130,84 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   // --- approvals ----------------------------------------------------------
 
+  /**
+   * Reviews with a name attached.
+   *
+   * `crew_approval_reviews.reviewer_id` is a `usr_…`, which is the right
+   * thing to store — an account can be renamed, and the audit chain must not
+   * change when it is. It is the wrong thing to *show*: "hat bereits
+   * bewertet: usr_0f432eb5…" tells the second reviewer nothing about who
+   * looked at this before them, which is the entire question they are asking.
+   * Resolved here rather than in the client so the UI does not have to fetch
+   * the account list to render a decision panel — and so a viewer, who may
+   * read reviews but not the user directory, still sees names.
+   */
+  function withReviewerNames(approvalId: string) {
+    return orchestrator.approvalReviews.listFor(approvalId).map((review) => {
+      const user = review.reviewer_id.startsWith("usr_") ? auth.users.get(review.reviewer_id) : null;
+      return {
+        ...review,
+        // Falls back to the id, never to "Unbekannt": a deleted account is
+        // still evidence, and an id is at least traceable.
+        reviewer_label: user ? user.display_name || user.email : review.reviewer_id,
+      };
+    });
+  }
+
   app.get(
     `${base}/approvals`,
     wrap((_req, res) => {
-      res.json({ approvals: orchestrator.approvals.listPending(companyId) });
+      // Each pending approval carries its own vote alongside it. A UI that had
+      // to fetch the tally per row would either make N requests or show the
+      // quorum late, and "late" here means an owner pressing a button on a
+      // gate somebody else already closed.
+      // Bounded. Each row now costs a tally, a review list and a name lookup
+      // per reviewer, and `listPending` has no limit of its own — approvals
+      // are raised by agents on risky actions, so the list is not
+      // operator-sized by construction. A decision inbox showing the oldest
+      // 200 is a decision inbox; one that pages the whole backlog on every
+      // poll is a load generator.
+      const approvals = orchestrator.approvals
+        .listPending(companyId)
+        .slice(0, 200)
+        .map((approval) => ({
+          ...approval,
+          tally: orchestrator.approvalReviews.tally(approval.id),
+          reviews: withReviewerNames(approval.id),
+        }));
+      res.json({ approvals });
+    }),
+  );
+
+  app.get(
+    `${base}/approvals/:id/reviews`,
+    wrap((req, res) => {
+      const approval = orchestrator.approvals.get(param(req, "id"));
+      if (!approval || approval.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      // Readable by any signed-in user, not only an owner: who has already
+      // looked at a dangerous change is exactly what the second reviewer
+      // needs to know before adding their own name to it.
+      res.json({
+        approval,
+        tally: orchestrator.approvalReviews.tally(approval.id),
+        reviews: withReviewerNames(approval.id),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/approvals/:id/quorum`,
+    ownerOnly,
+    wrap((req, res) => {
+      const { required } = quorumSchema.parse(req.body ?? {});
+      const tally = orchestrator.approvalReviews.setRequiredApprovals(param(req, "id"), required, {
+        actorId: actorOf(req).actorId,
+      });
+      broadcast("crew_approval_quorum_changed", { approvalId: param(req, "id"), required: tally.required });
+      res.json({ tally });
     }),
   );
 
@@ -1111,13 +1216,29 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     ownerOnly,
     wrap((req, res) => {
       const { decision, reason } = decisionSchema.parse(req.body ?? {});
-      const approval = orchestrator.decideApproval(companyId, param(req, "id"), decision, reason ?? "", actorOf(req));
-      if (!approval) {
+      // Goes through the vote, not around it. At the default quorum of 1 the
+      // first verdict settles the approval and this behaves exactly as it did
+      // before quorums existed; at 2 it records one voice and says how many
+      // are still missing.
+      const outcome = orchestrator.reviewApproval(companyId, param(req, "id"), decision, reason ?? "", actorOf(req));
+      if (!outcome) {
         res.status(409).json({ error: "already_decided", message: "This approval is no longer pending." });
         return;
       }
-      broadcast("crew_approval_decided", { approvalId: approval.id, status: approval.status });
-      res.json({ approval });
+      if (!outcome.decided) {
+        // 202: taken, and not yet acted upon. A 200 here would let a UI
+        // report "freigegeben" for a change that is still waiting for a
+        // second human — the one thing this whole feature exists to prevent.
+        broadcast("crew_approval_reviewed", {
+          approvalId: outcome.approval.id,
+          approvals: outcome.tally.approvals,
+          required: outcome.tally.required,
+        });
+        res.status(202).json({ approval: outcome.approval, tally: outcome.tally, review: outcome.review });
+        return;
+      }
+      broadcast("crew_approval_decided", { approvalId: outcome.approval.id, status: outcome.approval.status });
+      res.json({ approval: outcome.approval, tally: outcome.tally, review: outcome.review });
     }),
   );
 
@@ -2004,17 +2125,31 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     ownerOnly,
     wrap((req, res) => {
       const { decision, reason } = changeProposalDecisionSchema.parse(req.body ?? {});
-      const proposal = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, {
+      const outcome = orchestrator.decideChangeProposal(companyId, param(req, "id"), decision, {
         reason,
         ...actorOf(req),
       });
-      if (!proposal) {
+      if (!outcome) {
         res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { proposal, tally } = outcome;
+      if (!outcome.decided) {
+        // 202, as on the approvals route and for the same reason: the vote is
+        // recorded, the proposal is still pending, and nothing has been
+        // written. A 200 here would let the panel report a deploy script as
+        // approved while it waits for a second human.
+        broadcast("crew_approval_reviewed", {
+          approvalId: proposal.approval_id,
+          approvals: tally?.approvals ?? 0,
+          required: tally?.required ?? 1,
+        });
+        res.status(202).json({ proposal, tally });
         return;
       }
       broadcast("crew_change_proposal_changed", { proposalId: proposal.id, status: proposal.status });
       broadcast("crew_approval_changed", { approvalId: proposal.approval_id });
-      res.json({ proposal });
+      res.json({ proposal, tally });
     }),
   );
 
@@ -2342,8 +2477,16 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     }),
   );
 
+  // Owner only. Disabling a tool is how an owner takes a capability away —
+  // pack uninstall disables the pack's tools and deliberately keeps the
+  // grants, so that an owner who reinstalls does not have to re-grant
+  // everything. The consequence is that re-enabling restores every surviving
+  // grant at a stroke, which makes this the same kind of act as granting one:
+  // an operator flipping it back would undo an owner's decision without ever
+  // touching a grant.
   app.post(
     `${base}/tools/:id/enabled`,
+    ownerOnly,
     wrap((req, res) => {
       const existing = orchestrator.tools.get(param(req, "id"));
       if (!existing || existing.company_id !== companyId) {
@@ -2480,6 +2623,127 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     }),
   );
 
+  // --- business packs -----------------------------------------------------
+  //
+  // Installing a pack hires posts, registers tools and changes the org chart,
+  // so it is an owner's decision, not an operator's — the same line the rest
+  // of this file draws around anything that hands out authority.
+  //
+  // The listing is deliberately answerable before anything is installed: an
+  // operator has to be able to see what a pack would add, and which of its
+  // integrations this installation actually has, *before* deciding. That is
+  // what "no fake buttons" means in practice — a switch appears configured
+  // only when its adapter was registered at boot, which happens only when its
+  // environment variables are set.
+
+  const presentPack = (pack: BusinessPack) => {
+    const installed = orchestrator.packs.store.byKey(companyId, pack.key);
+    return {
+      key: pack.key,
+      label: pack.label,
+      summary: pack.summary,
+      version: pack.version,
+      installed: installed !== null,
+      installedAt: installed?.installed_at ?? null,
+      installedVersion: installed?.version ?? null,
+      counts: {
+        departments: pack.departments.length,
+        agents: pack.agents.length,
+        tools: pack.tools.length,
+        routines: pack.routines.length,
+      },
+      integrations: pack.integrations.map((integration) => ({
+        key: integration.key,
+        label: integration.label,
+        summary: integration.summary,
+        // Registered at boot from the environment, or not there at all.
+        configured: orchestrator.hasPackIntegration(integration.key),
+        env: integration.env,
+        docsUrl: integration.docs_url ?? null,
+      })),
+    };
+  };
+
+  app.get(
+    `${base}/packs`,
+    wrap((_req, res) => {
+      res.json({ packs: BUSINESS_PACKS.map(presentPack) });
+    }),
+  );
+
+  app.get(
+    `${base}/packs/:key`,
+    wrap((req, res) => {
+      const pack = findPack(param(req, "key"));
+      if (!pack) {
+        res.status(404).json({ error: "pack_not_found" });
+        return;
+      }
+      // The full definition, so an operator can read what they are about to
+      // hire before they hire it.
+      res.json({
+        pack: presentPack(pack),
+        departments: pack.departments,
+        agents: pack.agents.map((agent) => ({
+          key: agent.key,
+          department: agent.department,
+          displayName: agent.skin.display_name,
+          professionalRole: agent.professional_role,
+          roleSummary: agent.role_summary,
+          seniority: agent.seniority,
+          maxRiskLevel: agent.policy.max_risk_level,
+        })),
+        tools: pack.tools,
+        routines: pack.routines,
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/packs/:key/install`,
+    ownerOnly,
+    wrap((req, res) => {
+      const pack = findPack(param(req, "key"));
+      if (!pack) {
+        res.status(404).json({ error: "pack_not_found" });
+        return;
+      }
+      const result = orchestrator.packs.install(companyId, pack, actorOf(req));
+      broadcast("crew_pack_changed", { packKey: pack.key, installed: true });
+      res.status(201).json({ ok: true, pack: presentPack(pack), created: result.created, reused: result.reused });
+    }),
+  );
+
+  app.post(
+    `${base}/packs/:key/uninstall`,
+    ownerOnly,
+    wrap((req, res) => {
+      const pack = findPack(param(req, "key"));
+      if (!pack) {
+        res.status(404).json({ error: "pack_not_found" });
+        return;
+      }
+      const result = orchestrator.packs.uninstall(companyId, pack.key, actorOf(req));
+      broadcast("crew_pack_changed", { packKey: pack.key, installed: false });
+      // `kept` is part of the answer, not an afterthought: a remover that
+      // silently leaves things behind is worse than one that says so.
+      res.json({ ok: true, pack: presentPack(pack), ...result });
+    }),
+  );
+
+  app.post(
+    `${base}/packs/:key/integrations/:integration/test`,
+    wrap(async (req, res) => {
+      const pack = findPack(param(req, "key"));
+      const integrationKey = param(req, "integration");
+      if (!pack || !pack.integrations.some((i) => i.key === integrationKey)) {
+        res.status(404).json({ error: "integration_not_found" });
+        return;
+      }
+      res.json(await orchestrator.testPackIntegration(integrationKey));
+    }),
+  );
+
   // --- budgets and costs --------------------------------------------------
 
   app.get(
@@ -2499,14 +2763,116 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
 
   // --- governance surfaces ------------------------------------------------
 
+  /**
+   * The last chain verification, and when it was taken.
+   *
+   * `verifyAuditChain()` recomputes every hash in `crew_audit_events` for the
+   * company — necessarily, since a chain is only sound end to end. That is
+   * fine for a deliberate act and ruinous for a poll: the load test measured
+   * the dashboard at 8 ms with 820 audit rows and 39 ms with 5,420, linear in
+   * a table that only ever grows, while an open Command Center asks for the
+   * dashboard on every refresh. A year-old installation would re-hash
+   * hundreds of thousands of rows several times a minute, for a number nobody
+   * is watching change.
+   *
+   * So the dashboard reads a cached answer no older than this TTL, and says
+   * how old it is instead of pretending it is live. `GET /audit` still
+   * verifies for real on every call, because that request *is* somebody
+   * asking the question.
+   *
+   * Worth being clear about what a full verification is even worth: it
+   * catches an edit that did not fix the hashes. An attacker who owns the box
+   * can recompute the whole chain, and no amount of local verification would
+   * notice. That is what the off-box copy is for (docs/AUDIT_SHIPPING.md) —
+   * which makes re-hashing on a timer a poor trade at any interval.
+   */
+  const CHAIN_CACHE_TTL_MS = 60_000;
+  let chainCache: { at: number; result: ReturnType<typeof verifyAuditChain> } | null = null;
+
+  function cachedChainCheck(): { at: number; result: ReturnType<typeof verifyAuditChain> } {
+    const now = Date.now();
+    if (!chainCache || now - chainCache.at >= CHAIN_CACHE_TTL_MS) {
+      chainCache = { at: now, result: verifyAuditChain(db, companyId) };
+    }
+    return chainCache;
+  }
+
   app.get(
     `${base}/audit`,
     wrap((req, res) => {
       const limit = Math.min(Number(req.query.limit ?? 100), 1000);
+      // Verified for real, and the cache refreshed from it: somebody asking
+      // this question directly should not then see a stale answer on the
+      // dashboard beside it.
+      chainCache = { at: Date.now(), result: verifyAuditChain(db, companyId) };
       res.json({
         events: listAuditEvents(db, companyId, { limit }),
-        chain: verifyAuditChain(db, companyId),
+        chain: chainCache.result,
       });
+    }),
+  );
+
+  /**
+   * Where the off-box copy of the audit chain stands.
+   *
+   * Reports "not configured" rather than 404 when no sink was registered: an
+   * operator looking at this page is asking "is my audit log leaving this
+   * machine?", and a 404 answers a different question. Readable by any
+   * signed-in user — how far behind the archive is, is not a secret, and the
+   * one thing that *is* (the collector's token) never appears here.
+   */
+  app.get(
+    `${base}/audit/shipping`,
+    wrap((_req, res) => {
+      const shipper = orchestrator.auditShipper;
+      if (!shipper) {
+        res.json({
+          configured: false,
+          message:
+            "Kein Ziel konfiguriert. Ohne Kopie ausser Haus kann eine Übernahme dieses Rechners die eigene Spur löschen.",
+        });
+        return;
+      }
+      res.json({
+        configured: true,
+        sink: shipper.sinkKind,
+        cursor: shipper.cursor(companyId),
+        pending: shipper.pending(companyId),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/audit/shipping/test`,
+    ownerOnly,
+    wrap(async (_req, res) => {
+      const shipper = orchestrator.auditShipper;
+      if (!shipper) {
+        res.status(409).json({ error: "not_configured", message: "Kein Audit-Ziel konfiguriert." });
+        return;
+      }
+      // 200 with ok:false, like the secret-provider probe: "the collector is
+      // unreachable right now" is a status a page displays, not a failure of
+      // the request that asked.
+      res.json(await shipper.testConnection());
+    }),
+  );
+
+  app.post(
+    `${base}/audit/shipping/run`,
+    ownerOnly,
+    wrap(async (_req, res) => {
+      const shipper = orchestrator.auditShipper;
+      if (!shipper) {
+        res.status(409).json({ error: "not_configured", message: "Kein Audit-Ziel konfiguriert." });
+        return;
+      }
+      // The scheduler ships on its own; this is for the operator who has just
+      // fixed the collector and wants to watch the backlog drain rather than
+      // wonder whether the next tick will work.
+      const result = await shipper.drain(companyId);
+      broadcast("crew_audit_shipped", { shipped: result.shipped, pending: result.pending });
+      res.json(result);
     }),
   );
 
@@ -2582,7 +2948,11 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         },
         approvalsPending: orchestrator.approvals.listPending(companyId).length,
         budgets: orchestrator.budgets.status(companyId),
-        auditChainValid: verifyAuditChain(db, companyId).valid,
+        // Cached, deliberately — see `cachedChainCheck`. `auditChainCheckedAt`
+        // travels with it so the panel can say how old the answer is instead
+        // of implying it was taken just now.
+        auditChainValid: cachedChainCheck().result.valid,
+        auditChainCheckedAt: cachedChainCheck().at,
       });
     }),
   );

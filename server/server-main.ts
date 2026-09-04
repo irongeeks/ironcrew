@@ -37,6 +37,15 @@ import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
 import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
 import { setCrewSessionResolver } from "./security/auth.ts";
+import { ProxmoxAdapter } from "./ironcrew/packs/integrations/proxmox.ts";
+import { TacticalRmmAdapter } from "./ironcrew/packs/integrations/tactical-rmm.ts";
+import { UnifiAdapter } from "./ironcrew/packs/integrations/unifi.ts";
+import { LexwareOfficeAdapter } from "./ironcrew/packs/integrations/lexware-office.ts";
+import { AuditShipper, FileAuditSink, HttpAuditSink } from "./ironcrew/audit/audit-shipper.ts";
+import { OidcProvider, OIDC_PROVISIONING_MODES, type OidcProvisioningMode } from "./ironcrew/auth/oidc-provider.ts";
+import { SevdeskAdapter } from "./ironcrew/packs/integrations/sevdesk.ts";
+import { PaperlessAdapter } from "./ironcrew/packs/integrations/paperless-ngx.ts";
+import { NextcloudAdapter } from "./ironcrew/packs/integrations/nextcloud.ts";
 import { Scheduler } from "./ironcrew/scheduler/scheduler.ts";
 import { SearxngProvider } from "./ironcrew/search/searxng-provider.ts";
 import { BraveProvider } from "./ironcrew/search/brave-provider.ts";
@@ -526,12 +535,177 @@ if (process.env.BRAVE_SEARCH_API_KEY) {
   ironCrewOrchestrator.registerSearchProvider(new BraveProvider({ apiKey: process.env.BRAVE_SEARCH_API_KEY }));
 }
 
+// A second way to prove who you are, when the operator already runs a
+// directory. Off unless configured: a self-hosted single-operator box does
+// not need an identity provider, and adding one would add a dependency that
+// must be online for anyone to log in.
+//
+// The password login stays regardless. The day the directory is down or
+// misconfigured is exactly the day somebody has to sign in and fix it.
+function buildOidcProvider(): OidcProvider | null {
+  const issuer = process.env.IRONCREW_OIDC_ISSUER?.trim();
+  if (!issuer) return null;
+
+  const clientId = process.env.IRONCREW_OIDC_CLIENT_ID?.trim();
+  const redirectUri = process.env.IRONCREW_OIDC_REDIRECT_URI?.trim();
+  // Refused rather than defaulted. A guessed redirect URI does not match what
+  // is registered at the issuer, so the login fails at the far end with a
+  // message about the client — which is a long way from the variable that was
+  // actually missing.
+  if (!clientId || !redirectUri) {
+    throw new Error(
+      "IRONCREW_OIDC_ISSUER is set, so IRONCREW_OIDC_CLIENT_ID and IRONCREW_OIDC_REDIRECT_URI are required.",
+    );
+  }
+
+  const rawMode = (process.env.IRONCREW_OIDC_PROVISIONING ?? "refuse").trim() as OidcProvisioningMode;
+  if (!(OIDC_PROVISIONING_MODES as readonly string[]).includes(rawMode)) {
+    throw new Error(
+      `IRONCREW_OIDC_PROVISIONING="${rawMode}" is not a mode. One of: ${OIDC_PROVISIONING_MODES.join(", ")}.`,
+    );
+  }
+
+  return new OidcProvider(
+    {
+      issuer,
+      clientId,
+      clientSecret: process.env.IRONCREW_OIDC_CLIENT_SECRET,
+      redirectUri,
+      // Default "refuse": a verified directory subject with no linked account
+      // gets a readable refusal, never an account. Anything else is an opt-in
+      // an operator makes deliberately (docs/IDENTITY.md).
+      provisioning:
+        rawMode === "create"
+          ? { mode: "create", role: (process.env.IRONCREW_OIDC_CREATE_ROLE as "operator" | "viewer") || "viewer" }
+          : { mode: rawMode },
+    },
+    { db },
+  );
+}
+
+const ironCrewOidc = buildOidcProvider();
+
 const ironCrewApi = registerIronCrewRoutes(app, {
   db,
+  oidc: ironCrewOidc,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
   orchestrator: ironCrewOrchestrator,
   scheduler: () => ironCrewScheduler,
 });
+
+// The audit chain, carried off the box.
+//
+// An append-only hash chain proves nobody edited the record. It cannot prove
+// nobody *deleted* it — whoever owns the box owns the file, and a chain that
+// only exists on the machine it describes is a chain an attacker can replace
+// wholesale with a shorter, quieter one. So a copy leaves, continuously, to
+// somewhere the box's own credentials do not reach.
+//
+// Off by default and configured by presence, like every other integration
+// here. IRONCREW_AUDIT_SINK names which; nothing is inferred from a stray URL,
+// because an operator who set the variable and mistyped the value deserves a
+// refusal rather than a silently disabled control.
+const auditSinkKind = (process.env.IRONCREW_AUDIT_SINK ?? "").trim().toLowerCase();
+if (auditSinkKind === "file") {
+  const filePath = process.env.IRONCREW_AUDIT_FILE?.trim();
+  if (!filePath) {
+    // Loud, and not a fallback to "off": a half-configured audit sink that
+    // quietly ships nothing is worse than none, because somebody believes
+    // they have a copy.
+    throw new Error("IRONCREW_AUDIT_SINK=file requires IRONCREW_AUDIT_FILE to name the target file.");
+  }
+  ironCrewOrchestrator.registerAuditShipper(
+    new AuditShipper({ db, sink: new FileAuditSink({ filePath }), cursorNamespace: "file" }),
+  );
+} else if (auditSinkKind === "http") {
+  const url = process.env.IRONCREW_AUDIT_URL?.trim();
+  if (!url) {
+    throw new Error("IRONCREW_AUDIT_SINK=http requires IRONCREW_AUDIT_URL to name the collector endpoint.");
+  }
+  ironCrewOrchestrator.registerAuditShipper(
+    new AuditShipper({
+      db,
+      // The token travels in a header inside the sink and nowhere else. It is
+      // read here and never logged, never echoed by the status route.
+      sink: new HttpAuditSink({ url, bearerToken: process.env.IRONCREW_AUDIT_TOKEN }),
+      cursorNamespace: "http",
+    }),
+  );
+} else if (auditSinkKind !== "" && auditSinkKind !== "off") {
+  throw new Error(`IRONCREW_AUDIT_SINK="${auditSinkKind}" is not a sink kind. Use "file", "http", or leave it unset.`);
+}
+
+// Business-pack integrations: registered only when their environment says so.
+//
+// This is Phase 4's "every integration ships behind a feature flag as a real
+// adapter — no fake buttons" expressed as code. An adapter that is not
+// constructed here is not registered, so GET /api/crew/packs reports it as
+// not configured, and the Command Center shows what is missing rather than a
+// switch that fails when pressed. Adding an adapter therefore costs exactly
+// one `if` — and forgetting the `if` costs a test in catalog.test.ts.
+//
+// All seven are read-only. An MSP's RMM key can run a script on every managed
+// endpoint, a Lexware key can issue a legally binding invoice: those are
+// writes, and a write belongs behind an approval, not behind an environment
+// variable (docs/BUSINESS_PACKS.md).
+if (process.env.PROXMOX_URL && process.env.PROXMOX_TOKEN_ID && process.env.PROXMOX_TOKEN_SECRET) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new ProxmoxAdapter({
+      baseUrl: process.env.PROXMOX_URL,
+      tokenId: process.env.PROXMOX_TOKEN_ID,
+      tokenSecret: process.env.PROXMOX_TOKEN_SECRET,
+    }),
+  );
+}
+if (process.env.TACTICAL_RMM_URL && process.env.TACTICAL_RMM_API_KEY) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new TacticalRmmAdapter({ baseUrl: process.env.TACTICAL_RMM_URL, apiKey: process.env.TACTICAL_RMM_API_KEY }),
+  );
+}
+if (process.env.UNIFI_URL && process.env.UNIFI_API_KEY) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new UnifiAdapter({
+      baseUrl: process.env.UNIFI_URL,
+      apiKey: process.env.UNIFI_API_KEY,
+      site: process.env.UNIFI_SITE,
+    }),
+  );
+}
+if (process.env.LEXWARE_OFFICE_API_KEY) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new LexwareOfficeAdapter({
+      apiKey: process.env.LEXWARE_OFFICE_API_KEY,
+      baseUrl: process.env.LEXWARE_OFFICE_URL,
+    }),
+  );
+}
+// The finance pack declares two bookkeeping systems because a company runs
+// one of them; the `if` decides which, and an owner who runs neither gets
+// neither. Both stay read-only — a sevDesk key can issue an invoice, and an
+// invoice is a legally binding statement, so it belongs behind an approval
+// rather than behind an environment variable.
+if (process.env.SEVDESK_API_KEY) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new SevdeskAdapter({
+      apiKey: process.env.SEVDESK_API_KEY,
+      baseUrl: process.env.SEVDESK_URL,
+    }),
+  );
+}
+if (process.env.PAPERLESS_URL && process.env.PAPERLESS_TOKEN) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new PaperlessAdapter({ baseUrl: process.env.PAPERLESS_URL, token: process.env.PAPERLESS_TOKEN }),
+  );
+}
+if (process.env.NEXTCLOUD_URL && process.env.NEXTCLOUD_USER && process.env.NEXTCLOUD_APP_PASSWORD) {
+  ironCrewOrchestrator.registerPackIntegration(
+    new NextcloudAdapter({
+      baseUrl: process.env.NEXTCLOUD_URL,
+      username: process.env.NEXTCLOUD_USER,
+      appPassword: process.env.NEXTCLOUD_APP_PASSWORD,
+    }),
+  );
+}
 
 // One login, not two. Someone who signed in with their own account satisfies
 // the generic HTTP security layer as well: a crew session is the stronger

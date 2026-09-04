@@ -145,28 +145,125 @@ their size:
 
 ## Phase 4 — Business packs
 
-- **MSP / IT Operations** — Proxmox, Windows/AD, Linux, M365/Entra, UniFi,
-  Tactical RMM, backup and monitoring, Tier-0 separation, jumphost and
-  outbound-only customer runners
-- **Web Agency** — leads, demo sites, proposals, SEO, hosting, conversion
-- **Finance** — Lexware Office, incoming/outgoing invoices, receipt matching,
-  payment approval queue, cash forecast, quarterly UStVA preparation
-- **Legal** — contract analysis, clause comparison, risk matrix, deadlines
-- **Knowledge** — Obsidian, Nextcloud, Paperless-ngx, Drive, M365
+Shipped (`docs/BUSINESS_PACKS.md`). Five packs, six read-only integrations,
+and a pack framework whose three rules are the interesting part: reuse never
+overwrites, registering is not granting, and a routine does not start itself.
 
-Every integration ships behind a feature flag as a real adapter. No fake
-buttons.
+- **MSP / IT Operations** — a service desk plus Linux/virtualisation,
+  Windows/AD/M365, network, and backup/monitoring posts; Proxmox VE, Tactical
+  RMM and UniFi as read-only adapters.
+- **Web Agency** — leads, proposals, SEO, delivery. No new tools and no
+  integrations, and the pack says so: `web.search` and the browser tools are
+  already built in.
+- **Finance (DE)** — incoming invoices, receivables, receipt matching, cash
+  forecast, UStVA preparation; Lexware Office read-only.
+- **Legal (DE)** — contract analysis, clause comparison, deadlines. No tools,
+  no integrations: contracts already arrive through attachments.
+- **Knowledge** — archivist and researcher; Paperless-ngx and Nextcloud
+  read-only, with Obsidian already present as a MemoryProvider.
 
-## Phase 5 — Production hardening
+"Every integration ships behind a feature flag as a real adapter. No fake
+buttons." That is now a test, not a promise: `catalog.test.ts` asserts that
+every integration a pack declares has an adapter module and names at least one
+required environment variable, and `GET /api/crew/packs` reports an
+integration as configured only when the composition root actually built its
+adapter.
 
-- Authentik OIDC, multiple human reviewers
-- Multi-company (the schema already carries `company_id` everywhere)
-- Optional PostgreSQL adapter
-- Backup and restore procedures, tested
-- External audit-log shipping, so tampering is not merely detectable but
-  preserved off-box
-- Security review and load testing
-- Upgrade and migration strategy
+What Phase 4 deliberately does **not** contain, and why:
+
+- **No write path anywhere.** No VM restart, no password reset, no patch push,
+  no invoice creation, no payment. Each is a credential whose blast radius is
+  the whole estate or the company's own books; a write belongs behind an
+  approval, not behind an environment variable (T-20).
+- **No Tier-0 automation, no jumphost orchestration.** The MSP pack ships
+  findings and prepared changes. Handing an agent domain-admin credentials
+  would undo the customer's security model, which is the thing an MSP is paid
+  to protect.
+- **No M365/Entra or Drive adapter.** Both are large OAuth surfaces rather
+  than an API key, and an OAuth app registration is a decision an operator
+  makes once with consequences — worth its own piece of work rather than a
+  sixth adapter written the same afternoon.
+- **Not verified against live systems.** Every adapter is written against the
+  vendor's published API with tests over the request it builds; none has run
+  against a real Proxmox cluster or Lexware tenant from this repository. Same
+  honest limit as the CLI adapters; `testConnection()` is the day-one check.
+
+## Phase 5 — Production hardening — **shipped**
+
+- **Multiple human reviewers.** `crew_approval_reviews`, one row per person
+  per approval, with the quorum on the approval it guards rather than in a
+  settings page — a company-wide two-person rule makes every routine approval
+  wait for somebody with nothing to add and gets switched off within a
+  fortnight, including for the payment. `UNIQUE (approval_id, reviewer_id)`
+  makes four eyes structurally four eyes. N to proceed, one to stop.
+  (docs/IDENTITY.md, THREAT_MODEL T-21.)
+- **Authentik OIDC beside the password login.** Authorization Code with PKCE
+  against a generic issuer; ID tokens verified against the issuer's JWKS with
+  `none` and `HS*` refused by construction. An unlinked subject fails closed.
+  The password login stays, because the day the directory is down is the day
+  somebody has to sign in and fix it. (docs/IDENTITY.md.)
+- **External audit-log shipping.** A file or HTTP sink, drained every 60
+  seconds, cursor advancing only over entries the sink accepted and a partial
+  acceptance always a prefix. The chain proves nobody edited the record; only
+  the off-box copy survives somebody deleting it. (docs/AUDIT_SHIPPING.md.)
+- **Backup and restore, tested.** `scripts/ironcrew-backup.mjs`, `VACUUM INTO`
+  snapshot. (docs/BACKUP.md.)
+- **Load testing.** `scripts/ironcrew-load-test.mjs` — real domain layer, real
+  file, real concurrent writers, non-zero exit only for a broken invariant and
+  never for a slow percentile. It found the dashboard re-hashing the whole
+  audit chain on every poll, now fixed.
+- **Upgrade and migration strategy.** `scripts/ironcrew-migrate.mjs` plus
+  docs/UPGRADE.md, whose "known gaps" section names where the documented path
+  is not yet backed by code.
+- **Security review** over the whole diff.
+
+### Multi-company — **not done, and not "just turn it on"**
+
+The schema carries `company_id` on the domain tables, which made this look
+like a configuration change. It is not, and the reason is worth writing down
+so nobody re-reaches the optimistic conclusion:
+
+- **109 statements in `domain/` select or update by `WHERE id = ?` alone.**
+  They are safe today because one company exists. With two, any of them will
+  happily act on another company's row when handed its id.
+- The scoping that does exist lives in the layers above, as hand-written
+  comparisons after the read. That is a convention, and a convention is
+  exactly what a new store method forgets.
+- **`crew_users`, `crew_sessions`, `crew_tool_grants` and
+  `crew_oidc_identities` have no `company_id` at all.** Accounts, sessions,
+  tool grants and directory identities are installation-wide by construction.
+  Multi-company would have to decide whether a person belongs to a company or
+  to the box, and every answer changes the identity model.
+- `decideApproval`, `acceptReview`, `requestRevision` and `ToolStore.grant`
+  reach caller-supplied ids with no company check.
+
+Doing this properly means the company predicate becomes structural — in the
+query builder or the schema, not in the callers — and that is a change to
+every store. Worth doing before a second company exists, never after.
+
+### PostgreSQL — **no, and the number says why**
+
+This one is not close, and the obstacle is not the SQL dialect:
+
+- **1,501 synchronous `prepare(...).run/get/all` call sites**, 327
+  `DatabaseSync` annotations, 222 files importing `node:sqlite`.
+- Every store method is synchronous, and so is every caller — the
+  orchestrator, the scheduler, the route handlers. There is no mainstream
+  synchronous PostgreSQL driver for Node, so an adapter means making all 1,501
+  sites `async` and colouring every function above them.
+- The atomic task claim, the audit chain's read-then-insert, and the
+  single-connection transaction discipline are all correct _because_ there is
+  one synchronous connection. Each would need re-proving under a connection
+  pool.
+- 149 uses of `unixepoch()`, 62 `PRAGMA`s, 12 `AUTOINCREMENT`s and the
+  `VACUUM INTO` backup would each need a translation.
+
+The honest position: this is a rewrite of the persistence layer wearing the
+word "adapter". A self-hosted single-operator box does not need it, and the
+load test says why — 400 tasks, 511 runs and 5,420 audit entries in 5 MiB,
+with the claim path at 1 ms p50 under four concurrent writers. SQLite is not
+the thing that will fall over first. Revisit if and only if multi-company
+lands and a real installation outgrows one file.
 
 ## Deliberately not planned
 

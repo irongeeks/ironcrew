@@ -12,11 +12,20 @@
 import type { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { newCorrelationId, newId } from "../domain/ids.ts";
+import type { IntegrationStatus, PackIntegrationAdapter } from "../packs/pack-integration.ts";
+import { PackInstaller } from "../packs/pack-installer.ts";
 import { TaskStore, type TaskRow } from "../domain/task-store.ts";
 import { RunStore } from "../runtime/run-store.ts";
 import { appendAuditEvent, type ActorType } from "../domain/audit.ts";
 import { canTransition, deriveAgentStatus, type TaskStatus } from "../domain/task-state.ts";
 import { ApprovalEngine } from "../policy/approval-policy.ts";
+import type { AuditShipper } from "../audit/audit-shipper.ts";
+import {
+  ApprovalReviewStore,
+  type ApprovalReviewRow,
+  type ApprovalTally,
+  type ReviewVerdict,
+} from "../domain/approval-review-store.ts";
 import { BudgetEngine } from "../policy/budget-engine.ts";
 import { SandboxGrantStore } from "../domain/sandbox-grant-store.ts";
 import { GoalStore } from "../domain/goal-store.ts";
@@ -166,6 +175,37 @@ export interface HumanActor {
   actorId?: string;
 }
 
+/**
+ * What came of one human's verdict: the vote itself, where the tally now
+ * stands, the approval as it looks afterwards, and whether that verdict was
+ * the one that settled it.
+ *
+ * `decided: false` with a non-null approval is the normal "one of two, one
+ * still needed" case — not an error, and the caller must say so rather than
+ * reporting a failure.
+ */
+/**
+ * What came of a verdict on a file-change proposal.
+ *
+ * `decided: false` means the vote was recorded and the quorum is not yet met:
+ * the proposal is still pending and nothing has been written. A caller that
+ * reported that as success would tell an owner a deploy script is approved
+ * while it waits for a second human.
+ */
+export interface ChangeProposalDecision {
+  proposal: ChangeProposalRow;
+  /** Null when the proposal carries no approval — nothing to count. */
+  tally: ApprovalTally | null;
+  decided: boolean;
+}
+
+export interface ApprovalReviewOutcome {
+  review: ApprovalReviewRow;
+  tally: ApprovalTally;
+  approval: ApprovalRow;
+  decided: boolean;
+}
+
 export function humanActor(opts: HumanActor): string {
   return opts.actorId ?? "ceo";
 }
@@ -174,6 +214,7 @@ export class CompanyOrchestrator {
   readonly tasks: TaskStore;
   readonly runs: RunStore;
   readonly approvals: ApprovalEngine;
+  readonly approvalReviews: ApprovalReviewStore;
   readonly budgets: BudgetEngine;
   readonly sandboxGrants: SandboxGrantStore;
   readonly goals: GoalStore;
@@ -198,6 +239,19 @@ export class CompanyOrchestrator {
   readonly routines: RoutineStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly searchProviders = new Map<string, SearchProvider>();
+  /** Business-pack integrations, keyed by the pack definition's integration key. */
+  private readonly packIntegrations = new Map<string, PackIntegrationAdapter>();
+  private packInstaller?: PackInstaller;
+  /**
+   * Where the audit chain is copied to, when an operator configured one.
+   *
+   * Optional in exactly the way the pack integrations are optional: absent
+   * means "nobody configured a sink", and the API reports that rather than
+   * showing a switch with nothing behind it. Registered by the composition
+   * root, never constructed here — this class must not decide where a
+   * company's audit log is allowed to go.
+   */
+  private auditShipperInstance: AuditShipper | null = null;
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -222,6 +276,7 @@ export class CompanyOrchestrator {
     this.tasks = new TaskStore(db);
     this.runs = new RunStore(db);
     this.approvals = new ApprovalEngine(db);
+    this.approvalReviews = new ApprovalReviewStore(db);
     this.sandboxGrants = new SandboxGrantStore(db);
     this.budgets = new BudgetEngine(db);
     this.goals = new GoalStore(db);
@@ -1212,15 +1267,45 @@ export class CompanyOrchestrator {
     proposalId: string,
     decision: "approved" | "rejected",
     opts: { reason?: string } & HumanActor = {},
-  ): ChangeProposalRow | null {
+  ): ChangeProposalDecision | null {
     const proposal = this.changeProposals.get(proposalId);
     if (!proposal || proposal.company_id !== companyId) return null;
 
     const actorId = humanActor(opts);
+
+    // Through the vote, not around it.
+    //
+    // A file-change proposal raises an ordinary `crew_approvals` row, so it
+    // appears in the approvals list and an owner can demand four eyes on it —
+    // a deploy script touching a customer's Tier 0 is exactly the case T-21
+    // names. This method used to call `approvals.decide()` directly, which
+    // meant the panel could show "0 von 2" while a single owner approved the
+    // proposal and wrote the files. A gate with a bypass is not a gate
+    // (T-15), and the bypass was justified in a comment claiming "the
+    // proposal's own gate has already run" — circular, because this approval
+    // *is* the proposal's gate.
     if (proposal.approval_id) {
-      this.approvals.decide(proposal.approval_id, decision, actorId, opts.reason ?? "");
+      const outcome = this.reviewApproval(companyId, proposal.approval_id, decision, opts.reason ?? "", opts);
+      // Null means the approval is no longer pending — decided, expired or
+      // cancelled by another path. The proposal is not moved on the strength
+      // of a vote that was not recorded.
+      if (!outcome) return null;
+      if (!outcome.decided) {
+        // Recorded, and not yet enough. The proposal stays pending, nothing
+        // is written, and the caller is told how many voices are missing so
+        // it can say so rather than reporting a decision.
+        return { proposal, tally: outcome.tally, decided: false };
+      }
     }
-    return this.changeProposals.decide(proposalId, decision, { ...opts, actorType: "owner", actorId });
+
+    const decided = this.changeProposals.decide(proposalId, decision, { ...opts, actorType: "owner", actorId });
+    return decided
+      ? {
+          proposal: decided,
+          tally: proposal.approval_id ? this.approvalReviews.tally(proposal.approval_id) : null,
+          decided: true,
+        }
+      : null;
   }
 
   /**
@@ -1319,11 +1404,89 @@ export class CompanyOrchestrator {
   }
 
   /**
+   * One human's verdict on a pending approval, and — if that verdict settles
+   * it — the decision itself.
+   *
+   * WHY THE VOTE AND THE DECISION ARE THE SAME CALL
+   *
+   * They could have been two: `POST /reviews` to vote, and something else to
+   * "close" the approval once enough votes are in. That shape has a failure
+   * mode that is easy to reach and hard to notice — a quorum that is reached
+   * and then sits there, because whatever was supposed to notice it did not
+   * run. An approval that everybody has agreed to and that is still blocking
+   * a task is indistinguishable, from the board, from one nobody has looked
+   * at. So the tally is evaluated on the write that changes it, and the
+   * approval settles in the same transaction-shaped moment as the vote that
+   * settled it.
+   *
+   * The two directions are deliberately asymmetric, per migration 0023:
+   *
+   *   N approvals are needed to proceed.  ONE rejection stops it, now.
+   *
+   * A reviewer who has spotted that the destination IBAN is wrong must not
+   * have to wait for a colleague to agree before the payment stops.
+   *
+   * At the default quorum of 1 — which is every approval this installation
+   * has ever raised — the first approval satisfies the tally and this behaves
+   * exactly as `decideApproval` did before the quorum existed. Nothing about
+   * the single-operator box changes.
+   */
+  reviewApproval(
+    companyId: string,
+    approvalId: string,
+    verdict: ReviewVerdict,
+    reason = "",
+    opts: HumanActor = {},
+  ): ApprovalReviewOutcome | null {
+    const reviewerId = humanActor(opts);
+
+    const pending = this.approvals.get(approvalId);
+    // Same "null" contract as before: unknown, or belonging to another
+    // company, or no longer pending. A caller cannot tell those apart, and
+    // deliberately so — an answer that distinguished them would confirm the
+    // existence of an approval the caller may not see.
+    if (!pending || pending.company_id !== companyId || pending.status !== "pending") return null;
+
+    // Throws `ApprovalReviewError` on a second vote from the same person, and
+    // that is the whole four-eyes guarantee: a refreshed tab is not a second
+    // reviewer. The route turns it into a 409.
+    const review = this.approvalReviews.record({ approvalId, reviewerId, verdict, reason });
+    const tally = this.approvalReviews.tally(approvalId);
+
+    // Not yet: enough people have not yet said yes, and nobody has said no.
+    // The approval stays pending, the task stays parked, and the caller is
+    // told how many voices are still missing.
+    if (!tally.blocked && !tally.satisfied) {
+      return { review, tally, approval: this.approvals.get(approvalId) ?? pending, decided: false };
+    }
+
+    const decision = tally.blocked ? "rejected" : "approved";
+    const approval = this.decideApproval(companyId, approvalId, decision, reason, opts);
+    // `decideApproval` returns null only if the approval stopped being
+    // pending between the two reads. The review is already recorded and is
+    // still the truth about what this person said, so it is returned rather
+    // than swallowed.
+    if (!approval) return { review, tally, approval: pending, decided: false };
+
+    return { review, tally, approval, decided: true };
+  }
+
+  /**
    * Decide a pending approval and, unlike calling `this.approvals.decide()`
    * directly, also leave a durable business record of it: a decision-log
    * entry (distinct from the audit chain — see decision-store.ts) and the
    * matching notification cleared from the inbox. Returns null exactly when
    * `approvals.decide()` would (already decided / does not exist).
+   *
+   * This writes `crew_approvals.status` without consulting the quorum, and is
+   * therefore not the route any human's click should take — `reviewApproval`
+   * is, and `decideChangeProposal` goes through it too.
+   *
+   * It stays public for exactly one caller: `reviewApproval` itself, once a
+   * tally has authorised the decision. A second caller was added here once,
+   * with a comment explaining why its gate had already run; it had not, and
+   * the result was a quorum the UI displayed and nothing enforced. If you are
+   * about to add a third, you are about to do that again.
    */
   decideApproval(
     companyId: string,
@@ -1690,7 +1853,7 @@ export class CompanyOrchestrator {
     }
 
     for (const agent of crew.agents) {
-      this.insertAgent(companyId, agent, deptIds.get(agent.department) ?? null);
+      this.hireAgent(companyId, agent, deptIds.get(agent.department) ?? null);
     }
 
     appendAuditEvent(this.db, {
@@ -1719,26 +1882,47 @@ export class CompanyOrchestrator {
    * runtime becomes a vessel shared by everyone using that runtime — the same
    * grouping migration 0011 derives for an existing crew.
    */
-  private insertAgent(companyId: string, agent: SeedAgent, departmentId: string | null): string {
+  /**
+   * Adds one post to the company.
+   *
+   * Public because seeding is no longer the only way a company grows: a
+   * business pack hires the specialists its trade needs
+   * (server/ironcrew/packs/pack-installer.ts). One definition of "what it
+   * means to add a post" — the alternative was an installer with its own
+   * three INSERTs, and the copy that drifts is always the one with fewer
+   * readers.
+   */
+  hireAgent(companyId: string, agent: SeedAgent, departmentId: string | null): string {
     const vesselId = this.ensureVessel(companyId, "mock");
 
-    const talentId = newId("tal");
-    this.db
-      .prepare(
-        `INSERT INTO crew_talents
-           (id, company_id, key, professional_role, role_summary, seniority, policy_json, persona_json)
-         VALUES (?,?,?,?,?,?,?,?)`,
-      )
-      .run(
-        talentId,
-        companyId,
-        agent.key,
-        agent.professional_role,
-        agent.role_summary,
-        agent.seniority,
-        JSON.stringify(agent.policy),
-        JSON.stringify(agent.skin),
-      );
+    // A role is keyed per company, so an existing one is *the* role rather
+    // than a second copy of it. Reused rather than re-inserted because a post
+    // can be removed (a pack uninstall does exactly that) while its role
+    // survives — and hiring into that role again must not collide with the
+    // row the previous holder left behind.
+    const existingTalent = this.db
+      .prepare("SELECT id FROM crew_talents WHERE company_id = ? AND key = ?")
+      .get(companyId, agent.key) as { id: string } | undefined;
+
+    const talentId = existingTalent?.id ?? newId("tal");
+    if (!existingTalent) {
+      this.db
+        .prepare(
+          `INSERT INTO crew_talents
+             (id, company_id, key, professional_role, role_summary, seniority, policy_json, persona_json)
+           VALUES (?,?,?,?,?,?,?,?)`,
+        )
+        .run(
+          talentId,
+          companyId,
+          agent.key,
+          agent.professional_role,
+          agent.role_summary,
+          agent.seniority,
+          JSON.stringify(agent.policy),
+          JSON.stringify(agent.skin),
+        );
+    }
 
     const id = newId("agt");
     this.db
@@ -2581,6 +2765,80 @@ export class CompanyOrchestrator {
     const provider = this.searchProviders.get(kind);
     if (!provider) return { ok: false, message: `Kein "${kind}"-Suchanbieter registriert.` };
     return provider.testConnection();
+  }
+
+  // --- business packs -----------------------------------------------------
+  //
+  // Registration happens in the composition root, exactly as it does for
+  // runtimes, secret providers and search providers: an adapter exists here
+  // only if the operator configured its environment variables, so "is this
+  // integration available" is answered by what is registered rather than by a
+  // button that is always there and sometimes works.
+
+  /**
+   * Installing and removing business packs.
+   *
+   * Lazy because the installer holds a reference back to this orchestrator
+   * (it hires posts through `hireAgent`), and building it in the constructor
+   * would mean handing out `this` before the fields below it exist.
+   */
+  get packs(): PackInstaller {
+    this.packInstaller ??= new PackInstaller(this.db, this);
+    return this.packInstaller;
+  }
+
+  /**
+   * Registers the off-box copy of the audit chain.
+   *
+   * One shipper, not a list. Two sinks would need two cursors — the shipper
+   * has a `cursorNamespace` for exactly that — but nothing yet asks for two,
+   * and a list here would invite the mistake the namespace exists to prevent:
+   * two shippers sharing a cursor, each seeing only the entries the other had
+   * not already claimed, leaving a hole in both copies.
+   */
+  registerAuditShipper(shipper: AuditShipper): void {
+    this.auditShipperInstance = shipper;
+  }
+
+  /** Null when nobody configured a sink. */
+  get auditShipper(): AuditShipper | null {
+    return this.auditShipperInstance;
+  }
+
+  registerPackIntegration(adapter: PackIntegrationAdapter): void {
+    this.packIntegrations.set(adapter.key, adapter);
+  }
+
+  listPackIntegrationKeys(): string[] {
+    return [...this.packIntegrations.keys()];
+  }
+
+  hasPackIntegration(key: string): boolean {
+    return this.packIntegrations.has(key);
+  }
+
+  /**
+   * Probes one integration.
+   *
+   * Reports rather than throws, like every other `testConnection` in this
+   * codebase: "not configured" is an answer an operator needs on the settings
+   * page, not an exception somebody has to catch to display.
+   */
+  async testPackIntegration(key: string): Promise<IntegrationStatus> {
+    const adapter = this.packIntegrations.get(key);
+    if (!adapter) {
+      return {
+        ok: false,
+        message: `Die Integration "${key}" ist nicht konfiguriert. Ohne ihre Umgebungsvariablen wird sie nicht geladen.`,
+      };
+    }
+    try {
+      return await adapter.testConnection();
+    } catch (err) {
+      // An adapter that throws from its own probe is a bug in the adapter,
+      // and it must not take the settings page down with it.
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   /**

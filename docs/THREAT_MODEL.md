@@ -564,6 +564,121 @@ and make the log say plainly which regime it was written under. There is also
 no second factor: a stolen session cookie or password is full access at that
 account's role until it is revoked.
 
+### T-20 — A business pack's credentials — **High**
+
+A business pack exists to talk to the systems a trade runs on, and those are
+the systems that matter: an RMM that can execute on every managed endpoint, a
+hypervisor that can stop every VM, the accounting system that holds the
+company's books. Handing an agent any of those is handing a prompt injection
+the same thing — and the injection arrives, reliably, in a scanned invoice or
+a contract PDF (T-02).
+
+**Mitigation.**
+
+1. **Every shipped adapter is read-only, by construction rather than by
+   convention.** There is no create, update or delete method to call; several
+   adapters assert their own prototype surface in tests so a future addition
+   is a deliberate act with a failing test in front of it. All pack tools are
+   registered at risk class `read`.
+2. **Presence is still not permission.** A pack registers its tools; it never
+   grants them. `ToolStore.resolve()` fails closed until an owner grants a
+   tool to an agent, a talent or a project (T-01, `docs/TOOLS.md`).
+3. **Installing a pack is an owner's decision.** It hires posts, changes the
+   org chart and registers tools — the same line drawn around everything that
+   hands out authority (T-19).
+4. **A routine never starts itself.** Pack routines install disabled, so
+   nothing recurring begins until a human switches it on (T-16).
+5. **No credential ever reaches a log or an error message.** Adapters build
+   messages from status codes and hosts, never from response bodies — because
+   Lexware Office's own documented 403 body echoes the `Authorization` header
+   back, and that is not the only vendor that does. Each adapter has a test
+   that drives every failure path and asserts the credential appears in none
+   of them.
+6. **The environment is the feature flag.** An adapter that was not configured
+   is not constructed, so there is nothing to call and the API says so.
+
+**Residual risk.** A read-only credential is still a credential: a Proxmox
+token that can list every guest describes the whole estate to anyone who
+obtains it, and an agent granted `rmm.agents` can read every customer's
+inventory. Scope the tokens at the vendor's end (a `PVEAuditor` role, an RMM
+key limited to its role) rather than relying on this side alone. And these
+adapters live in the control plane's environment, not in a vault — the same
+argument that moved MCP credentials to SecretRefs (T-18) applies here and has
+not been made yet.
+
+### T-21 — One compromised owner account decides everything — **High**
+
+Identity (T-19) gave the installation accounts, roles and a name in the audit
+log. It did not change how many people it takes to open a gate: one. Every
+approval this system has ever raised — a sandbox elevation (T-01), a payment,
+a Tier-0 change on a customer's network — was one click by one account. So
+whoever holds that account holds every gate the product has, and there is no
+step at which a second human would have noticed. The same single point applies
+without an attacker: the one owner reads a summary wrong at 23:40, or is on
+holiday when the decision cannot wait.
+
+**Mitigation.**
+
+1. **A quorum per approval, not per installation, and it only ever goes up.**
+   `required_approvals` lives on the approval row. A company-wide two-person
+   rule would make every routine approval wait for somebody with nothing to
+   add, and would be switched off within a fortnight — including for the
+   payment. The quorum is raised on the request that deserves it
+   (`POST /approvals/:id/quorum`, owner only).
+
+   Three refusals, and the first exists because a security review over this
+   branch demonstrated its absence end to end: **a quorum cannot be lowered.**
+   The threat here is one compromised owner account, so if that same account
+   could send `{ required: 1 }` and then approve, the mitigation would cost an
+   attacker exactly one extra request, and the chain would record it
+   afterwards — detection, not prevention. It also cannot be changed once
+   anybody has voted (that moves the goalposts under the people already
+   counted), nor after the decision (that rewrites what the decision required,
+   in the one place that must not be rewritable). Lowering a quorum set in
+   error is deliberately not an API operation: the approval can be rejected
+   and raised again, which leaves both acts in the chain where a silent
+   correction would leave neither.
+
+2. **Four eyes are structurally four eyes.** `crew_approval_reviews` carries
+   `UNIQUE (approval_id, reviewer_id)`. A double submit, a retried request or
+   a refreshed tab cannot satisfy a two-person rule alone — the database
+   refuses it, and the API answers 409 rather than letting the second click
+   through.
+3. **Every path to a decision goes through the vote.** The same review found
+   `decideChangeProposal` calling `approvals.decide()` directly, so an owner
+   could demand four eyes on a deploy script, watch the panel confirm
+   "0 von 2", approve alone and write the files — with the tally still
+   reporting `outstanding: 2` afterwards. It now goes through `reviewApproval`
+   like every other verdict. The rule this restates is T-15's: a gate with a
+   bypass is not a gate, and a bypass justified by "this caller's own gate has
+   already run" deserves the question _which_ gate — because here the answer
+   was this one.
+4. **One rejection is decisive, and needs no quorum of its own.** A reviewer
+   who has spotted the wrong destination IBAN stops the payment immediately,
+   whatever the approval count already stood at. Requiring agreement to act is
+   prudence; requiring agreement to refrain is a defect, and would mean a
+   dangerous change proceeding because the colleague who would have agreed was
+   on holiday.
+5. **The tally is recomputed, never latched.** There is no "quorum reached"
+   flag, so a rejection arriving after the second approval blocks just as
+   firmly as one arriving before it. No window exists in which the gate has
+   been declared open and can no longer be shut.
+6. **Each reviewer is named individually in the audit chain.** Every verdict
+   appends with that person's own `usr_…`; `approval.quorum_reached` lists who
+   agreed. An investigation can ask "who waved this through" and get people,
+   not an account shared by a role.
+
+**Residual risk.** Nothing raises the quorum automatically. An approval only
+needs two people if somebody — or some future code path — asked for two, and
+today that is a human pressing a button on the approval card. A rule such as
+"every `bank_transfer` above an amount needs two" would need the amount as a
+number the approval does not carry, and deriving it from the summary text
+would be a gate that fails open on a formatting change. There is also still no
+second factor behind either account (T-19), so two stolen sessions defeat a
+quorum of two; and an installation with one owner cannot satisfy a quorum of
+two at all, which is a deadlock rather than a compromise but is just as
+stopping — the ceiling of five exists so a typo cannot create one silently.
+
 ## Non-negotiable defaults
 
 | Setting                     | Value                                                                        |
@@ -583,3 +698,4 @@ account's role until it is revoked.
 | CLI credentials             | held by the runner's own OS user; the control plane never sees one (T-17)    |
 | MCP credentials             | references in the config; resolved by the runner at start (T-18)             |
 | Audit actor                 | the signed-in user's id; "ceo" only where nobody has a name (T-19)           |
+| Business-pack integrations  | read-only adapters, registered only from the environment (T-20)              |

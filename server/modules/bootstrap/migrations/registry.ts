@@ -24,6 +24,9 @@ import { migration as m0018CrewTools } from "./0018-crew-tools.ts";
 import { migration as m0019CrewToolProjectScope } from "./0019-crew-tool-project-scope.ts";
 import { migration as m0020CrewSecretsKeychain } from "./0020-crew-secrets-keychain.ts";
 import { migration as m0021CrewRoutines } from "./0021-crew-routines.ts";
+import { migration as m0022CrewPacks } from "./0022-crew-packs.ts";
+import { migration as m0023CrewApprovalReviews } from "./0023-crew-approval-reviews.ts";
+import { migration as m0024CrewOidcIdentities } from "./0024-crew-oidc-identities.ts";
 
 // Import future migrations here:
 // import { migration as m0022 } from "./0022-example.ts";
@@ -61,6 +64,9 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0019-crew-tool-project-scope.ts", migration: m0019CrewToolProjectScope },
   { filename: "0020-crew-secrets-keychain.ts", migration: m0020CrewSecretsKeychain },
   { filename: "0021-crew-routines.ts", migration: m0021CrewRoutines },
+  { filename: "0022-crew-packs.ts", migration: m0022CrewPacks },
+  { filename: "0023-crew-approval-reviews.ts", migration: m0023CrewApprovalReviews },
+  { filename: "0024-crew-oidc-identities.ts", migration: m0024CrewOidcIdentities },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

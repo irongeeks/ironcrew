@@ -101,6 +101,21 @@ describe("auth helpers", () => {
     expect(isPublicApiPath("/api/docs/")).toBe(true);
     expect(isPublicApiPath("/api/tasks")).toBe(false);
 
+    // Both halves of the crew login, password and directory alike. The SSO
+    // flow is unauthenticated by definition — at `start` the person has
+    // proved nothing, and at `callback` they hold the issuer's code and
+    // nothing else. Leaving either out would put the shared password in front
+    // of the sign-in that exists to retire it.
+    expect(isPublicApiPath("/api/crew/auth/login")).toBe(true);
+    expect(isPublicApiPath("/api/crew/auth/status")).toBe(true);
+    expect(isPublicApiPath("/api/crew/auth/oidc/start")).toBe(true);
+    expect(isPublicApiPath("/api/crew/auth/oidc/callback")).toBe(true);
+    // And nothing beyond them: exact matches, so no prefix trick opens the
+    // rest of the crew API.
+    expect(isPublicApiPath("/api/crew/auth/oidc/start/../../company")).toBe(false);
+    expect(isPublicApiPath("/api/crew/auth/sessions")).toBe(false);
+    expect(isPublicApiPath("/api/crew/company")).toBe(false);
+
     const insecureReq = mockRequest({
       "x-forwarded-proto": "http",
     });

@@ -4,7 +4,7 @@
  * The Scheduler (scheduler.ts) knows nothing about IronCrew; this is the list
  * of things worth doing on a timer, and the reasoning for each interval.
  *
- * All four are safe to skip, safe to run late, and safe to run twice in a row.
+ * All of them are safe to skip, safe to run late, and safe to run twice in a row.
  * That is not an accident — it is the property that lets the loop stay as
  * simple as it is. Anything that needed exactly-once execution belongs in the
  * run queue, which has leases and attempts for precisely that reason.
@@ -27,6 +27,8 @@ export interface CrewJobIntervals {
   messengerMs: number;
   /** How often to clean up leases nobody released. */
   sweepMs: number;
+  /** How often to carry newly written audit entries off the box. */
+  auditShipMs: number;
 }
 
 export const DEFAULT_INTERVALS: CrewJobIntervals = {
@@ -48,6 +50,14 @@ export const DEFAULT_INTERVALS: CrewJobIntervals = {
   // and the run request treat an expired lease as expired whether or not
   // anyone swept it; sweeping only makes the state legible.
   sweepMs: 300_000,
+  // A minute. The point of shipping the audit chain off the box is that a
+  // compromise of the box cannot quietly rewrite its own record, and every
+  // second an entry sits only in the local file is a second an attacker could
+  // still remove it unnoticed. A minute keeps that window small while staying
+  // well clear of hammering a collector: a batch carries up to 200 entries and
+  // one tick may ship 20 batches, so a minute is 4,000 entries of headroom —
+  // more than this system writes in an hour.
+  auditShipMs: 60_000,
 };
 
 /**
@@ -139,6 +149,52 @@ export function buildCrewJobs(opts: CrewJobOptions): ScheduledJob[] {
         }
       },
     },
+    // Only a real job when a sink is configured. An operator who has not set
+    // one up gets no job at all rather than a job that reports "nothing to do"
+    // every minute for the life of the installation — `GET /scheduler` is a
+    // list of what this service is actually doing, and a permanent no-op in it
+    // is noise that teaches people to stop reading it.
+    ...(orchestrator.auditShipper
+      ? [
+          {
+            name: "audit-ship",
+            intervalMs: intervals.auditShipMs,
+            async run() {
+              const shipper = orchestrator.auditShipper;
+              if (!shipper) return;
+              const result = await shipper.drain(companyId);
+              if (result.shipped > 0) {
+                log.info(
+                  {
+                    sink: shipper.sinkKind,
+                    shipped: result.shipped,
+                    cursor: result.cursorSeq,
+                    pending: result.pending,
+                  },
+                  "audit entries shipped off box",
+                );
+                broadcast("crew_audit_shipped", { shipped: result.shipped, pending: result.pending });
+              }
+              // Reported at warn every tick it stays broken, deliberately.
+              // A sink that has been unreachable for a day is the one thing
+              // an operator must not find out about from the archive being
+              // empty when they finally need it.
+              if (!result.ok) {
+                log.warn(
+                  { sink: shipper.sinkKind, pending: result.pending, error: result.error },
+                  "audit shipping failed",
+                );
+              }
+              if (result.gapDetected) {
+                // Rows below the first unshipped entry are gone from the
+                // table. Never fatal — the shipper carries on from where it
+                // is — but it is exactly the shape a tampering attempt has.
+                log.warn({ sink: shipper.sinkKind, cursor: result.cursorSeq }, "gap below the audit shipper cursor");
+              }
+            },
+          } satisfies ScheduledJob,
+        ]
+      : []),
     {
       name: "sweep",
       intervalMs: intervals.sweepMs,
@@ -193,10 +249,12 @@ export function intervalsFromEnv(env: NodeJS.ProcessEnv = process.env): Partial<
   const messenger = seconds("IRONCREW_SCHEDULER_MESSENGER_SECONDS");
   const sweep = seconds("IRONCREW_SCHEDULER_SWEEP_SECONDS");
   const routine = seconds("IRONCREW_SCHEDULER_ROUTINE_SECONDS");
+  const auditShip = seconds("IRONCREW_SCHEDULER_AUDIT_SHIP_SECONDS");
   if (queue !== undefined) overrides.runQueueMs = queue;
   if (mail !== undefined) overrides.mailboxMs = mail;
   if (messenger !== undefined) overrides.messengerMs = messenger;
   if (sweep !== undefined) overrides.sweepMs = sweep;
   if (routine !== undefined) overrides.routineMs = routine;
+  if (auditShip !== undefined) overrides.auditShipMs = auditShip;
   return overrides;
 }
