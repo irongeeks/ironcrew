@@ -35,6 +35,8 @@ import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
 import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
 import { Scheduler } from "./ironcrew/scheduler/scheduler.ts";
+import { SearxngProvider } from "./ironcrew/search/searxng-provider.ts";
+import { BraveProvider } from "./ironcrew/search/brave-provider.ts";
 import { buildCrewJobs, intervalsFromEnv, schedulerEnabled } from "./ironcrew/scheduler/crew-jobs.ts";
 import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
 import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
@@ -421,6 +423,24 @@ ironCrewOrchestrator.registerMarketplaceInstaller(
 // side holding a half-built object.
 let ironCrewScheduler: Scheduler | null = null;
 
+// Tools, and what may be done with them.
+//
+// Registering is not granting: `crew_tools` says what this server can perform,
+// `crew_tool_grants` says who may. Booting with every built-in registered is
+// therefore safe, and an operator who disabled one keeps it disabled
+// (docs/TOOLS.md). MCP servers are mirrored in as tools so they sit behind the
+// same gate rather than in a second permission system.
+//
+// Search and browser providers are registered on the same conditional posture
+// as the notification channels: no configuration, no registration, and the
+// Settings UI reports honestly that nothing is there.
+if (process.env.SEARXNG_URL) {
+  ironCrewOrchestrator.registerSearchProvider(new SearxngProvider({ baseUrl: process.env.SEARXNG_URL }));
+}
+if (process.env.BRAVE_SEARCH_API_KEY) {
+  ironCrewOrchestrator.registerSearchProvider(new BraveProvider({ apiKey: process.env.BRAVE_SEARCH_API_KEY }));
+}
+
 const ironCrewApi = registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
@@ -436,6 +456,24 @@ const ironCrewApi = registerIronCrewRoutes(app, {
 // Registered here rather than inside registerIronCrewRoutes because a timer
 // is a property of *this process*, not of the routes: the test suite mounts
 // those routes hundreds of times and must not start a hundred loops.
+ironCrewOrchestrator.ensureBuiltinTools(ironCrewApi.companyId);
+try {
+  const mcpNames = (
+    runtimeContext as unknown as { mcpManager?: { getAllConfigs(): Array<{ name: string }> } }
+  ).mcpManager
+    ?.getAllConfigs()
+    .map((c) => c.name);
+  if (mcpNames) {
+    const synced = ironCrewOrchestrator.syncMcpTools(ironCrewApi.companyId, mcpNames);
+    if (synced.added > 0 || synced.disabled > 0) logger.info(synced, "MCP servers mirrored into the tool registry");
+  }
+} catch (err) {
+  // Never fatal: a tool registry that failed to mirror leaves every MCP
+  // server ungranted, which is the safe direction. Booting without a control
+  // plane because of it would not be.
+  logger.warn({ err }, "could not mirror MCP servers into the tool registry");
+}
+
 ironCrewScheduler = schedulerEnabled()
   ? new Scheduler({
       jobs: buildCrewJobs({

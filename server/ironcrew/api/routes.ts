@@ -55,6 +55,8 @@ import { VesselMutationError } from "../domain/vessel-store.ts";
 import { TalentMutationError, SENIORITY_LEVELS } from "../domain/talent-store.ts";
 import { RunRequestError, RUN_REQUEST_STATUSES } from "../domain/run-request-store.ts";
 import type { JobStatus } from "../scheduler/scheduler.ts";
+import { ToolMutationError } from "../domain/tool-store.ts";
+import { SearchProviderError } from "../search/search-provider.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -212,6 +214,32 @@ const createMarketplaceSchema = z.object({
 // The kind decides how the URL is parsed, so it stays fixed for the life of
 // a source — changing it would silently reinterpret the same URL.
 const updateMarketplaceSchema = createMarketplaceSchema.partial().omit({ kind: true });
+
+const grantToolSchema = z
+  .object({
+    agentId: z.string().min(1).max(200).optional(),
+    talentId: z.string().min(1).max(200).optional(),
+    projectId: z.string().min(1).max(200).optional(),
+    requiresApproval: z.boolean().nullable().optional(),
+    // Waiving the gate on a tool that reaches outside is a sentence someone
+    // wrote, not a field someone forgot — so it needs its own flag here too.
+    allowUnapprovedExternal: z.boolean().optional(),
+  })
+  .refine((v) => [v.agentId, v.talentId, v.projectId].filter(Boolean).length === 1, {
+    message: "Genau eines von agentId, talentId oder projectId angeben.",
+  });
+const toolEnabledSchema = z.object({ enabled: z.boolean() });
+const agentToolsQuerySchema = z.object({ projectId: z.string().min(1).max(200).optional() });
+const searchSchema = z.object({
+  agentId: z.string().min(1).max(200),
+  query: z.string().min(1).max(2000),
+  limit: z.number().int().min(1).max(50).optional(),
+  language: z.string().max(20).optional(),
+  safeSearch: z.enum(["off", "moderate", "strict"]).optional(),
+  kind: z.string().max(50).optional(),
+  projectId: z.string().min(1).max(200).optional(),
+  taskId: z.string().min(1).max(200).optional(),
+});
 
 const createVesselSchema = z.object({
   key: z.string().min(1).max(120),
@@ -429,6 +457,15 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof RunRequestError) {
     res.status(409).json({ error: "invalid_run_request_transition", message: err.message });
+    return true;
+  }
+  if (err instanceof ToolMutationError) {
+    res.status(409).json({ error: "invalid_tool_mutation", message: err.message });
+    return true;
+  }
+  // The request was fine; the search provider on the other end was not.
+  if (err instanceof SearchProviderError) {
+    res.status(502).json({ error: "search_unreachable", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -2178,6 +2215,120 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       res.json({ job: await scheduler.runNow(name) });
+    }),
+  );
+
+  // --- tools: what an agent may reach for ---------------------------------
+  //
+  // Registering a tool and granting it are separate endpoints because they are
+  // separate acts: the registry says what this server can perform, the grants
+  // say who may. Everything installed is visible here; nothing installed is
+  // usable until someone says so.
+
+  app.get(
+    `${base}/tools`,
+    wrap((_req, res) => {
+      const tools = orchestrator.tools.list(companyId).map((tool) => ({
+        ...tool,
+        grants: orchestrator.tools.grantsFor(tool.id),
+      }));
+      res.json({ tools });
+    }),
+  );
+
+  app.get(
+    `${base}/agents/:id/tools`,
+    wrap((req, res) => {
+      const { projectId } = agentToolsQuerySchema.parse(req.query ?? {});
+      // Answered per project because a project grant is contextual: the same
+      // agent has the customer's tools inside the customer's project and not
+      // outside it (migration 0019).
+      res.json({ tools: orchestrator.tools.listForAgent(companyId, param(req, "id"), { projectId }) });
+    }),
+  );
+
+  app.post(
+    `${base}/tools/:id/grants`,
+    wrap((req, res) => {
+      const existing = orchestrator.tools.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const input = grantToolSchema.parse(req.body ?? {});
+      const grant = orchestrator.tools.grant({ toolId: existing.id, ...input }, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_tool_changed", { toolId: existing.id });
+      res.status(201).json({ grant });
+    }),
+  );
+
+  app.delete(
+    `${base}/tool-grants/:id`,
+    wrap((req, res) => {
+      const grant = orchestrator.tools.grantById(param(req, "id"));
+      const tool = grant ? orchestrator.tools.get(grant.tool_id) : null;
+      if (!grant || !tool || tool.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.tools.revoke(grant.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_tool_changed", { toolId: tool.id });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.post(
+    `${base}/tools/:id/enabled`,
+    wrap((req, res) => {
+      const existing = orchestrator.tools.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { enabled } = toolEnabledSchema.parse(req.body ?? {});
+      const tool = orchestrator.tools.setEnabled(existing.id, enabled, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_tool_changed", { toolId: existing.id, enabled });
+      res.json({ tool });
+    }),
+  );
+
+  // --- web search ---------------------------------------------------------
+  //
+  // The search endpoint takes an agent id and goes through the tool gate, so
+  // the API cannot be the way around a grant an operator did not give.
+
+  app.get(
+    `${base}/search-providers`,
+    wrap(async (_req, res) => {
+      const kinds = orchestrator.listSearchProviderKinds();
+      const providers = await Promise.all(
+        kinds.map(async (kind) => ({ kind, registered: true, ...(await orchestrator.testSearchProvider(kind)) })),
+      );
+      res.json({ providers });
+    }),
+  );
+
+  app.post(
+    `${base}/search`,
+    wrap(async (req, res) => {
+      const input = searchSchema.parse(req.body ?? {});
+      const result = await orchestrator.searchWeb(
+        companyId,
+        input.agentId,
+        { query: input.query, limit: input.limit, language: input.language, safeSearch: input.safeSearch },
+        { kind: input.kind, projectId: input.projectId, taskId: input.taskId },
+      );
+
+      if (result.outcome === "denied") {
+        res.status(403).json({ error: "tool_denied", message: "Dieser Agent darf die Websuche nicht verwenden." });
+        return;
+      }
+      if (result.outcome === "approval_required") {
+        broadcast("crew_approval_changed", { approvalId: result.approvalId });
+        res.status(202).json({ approvalRequired: true, approvalId: result.approvalId });
+        return;
+      }
+      res.json({ provider: result.provider, results: result.results, prompt: result.prompt });
     }),
   );
 

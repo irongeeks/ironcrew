@@ -21,9 +21,10 @@ import { migration as m0015CrewMessengerPairings } from "./0015-crew-messenger-p
 import { migration as m0016CrewRunRequests } from "./0016-crew-run-requests.ts";
 import { migration as m0017CrewUsers } from "./0017-crew-users.ts";
 import { migration as m0018CrewTools } from "./0018-crew-tools.ts";
+import { migration as m0019CrewToolProjectScope } from "./0019-crew-tool-project-scope.ts";
 
 // Import future migrations here:
-// import { migration as m0019 } from "./0019-example.ts";
+// import { migration as m0020 } from "./0020-example.ts";
 
 /**
  * Entry in the registry — pairs each Migration with the on-disk filename that
@@ -55,6 +56,7 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0016-crew-run-requests.ts", migration: m0016CrewRunRequests },
   { filename: "0017-crew-users.ts", migration: m0017CrewUsers },
   { filename: "0018-crew-tools.ts", migration: m0018CrewTools },
+  { filename: "0019-crew-tool-project-scope.ts", migration: m0019CrewToolProjectScope },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

@@ -65,6 +65,12 @@ import { VesselStore, VesselMutationError } from "../domain/vessel-store.ts";
 import { TalentStore, TalentMutationError } from "../domain/talent-store.ts";
 import { RunRequestStore, type RunRequestRow } from "../domain/run-request-store.ts";
 import { ToolStore, type ToolDecision } from "../domain/tool-store.ts";
+import {
+  wrapSearchResults,
+  type SearchProvider,
+  type SearchQuery,
+  type SearchResult,
+} from "../search/search-provider.ts";
 import type { InboundMessage, MessengerChannel } from "../notify/messenger-channel.ts";
 import {
   ChangeProposalStore,
@@ -170,6 +176,7 @@ export class CompanyOrchestrator {
   readonly runRequests: RunRequestStore;
   readonly tools: ToolStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
+  private readonly searchProviders = new Map<string, SearchProvider>();
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -2269,9 +2276,11 @@ export class CompanyOrchestrator {
     companyId: string,
     agentId: string,
     toolKey: string,
-    context: { taskId?: string | null; runId?: string | null; summary?: string } = {},
+    context: { taskId?: string | null; runId?: string | null; projectId?: string | null; summary?: string } = {},
   ): { outcome: "allowed" } | { outcome: "denied" } | { outcome: "approval_required"; approvalId: string } {
-    const decision: ToolDecision = this.tools.resolve(companyId, agentId, toolKey);
+    const decision: ToolDecision = this.tools.resolve(companyId, agentId, toolKey, {
+      projectId: context.projectId ?? null,
+    });
 
     if (!decision.allowed) {
       appendAuditEvent(this.db, {
@@ -2319,6 +2328,134 @@ export class CompanyOrchestrator {
     );
     this.notifyApprovalRequested(companyId, approval);
     return { outcome: "approval_required", approvalId: approval.id };
+  }
+
+  /**
+   * The tools this server can actually perform, registered once per company.
+   *
+   * `ensure` rather than `register`: this runs at every boot, and an operator
+   * who switched a tool off company-wide must not have it switched back on by
+   * a restart. Registering a tool grants nothing — presence is not permission
+   * (domain/tool-store.ts) — so booting with all of them is safe and the
+   * grants stay the owner's decision.
+   */
+  ensureBuiltinTools(companyId: string): void {
+    const builtins = [
+      { key: "web.search", label: "Websuche", riskClass: "read" as const, description: "Sucht im Web." },
+      {
+        key: "browser.read",
+        label: "Browser (lesen)",
+        riskClass: "read" as const,
+        description: "Öffnet und liest Seiten.",
+      },
+      {
+        key: "browser.interact",
+        label: "Browser (bedienen)",
+        riskClass: "write" as const,
+        description: "Klickt und füllt Felder aus.",
+      },
+      {
+        key: "browser.external",
+        label: "Browser (absenden)",
+        riskClass: "external" as const,
+        description: "Sendet Formulare ab, lädt hoch oder herunter.",
+      },
+    ];
+    for (const tool of builtins) {
+      this.tools.ensure({ companyId, origin: "builtin", ...tool }, { actorType: "system", actorId: "boot" });
+    }
+  }
+
+  /**
+   * Mirrors the configured MCP servers into the tool registry.
+   *
+   * An MCP server is a tool source, so it belongs in the same registry behind
+   * the same gate rather than in a parallel permission system that would
+   * eventually disagree with this one. Risk class `external` by default: an
+   * MCP server reaches something outside this process, and what exactly is up
+   * to whoever installed it.
+   *
+   * Servers that disappeared from the configuration are disabled rather than
+   * deleted — deleting would silently drop the grants an operator made, so
+   * re-adding a server would come back with its access wiped and nobody would
+   * know why.
+   */
+  syncMcpTools(companyId: string, serverNames: readonly string[]): { added: number; disabled: number } {
+    let added = 0;
+    for (const name of serverNames) {
+      const key = `mcp.${name}`;
+      if (!this.tools.byKey(companyId, key)) {
+        this.tools.register(
+          { companyId, key, label: `MCP: ${name}`, riskClass: "external", origin: "mcp" },
+          { actorType: "system", actorId: "boot" },
+        );
+        added++;
+      }
+    }
+
+    const configured = new Set(serverNames.map((n) => `mcp.${n}`));
+    let disabled = 0;
+    for (const tool of this.tools.list(companyId)) {
+      if (tool.origin === "mcp" && tool.enabled === 1 && !configured.has(tool.key)) {
+        this.tools.setEnabled(tool.id, false, { actorType: "system", actorId: "boot" });
+        disabled++;
+      }
+    }
+    return { added, disabled };
+  }
+
+  registerSearchProvider(provider: SearchProvider): void {
+    this.searchProviders.set(provider.kind, provider);
+  }
+
+  listSearchProviderKinds(): string[] {
+    return [...this.searchProviders.keys()];
+  }
+
+  async testSearchProvider(kind: string): Promise<{ ok: boolean; message: string }> {
+    const provider = this.searchProviders.get(kind);
+    if (!provider) return { ok: false, message: `Kein "${kind}"-Suchanbieter registriert.` };
+    return provider.testConnection();
+  }
+
+  /**
+   * A web search on an agent's behalf, through the tool gate.
+   *
+   * The gate is checked here rather than left to the caller, because a caller
+   * that could search without asking is a caller for whom the gate does not
+   * exist. The result comes back both raw — for a UI to render as links — and
+   * fenced, which is the only form that may reach a prompt: these sentences
+   * were written by strangers.
+   */
+  async searchWeb(
+    companyId: string,
+    agentId: string,
+    query: SearchQuery,
+    opts: { kind?: string; projectId?: string | null; taskId?: string | null; runId?: string | null } = {},
+  ): Promise<
+    | { outcome: "denied" }
+    | { outcome: "approval_required"; approvalId: string }
+    | { outcome: "ok"; provider: string; results: SearchResult[]; prompt: string }
+  > {
+    const kind = opts.kind ?? this.listSearchProviderKinds()[0];
+    const provider = kind ? this.searchProviders.get(kind) : undefined;
+    if (!provider) throw new Error(`Kein "${kind ?? "—"}"-Suchanbieter registriert.`);
+
+    const gate = this.requestToolUse(companyId, agentId, "web.search", {
+      taskId: opts.taskId,
+      runId: opts.runId,
+      projectId: opts.projectId,
+      summary: `Websuche: ${sanitiseLine(query.query, 120)}`,
+    });
+    if (gate.outcome !== "allowed") return gate;
+
+    const results = await provider.search(query);
+    return {
+      outcome: "ok",
+      provider: provider.kind,
+      results,
+      prompt: wrapSearchResults(results, { provider: provider.kind, query: query.query }),
+    };
   }
 
   // --- the run queue: intent to run, kept until it happened ----------------

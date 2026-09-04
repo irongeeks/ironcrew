@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
 import { createTestDb, seedAgent, seedCompany } from "./test-db.ts";
 import { ToolMutationError, ToolStore } from "./tool-store.ts";
+import { newId } from "./ids.ts";
 import { verifyAuditChain } from "./audit.ts";
 
 let db: DatabaseSync;
@@ -219,4 +220,111 @@ it("audits the lifecycle and keeps the chain valid", () => {
 
   expect(actions).toEqual(expect.arrayContaining(["tool.registered", "tool.granted", "tool.revoked", "tool.disabled"]));
   expect(verifyAuditChain(db, companyId).valid).toBe(true);
+});
+
+describe("project scope: a tool that belongs to one customer's project", () => {
+  let projectSeq = 0;
+  function project(title = "Kundenprojekt"): string {
+    const id = newId("prj");
+    db.prepare("INSERT INTO crew_projects (id, company_id, key, title) VALUES (?,?,?,?)").run(
+      id,
+      companyId,
+      `p${projectSeq++}`,
+      title,
+    );
+    return id;
+  }
+
+  it("allows an agent working inside that project", () => {
+    const tool = register({ key: "mcp.jira", origin: "mcp" });
+    const projectId = project();
+    tools.grant({ toolId: tool.id, projectId });
+
+    const decision = tools.resolve(companyId, agentId, "mcp.jira", { projectId });
+    expect(decision.allowed).toBe(true);
+    expect(decision.allowed && decision.via).toBe("project");
+  });
+
+  it("denies the same agent outside that project", () => {
+    const tool = register({ key: "mcp.jira", origin: "mcp" });
+    const projectId = project();
+    tools.grant({ toolId: tool.id, projectId });
+
+    // The whole point for an MSP: the technician has the customer's tools
+    // inside the customer's project and nowhere else.
+    expect(tools.resolve(companyId, agentId, "mcp.jira")).toEqual({ allowed: false, reason: "no_grant" });
+    expect(tools.resolve(companyId, agentId, "mcp.jira", { projectId: project("Anderes") })).toEqual({
+      allowed: false,
+      reason: "no_grant",
+    });
+  });
+
+  it("follows the precedence agent > project > talent", () => {
+    const tool = register({ key: "mcp.jira", riskClass: "external", origin: "mcp" });
+    const projectId = project();
+    tools.grant({ toolId: tool.id, talentId: talentOf(agentId), requiresApproval: true });
+    tools.grant({ toolId: tool.id, projectId, requiresApproval: false, allowUnapprovedExternal: true });
+
+    // Project beats talent: a statement about this context beats a standing
+    // statement about the role.
+    expect(tools.resolve(companyId, agentId, "mcp.jira", { projectId })).toMatchObject({
+      via: "project",
+      requiresApproval: false,
+    });
+
+    tools.grant({ toolId: tool.id, agentId, requiresApproval: true });
+    // And an agent grant beats both.
+    expect(tools.resolve(companyId, agentId, "mcp.jira", { projectId })).toMatchObject({
+      via: "agent",
+      requiresApproval: true,
+    });
+  });
+
+  it("falls back to the talent grant outside the project", () => {
+    const tool = register({ key: "mcp.jira", origin: "mcp" });
+    tools.grant({ toolId: tool.id, talentId: talentOf(agentId) });
+    tools.grant({ toolId: tool.id, projectId: project() });
+
+    expect(tools.resolve(companyId, agentId, "mcp.jira")).toMatchObject({ via: "talent" });
+  });
+
+  it("refuses a grant naming more than one scope", () => {
+    const tool = register();
+    const projectId = project();
+    expect(() => tools.grant({ toolId: tool.id, agentId, projectId })).toThrow(ToolMutationError);
+    expect(() => tools.grant({ toolId: tool.id, talentId: talentOf(agentId), projectId })).toThrow(ToolMutationError);
+  });
+
+  it("updates rather than duplicating a project grant", () => {
+    const tool = register({ key: "mcp.jira", origin: "mcp" });
+    const projectId = project();
+    tools.grant({ toolId: tool.id, projectId });
+    tools.grant({ toolId: tool.id, projectId, requiresApproval: true });
+
+    expect(tools.grantsFor(tool.id)).toHaveLength(1);
+    expect(tools.resolve(companyId, agentId, "mcp.jira", { projectId })).toMatchObject({ requiresApproval: true });
+  });
+
+  it("takes the grant with it when the project is deleted", () => {
+    const tool = register({ key: "mcp.jira", origin: "mcp" });
+    const projectId = project();
+    tools.grant({ toolId: tool.id, projectId });
+
+    db.prepare("DELETE FROM crew_projects WHERE id = ?").run(projectId);
+    expect(tools.grantsFor(tool.id)).toHaveLength(0);
+  });
+
+  it("lists a project's tools for that context only", () => {
+    const scoped = register({ key: "mcp.jira", origin: "mcp" });
+    const always = register({ key: "web.search" });
+    const projectId = project();
+    tools.grant({ toolId: scoped.id, projectId });
+    tools.grant({ toolId: always.id, talentId: talentOf(agentId) });
+
+    expect(tools.listForAgent(companyId, agentId).map((r) => r.tool.key)).toEqual(["web.search"]);
+    expect(tools.listForAgent(companyId, agentId, { projectId }).map((r) => r.tool.key).sort()).toEqual([
+      "mcp.jira",
+      "web.search",
+    ]);
+  });
 });

@@ -66,6 +66,7 @@ export interface ToolGrantRow {
   tool_id: string;
   agent_id: string | null;
   talent_id: string | null;
+  project_id: string | null;
   requires_approval: number | null;
   granted_by: string;
   created_at: number;
@@ -85,11 +86,11 @@ export class ToolMutationError extends Error {
  * caller's: no reason unlocks anything.
  */
 export type ToolDecision =
-  | { allowed: true; tool: ToolRow; requiresApproval: boolean; via: "agent" | "talent" }
+  | { allowed: true; tool: ToolRow; requiresApproval: boolean; via: "agent" | "project" | "talent" }
   | { allowed: false; reason: "unknown_tool" | "disabled" | "no_grant" | "unknown_agent" };
 
 const TOOL_COLUMNS = `id, company_id, key, label, description, risk_class, origin, enabled, created_at, updated_at`;
-const GRANT_COLUMNS = `id, tool_id, agent_id, talent_id, requires_approval, granted_by, created_at`;
+const GRANT_COLUMNS = `id, tool_id, agent_id, talent_id, project_id, requires_approval, granted_by, created_at`;
 
 /** Risk classes that need an approval unless a grant deliberately waives it. */
 function defaultRequiresApproval(risk: ToolRiskClass): boolean {
@@ -210,6 +211,7 @@ export class ToolStore {
       toolId: string;
       agentId?: string | null;
       talentId?: string | null;
+      projectId?: string | null;
       requiresApproval?: boolean | null;
       allowUnapprovedExternal?: boolean;
     },
@@ -220,8 +222,12 @@ export class ToolStore {
 
     const agentId = input.agentId ?? null;
     const talentId = input.talentId ?? null;
-    if ((agentId === null) === (talentId === null)) {
-      throw new ToolMutationError("Eine Freigabe gilt entweder einem Agenten oder einem Talent, nicht beidem.");
+    const projectId = input.projectId ?? null;
+    const named = [agentId, talentId, projectId].filter((v) => v !== null).length;
+    if (named !== 1) {
+      throw new ToolMutationError(
+        "Eine Freigabe gilt genau einem Agenten, einem Talent oder einem Projekt — nicht mehreren und nicht keinem.",
+      );
     }
 
     if (
@@ -234,17 +240,13 @@ export class ToolStore {
       );
     }
 
-    const existing = agentId
-      ? oneRow<ToolGrantRow>(
-          this.db.prepare(`SELECT ${GRANT_COLUMNS} FROM crew_tool_grants WHERE tool_id = ? AND agent_id = ?`),
-          input.toolId,
-          agentId,
-        )
-      : oneRow<ToolGrantRow>(
-          this.db.prepare(`SELECT ${GRANT_COLUMNS} FROM crew_tool_grants WHERE tool_id = ? AND talent_id = ?`),
-          input.toolId,
-          talentId,
-        );
+    const scopeColumn = agentId ? "agent_id" : projectId ? "project_id" : "talent_id";
+    const scopeId = agentId ?? projectId ?? talentId;
+    const existing = oneRow<ToolGrantRow>(
+      this.db.prepare(`SELECT ${GRANT_COLUMNS} FROM crew_tool_grants WHERE tool_id = ? AND ${scopeColumn} = ?`),
+      input.toolId,
+      scopeId,
+    );
 
     const requiresApproval =
       input.requiresApproval === undefined || input.requiresApproval === null ? null : input.requiresApproval ? 1 : 0;
@@ -253,19 +255,19 @@ export class ToolStore {
       this.db
         .prepare("UPDATE crew_tool_grants SET requires_approval = ?, granted_by = ? WHERE id = ?")
         .run(requiresApproval, opts.actorId ?? "ceo", existing.id);
-      this.auditGrant(tool, existing.id, agentId, talentId, "tool.grant_updated", opts);
+      this.auditGrant(tool, existing.id, agentId, talentId, projectId, "tool.grant_updated", opts);
       return this.grantById(existing.id)!;
     }
 
     const id = newId("tgrant");
     this.db
       .prepare(
-        `INSERT INTO crew_tool_grants (id, tool_id, agent_id, talent_id, requires_approval, granted_by)
-         VALUES (?,?,?,?,?,?)`,
+        `INSERT INTO crew_tool_grants (id, tool_id, agent_id, talent_id, project_id, requires_approval, granted_by)
+         VALUES (?,?,?,?,?,?,?)`,
       )
-      .run(id, input.toolId, agentId, talentId, requiresApproval, opts.actorId ?? "ceo");
+      .run(id, input.toolId, agentId, talentId, projectId, requiresApproval, opts.actorId ?? "ceo");
 
-    this.auditGrant(tool, id, agentId, talentId, "tool.granted", opts);
+    this.auditGrant(tool, id, agentId, talentId, projectId, "tool.granted", opts);
     return this.grantById(id)!;
   }
 
@@ -274,6 +276,7 @@ export class ToolStore {
     grantId: string,
     agentId: string | null,
     talentId: string | null,
+    projectId: string | null,
     action: string,
     opts: { actorType?: ActorType; actorId?: string },
   ): void {
@@ -284,7 +287,7 @@ export class ToolStore {
       action,
       entityType: "tool_grant",
       entityId: grantId,
-      details: { toolKey: tool.key, riskClass: tool.risk_class, agentId, talentId },
+      details: { toolKey: tool.key, riskClass: tool.risk_class, agentId, talentId, projectId },
     });
   }
 
@@ -306,7 +309,7 @@ export class ToolStore {
 
     this.db.prepare("DELETE FROM crew_tool_grants WHERE id = ?").run(grantId);
     if (tool) {
-      this.auditGrant(tool, grantId, grant.agent_id, grant.talent_id, "tool.revoked", opts);
+      this.auditGrant(tool, grantId, grant.agent_id, grant.talent_id, grant.project_id, "tool.revoked", opts);
     }
     return true;
   }
@@ -317,7 +320,12 @@ export class ToolStore {
    * Fails closed at every step. An agent grant beats a talent grant because
    * it is the more specific statement about this particular post.
    */
-  resolve(companyId: string, agentId: string, toolKey: string): ToolDecision {
+  resolve(
+    companyId: string,
+    agentId: string,
+    toolKey: string,
+    context: { projectId?: string | null } = {},
+  ): ToolDecision {
     const tool = this.byKey(companyId, toolKey);
     if (!tool) return { allowed: false, reason: "unknown_tool" };
     if (tool.enabled !== 1) return { allowed: false, reason: "disabled" };
@@ -327,21 +335,26 @@ export class ToolStore {
       .get(agentId, companyId) as { id: string; talent_id: string | null } | undefined;
     if (!agent) return { allowed: false, reason: "unknown_agent" };
 
-    const direct = oneRow<ToolGrantRow>(
-      this.db.prepare(`SELECT ${GRANT_COLUMNS} FROM crew_tool_grants WHERE tool_id = ? AND agent_id = ?`),
-      tool.id,
-      agent.id,
-    );
-    const viaTalent = agent.talent_id
-      ? oneRow<ToolGrantRow>(
-          this.db.prepare(`SELECT ${GRANT_COLUMNS} FROM crew_tool_grants WHERE tool_id = ? AND talent_id = ?`),
-          tool.id,
-          agent.talent_id,
-        )
-      : null;
+    const byScope = (column: "agent_id" | "talent_id" | "project_id", value: string | null): ToolGrantRow | null =>
+      value === null
+        ? null
+        : oneRow<ToolGrantRow>(
+            this.db.prepare(`SELECT ${GRANT_COLUMNS} FROM crew_tool_grants WHERE tool_id = ? AND ${column} = ?`),
+            tool.id,
+            value,
+          );
 
-    const grant = direct ?? viaTalent;
-    if (!grant) return { allowed: false, reason: "no_grant" };
+    // Most specific first: this post, then this context, then the role in
+    // general. The precedence is written down once, in migration 0019's
+    // header; this is the code that follows it.
+    const candidates: Array<{ via: "agent" | "project" | "talent"; grant: ToolGrantRow | null }> = [
+      { via: "agent", grant: byScope("agent_id", agent.id) },
+      { via: "project", grant: byScope("project_id", context.projectId ?? null) },
+      { via: "talent", grant: byScope("talent_id", agent.talent_id) },
+    ];
+
+    const match = candidates.find((c) => c.grant !== null);
+    if (!match?.grant) return { allowed: false, reason: "no_grant" };
 
     return {
       allowed: true,
@@ -349,15 +362,21 @@ export class ToolStore {
       // NULL means "whatever the risk class implies", which is what keeps an
       // external tool gated by omission rather than by remembering.
       requiresApproval:
-        grant.requires_approval === null ? defaultRequiresApproval(tool.risk_class) : grant.requires_approval === 1,
-      via: direct ? "agent" : "talent",
+        match.grant.requires_approval === null
+          ? defaultRequiresApproval(tool.risk_class)
+          : match.grant.requires_approval === 1,
+      via: match.via,
     };
   }
 
   /** Every tool this agent may use, for showing an operator what a post can do. */
-  listForAgent(companyId: string, agentId: string): Array<{ tool: ToolRow; requiresApproval: boolean; via: string }> {
+  listForAgent(
+    companyId: string,
+    agentId: string,
+    context: { projectId?: string | null } = {},
+  ): Array<{ tool: ToolRow; requiresApproval: boolean; via: string }> {
     return this.list(companyId)
-      .map((tool) => ({ tool, decision: this.resolve(companyId, agentId, tool.key) }))
+      .map((tool) => ({ tool, decision: this.resolve(companyId, agentId, tool.key, context) }))
       .filter(
         (row): row is { tool: ToolRow; decision: Extract<ToolDecision, { allowed: true }> } => row.decision.allowed,
       )

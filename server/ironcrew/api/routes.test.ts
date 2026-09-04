@@ -11,6 +11,7 @@ import { CompanyOrchestrator } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts";
 import { UNTRUSTED_OPEN } from "../policy/untrusted-content.ts";
+import { SearchProviderError } from "../search/search-provider.ts";
 import type { ProposedFile } from "../domain/change-proposal-store.ts";
 
 let db: DatabaseSync;
@@ -2286,5 +2287,193 @@ describe("scheduler status over HTTP", () => {
     expect(runNow).toHaveBeenCalledWith("run-queue");
 
     await request(scheduled).post("/api/crew/scheduler/erfunden/run").expect(404);
+  });
+});
+
+describe("tools over HTTP (presence is not permission)", () => {
+  function seedTools() {
+    orchestrator.ensureBuiltinTools(companyId);
+  }
+
+  function agentId(): string {
+    return orchestrator.listAgents(companyId).find((a) => !a.is_executive_assistant)!.id;
+  }
+
+  it("lists what this server can perform, with who may use each", async () => {
+    seedTools();
+    const res = await request(app).get("/api/crew/tools").expect(200);
+
+    expect(res.body.tools.map((t: { key: string }) => t.key).sort()).toEqual([
+      "browser.external",
+      "browser.interact",
+      "browser.read",
+      "web.search",
+    ]);
+    // Registered, granted to nobody.
+    expect(res.body.tools.every((t: { grants: unknown[] }) => t.grants.length === 0)).toBe(true);
+  });
+
+  it("grants a tool to an agent", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools.find(
+      (t: { key: string }) => t.key === "web.search",
+    );
+
+    const res = await request(app).post(`/api/crew/tools/${tool.id}/grants`).send({ agentId: agentId() }).expect(201);
+    expect(res.body.grant.agent_id).toBe(agentId());
+    expect(broadcasts.map((b) => b.type)).toContain("crew_tool_changed");
+  });
+
+  it("refuses a grant that names more than one scope", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools[0];
+    await request(app)
+      .post(`/api/crew/tools/${tool.id}/grants`)
+      .send({ agentId: agentId(), projectId: "prj_1" })
+      .expect(400);
+    await request(app).post(`/api/crew/tools/${tool.id}/grants`).send({}).expect(400);
+  });
+
+  it("refuses to waive the gate on an external tool by accident", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools.find(
+      (t: { key: string }) => t.key === "browser.external",
+    );
+
+    const refused = await request(app)
+      .post(`/api/crew/tools/${tool.id}/grants`)
+      .send({ agentId: agentId(), requiresApproval: false })
+      .expect(409);
+    expect(refused.body.error).toBe("invalid_tool_mutation");
+
+    await request(app)
+      .post(`/api/crew/tools/${tool.id}/grants`)
+      .send({ agentId: agentId(), requiresApproval: false, allowUnapprovedExternal: true })
+      .expect(201);
+  });
+
+  it("revokes a grant", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools[0];
+    const grant = (await request(app).post(`/api/crew/tools/${tool.id}/grants`).send({ agentId: agentId() })).body
+      .grant;
+
+    await request(app).delete(`/api/crew/tool-grants/${grant.id}`).expect(200);
+    const after = (await request(app).get("/api/crew/tools")).body.tools.find(
+      (t: { id: string }) => t.id === tool.id,
+    );
+    expect(after.grants).toHaveLength(0);
+  });
+
+  it("switches a tool off company-wide", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools[0];
+    const res = await request(app).post(`/api/crew/tools/${tool.id}/enabled`).send({ enabled: false }).expect(200);
+    expect(res.body.tool.enabled).toBe(0);
+  });
+
+  it("answers an agent's tools per project, because a project grant is contextual", async () => {
+    seedTools();
+    const tool = (await request(app).get("/api/crew/tools")).body.tools.find(
+      (t: { key: string }) => t.key === "web.search",
+    );
+    const project = orchestrator.projects.create({ companyId, key: "kunde", title: "Kundenprojekt" });
+    await request(app).post(`/api/crew/tools/${tool.id}/grants`).send({ projectId: project.id }).expect(201);
+
+    const outside = await request(app).get(`/api/crew/agents/${agentId()}/tools`).expect(200);
+    expect(outside.body.tools).toHaveLength(0);
+
+    const inside = await request(app)
+      .get(`/api/crew/agents/${agentId()}/tools?projectId=${project.id}`)
+      .expect(200);
+    expect(inside.body.tools.map((t: { tool: { key: string } }) => t.tool.key)).toEqual(["web.search"]);
+  });
+
+  it("404s for a tool or grant that does not exist", async () => {
+    await request(app).post("/api/crew/tools/tool_nope/grants").send({ agentId: agentId() }).expect(404);
+    await request(app).post("/api/crew/tools/tool_nope/enabled").send({ enabled: true }).expect(404);
+    await request(app).delete("/api/crew/tool-grants/tgrant_nope").expect(404);
+  });
+});
+
+describe("web search over HTTP", () => {
+  const stubProvider = {
+    kind: "stub",
+    search: async () => [
+      { title: "Treffer", url: "https://example.com/a", snippet: "Inhalt", rank: 1, publishedAt: null },
+    ],
+    testConnection: async () => ({ ok: true, message: "bereit" }),
+  };
+
+  function agentId(): string {
+    return orchestrator.listAgents(companyId).find((a) => !a.is_executive_assistant)!.id;
+  }
+
+  async function grantSearch() {
+    orchestrator.ensureBuiltinTools(companyId);
+    const tool = orchestrator.tools.byKey(companyId, "web.search")!;
+    orchestrator.tools.grant({ toolId: tool.id, agentId: agentId() });
+  }
+
+  it("reports which providers are configured", async () => {
+    orchestrator.registerSearchProvider(stubProvider as never);
+    const res = await request(app).get("/api/crew/search-providers").expect(200);
+    expect(res.body.providers).toEqual([{ kind: "stub", registered: true, ok: true, message: "bereit" }]);
+  });
+
+  it("reports an empty list rather than an error when none is configured", async () => {
+    expect((await request(app).get("/api/crew/search-providers")).body.providers).toEqual([]);
+  });
+
+  it("refuses a search for an agent with no grant", async () => {
+    orchestrator.registerSearchProvider(stubProvider as never);
+    orchestrator.ensureBuiltinTools(companyId);
+
+    // The API must not be the way around a grant an operator did not give.
+    const res = await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "x" }).expect(403);
+    expect(res.body.error).toBe("tool_denied");
+  });
+
+  it("returns results and a fenced block once granted", async () => {
+    orchestrator.registerSearchProvider(stubProvider as never);
+    await grantSearch();
+
+    const res = await request(app)
+      .post("/api/crew/search")
+      .send({ agentId: agentId(), query: "deployment" })
+      .expect(200);
+
+    expect(res.body.results).toHaveLength(1);
+    expect(res.body.prompt).toContain("EXTERNAL_UNTRUSTED_CONTENT");
+  });
+
+  it("answers 202 with the approval when an operator gated the search", async () => {
+    orchestrator.registerSearchProvider(stubProvider as never);
+    orchestrator.ensureBuiltinTools(companyId);
+    const tool = orchestrator.tools.byKey(companyId, "web.search")!;
+    orchestrator.tools.grant({ toolId: tool.id, agentId: agentId(), requiresApproval: true });
+
+    const res = await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "x" }).expect(202);
+    expect(res.body.approvalRequired).toBe(true);
+    expect(res.body.approvalId).toBeTruthy();
+  });
+
+  it("reports a provider that refused as a bad gateway, not a bad request", async () => {
+    await grantSearch();
+    orchestrator.registerSearchProvider({
+      kind: "stub",
+      search: async () => {
+        throw new SearchProviderError("SearXNG: HTTP 502");
+      },
+      testConnection: async () => ({ ok: false, message: "" }),
+    } as never);
+
+    const res = await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "x" }).expect(502);
+    expect(res.body.error).toBe("search_unreachable");
+  });
+
+  it("validates the request body", async () => {
+    await request(app).post("/api/crew/search").send({ query: "x" }).expect(400);
+    await request(app).post("/api/crew/search").send({ agentId: agentId(), query: "" }).expect(400);
   });
 });
