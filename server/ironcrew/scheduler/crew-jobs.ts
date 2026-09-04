@@ -44,12 +44,24 @@ export const DEFAULT_INTERVALS: CrewJobIntervals = {
   sweepMs: 300_000,
 };
 
+/**
+ * How long a finished run request is kept before the sweep drops it.
+ *
+ * Long enough that "why did nothing happen last week?" is still answerable
+ * from the queue itself, short enough that the table does not become an
+ * append-only log of every run the company ever made. The audit chain keeps
+ * the decisions; this table only keeps the mechanics.
+ */
+export const DEFAULT_QUEUE_RETENTION_MS = 30 * 24 * 60 * 60_000;
+
 export interface CrewJobOptions {
   orchestrator: CompanyOrchestrator;
   companyId: string;
   intervals?: Partial<CrewJobIntervals>;
   /** How many run requests one drain tick may start. */
   drainLimit?: number;
+  /** How long finished run requests are kept. Defaults to 30 days. */
+  queueRetentionMs?: number;
   /** Broadcast hook, so the Command Center sees background work live. */
   broadcast?: (type: string, payload: unknown) => void;
 }
@@ -114,7 +126,14 @@ export function buildCrewJobs(opts: CrewJobOptions): ScheduledJob[] {
       async run() {
         const locks = orchestrator.agentLocks.sweepExpired(companyId);
         const requests = orchestrator.runRequests.sweepExpired(companyId);
-        if (locks > 0 || requests > 0) log.info({ locks, requests }, "expired leases swept");
+        // Finished requests are history, and history that nothing ever drops
+        // is a table that grows for the life of the installation. Pruned here
+        // rather than on a separate timer because both halves answer the same
+        // question — "what in the queue is no longer live?"
+        const pruned = orchestrator.runRequests.prune(companyId, opts.queueRetentionMs ?? DEFAULT_QUEUE_RETENTION_MS);
+        if (locks > 0 || requests > 0 || pruned > 0) {
+          log.info({ locks, requests, pruned }, "queue housekeeping");
+        }
       },
     },
   ];

@@ -351,16 +351,6 @@ export class RunRequestStore {
   }
 
   /**
-   * Records a failed attempt: back to `queued` with backoff, or `dead` when
-   * the attempts are spent.
-   *
-   * `attempts` was already incremented by the claim, so it is the number of
-   * tries made — comparing it to `max_attempts` here needs no off-by-one.
-   *
-   * Refused on a finished request for the same reason `complete` is: a late
-   * failure from a displaced drain must not reopen something that was closed.
-   */
-  /**
    * Puts a claimed request back without counting the claim as an attempt.
    *
    * This is the "could not start" case, and it is deliberately not `fail`.
@@ -402,6 +392,16 @@ export class RunRequestStore {
     return this.get(id);
   }
 
+  /**
+   * Records a failed attempt: back to `queued` with backoff, or `dead` when
+   * the attempts are spent.
+   *
+   * `attempts` was already incremented by the claim, so it is the number of
+   * tries made — comparing it to `max_attempts` here needs no off-by-one.
+   *
+   * Refused on a finished request for the same reason `complete` is: a late
+   * failure from a displaced drain must not reopen something that was closed.
+   */
   fail(id: string, error: string, opts: { now?: number } = {}): RunRequestRow | null {
     const now = opts.now ?? Date.now();
     const request = this.get(id);

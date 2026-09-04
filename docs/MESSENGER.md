@@ -77,12 +77,12 @@ on its own.
 
 ## `owner` vs `guest` — the column that is authority, not a label
 
-| role    | status   | what an inbound message does                             |
-| ------- | -------- | -------------------------------------------------------- |
-| —       | pending  | a pairing prompt, and nothing else                       |
-| —       | blocked  | nothing at all, not even a reply                         |
-| `guest` | active   | an `inbox` task, quoted as third-party content           |
-| `owner` | active   | `handleCeoMessage()` — speaks with the CEO's authority   |
+| role    | status  | what an inbound message does                           |
+| ------- | ------- | ------------------------------------------------------ |
+| —       | pending | a pairing prompt, and nothing else                     |
+| —       | blocked | nothing at all, not even a reply                       |
+| `guest` | active  | an `inbox` task, quoted as third-party content         |
+| `owner` | active  | `handleCeoMessage()` — speaks with the CEO's authority |
 
 **`owner`** reaches `handleCeoMessage()`, which is the whole point: that is
 the owner talking to their own EA. That path treats its text as the owner
@@ -113,11 +113,11 @@ audited as its own action depending on which was granted:
 Three different acts, three endpoints, three audit actions — because an
 operator reading the log has to be able to tell them apart.
 
-| action    | resulting status | resulting role | audited as                     |
-| --------- | ---------------- | -------------- | ------------------------------ |
-| `block`   | `blocked`        | `guest`        | `messenger.pairing_blocked`    |
-| `revoke`  | `pending`        | `guest`        | `messenger.pairing_revoked`    |
-| `unblock` | `pending`        | `guest`        | `messenger.pairing_revoked`    |
+| action    | resulting status | resulting role | audited as                  |
+| --------- | ---------------- | -------------- | --------------------------- |
+| `block`   | `blocked`        | `guest`        | `messenger.pairing_blocked` |
+| `revoke`  | `pending`        | `guest`        | `messenger.pairing_revoked` |
+| `unblock` | `pending`        | `guest`        | `messenger.pairing_revoked` |
 
 **`block`** refuses a sender now and in future. A blocked sender gets nothing
 at all — not even the courtesy of knowing they are blocked, which would only
@@ -143,12 +143,12 @@ about the request.
 Inbound and outbound are configured **separately**, even where they share a
 provider:
 
-| variable                     | direction | what it does                                 |
-| ---------------------------- | --------- | -------------------------------------------- |
-| `TELEGRAM_BOT_TOKEN`         | inbound   | registers the Telegram messenger channel     |
-| `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | outbound | the existing notification channel |
-| `DISCORD_BOT_TOKEN` + `DISCORD_INBOUND_CHANNEL_ID` | inbound | registers the Discord messenger channel |
-| `DISCORD_WEBHOOK_URL`        | outbound  | the existing notification channel            |
+| variable                                           | direction | what it does                             |
+| -------------------------------------------------- | --------- | ---------------------------------------- |
+| `TELEGRAM_BOT_TOKEN`                               | inbound   | registers the Telegram messenger channel |
+| `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`          | outbound  | the existing notification channel        |
+| `DISCORD_BOT_TOKEN` + `DISCORD_INBOUND_CHANNEL_ID` | inbound   | registers the Discord messenger channel  |
+| `DISCORD_WEBHOOK_URL`                              | outbound  | the existing notification channel        |
 
 The Telegram bot token is the same value in both directions, but the outbound
 channel additionally needs `TELEGRAM_CHAT_ID` — it has one fixed destination,
@@ -170,14 +170,19 @@ acted on until the owner has paired them.
 
 ## Polling — pulled, never pushed
 
-There is **no background scheduler**. Messages arrive when something calls:
+Nothing is pushed at this channel. Messages arrive only when something calls:
 
 ```http
 POST /api/crew/messenger-channels/:kind/poll
 ```
 
-the same way mailboxes are polled by `POST /api/crew/mailboxes/poll-due`
-rather than by a loop nobody can see. The response says what happened:
+the same way mailboxes are polled by `POST /api/crew/mailboxes/poll-due`. The
+channel itself has no timer — the caller is a person, a script, or the
+scheduler's `messengers` job, which polls every 20 seconds when the server
+runs as a service ([`SERVICE.md`](./SERVICE.md)). Keeping the timer outside the
+channel is why the channel is fully testable through an injected `fetch`, and
+why `IRONCREW_SCHEDULER=off` stops all polling with one switch. The response
+says what happened:
 
 ```json
 { "received": 4, "handled": 1, "pairingPrompts": 1, "taskIds": ["tsk_…"] }
@@ -251,7 +256,7 @@ message, and the caller decides by `externalId` whether it has already acted.
 
 ## Inbound text is untrusted input
 
-The identity check decides *whether* a message is acted on. The sanitising
+The identity check decides _whether_ a message is acted on. The sanitising
 decides what the text is allowed to be while that happens.
 
 - **Control tokens are stripped at the channel boundary**, before the message

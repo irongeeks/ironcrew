@@ -152,3 +152,44 @@ describe("configuration from the environment", () => {
     expect(intervalsFromEnv({ IRONCREW_SCHEDULER_MAIL_SECONDS: "90" })).toEqual({ mailboxMs: 90_000 });
   });
 });
+
+describe("sweep also keeps the queue table from growing forever", () => {
+  it("drops a finished request older than the retention window", async () => {
+    orc.handleCeoMessage(companyId, "Bitte dokumentiere das Deployment-Verfahren.");
+    await job("run-queue").run();
+    const finished = orc.runRequests.list(companyId)[0];
+    expect(finished.status).toBe("done");
+
+    // Age it past the window rather than waiting 30 days.
+    db.prepare("UPDATE crew_run_requests SET finished_at = ? WHERE id = ?").run(
+      Date.now() - 31 * 24 * 60 * 60_000,
+      finished.id,
+    );
+
+    await job("sweep").run();
+    expect(orc.runRequests.get(finished.id)).toBeNull();
+  });
+
+  it("keeps a request that is still live, however old", async () => {
+    orc.handleCeoMessage(companyId, "Bitte dokumentiere das Deployment-Verfahren.");
+    const queued = orc.runRequests.list(companyId)[0];
+    db.prepare("UPDATE crew_run_requests SET created_at = ? WHERE id = ?").run(
+      Date.now() - 365 * 24 * 60 * 60_000,
+      queued.id,
+    );
+
+    // Unfinished work is not history, whatever its age.
+    await job("sweep").run();
+    expect(orc.runRequests.get(queued.id)).not.toBeNull();
+  });
+
+  it("honours a shorter retention when one is configured", async () => {
+    orc.handleCeoMessage(companyId, "Bitte dokumentiere das Deployment-Verfahren.");
+    await job("run-queue").run();
+    const finished = orc.runRequests.list(companyId)[0];
+    db.prepare("UPDATE crew_run_requests SET finished_at = ? WHERE id = ?").run(Date.now() - 5000, finished.id);
+
+    await job("sweep", { orchestrator: orc, companyId, queueRetentionMs: 1000 }).run();
+    expect(orc.runRequests.get(finished.id)).toBeNull();
+  });
+});

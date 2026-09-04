@@ -382,6 +382,60 @@ chain. The contents are always one request away
 (`GET /api/crew/change-proposals/:id`), and the approval summary deliberately
 lists every path so the size of what is being approved cannot be hidden.
 
+### T-16 — Background execution with no human present — **High**
+
+Every other finding in this document assumes someone was there. Until the
+scheduler existed, they were: a run happened because a person pressed a
+button, so a mis-scoped task, a runaway loop or an injected instruction had a
+witness within seconds.
+
+The scheduler removes the witness. It drains the run queue every fifteen
+seconds, polls mailboxes and chat channels on their own timers, and does so at
+three in the morning as readily as at noon. **Anything that reaches the queue
+runs, unattended.** That is the entire point of running IronCrew as a service,
+and it means the question is no longer "who authorised this run" but "what can
+reach the queue at all".
+
+**Mitigation.** Four layers, each answering a different half of the question.
+
+1. **Only delegated work is enqueued.** `enqueueRun()` has exactly two
+   callers: the EA delegating a request the owner made, and the owner asking
+   for a revision. External ingresses do not enqueue. Incoming mail (T-10) and
+   a guest's chat message (T-13) become `inbox` tasks, which never enter the
+   claimable queue — so a stranger's text cannot start a run while nobody is
+   watching, no matter how it is phrased. The queue drains what the owner
+   asked for; the inbox holds what the world sent.
+2. **Sensitive work is still gated by an approval.** Triage classifies before
+   anything is queued, and a sensitive or high-risk request becomes an
+   `approval_required` task rather than a run request. The gate is unchanged
+   by the scheduler: no approval, no run, whether or not a person is at the
+   console. Elevation is likewise unreachable without a `SandboxGrant` minted
+   from an approved request and capped at four hours (T-01).
+3. **The vessel caps time and concurrency.** An unattended run is bounded by
+   `timeout_ms` — enforced as an `AbortSignal` the runtimes honour, with a
+   ten-minute fallback so a run is never unbounded in time — and by
+   `max_concurrency`, so a night of queued work cannot fan out into fifty
+   simultaneous CLI sessions against one account
+   (`docs/VESSELS_TALENTS.md`).
+4. **The dead letter stops an infinite retry loop.** A request spends an
+   attempt only when a run actually happened; enough failures and it becomes
+   `dead` and waits for a human, rather than retrying a permanently broken
+   task forever at full speed. Backoff between attempts is exponential and
+   capped (`docs/RUN_QUEUE.md`).
+
+The switch is documented rather than hidden: `IRONCREW_SCHEDULER=off` leaves a
+server that answers HTTP and does nothing on its own, which is the right
+posture for a second instance sharing one database
+(`docs/SERVICE.md`).
+
+_Residual risk:_ everything the owner legitimately delegates still runs
+without a witness, and the audit log is read after the fact rather than
+before. A task that was correctly authorised and turns out to be wrong will
+have run by the time anyone looks. Time and concurrency bound the damage;
+they do not prevent it. Lowering `IRONCREW_SCHEDULER_QUEUE_SECONDS` shortens
+the window in which a human could intervene and raising it lengthens the
+delay before legitimate work starts — there is no setting that gives both.
+
 ## Explicitly out of scope for the MVP
 
 - Multi-user authorisation (single owner only; OIDC is Phase 5).
@@ -406,3 +460,4 @@ lists every path so the size of what is being approved cannot be hidden.
 | Inbound chat                | no pairing, no access; `owner` role granted by the owner only (T-13, T-14)   |
 | Agent file writes           | approved proposal, path-contained, hash-checked, all-or-nothing (T-15)       |
 | Sandbox grant lifetime      | ≤ 4 hours, tied to an approval                                               |
+| Background execution        | only delegated work is enqueued; `inbox` tasks never are (T-16)              |
