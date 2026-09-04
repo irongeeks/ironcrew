@@ -10,6 +10,8 @@ import { migration as crewAttachments } from "../../modules/bootstrap/migrations
 import { migration as renameIcToCrew } from "../../modules/bootstrap/migrations/0006-rename-ic-prefix-to-crew.ts";
 import { migration as crewRemoteWorkers } from "../../modules/bootstrap/migrations/0007-crew-remote-workers.ts";
 import { migration as crewMeetings } from "../../modules/bootstrap/migrations/0008-crew-meetings.ts";
+import { migration as crewMailboxes } from "../../modules/bootstrap/migrations/0009-crew-mailboxes.ts";
+import { migration as crewMarketplaces } from "../../modules/bootstrap/migrations/0010-crew-marketplaces.ts";
 import { newId } from "./ids.ts";
 
 export function createTestDb(): DatabaseSync {
@@ -22,6 +24,8 @@ export function createTestDb(): DatabaseSync {
   renameIcToCrew.up(db);
   crewRemoteWorkers.up(db);
   crewMeetings.up(db);
+  crewMailboxes.up(db);
+  crewMarketplaces.up(db);
   return db;
 }
 

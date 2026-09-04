@@ -21,3 +21,10 @@ try {
 
 process.env.DB_PATH = dbPath;
 process.env.LOGS_DIR = logsDir;
+
+// Anything encrypted at rest (OAuth tokens, mailbox credentials) needs a key.
+// server/oauth/helpers.ts captures this at import time, so it has to be set
+// here in setupFiles — before any test module imports it. `||=` keeps an
+// externally supplied value; the tests that assert the *absence* of a key
+// manage the variable themselves (server/test/oauth/helpers.test.ts).
+process.env.OAUTH_ENCRYPTION_SECRET ||= "0".repeat(64);

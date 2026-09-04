@@ -5,6 +5,27 @@ import { buildCollisionGrid, findPath, simplifyPath, pixelToTile, tileToCenterPi
 import { stableAgentHash } from "../AgentAvatar";
 import { AGENT_SPEED, TILE_W, TILE_H, WALK_FRAME_MS, type AgentAnimState } from "./agentSprites";
 import { tickerStepEnabled, particleOpacityFor } from "./animation-policy";
+import {
+  ADAPT_SAMPLE_SIZE,
+  adaptTier,
+  detectRenderTier,
+  probeRenderCapabilities,
+  qualityForTier,
+  type RenderQuality,
+  type RenderTier,
+} from "./render-quality";
+import {
+  WALK_CYCLE_MS,
+  arrivalSpeedScale,
+  combineMotion,
+  isBlinking,
+  leanRotation,
+  motionSeed,
+  statusMotion,
+  walkMotion,
+  NEUTRAL,
+} from "./character-motion";
+import { toMotionStatus, wandersWhenIdle } from "./motion-status";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
 import type { Agent, Department, ServerAllocation, ServerNode } from "../../types";
 
@@ -49,7 +70,24 @@ export function usePixiApp(
   updateShadowsRef: MutableRefObject<() => void>,
   particleLayerRef: MutableRefObject<Container | null>,
   updateParticlesRef: MutableRefObject<(dtMs: number) => void>,
+  /**
+   * Reports the quality tier the office settled on, and why. The caller shows
+   * it: a scene that quietly downgraded itself, or one that cannot run here at
+   * all, is something the operator has to be told rather than left to guess at
+   * from a blank box.
+   */
+  onRenderTier?: (tier: RenderTier, reason: string) => void,
 ) {
+  // ── RENDER QUALITY ──
+  // Probed once, before any Pixi object exists, so the very first frame is
+  // already drawn at a scale this machine can hold. `qualityRef` is then the
+  // single place the ticker reads from, and `adaptTier` may rewrite it from
+  // measured frame times (see the ticker below).
+  const qualityRef = useRef<RenderQuality>(qualityForTier("balanced", 1));
+  const frameTimesRef = useRef<number[]>([]);
+  const onRenderTierRef = useRef(onRenderTier);
+  onRenderTierRef.current = onRenderTier;
+
   // ── ACCESSIBILITY: prefers-reduced-motion ──
   const reducedMotion = usePrefersReducedMotion();
   const reducedMotionRef = useRef(reducedMotion);
@@ -87,15 +125,44 @@ export function usePixiApp(
 
       TextureStyle.defaultOptions.scaleMode = "nearest";
 
+      // Ask the machine what it can do before building anything for it.
+      const caps = probeRenderCapabilities();
+      const startTier = detectRenderTier(caps);
+
+      if (startTier === "none") {
+        // Pixi v8 has no canvas renderer to fall back to, so there is nothing
+        // to draw here. Say so and stop: leaving the caller on a permanent
+        // loading state would be the same blank box with less information.
+        onRenderTierRef.current?.("none", "Dieser Browser stellt kein WebGL bereit — die Office-Ansicht bleibt leer.");
+        setLoading(false);
+        return;
+      }
+
+      const quality = qualityForTier(startTier, caps.devicePixelRatio);
+      qualityRef.current = quality;
+      onRenderTierRef.current?.(startTier, "");
+
       const app = new Application();
-      await app.init({
-        width: 800,
-        height: 480,
-        backgroundColor: 0x1e1e1e,
-        antialias: false,
-        resolution: Math.min(window.devicePixelRatio || 1, 2),
-        autoDensity: true,
-      });
+      try {
+        await app.init({
+          width: 800,
+          height: 480,
+          backgroundColor: 0x1e1e1e,
+          antialias: quality.antialias,
+          resolution: quality.resolution,
+          autoDensity: true,
+        });
+      } catch (err) {
+        // The probe said WebGL exists and Pixi still could not start — a lost
+        // context, a driver blocklist, an exhausted context pool. Same answer
+        // as no WebGL at all, and the reason is worth passing on verbatim.
+        onRenderTierRef.current?.(
+          "none",
+          `Die Office-Ansicht konnte nicht starten: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        setLoading(false);
+        return;
+      }
 
       if (destroyed) {
         app.destroy(true);
@@ -392,11 +459,37 @@ export function usePixiApp(
       setLoading(false);
 
       // ── ANIMATION LOOP ──
+      app.ticker.maxFPS = quality.maxFps;
+
       app.ticker.add((ticker) => {
         const grid = collisionGridRef.current;
         const { w: gw, h: gh } = mapDimsRef.current;
         const dtMs = ticker.deltaMS;
         const policy = tickerStepEnabled(reducedMotionRef.current);
+        const q = qualityRef.current;
+        const now = ticker.lastTime;
+
+        // ── Measure, then adapt ──
+        // The pre-flight guess is only a guess. What the machine actually
+        // does with the scene is the authority, so a tier that is too
+        // ambitious costs a second of stutter rather than the session.
+        const times = frameTimesRef.current;
+        times.push(dtMs);
+        if (times.length > ADAPT_SAMPLE_SIZE * 2) times.splice(0, times.length - ADAPT_SAMPLE_SIZE * 2);
+        if (times.length >= ADAPT_SAMPLE_SIZE) {
+          const decision = adaptTier(q.tier, times);
+          if (decision.tier !== q.tier) {
+            const next = qualityForTier(decision.tier, app.renderer.resolution);
+            qualityRef.current = next;
+            app.ticker.maxFPS = next.maxFps;
+            if (shadowLayerRef.current) shadowLayerRef.current.visible = next.shadows;
+            if (particleLayerRef.current) particleLayerRef.current.visible = next.particles > 0;
+            // Start the next window empty, so the new tier is judged on its
+            // own frames rather than on the ones that condemned the old one.
+            times.length = 0;
+            onRenderTierRef.current?.(decision.tier, decision.reason);
+          }
+        }
 
         agentSpritesRef.current.forEach((sprite, id) => {
           const agent = agentsRef.current.find((a) => a.id === id);
@@ -405,7 +498,10 @@ export function usePixiApp(
           if (!anim) return;
 
           // ── Wander timer (break agents only — idle agents stay at their desk) ──
-          if (policy.wander && (agent.status === "break" || (agent.status === "idle" && !agent.department_id))) {
+          const motionStatus = toMotionStatus(agent.status);
+          const seed = motionSeed(id);
+
+          if (policy.wander && wandersWhenIdle(motionStatus) && !agent.department_id) {
             anim.wanderTimer -= dtMs;
             if (anim.wanderTimer <= 0 || anim.wanderTarget === null) {
               if (grid) {
@@ -478,7 +574,12 @@ export function usePixiApp(
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist > 1.5) {
               moving = true;
-              const step = AGENT_SPEED * ticker.deltaTime;
+              // Ease into the last stretch so a figure settles into its seat
+              // instead of stopping dead on the pixel. Only the final
+              // waypoint brakes; braking at every corner reads as sluggish.
+              const isFinalWaypoint = anim.pathIdx === anim.path.length - 1;
+              const brake = q.characterFlourish && isFinalWaypoint ? arrivalSpeedScale(dist) : 1;
+              const step = AGENT_SPEED * ticker.deltaTime * brake;
               if (step >= dist) {
                 sprite.x = waypoint.x;
                 sprite.y = waypoint.y;
@@ -526,7 +627,25 @@ export function usePixiApp(
                 anim.walkFrame = 0;
                 anim.walkTime = 0;
               }
-              baseSprite.y = 0;
+              // Weight on the footfall: squash-and-stretch and a bob, driven
+              // by the same clock as the frame swap so they cannot drift apart.
+              if (q.characterFlourish && policy.headBob) {
+                const phase = (now / WALK_CYCLE_MS + seed) % 1;
+                const progress = anim.path.length > 0 ? anim.pathIdx / anim.path.length : 1;
+                const m = combineMotion(walkMotion(phase), {
+                  ...NEUTRAL,
+                  rotation: leanRotation(progress, anim.direction),
+                });
+                baseSprite.y = m.offsetY;
+                baseSprite.x = m.offsetX;
+                baseSprite.scale.set(m.scaleX, m.scaleY);
+                baseSprite.rotation = m.rotation;
+              } else {
+                baseSprite.y = 0;
+                baseSprite.x = 0;
+                baseSprite.scale.set(1, 1);
+                baseSprite.rotation = 0;
+              }
             } else {
               // Idle: face seat direction if seated, otherwise last walk direction
               if (anim.seatDirection) {
@@ -542,15 +661,35 @@ export function usePixiApp(
               const isSeated = anim.seatDirection !== null;
               const seatOffset = isSeated ? -8 : 0;
               const bobAmplitude = isSeated ? 0.15 : agent.status === "working" ? 0.3 : 0.6;
-              // Typing animation: irregular head-bob when working at desk
-              let typingBob = 0;
-              if (policy.typingJitter && isSeated && agent.status === "working") {
-                typingBob = Math.sin(Date.now() * 0.018 + stableAgentHash(id) * 7) > 0.3 ? -1 : 0;
+              // A standing figure gets the motion its status calls for:
+              // breathing when idle, typing jitter when working, an impatient
+              // bounce when waiting on the owner, a shake on error. Each is a
+              // distinct *shape* of motion, because that is what the eye
+              // catches across a room — a colour change is not.
+              if (q.characterFlourish && policy.headBob) {
+                const m = statusMotion(motionStatus, now, seed);
+                // Seated figures move less: a torso pinned to a chair that
+                // sways as freely as a standing one looks unattached to it.
+                const damp = isSeated ? 0.45 : 1;
+                baseSprite.y = seatOffset + m.offsetY * damp;
+                baseSprite.x = m.offsetX * damp;
+                baseSprite.scale.set(1 + (m.scaleX - 1) * damp, 1 + (m.scaleY - 1) * damp);
+                baseSprite.rotation = m.rotation * damp;
+                // A blink is one frame of the idle row held briefly. Cheap,
+                // and the single strongest cue that a sprite is a character.
+                if (!isSeated && isBlinking(now, seed)) {
+                  const blinkFrame = anim.frames[anim.direction][0];
+                  if (blinkFrame) baseSprite.texture = blinkFrame;
+                }
+              } else {
+                const headBobOffset = policy.headBob
+                  ? Math.sin(Date.now() * 0.002 + stableAgentHash(id)) * bobAmplitude
+                  : 0;
+                baseSprite.y = seatOffset + headBobOffset;
+                baseSprite.x = 0;
+                baseSprite.scale.set(1, 1);
+                baseSprite.rotation = 0;
               }
-              const headBobOffset = policy.headBob
-                ? Math.sin(Date.now() * 0.002 + stableAgentHash(id)) * bobAmplitude
-                : 0;
-              baseSprite.y = seatOffset + typingBob + headBobOffset;
             }
           }
 
@@ -563,11 +702,12 @@ export function usePixiApp(
           }
         });
 
-        // Update shadow layer
-        updateShadowsRef.current();
+        // Shadows and ambient particles are the two layers that cost real
+        // fill rate, so they are what the quality tier switches off first.
+        if (q.shadows) updateShadowsRef.current();
         // Skip ambient particle updates entirely when reduced motion is on
         // (layer alpha is also 0 — see effect above).
-        if (!reducedMotionRef.current) {
+        if (!reducedMotionRef.current && q.particles > 0) {
           updateParticlesRef.current(dtMs);
         }
 

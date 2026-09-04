@@ -30,6 +30,11 @@ export type IdPrefix =
   | "att"
   | "worker"
   | "mtg"
+  | "mbx"
+  | "mbxa"
+  | "mmsg"
+  | "mkt"
+  | "mki"
   | "turn"
   | "action"
   | "corr";

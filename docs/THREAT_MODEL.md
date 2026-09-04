@@ -159,6 +159,80 @@ Inherited from upstream (`server/security/ssrf.ts`, `safe-fetch.ts`), plus the
 vendor policy's blocked-endpoint list. A full egress allowlist for the runner
 is Phase 3.
 
+### T-10 — Incoming mail acting as the owner — **High**
+
+Anyone can send the company an email. If that text reached the CEO message
+path, a stranger could delegate work, trigger approvals, and speak with the
+owner's authority — the same escalation as T-02, but reachable by anyone who
+knows an address.
+
+**Mitigation.** Triaged mail is never routed through `handleCeoMessage()`.
+It becomes a task with `status: "inbox"` — never `ready`, so it does not enter
+the claimable queue and no agent picks it up on its own — with the body quoted
+under an explicit third-party marker and `createdBy: "mailbox:<id>"`. The EA's
+`triage()` is used purely as a classifier for risk level and sensitivity,
+never as an instruction interpreter. Covered by orchestrator tests asserting
+both that the status is `inbox` and that delegation-shaped wording produces no
+runs.
+
+_Residual risk:_ a task in the inbox still displays attacker-authored text to
+the owner. It is quoted and attributed, but social engineering against a human
+reader is outside what the state machine can prevent.
+
+### T-11 — Mailbox credentials in the database — **Medium** (accepted trade-off)
+
+Mailbox credentials are stored encrypted (AES-256-GCM, keyed from
+`OAUTH_ENCRYPTION_SECRET`) rather than as a `SecretRef` into a password
+manager. This is a deliberate departure from "secrets in the database:
+references only", chosen so a mailbox can be connected without requiring
+Vaultwarden or Proton Pass, and so OAuth refresh tokens can be rotated
+automatically.
+
+**What it costs.** Anyone holding both the database file and the encryption
+key can read mailbox credentials. On a single-owner, local-first host that is
+the same person who can read the mailbox anyway; on a shared or backed-up
+host it is a real exposure, and backups of `octooffice.sqlite` must be treated
+as credential material.
+
+**What limits it.** `MailboxRow` omits the credentials column entirely and
+every query names its columns explicitly, so a mailbox row cannot be
+serialised into a response with its password attached — the value is never in
+the object. Decryption happens in exactly one place
+(`CompanyOrchestrator#mailContext`), so plaintext never outlives the call that
+needed it. Audit entries for mail carry recipient and subject, never bodies or
+credentials. See `docs/MAIL.md`.
+
+### T-12 — Installing someone else's code from a marketplace — **High**
+
+A marketplace entry names a command IronCrew would spawn, or content it would
+write. A catalog is third-party JSON that can change between two page loads;
+treating it as trusted would be remote code execution by design.
+
+**Mitigation.** Four checks in `marketplace-installer.ts`, the single point
+where catalog data meets the disk:
+
+1. A launcher allowlist (`npx`, `uvx`, `node`, `python`, …). Anything else is
+   refused with the command named. Adding a server by hand through the MCP
+   settings route is unaffected — that is the owner's decision about their own
+   machine; a stranger's catalog is not.
+2. `McpServerConfigSchema`, the same validation the hand-add route runs:
+   shell metacharacters rejected, metadata endpoints blocked.
+3. Installing a skill executes nothing — the Markdown is fetched and written;
+   the source repository is not cloned, installed or run.
+4. Path containment on the skill directory, plus the 512 KB content cap.
+
+Installs are recorded with the manifest as served, so what the owner approved
+stays readable after the source changes. Marketplace servers are registered
+with `autoConnect: false`: the owner decides when a stranger's server first
+runs, not the install click. Every source fetch goes through `safeFetch`
+(T-09), so a mistyped URL cannot reach a metadata endpoint.
+
+_Residual risk:_ an allowed launcher can still fetch and run arbitrary code
+(`npx` installs from npm). The allowlist bounds _how_ a server starts, not
+what the package it names then does — running third-party MCP servers is a
+trust decision the owner makes, and the exact command is shown in the UI
+before installing so it is made knowingly.
+
 ## Explicitly out of scope for the MVP
 
 - Multi-user authorisation (single owner only; OIDC is Phase 5).
@@ -170,12 +244,14 @@ is Phase 3.
 
 ## Non-negotiable defaults
 
-| Setting                     | Value                                |
-| --------------------------- | ------------------------------------ |
-| CLI permission mode         | `restricted`                         |
-| Tool access                 | deny by default, allowlist per agent |
-| Vendor policy               | deny by default, blocklist wins      |
-| `may_approve` for any agent | `false`, typed as a literal          |
-| Telemetry                   | off                                  |
-| Secrets in the database     | references only, never values        |
-| Sandbox grant lifetime      | ≤ 4 hours, tied to an approval       |
+| Setting                     | Value                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| CLI permission mode         | `restricted`                                                                 |
+| Tool access                 | deny by default, allowlist per agent                                         |
+| Vendor policy               | deny by default, blocklist wins                                              |
+| `may_approve` for any agent | `false`, typed as a literal                                                  |
+| Telemetry                   | off                                                                          |
+| Secrets in the database     | references only, never values — except mailbox credentials, encrypted (T-11) |
+| Incoming mail               | `inbox` task, never the CEO path (T-10)                                      |
+| Marketplace MCP servers     | allowlisted launcher, `autoConnect: false` (T-12)                            |
+| Sandbox grant lifetime      | ≤ 4 hours, tied to an approval                                               |

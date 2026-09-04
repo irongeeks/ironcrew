@@ -19,6 +19,19 @@ import type {
   Goal,
   GoalStatus,
   KnownHostsPolicy,
+  Mailbox,
+  MailboxAccess,
+  MailboxAgent,
+  MailboxKind,
+  MailboxMessageRef,
+  MailMessage,
+  MailProviderStatus,
+  Marketplace,
+  MarketplaceEntry,
+  MarketplaceEntryType,
+  MarketplaceInstall,
+  MarketplaceKind,
+  MarketplaceKindStatus,
   Meeting,
   MeetingActionItem,
   MeetingParticipant,
@@ -196,9 +209,75 @@ export const api = {
       `/memory/search?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(query)}`,
     ),
 
+  mailProviders: () => get<{ providers: MailProviderStatus[] }>("/mail-providers"),
+  mailboxes: () => get<{ mailboxes: Mailbox[] }>("/mailboxes"),
+  mailbox: (id: string) =>
+    get<{ mailbox: Mailbox; agents: MailboxAgent[]; messages: MailboxMessageRef[] }>(`/mailboxes/${id}`),
+  createMailbox: (input: {
+    label: string;
+    kind: MailboxKind;
+    emailAddress: string;
+    host?: string;
+    port?: number;
+    useTls?: boolean;
+    username?: string;
+    smtpHost?: string;
+    smtpPort?: number;
+    sessionUrl?: string;
+    tenantId?: string;
+    clientId?: string;
+    credentials?: { password?: string; bearerToken?: string; clientSecret?: string; refreshToken?: string };
+    pollEnabled?: boolean;
+    pollIntervalSeconds?: number;
+    autoTriage?: boolean;
+  }) => send<{ mailbox: Mailbox }>("/mailboxes", "POST", input),
+  updateMailbox: (
+    id: string,
+    patch: {
+      label?: string;
+      pollEnabled?: boolean;
+      pollIntervalSeconds?: number;
+      autoTriage?: boolean;
+      credentials?: { password?: string; bearerToken?: string; clientSecret?: string; refreshToken?: string };
+    },
+  ) => send<{ mailbox: Mailbox }>(`/mailboxes/${id}`, "PATCH", patch),
+  deleteMailbox: (id: string) => send<{ ok: boolean }>(`/mailboxes/${id}`, "DELETE"),
+  testMailbox: (id: string) => send<{ ok: boolean; message: string }>(`/mailboxes/${id}/test`, "POST"),
+  grantMailboxAgent: (id: string, agentId: string, access: MailboxAccess) =>
+    send<{ agents: MailboxAgent[] }>(`/mailboxes/${id}/agents`, "POST", { agentId, access }),
+  revokeMailboxAgent: (id: string, agentId: string) =>
+    send<{ agents: MailboxAgent[] }>(`/mailboxes/${id}/agents/${agentId}`, "DELETE"),
+  mailboxMessages: (id: string) => get<{ messages: MailMessage[] }>(`/mailboxes/${id}/messages`),
+  pollMailbox: (id: string) =>
+    send<{ mailbox: Mailbox; seen: number; newMessages: number; tasksCreated: number }>(
+      `/mailboxes/${id}/poll`,
+      "POST",
+    ),
+
   notificationChannels: () => get<{ channels: NotificationChannelStatus[] }>("/notification-channels"),
   testNotificationChannel: (kind: string) =>
     send<{ ok: boolean; message: string }>(`/notification-channels/${kind}/test`, "POST"),
   sendTestNotification: (kind: string) =>
     send<{ ok: boolean; message: string }>(`/notification-channels/${kind}/send-test`, "POST"),
+
+  marketplaceKinds: () => get<{ kinds: MarketplaceKindStatus[] }>("/marketplace-kinds"),
+  marketplaces: () => get<{ marketplaces: Marketplace[]; installs: MarketplaceInstall[] }>("/marketplaces"),
+  createMarketplace: (input: { name: string; kind: MarketplaceKind; url: string; enabled?: boolean }) =>
+    send<{ marketplace: Marketplace }>("/marketplaces", "POST", input),
+  updateMarketplace: (id: string, patch: { name?: string; url?: string; enabled?: boolean }) =>
+    send<{ marketplace: Marketplace }>(`/marketplaces/${id}`, "PATCH", patch),
+  deleteMarketplace: (id: string) => send<{ ok: true }>(`/marketplaces/${id}`, "DELETE"),
+  marketplaceEntries: (id: string) =>
+    get<{ entries: MarketplaceEntry[]; marketplace: Marketplace }>(`/marketplaces/${id}/entries`),
+  installFromMarketplace: (
+    id: string,
+    input: { entryId: string; env?: Record<string, string>; headers?: Record<string, string>; name?: string },
+  ) =>
+    send<{ install: MarketplaceInstall; result: { entryType: string; name: string; location: string } }>(
+      `/marketplaces/${id}/install`,
+      "POST",
+      input,
+    ),
+  uninstallFromMarketplace: (entryType: MarketplaceEntryType, name: string) =>
+    send<{ ok: true }>(`/marketplace-installs/${entryType}/${encodeURIComponent(name)}`, "DELETE"),
 };

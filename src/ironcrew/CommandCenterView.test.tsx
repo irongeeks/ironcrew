@@ -10,6 +10,11 @@ import type {
   Dashboard,
   Decision,
   Department,
+  Mailbox,
+  MailMessage,
+  Marketplace,
+  MarketplaceEntry,
+  MarketplaceInstall,
   Meeting,
   MeetingActionItem,
   MeetingParticipant,
@@ -163,6 +168,25 @@ function makeClient(over: Partial<Record<keyof Client, unknown>> = {}) {
     notificationChannels: vi.fn().mockResolvedValue({ channels: [] }),
     testNotificationChannel: vi.fn(),
     sendTestNotification: vi.fn(),
+    mailProviders: vi.fn().mockResolvedValue({ providers: [] }),
+    mailboxes: vi.fn().mockResolvedValue({ mailboxes: [] }),
+    mailbox: vi.fn(),
+    createMailbox: vi.fn(),
+    updateMailbox: vi.fn(),
+    deleteMailbox: vi.fn(),
+    testMailbox: vi.fn(),
+    grantMailboxAgent: vi.fn(),
+    revokeMailboxAgent: vi.fn(),
+    mailboxMessages: vi.fn().mockResolvedValue({ messages: [] }),
+    pollMailbox: vi.fn(),
+    marketplaceKinds: vi.fn().mockResolvedValue({ kinds: [] }),
+    marketplaces: vi.fn().mockResolvedValue({ marketplaces: [], installs: [] }),
+    createMarketplace: vi.fn(),
+    updateMarketplace: vi.fn(),
+    deleteMarketplace: vi.fn(),
+    marketplaceEntries: vi.fn().mockResolvedValue({ entries: [] }),
+    installFromMarketplace: vi.fn(),
+    uninstallFromMarketplace: vi.fn(),
     ...over,
   } as unknown as Client;
 }
@@ -1714,5 +1738,519 @@ describe("notification channels (Discord, Telegram, email fan-out)", () => {
     await userEvent.setup().click(await screen.findByTestId("open-channels"));
     const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
     expect(await within(dialog).findByText("Kein Kanal registriert.")).toBeInTheDocument();
+  });
+});
+
+function mailbox(over: Partial<Mailbox> = {}): Mailbox {
+  return {
+    id: "mbx_1",
+    company_id: "cmp_1",
+    label: "Support",
+    kind: "imap",
+    email_address: "support@example.com",
+    host: "imap.example.com",
+    port: 993,
+    use_tls: 1,
+    username: "support",
+    smtp_host: "smtp.example.com",
+    smtp_port: 587,
+    session_url: "",
+    tenant_id: "",
+    client_id: "",
+    poll_enabled: 0,
+    poll_interval_seconds: 300,
+    auto_triage: 0,
+    last_polled_at: null,
+    last_error: "",
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    agents: [],
+    ...over,
+  };
+}
+
+function mailMessage(over: Partial<MailMessage> = {}): MailMessage {
+  return {
+    externalId: "42",
+    messageId: "<m1@example.com>",
+    subject: "Server down",
+    from: "kunde@example.com",
+    to: ["support@example.com"],
+    receivedAt: Date.now(),
+    snippet: "Nichts geht mehr.",
+    unread: true,
+    ...over,
+  };
+}
+
+describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
+  it("lists mailboxes with their protocol and address", async () => {
+    const client = makeClient({ mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox()] }) });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+
+    const row = await within(dialog).findByTestId("mailbox-mbx_1");
+    expect(row).toHaveTextContent("Support");
+    expect(row).toHaveTextContent("IMAP");
+    expect(row).toHaveTextContent("support@example.com");
+  });
+
+  it("shows an empty state when no mailbox is connected", async () => {
+    render(<CommandCenterView client={makeClient()} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+    expect(await within(dialog).findByText("Kein Postfach angebunden.")).toBeInTheDocument();
+  });
+
+  it("only asks for the fields the chosen protocol needs", async () => {
+    render(<CommandCenterView client={makeClient()} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+
+    expect(await within(dialog).findByTestId("new-mailbox-host")).toBeInTheDocument();
+    expect(within(dialog).queryByTestId("new-mailbox-session-url")).not.toBeInTheDocument();
+
+    await user.selectOptions(within(dialog).getByTestId("new-mailbox-kind"), "jmap");
+    expect(within(dialog).queryByTestId("new-mailbox-host")).not.toBeInTheDocument();
+    expect(within(dialog).getByTestId("new-mailbox-session-url")).toBeInTheDocument();
+
+    await user.selectOptions(within(dialog).getByTestId("new-mailbox-kind"), "m365");
+    expect(within(dialog).getByTestId("new-mailbox-tenant-id")).toBeInTheDocument();
+    expect(within(dialog).getByTestId("new-mailbox-client-id")).toBeInTheDocument();
+  });
+
+  it("connects a new IMAP mailbox with its credentials", async () => {
+    const createMailbox = vi.fn().mockResolvedValue({ mailbox: mailbox() });
+    const client = makeClient({ createMailbox });
+    render(<CommandCenterView client={client} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+
+    await user.type(await within(dialog).findByTestId("new-mailbox-label"), "Support");
+    await user.type(within(dialog).getByTestId("new-mailbox-address"), "support@example.com");
+    await user.type(within(dialog).getByTestId("new-mailbox-host"), "imap.example.com");
+    await user.type(within(dialog).getByTestId("new-mailbox-username"), "support");
+    await user.type(within(dialog).getByTestId("new-mailbox-secret"), "hunter2");
+    await user.click(within(dialog).getByTestId("new-mailbox-submit"));
+
+    expect(createMailbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Support",
+        kind: "imap",
+        emailAddress: "support@example.com",
+        host: "imap.example.com",
+        username: "support",
+        credentials: { password: "hunter2" },
+      }),
+    );
+  });
+
+  it("cannot arm auto-triage without polling", async () => {
+    render(<CommandCenterView client={makeClient()} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+
+    // The schema refuses this combination; the form must not offer it either.
+    expect(await within(dialog).findByTestId("new-mailbox-triage")).toBeDisabled();
+    await userEvent.setup().click(within(dialog).getByTestId("new-mailbox-poll"));
+    expect(within(dialog).getByTestId("new-mailbox-triage")).toBeEnabled();
+  });
+
+  it("switching polling off takes auto-triage with it", async () => {
+    const updateMailbox = vi.fn().mockResolvedValue({ mailbox: mailbox() });
+    const client = makeClient({
+      mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox({ poll_enabled: 1, auto_triage: 1 })] }),
+      updateMailbox,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+    await userEvent.setup().click(await within(dialog).findByTestId("mailbox-poll-mbx_1"));
+
+    expect(updateMailbox).toHaveBeenCalledWith("mbx_1", { pollEnabled: false, autoTriage: false });
+  });
+
+  it("grants an agent access to a mailbox and shows the grant", async () => {
+    const grantMailboxAgent = vi.fn().mockResolvedValue({ agents: [] });
+    const client = makeClient({
+      mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox()] }),
+      grantMailboxAgent,
+    });
+    render(<CommandCenterView client={client} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+
+    expect(await within(dialog).findByTestId("mailbox-agents-empty-mbx_1")).toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByTestId("mailbox-grant-agent-mbx_1"), "agt_1");
+    await user.selectOptions(within(dialog).getByTestId("mailbox-grant-access-mbx_1"), "send");
+    await user.click(within(dialog).getByTestId("mailbox-grant-submit-mbx_1"));
+
+    expect(grantMailboxAgent).toHaveBeenCalledWith("mbx_1", "agt_1", "send");
+  });
+
+  it("shows the agents that may work a mailbox and can revoke one", async () => {
+    const revokeMailboxAgent = vi.fn().mockResolvedValue({ agents: [] });
+    const client = makeClient({
+      mailboxes: vi.fn().mockResolvedValue({
+        mailboxes: [
+          mailbox({
+            agents: [{ agent_id: "agt_1", key: "cto", display_name: "Forge", access: "send", granted_at: Date.now() }],
+          }),
+        ],
+      }),
+      revokeMailboxAgent,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+
+    const grant = await within(dialog).findByTestId("mailbox-agent-mbx_1-agt_1");
+    expect(grant).toHaveTextContent("Forge");
+    expect(grant).toHaveTextContent("Lesen + Senden");
+
+    await userEvent.setup().click(within(grant).getByRole("button", { name: "Entziehen" }));
+    expect(revokeMailboxAgent).toHaveBeenCalledWith("mbx_1", "agt_1");
+  });
+
+  it("loads live messages for a mailbox", async () => {
+    const mailboxMessages = vi.fn().mockResolvedValue({ messages: [mailMessage()] });
+    const client = makeClient({
+      mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox()] }),
+      mailboxMessages,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+    await userEvent.setup().click(await within(dialog).findByTestId("mailbox-messages-mbx_1"));
+
+    expect(mailboxMessages).toHaveBeenCalledWith("mbx_1");
+    const message = await within(dialog).findByTestId("mail-message-42");
+    expect(message).toHaveTextContent("Server down");
+    expect(message).toHaveTextContent("kunde@example.com");
+  });
+
+  it("polls a mailbox on demand and reports what the triage created", async () => {
+    const pollMailbox = vi.fn().mockResolvedValue({ mailbox: mailbox(), seen: 3, newMessages: 2, tasksCreated: 1 });
+    const client = makeClient({
+      mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox({ poll_enabled: 1 })] }),
+      pollMailbox,
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+    await userEvent.setup().click(await within(dialog).findByTestId("mailbox-poll-now-mbx_1"));
+
+    expect(pollMailbox).toHaveBeenCalledWith("mbx_1");
+    expect(await within(dialog).findByTestId("mailbox-test-mbx_1")).toHaveTextContent("2 neu, 1 Aufgabe");
+  });
+
+  it("surfaces the last connection error of a mailbox", async () => {
+    const client = makeClient({
+      mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox({ last_error: "IMAP: LOGIN failed." })] }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+    expect(await within(dialog).findByTestId("mailbox-error-mbx_1")).toHaveTextContent("IMAP: LOGIN failed.");
+  });
+
+  it("shows which mail protocols the server actually has a provider for", async () => {
+    const client = makeClient({
+      mailProviders: vi.fn().mockResolvedValue({
+        providers: [
+          { kind: "imap", registered: true },
+          { kind: "gmail", registered: false },
+        ],
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+
+    await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
+    const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
+
+    expect(await within(dialog).findByTestId("mail-provider-imap")).toHaveTextContent("verfügbar");
+    expect(within(dialog).getByTestId("mail-provider-gmail")).toHaveTextContent("nicht registriert");
+  });
+});
+
+function marketplace(over: Partial<Marketplace> = {}): Marketplace {
+  return {
+    id: "mkt_1",
+    company_id: "cmp_1",
+    name: "acme",
+    kind: "catalog",
+    url: "https://example.com/catalog.json",
+    enabled: 1,
+    last_synced_at: null,
+    last_error: "",
+    entry_count: 0,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    ...over,
+  };
+}
+
+function marketplaceEntry(over: Partial<MarketplaceEntry> = {}): MarketplaceEntry {
+  return {
+    id: "github",
+    type: "mcp",
+    name: "github",
+    title: "GitHub",
+    description: "Repos und Issues",
+    version: "1.2.0",
+    homepage: "",
+    sourceUrl: "https://github.com/acme/mcp",
+    mcp: { transport: "stdio", command: "npx", args: ["-y", "@acme/github"] },
+    ...over,
+  };
+}
+
+function marketplaceInstall(over: Partial<MarketplaceInstall> = {}): MarketplaceInstall {
+  return {
+    id: "mki_1",
+    company_id: "cmp_1",
+    marketplace_id: "mkt_1",
+    entry_id: "github",
+    entry_type: "mcp",
+    name: "github",
+    version: "1.2.0",
+    source_url: "https://github.com/acme/mcp",
+    installed_by: "ceo",
+    manifest: "{}",
+    installed_at: Date.now(),
+    ...over,
+  };
+}
+
+describe("marketplaces (skills and MCP servers from outside this machine)", () => {
+  async function openDialog(client: Client) {
+    render(<CommandCenterView client={client} />);
+    await userEvent.setup().click(await screen.findByTestId("open-marketplaces"));
+    return await screen.findByRole("dialog", { name: "Marktplätze" });
+  }
+
+  it("lists sources with their kind and URL", async () => {
+    const dialog = await openDialog(
+      makeClient({ marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }) }),
+    );
+
+    const row = await within(dialog).findByTestId("marketplace-mkt_1");
+    expect(row).toHaveTextContent("acme");
+    expect(row).toHaveTextContent("Katalog (JSON)");
+    expect(row).toHaveTextContent("https://example.com/catalog.json");
+  });
+
+  it("shows empty states for sources and installs", async () => {
+    const dialog = await openDialog(makeClient());
+    expect(await within(dialog).findByText("Keine Quelle eingetragen.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Nichts installiert.")).toBeInTheDocument();
+  });
+
+  it("shows which source kinds this server actually has", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        marketplaceKinds: vi.fn().mockResolvedValue({
+          kinds: [
+            { kind: "catalog", registered: true },
+            { kind: "git", registered: false },
+          ],
+        }),
+      }),
+    );
+
+    expect(await within(dialog).findByTestId("marketplace-kind-catalog")).toHaveTextContent("verfügbar");
+    expect(within(dialog).getByTestId("marketplace-kind-git")).toHaveTextContent("nicht registriert");
+  });
+
+  it("adds a source with the URL hint matching the chosen kind", async () => {
+    const createMarketplace = vi.fn().mockResolvedValue({ marketplace: marketplace() });
+    const client = makeClient({ createMarketplace });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    expect(within(dialog).getByTestId("new-marketplace-url")).toHaveAttribute("placeholder", "https://…/catalog.json");
+    await user.selectOptions(within(dialog).getByTestId("new-marketplace-kind"), "git");
+    expect(within(dialog).getByTestId("new-marketplace-url")).toHaveAttribute(
+      "placeholder",
+      "https://github.com/owner/repo",
+    );
+
+    await user.type(within(dialog).getByTestId("new-marketplace-name"), "acme");
+    await user.type(within(dialog).getByTestId("new-marketplace-url"), "https://github.com/acme/skills");
+    await user.click(within(dialog).getByTestId("new-marketplace-submit"));
+
+    expect(createMarketplace).toHaveBeenCalledWith({
+      name: "acme",
+      kind: "git",
+      url: "https://github.com/acme/skills",
+    });
+  });
+
+  it("browses a source and shows what it offers, including the command", async () => {
+    const marketplaceEntries = vi.fn().mockResolvedValue({ entries: [marketplaceEntry()] });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      marketplaceEntries,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("marketplace-browse-mkt_1"));
+
+    expect(marketplaceEntries).toHaveBeenCalledWith("mkt_1");
+    const entry = await within(dialog).findByTestId("marketplace-entry-github");
+    expect(entry).toHaveTextContent("GitHub");
+    expect(entry).toHaveTextContent("MCP-Server");
+    // The exact command is shown before installing — an admin approves what
+    // will actually run, not just a name.
+    expect(within(dialog).getByTestId("marketplace-entry-command-github")).toHaveTextContent("npx -y @acme/github");
+  });
+
+  it("installs an entry by id", async () => {
+    const installFromMarketplace = vi.fn().mockResolvedValue({ install: marketplaceInstall(), result: {} });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      marketplaceEntries: vi.fn().mockResolvedValue({ entries: [marketplaceEntry()] }),
+      installFromMarketplace,
+    });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    await user.click(await within(dialog).findByTestId("marketplace-browse-mkt_1"));
+    await user.click(await within(dialog).findByTestId("marketplace-install-github"));
+
+    expect(installFromMarketplace).toHaveBeenCalledWith("mkt_1", { entryId: "github", env: {} });
+  });
+
+  it("asks for each variable the entry declares before installing", async () => {
+    const installFromMarketplace = vi.fn().mockResolvedValue({ install: marketplaceInstall(), result: {} });
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("ghp_real");
+    const entry = marketplaceEntry({
+      mcp: { transport: "stdio", command: "npx", args: [], env: { GITHUB_TOKEN: "" } },
+    });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      marketplaceEntries: vi.fn().mockResolvedValue({ entries: [entry] }),
+      installFromMarketplace,
+    });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    await user.click(await within(dialog).findByTestId("marketplace-browse-mkt_1"));
+    await user.click(await within(dialog).findByTestId("marketplace-install-github"));
+
+    expect(prompt).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN"), "");
+    expect(installFromMarketplace).toHaveBeenCalledWith("mkt_1", {
+      entryId: "github",
+      env: { GITHUB_TOKEN: "ghp_real" },
+    });
+    prompt.mockRestore();
+  });
+
+  it("cancelling a variable prompt installs nothing", async () => {
+    const installFromMarketplace = vi.fn();
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue(null);
+    const entry = marketplaceEntry({
+      mcp: { transport: "stdio", command: "npx", args: [], env: { GITHUB_TOKEN: "" } },
+    });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      marketplaceEntries: vi.fn().mockResolvedValue({ entries: [entry] }),
+      installFromMarketplace,
+    });
+    const dialog = await openDialog(client);
+    const user = userEvent.setup();
+
+    await user.click(await within(dialog).findByTestId("marketplace-browse-mkt_1"));
+    await user.click(await within(dialog).findByTestId("marketplace-install-github"));
+
+    expect(installFromMarketplace).not.toHaveBeenCalled();
+    prompt.mockRestore();
+  });
+
+  it("shows what is installed and where it came from", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        marketplaces: vi.fn().mockResolvedValue({ marketplaces: [], installs: [marketplaceInstall()] }),
+      }),
+    );
+
+    const row = await within(dialog).findByTestId("marketplace-install-row-github");
+    expect(row).toHaveTextContent("github");
+    expect(row).toHaveTextContent("https://github.com/acme/mcp");
+  });
+
+  it("says so when an install outlives its source", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        marketplaces: vi
+          .fn()
+          .mockResolvedValue({ marketplaces: [], installs: [marketplaceInstall({ marketplace_id: null })] }),
+      }),
+    );
+
+    expect(await within(dialog).findByTestId("marketplace-install-row-github")).toHaveTextContent("Quelle entfernt");
+  });
+
+  it("uninstalls by type and name", async () => {
+    const uninstallFromMarketplace = vi.fn().mockResolvedValue({ ok: true });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [], installs: [marketplaceInstall()] }),
+      uninstallFromMarketplace,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("marketplace-uninstall-github"));
+
+    expect(uninstallFromMarketplace).toHaveBeenCalledWith("mcp", "github");
+  });
+
+  it("surfaces why a source failed to sync", async () => {
+    const dialog = await openDialog(
+      makeClient({
+        marketplaces: vi.fn().mockResolvedValue({
+          marketplaces: [marketplace({ last_error: "502 Bad Gateway", last_synced_at: Date.now() })],
+          installs: [],
+        }),
+      }),
+    );
+
+    expect(await within(dialog).findByTestId("marketplace-error-mkt_1")).toHaveTextContent("502 Bad Gateway");
+  });
+
+  it("disables a source without removing it", async () => {
+    const updateMarketplace = vi.fn().mockResolvedValue({ marketplace: marketplace() });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      updateMarketplace,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("marketplace-enabled-mkt_1"));
+
+    expect(updateMarketplace).toHaveBeenCalledWith("mkt_1", { enabled: false });
+  });
+
+  it("removes a source", async () => {
+    const deleteMarketplace = vi.fn().mockResolvedValue({ ok: true });
+    const client = makeClient({
+      marketplaces: vi.fn().mockResolvedValue({ marketplaces: [marketplace()], installs: [] }),
+      deleteMarketplace,
+    });
+    const dialog = await openDialog(client);
+    await userEvent.setup().click(await within(dialog).findByTestId("marketplace-delete-mkt_1"));
+
+    expect(deleteMarketplace).toHaveBeenCalledWith("mkt_1");
   });
 });

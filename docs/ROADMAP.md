@@ -19,7 +19,7 @@ in that order.
   is registered for every CLI-transport adapter this install builds (claude,
   codex, gemini today) alongside MockRuntime; the resolved `SandboxGrant` is
   threaded through so an approved elevation actually reaches the CLI call.
-  What's still open here: a live task run through an *authenticated* real
+  What's still open here: a live task run through an _authenticated_ real
   CLI login is the user's own manual verification — no CLI login exists in
   this development environment (see `IMPLEMENTATION_STATUS.md`).
 
@@ -61,16 +61,31 @@ Requested mid-stream and built with the same standard (domain → orchestrator
   **remote-worker registry over the tailnet**
   (`server/ironcrew/domain/remote-worker-store.ts`) for Tier0 environments
   and customer networks reachable over SSH. Routing actual agent task
-  *execution* to a remote worker (rather than just registering and testing
+  _execution_ to a remote worker (rather than just registering and testing
   reachability) is a natural follow-up, not yet built.
+- **Mailboxes** — any number of real mailboxes over IMAP, JMAP, Microsoft 365
+  Exchange Online or Gmail, granted to agents n:n (an agent may hold several
+  mailboxes, a mailbox may be worked by several agents), with per-mailbox
+  polling and auto-triage. Incoming mail becomes an `inbox` task quoted as
+  third-party content, never a CEO message (`docs/MAIL.md`).
+- **Marketplaces for skills and MCP servers** — four source kinds (a JSON
+  catalog, the official MCP registry, a Claude-Code `marketplace.json`, or a
+  Git repository), installed into the infrastructure that already exists:
+  McpManager's settings row for servers, `custom-skills/` for skills. The
+  installer is the trust boundary — a launcher allowlist, the same schema the
+  hand-add route uses, and installing a skill executes nothing
+  (`docs/MARKETPLACES.md`).
 
 ## Phase 3 — Runtimes and tools
 
 - All four runtimes stable: Claude Code, Codex, Antigravity (`agy`), OpenRouter
 - Native runner daemon, so CLI logins stay with their OS user and the control
   plane never holds a token (`docs/RUNNER_PROTOCOL.md`)
-- MCP registry: stdio and streamable HTTP, per-agent and per-project scopes,
-  secret injection only in the runner, full tool-call auditing
+- MCP registry: **partly shipped** — servers can be discovered and installed
+  from the official registry and three other marketplace kinds
+  (`docs/MARKETPLACES.md`). Still open here: per-agent and per-project scopes,
+  secret injection only in the runner, streamable-HTTP transport, and full
+  tool-call auditing
 - Tool registry with risk classes and approval policies
 - Web search behind a `SearchProvider` (SearXNG, Brave)
 - Playwright browser tool in an isolated profile, with submit/purchase/publish

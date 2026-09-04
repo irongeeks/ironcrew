@@ -44,6 +44,15 @@ import { ObsidianProvider } from "./ironcrew/memory/obsidian-provider.ts";
 import { DiscordChannel } from "./ironcrew/notify/discord-channel.ts";
 import { TelegramChannel } from "./ironcrew/notify/telegram-channel.ts";
 import { EmailChannel } from "./ironcrew/notify/email-channel.ts";
+import { ImapProvider } from "./ironcrew/mail/imap-provider.ts";
+import { JmapProvider } from "./ironcrew/mail/jmap-provider.ts";
+import { M365Provider } from "./ironcrew/mail/m365-provider.ts";
+import { GmailProvider } from "./ironcrew/mail/gmail-provider.ts";
+import { CatalogMarketplaceSource } from "./ironcrew/marketplace/catalog-source.ts";
+import { McpRegistryMarketplaceSource } from "./ironcrew/marketplace/mcp-registry-source.ts";
+import { ClaudePluginMarketplaceSource } from "./ironcrew/marketplace/claude-plugin-source.ts";
+import { GitMarketplaceSource } from "./ironcrew/marketplace/git-source.ts";
+import { MarketplaceInstaller, mcpManagerTarget } from "./ironcrew/marketplace/marketplace-installer.ts";
 import { createOAuthContext } from "./contexts/oauth-context.ts";
 import { createMessagingContext } from "./contexts/messaging-context.ts";
 import { createTaskExecutionContext } from "./contexts/task-execution-context.ts";
@@ -344,6 +353,38 @@ if (process.env.SMTP_HOST && process.env.SMTP_FROM && process.env.SMTP_TO) {
     }),
   );
 }
+// Mail providers: unconditional, like runtimes and secret providers above.
+// Each carries no configuration of its own — a mailbox row supplies host,
+// credentials and the rest per call — so registering all four simply means
+// "this server can speak IMAP, JMAP, Graph and Gmail". Whether a given
+// mailbox actually connects is what POST /api/crew/mailboxes/:id/test says.
+ironCrewOrchestrator.registerMailProvider(new ImapProvider());
+ironCrewOrchestrator.registerMailProvider(new JmapProvider());
+ironCrewOrchestrator.registerMailProvider(new M365Provider());
+ironCrewOrchestrator.registerMailProvider(new GmailProvider());
+
+// Marketplaces: the four source adapters, plus the installer that writes
+// what an admin approves into the infrastructure that already exists —
+// McpManager's settings row for servers, custom-skills/ for skills. Both
+// halves are needed for an install; registering the adapters alone would
+// let a source be browsed but never installed from.
+ironCrewOrchestrator.registerMarketplaceSource(new CatalogMarketplaceSource());
+ironCrewOrchestrator.registerMarketplaceSource(new McpRegistryMarketplaceSource());
+ironCrewOrchestrator.registerMarketplaceSource(new ClaudePluginMarketplaceSource());
+ironCrewOrchestrator.registerMarketplaceSource(new GitMarketplaceSource());
+ironCrewOrchestrator.registerMarketplaceInstaller(
+  new MarketplaceInstaller({
+    mcp: mcpManagerTarget({
+      addServer: (config) => mcpManager.addServer(config),
+      removeServer: (name) => mcpManager.removeServer(name, connectorRegistry),
+      getConfig: (name) => mcpManager.getConfig(name),
+      persist: () => mcpManager.saveToSettings(db),
+    }),
+    // The same directory the custom-skills route uses (logsDir's parent).
+    skillsDir: path.join(logsDir, "..", "custom-skills"),
+  }),
+);
+
 registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,

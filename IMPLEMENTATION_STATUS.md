@@ -4,22 +4,25 @@ Honest state of IronCrew. Nothing is listed as done unless it is
 implemented **and** covered by a passing test. Anything verified only by design
 review, or not verifiable in this environment, is said so explicitly.
 
-Last updated: Phase 2 completion — Company OS (goals, projects, Kanban, task
-dependencies, decision inbox, org chart, bounded meetings, an Obsidian
-`MemoryProvider`, Discord/Telegram/email notification fan-out) plus, shipped
-alongside it on request: password-manager integration, file attachments, the
-IronCrew rebrand, and Tailscale + remote workers over the tailnet.
+Last updated: mailboxes and marketplaces — any number of IMAP/JMAP/Microsoft
+365/Gmail mailboxes granted to agents n:n with per-mailbox polling and
+triage, and marketplaces for installing skills and MCP servers from four
+kinds of source. Before that: Phase 2's Company OS (goals, projects, Kanban,
+task dependencies, decision inbox, org chart, bounded meetings, an Obsidian
+`MemoryProvider`, Discord/Telegram/email notification fan-out) plus
+password-manager integration, file attachments, the IronCrew rebrand, and
+Tailscale + remote workers over the tailnet.
 
 ## Verification summary
 
-| Check           | Result                                                                                                                                                |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm test:api` | **226 files / 3304 tests passed**                                                                                                                     |
-| `pnpm test:web` | **53 files / 338 tests passed**                                                                                                                       |
-| `pnpm build`    | passes (`tsc -b && vite build`)                                                                                                                       |
-| `pnpm lint`     | 0 errors; 441 warnings, all pre-existing upstream (IronCrew code contributes 0)                                                                       |
+| Check           | Result                                                                                                                                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test:api` | **234 files / 3497 tests passed**                                                                                                                                                                           |
+| `pnpm test:web` | **53 files / 364 tests passed**                                                                                                                                                                             |
+| `pnpm build`    | passes (`tsc -b && vite build`)                                                                                                                                                                             |
+| `pnpm lint`     | 0 errors; 441 warnings, all pre-existing upstream (IronCrew code contributes 0)                                                                                                                             |
 | Playwright E2E  | **10/10 passed** — the IronCrew CEO workflow spec, API and browser (set `PW_CHROMIUM_PATH` on images shipping Chromium but not chrome-headless-shell); not re-run this phase, no CEO-slice behavior changed |
-| Manual live run | verified against a running server (see below)                                                                                                         |
+| Manual live run | verified against a running server (see below)                                                                                                                                                               |
 
 IronCrew's own suites have grown from the Phase 1 baseline (479 tests) to
 well over a thousand across policy, domain, memory, notify, secrets,
@@ -97,29 +100,57 @@ over HTTP:
 
 ## Phase 2 — Company OS
 
-| Item                                            | Status                                                                                                      |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| Goals + goal ancestry in the context builder    | **done** — 21 domain tests                                                                                  |
-| Projects, milestones, project detail view       | **done** — 28 domain tests                                                                                  |
-| Kanban drag & drop, server-side validated       | **done** — every board move is a real `POST .../status`; the UI applies nothing locally, only what the API returns (task-store's 38 transition tests back every legal/illegal move) |
-| Task dependencies and blockers in the UI        | **done**                                                                                                     |
-| Decision inbox + notifications                  | **done** — 6 decision-store + 10 notification-store tests                                                    |
-| Org chart + agent detail                        | **done**                                                                                                     |
-| Meetings — moderator, bounded rounds, budget    | **done** — 20 domain tests; structurally bounded, not just by convention (see `docs/UPSTREAM_ANALYSIS.md`)   |
-| Meeting action items become real tasks          | **done** — idempotent (converting twice never duplicates)                                                    |
-| Obsidian vault, the first `MemoryProvider`      | **done** — 11 memory-store + 9 obsidian-provider tests; real markdown files, real full-text search           |
-| Notification channels — Discord, Telegram, email | **done** — 13 channel tests (4 Discord + 5 email + 4 Telegram); best-effort fan-out, audited either way       |
-| REST API + Command Center UI for all of the above | **done** — 114 route tests, 94 orchestrator tests, 68 Command Center UI tests                              |
+| Item                                              | Status                                                                                                                                                                              |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Goals + goal ancestry in the context builder      | **done** — 21 domain tests                                                                                                                                                          |
+| Projects, milestones, project detail view         | **done** — 28 domain tests                                                                                                                                                          |
+| Kanban drag & drop, server-side validated         | **done** — every board move is a real `POST .../status`; the UI applies nothing locally, only what the API returns (task-store's 38 transition tests back every legal/illegal move) |
+| Task dependencies and blockers in the UI          | **done**                                                                                                                                                                            |
+| Decision inbox + notifications                    | **done** — 6 decision-store + 10 notification-store tests                                                                                                                           |
+| Org chart + agent detail                          | **done**                                                                                                                                                                            |
+| Meetings — moderator, bounded rounds, budget      | **done** — 20 domain tests; structurally bounded, not just by convention (see `docs/UPSTREAM_ANALYSIS.md`)                                                                          |
+| Meeting action items become real tasks            | **done** — idempotent (converting twice never duplicates)                                                                                                                           |
+| Obsidian vault, the first `MemoryProvider`        | **done** — 11 memory-store + 9 obsidian-provider tests; real markdown files, real full-text search                                                                                  |
+| Notification channels — Discord, Telegram, email  | **done** — 13 channel tests (4 Discord + 5 email + 4 Telegram); best-effort fan-out, audited either way                                                                             |
+| REST API + Command Center UI for all of the above | **done** — 114 route tests, 94 orchestrator tests, 68 Command Center UI tests                                                                                                       |
 
 ### Also shipped alongside Phase 2 — requested mid-stream, not in the original scope
 
-| Item                                                     | Status                                                                     |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Password-manager integration (`SecretRef` + providers)   | **done** — 18 secret-store + 14 Vaultwarden + 16 Proton Pass tests; a value is never stored, only resolved live |
-| File attachments (task/project/general)                 | **done** — 17 attachment-store + 7 attachment-storage tests; content-addressed blobs on disk |
-| Rename Iron Command OS → IronCrew                        | **done** — paths, symbols, DB table/index prefixes (with an upgrade migration), WS event names, API base path, all UI/doc text |
-| Tailscale/Headscale network status                       | **done** — 7 tests                                                          |
-| Remote workers over the tailnet (Tier0/customer networks) | **done** — 10 tests; registering and testing SSH reachability, not yet routing task execution there |
+| Item                                                      | Status                                                                                                                         |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Password-manager integration (`SecretRef` + providers)    | **done** — 18 secret-store + 14 Vaultwarden + 16 Proton Pass tests; a value is never stored, only resolved live                |
+| File attachments (task/project/general)                   | **done** — 17 attachment-store + 7 attachment-storage tests; content-addressed blobs on disk                                   |
+| Rename Iron Command OS → IronCrew                         | **done** — paths, symbols, DB table/index prefixes (with an upgrade migration), WS event names, API base path, all UI/doc text |
+| Tailscale/Headscale network status                        | **done** — 7 tests                                                                                                             |
+| Remote workers over the tailnet (Tier0/customer networks) | **done** — 10 tests; registering and testing SSH reachability, not yet routing task execution there                            |
+
+### Mailboxes and marketplaces — requested after Phase 2, built to the same standard
+
+| Item                                                             | Status                                                                                                                                                                            |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mailbox schema, encrypted credentials, n:n agent grants          | **done** — 31 mailbox-store tests, including one asserting no message body column exists and one asserting a password never appears in a serialised row                           |
+| `MailProvider` — IMAP, JMAP, Microsoft 365, Gmail                | **done** — 36 provider tests (9 IMAP + 10 JMAP + 9 M365 + 8 Gmail), all against injected transports: real code paths, no sockets                                                  |
+| Mailbox orchestration: grants, polling, untrusted-mail triage    | **done** — 17 orchestrator tests; incoming mail becomes an `inbox` task, never a CEO message (`docs/THREAT_MODEL.md` T-10), asserted both by status and by "no runs were started" |
+| Per-mailbox polling and auto-triage switches                     | **done** — auto-triage without polling is refused by a schema `CHECK`, not just by the UI                                                                                         |
+| Mail REST API + Command Center UI                                | **done** — 14 route tests, 14 UI tests; credentials are never echoed back, an ungranted agent gets 403 rather than 400                                                            |
+| Marketplace sources — catalog, MCP registry, Claude plugins, Git | **done** — 27 adapter tests; every fetch defaults to `safeFetch`                                                                                                                  |
+| Marketplace installer (skills + MCP servers)                     | **done** — 23 installer tests; launcher allowlist, `McpServerConfigSchema`, path containment, and installing a skill executes nothing (`docs/THREAT_MODEL.md` T-12)               |
+| Marketplace store + orchestration                                | **done** — 16 store + 14 orchestrator tests; provenance survives deleting its source                                                                                              |
+| Marketplace REST API + Command Center UI                         | **done** — 14 route tests, 13 UI tests; 502 for a broken catalog, 422 for a refused install, 400 only for a bad request                                                           |
+
+Docs: `docs/MAIL.md`, `docs/MARKETPLACES.md`.
+
+Two things worth stating plainly rather than burying:
+
+1. **Mailbox credentials are stored encrypted in the database**, not as a
+   `SecretRef`. That is a deliberate departure from "secrets in the database:
+   references only", made on request so a mailbox can be connected without a
+   password manager and so OAuth tokens can rotate. The cost is written down
+   in `docs/THREAT_MODEL.md` T-11 rather than left implicit.
+2. **An MCP server offered only over streamable-http is not listed** by the
+   registry adapter, because this codebase's MCP connector speaks stdio and
+   SSE. Listing it would produce an entry that installs and then never
+   connects.
 
 ---
 
@@ -174,7 +205,7 @@ Phase 2 table above. What's still genuinely not started:
 
 - Coaching, performance evaluations: not started.
 - Routines, schedules, heartbeats: not started (upstream has its own scheduler).
-- Routing actual agent task *execution* to a remote worker over the tailnet —
+- Routing actual agent task _execution_ to a remote worker over the tailnet —
   the registry and reachability test exist, dispatch does not.
 
 ### Memory
@@ -217,7 +248,7 @@ Measured against section 29 of the master prompt.
 | No pixel style, modern command center                              | **met**                                                                                                                                                                                                                                                        |
 | Responsive, 2D fallback                                            | **met** (DOM-only; no WebGL scene exists to fall back from)                                                                                                                                                                                                    |
 | Figure status matches backend state                                | **met** — derived server-side                                                                                                                                                                                                                                  |
-| Kanban, agent detail, CEO chat reachable                           | **met**; projects, org chart, meetings, memory, secrets, attachments and network status are too — each behind its own topbar dialog                                                                                                                          |
+| Kanban, agent detail, CEO chat reachable                           | **met**; projects, org chart, meetings, memory, secrets, attachments and network status are too — each behind its own topbar dialog                                                                                                                            |
 | Provider health UI                                                 | **met** — `GET /api/crew/runtimes` + Command Center agent-detail dropdown with a health marker per registered runtime                                                                                                                                          |
 | MockRuntime plus one real CLI runtime                              | **met** (implementation) — `CliAdapterRuntime` registered for claude/codex/gemini and driven end-to-end against a real child process; a live task run through an authenticated CLI is the user's own manual verification (no login exists in this environment) |
 | Start, streaming, cancel, error state                              | **met** for MockRuntime and `CliAdapterRuntime` alike (same `AgentRuntime` contract, same test coverage pattern)                                                                                                                                               |
@@ -228,9 +259,9 @@ Measured against section 29 of the master prompt.
 | Revision works                                                     | **met**                                                                                                                                                                                                                                                        |
 | Blocker and approval work                                          | **met**                                                                                                                                                                                                                                                        |
 | Restart loses no task                                              | **met**                                                                                                                                                                                                                                                        |
-| Obsidian vault read/written                                        | **met** — real markdown files with YAML frontmatter, written/read through `ObsidianProvider`                                                                                                                                                                  |
-| Memory search                                                      | **met** — full-text search over what `ObsidianProvider` itself wrote, with snippet extraction                                                                                                                                                                 |
-| Honcho optional, failure non-blocking                              | **not met** — deliberately not built alongside Obsidian; `MemoryProvider` is registry-based (like `SecretProvider`), so a second provider is additive whenever it's wanted (see `docs/UPSTREAM_ANALYSIS.md`)                                                 |
+| Obsidian vault read/written                                        | **met** — real markdown files with YAML frontmatter, written/read through `ObsidianProvider`                                                                                                                                                                   |
+| Memory search                                                      | **met** — full-text search over what `ObsidianProvider` itself wrote, with snippet extraction                                                                                                                                                                  |
+| Honcho optional, failure non-blocking                              | **not met** — deliberately not built alongside Obsidian; `MemoryProvider` is registry-based (like `SecretProvider`), so a second provider is additive whenever it's wanted (see `docs/UPSTREAM_ANALYSIS.md`)                                                   |
 | High-risk action blocked until approved                            | **met**                                                                                                                                                                                                                                                        |
 | Budgets stop runs reliably                                         | **met**                                                                                                                                                                                                                                                        |
 | Atomic assignment prevents double work                             | **met**                                                                                                                                                                                                                                                        |

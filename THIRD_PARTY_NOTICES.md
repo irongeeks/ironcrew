@@ -120,6 +120,18 @@ Third-party npm dependencies retain their own licences as declared in
 `package.json` and `pnpm-lock.yaml`. Run `pnpm licenses list` for the current
 resolved set.
 
+Dependencies added for IronCrew's own features, called out because they are
+network-facing and hold credentials:
+
+| Package      | Licence | Used for                                                                    |
+| ------------ | ------- | --------------------------------------------------------------------------- |
+| `imapflow`   | MIT     | IMAP mailbox access (`server/ironcrew/mail/`)                               |
+| `mailparser` | MIT     | Parsing fetched messages (RFC822 → structured)                              |
+| `nodemailer` | MIT     | SMTP send: the email notification channel, and sending from an IMAP mailbox |
+
+JMAP, Microsoft Graph and Gmail are reached over plain HTTPS with the
+platform `fetch`; no vendor SDK is vendored for them.
+
 ## 6. Media and character assets
 
 No copyrighted images, actor likenesses, audio, franchise logos or scraped

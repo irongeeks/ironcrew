@@ -16,6 +16,11 @@ import {
   AGENT_STATUS_LABEL,
   BOARD_COLUMNS,
   MEETING_STATUS_LABEL,
+  MAILBOX_ACCESS_LABEL,
+  MAILBOX_KIND_LABEL,
+  MARKETPLACE_ENTRY_TYPE_LABEL,
+  MARKETPLACE_KIND_LABEL,
+  MARKETPLACE_URL_HINT,
   MEMORY_KIND_LABEL,
   MILESTONE_STATUS_LABEL,
   NOTIFICATION_CHANNEL_LABEL,
@@ -31,6 +36,16 @@ import {
   type Department,
   type Goal,
   type KnownHostsPolicy,
+  type Mailbox,
+  type MailboxAccess,
+  type MailboxKind,
+  type Marketplace,
+  type MarketplaceEntry,
+  type MarketplaceInstall,
+  type MarketplaceKind,
+  type MarketplaceKindStatus,
+  type MailMessage,
+  type MailProviderStatus,
   type Meeting,
   type MeetingActionItem,
   type MeetingParticipant,
@@ -160,6 +175,36 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [newMemoryKind, setNewMemoryKind] = useState<MemoryKind>("note");
   const [newMemoryTitle, setNewMemoryTitle] = useState("");
   const [newMemoryContent, setNewMemoryContent] = useState("");
+
+  const [mailProviders, setMailProviders] = useState<MailProviderStatus[]>([]);
+  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
+  const [showMailboxes, setShowMailboxes] = useState(false);
+  const [mailboxTestResults, setMailboxTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const [mailboxInbox, setMailboxInbox] = useState<{ mailboxId: string; messages: MailMessage[] } | null>(null);
+  const [grantDraft, setGrantDraft] = useState<Record<string, { agentId: string; access: MailboxAccess }>>({});
+  const [newMailboxLabel, setNewMailboxLabel] = useState("");
+  const [newMailboxKind, setNewMailboxKind] = useState<MailboxKind>("imap");
+  const [newMailboxAddress, setNewMailboxAddress] = useState("");
+  const [newMailboxHost, setNewMailboxHost] = useState("");
+  const [newMailboxUsername, setNewMailboxUsername] = useState("");
+  const [newMailboxSmtpHost, setNewMailboxSmtpHost] = useState("");
+  const [newMailboxSessionUrl, setNewMailboxSessionUrl] = useState("");
+  const [newMailboxTenantId, setNewMailboxTenantId] = useState("");
+  const [newMailboxClientId, setNewMailboxClientId] = useState("");
+  const [newMailboxSecret, setNewMailboxSecret] = useState("");
+  const [newMailboxRefreshToken, setNewMailboxRefreshToken] = useState("");
+  const [newMailboxPoll, setNewMailboxPoll] = useState(false);
+  const [newMailboxAutoTriage, setNewMailboxAutoTriage] = useState(false);
+  const [marketplaceKinds, setMarketplaceKinds] = useState<MarketplaceKindStatus[]>([]);
+  const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
+  const [marketplaceInstalls, setMarketplaceInstalls] = useState<MarketplaceInstall[]>([]);
+  const [showMarketplaces, setShowMarketplaces] = useState(false);
+  const [marketplaceEntries, setMarketplaceEntries] = useState<{ id: string; entries: MarketplaceEntry[] } | null>(
+    null,
+  );
+  const [newMarketplaceName, setNewMarketplaceName] = useState("");
+  const [newMarketplaceKind, setNewMarketplaceKind] = useState<MarketplaceKind>("catalog");
+  const [newMarketplaceUrl, setNewMarketplaceUrl] = useState("");
 
   const [notificationChannels, setNotificationChannels] = useState<NotificationChannelStatus[]>([]);
   const [showChannels, setShowChannels] = useState(false);
@@ -777,6 +822,269 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     );
   }, [actWith, client, memoryQuery, memoryProviders]);
 
+  // --- mailboxes (IMAP/JMAP/M365/Gmail, n:n against agents) ---------------
+
+  const refreshMailboxes = useCallback(async () => {
+    const [{ providers }, { mailboxes: list }] = await Promise.all([client.mailProviders(), client.mailboxes()]);
+    setMailProviders(providers);
+    setMailboxes(list);
+  }, [client]);
+
+  const openMailboxes = useCallback(() => {
+    setShowMailboxes(true);
+    setMailboxTestResults({});
+    setMailboxInbox(null);
+    void refreshMailboxes();
+  }, [refreshMailboxes]);
+
+  const createMailbox = useCallback(() => {
+    const label = newMailboxLabel.trim();
+    const emailAddress = newMailboxAddress.trim();
+    if (!label || !emailAddress) return;
+
+    // Only the fields the chosen kind actually needs are sent; the server
+    // validates the same rule again (mailbox-store.ts#assertConnectable).
+    const credentials =
+      newMailboxKind === "jmap"
+        ? { bearerToken: newMailboxSecret || undefined }
+        : newMailboxKind === "imap"
+          ? { password: newMailboxSecret || undefined }
+          : { clientSecret: newMailboxSecret || undefined, refreshToken: newMailboxRefreshToken || undefined };
+
+    void actWith(
+      () =>
+        client.createMailbox({
+          label,
+          kind: newMailboxKind,
+          emailAddress,
+          host: newMailboxHost.trim() || undefined,
+          username: newMailboxUsername.trim() || undefined,
+          smtpHost: newMailboxSmtpHost.trim() || undefined,
+          sessionUrl: newMailboxSessionUrl.trim() || undefined,
+          tenantId: newMailboxTenantId.trim() || undefined,
+          clientId: newMailboxClientId.trim() || undefined,
+          credentials,
+          pollEnabled: newMailboxPoll,
+          autoTriage: newMailboxAutoTriage,
+        }),
+      async () => {
+        setNewMailboxLabel("");
+        setNewMailboxAddress("");
+        setNewMailboxHost("");
+        setNewMailboxUsername("");
+        setNewMailboxSmtpHost("");
+        setNewMailboxSessionUrl("");
+        setNewMailboxTenantId("");
+        setNewMailboxClientId("");
+        setNewMailboxSecret("");
+        setNewMailboxRefreshToken("");
+        setNewMailboxPoll(false);
+        setNewMailboxAutoTriage(false);
+        await refreshMailboxes();
+      },
+    );
+  }, [
+    actWith,
+    client,
+    newMailboxLabel,
+    newMailboxKind,
+    newMailboxAddress,
+    newMailboxHost,
+    newMailboxUsername,
+    newMailboxSmtpHost,
+    newMailboxSessionUrl,
+    newMailboxTenantId,
+    newMailboxClientId,
+    newMailboxSecret,
+    newMailboxRefreshToken,
+    newMailboxPoll,
+    newMailboxAutoTriage,
+    refreshMailboxes,
+  ]);
+
+  const testMailbox = useCallback(
+    (id: string) => {
+      void actWith(
+        async () => {
+          const result = await client.testMailbox(id);
+          setMailboxTestResults((prev) => ({ ...prev, [id]: result }));
+        },
+        async () => {},
+      );
+    },
+    [actWith, client],
+  );
+
+  const deleteMailbox = useCallback(
+    (id: string) => {
+      void actWith(
+        () => client.deleteMailbox(id),
+        async () => {
+          setMailboxInbox((prev) => (prev?.mailboxId === id ? null : prev));
+          await refreshMailboxes();
+        },
+      );
+    },
+    [actWith, client, refreshMailboxes],
+  );
+
+  const toggleMailboxSetting = useCallback(
+    (mailbox: Mailbox, patch: { pollEnabled?: boolean; autoTriage?: boolean }) => {
+      void actWith(() => client.updateMailbox(mailbox.id, patch), refreshMailboxes);
+    },
+    [actWith, client, refreshMailboxes],
+  );
+
+  const grantMailboxAgent = useCallback(
+    (mailboxId: string) => {
+      const draft = grantDraft[mailboxId];
+      if (!draft?.agentId) return;
+      void actWith(
+        () => client.grantMailboxAgent(mailboxId, draft.agentId, draft.access ?? "read"),
+        async () => {
+          setGrantDraft((prev) => ({ ...prev, [mailboxId]: { agentId: "", access: "read" } }));
+          await refreshMailboxes();
+        },
+      );
+    },
+    [actWith, client, grantDraft, refreshMailboxes],
+  );
+
+  const revokeMailboxAgent = useCallback(
+    (mailboxId: string, agentId: string) => {
+      void actWith(() => client.revokeMailboxAgent(mailboxId, agentId), refreshMailboxes);
+    },
+    [actWith, client, refreshMailboxes],
+  );
+
+  const openMailboxInbox = useCallback(
+    (mailboxId: string) => {
+      void actWith(
+        async () => {
+          const { messages } = await client.mailboxMessages(mailboxId);
+          setMailboxInbox({ mailboxId, messages });
+        },
+        async () => {},
+      );
+    },
+    [actWith, client],
+  );
+
+  const pollMailbox = useCallback(
+    (mailboxId: string) => {
+      void actWith(
+        async () => {
+          const result = await client.pollMailbox(mailboxId);
+          setMailboxTestResults((prev) => ({
+            ...prev,
+            [mailboxId]: {
+              ok: true,
+              message: `${result.newMessages} neu, ${result.tasksCreated} Aufgabe${result.tasksCreated === 1 ? "" : "n"}`,
+            },
+          }));
+        },
+        async () => {
+          await refreshMailboxes();
+          await refresh();
+        },
+      );
+    },
+    [actWith, client, refreshMailboxes, refresh],
+  );
+
+  // --- marketplaces (skills and MCP servers from outside this machine) -----
+
+  const refreshMarketplaces = useCallback(async () => {
+    const [{ kinds }, { marketplaces: list, installs }] = await Promise.all([
+      client.marketplaceKinds(),
+      client.marketplaces(),
+    ]);
+    setMarketplaceKinds(kinds);
+    setMarketplaces(list);
+    setMarketplaceInstalls(installs);
+  }, [client]);
+
+  const openMarketplaces = useCallback(() => {
+    setShowMarketplaces(true);
+    setMarketplaceEntries(null);
+    void refreshMarketplaces();
+  }, [refreshMarketplaces]);
+
+  const createMarketplace = useCallback(() => {
+    const name = newMarketplaceName.trim();
+    const url = newMarketplaceUrl.trim();
+    if (!name || !url) return;
+    void actWith(
+      () => client.createMarketplace({ name, kind: newMarketplaceKind, url }),
+      async () => {
+        setNewMarketplaceName("");
+        setNewMarketplaceUrl("");
+        await refreshMarketplaces();
+      },
+    );
+  }, [actWith, client, newMarketplaceName, newMarketplaceKind, newMarketplaceUrl, refreshMarketplaces]);
+
+  const deleteMarketplace = useCallback(
+    (id: string) => {
+      void actWith(
+        () => client.deleteMarketplace(id),
+        async () => {
+          setMarketplaceEntries((prev) => (prev?.id === id ? null : prev));
+          await refreshMarketplaces();
+        },
+      );
+    },
+    [actWith, client, refreshMarketplaces],
+  );
+
+  const toggleMarketplace = useCallback(
+    (marketplace: Marketplace) => {
+      void actWith(
+        () => client.updateMarketplace(marketplace.id, { enabled: marketplace.enabled !== 1 }),
+        refreshMarketplaces,
+      );
+    },
+    [actWith, client, refreshMarketplaces],
+  );
+
+  const browseMarketplace = useCallback(
+    (id: string) => {
+      void actWith(
+        async () => {
+          const { entries } = await client.marketplaceEntries(id);
+          setMarketplaceEntries({ id, entries });
+        },
+        // A browse records its outcome on the row (entry count, or the
+        // reason it failed), so the list is refreshed either way.
+        refreshMarketplaces,
+      );
+    },
+    [actWith, client, refreshMarketplaces],
+  );
+
+  const installEntry = useCallback(
+    (marketplaceId: string, entry: MarketplaceEntry) => {
+      // Variables the entry declares but cannot carry (API keys and the
+      // like) are asked for here, one prompt each, rather than installing
+      // with an empty value that fails on first connect.
+      const env: Record<string, string> = {};
+      for (const key of Object.keys(entry.mcp?.env ?? {})) {
+        const value = window.prompt(`Wert für ${key} (${entry.title})`, "");
+        if (value === null) return;
+        env[key] = value;
+      }
+      void actWith(() => client.installFromMarketplace(marketplaceId, { entryId: entry.id, env }), refreshMarketplaces);
+    },
+    [actWith, client, refreshMarketplaces],
+  );
+
+  const uninstallEntry = useCallback(
+    (install: MarketplaceInstall) => {
+      void actWith(() => client.uninstallFromMarketplace(install.entry_type, install.name), refreshMarketplaces);
+    },
+    [actWith, client, refreshMarketplaces],
+  );
+
   // --- notification channels (Discord, Telegram, email fan-out) -----------
 
   const refreshChannels = useCallback(async () => {
@@ -949,6 +1257,14 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         <button type="button" className="ic-btn" data-testid="open-channels" onClick={openChannels}>
           Kanäle
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-mailboxes" onClick={openMailboxes}>
+          E-Mail
+        </button>
+
+        <button type="button" className="ic-btn" data-testid="open-marketplaces" onClick={openMarketplaces}>
+          Marktplätze
         </button>
 
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
@@ -2379,6 +2695,591 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               </li>
             ))}
           </ul>
+        </DetailDialog>
+      )}
+
+      {showMailboxes && (
+        <DetailDialog title="E-Mail-Postfächer" onClose={() => setShowMailboxes(false)}>
+          <p className="ic-note">
+            Jedes Postfach lässt sich mehreren Agents zuweisen, und ein Agent kann mehrere Postfächer bearbeiten.
+            Zugangsdaten liegen verschlüsselt in der Datenbank und werden nie zurückgeliefert — auch hier nicht.
+            Eingehende Mails werden als Fremdinhalt behandelt: die Triage legt sie im Eingang ab, sie landen nie direkt
+            in der Arbeitswarteschlange.
+          </p>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Protokolle
+          </h3>
+          <ul className="ic-milestone-list">
+            {mailProviders.map((p) => (
+              <li key={p.kind} data-testid={`mail-provider-${p.kind}`}>
+                <span className="ic-milestone-title">{MAILBOX_KIND_LABEL[p.kind]}</span>
+                <span className="ic-tag" data-tone={p.registered ? "policy" : "gate"}>
+                  {p.registered ? "verfügbar" : "nicht registriert"}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Postfächer
+          </h3>
+          {mailboxes.length === 0 && <p className="ic-empty">Kein Postfach angebunden.</p>}
+          <ul className="ic-milestone-list">
+            {mailboxes.map((m) => (
+              <li key={m.id} data-testid={`mailbox-${m.id}`}>
+                <span className="ic-milestone-title">{m.label}</span>
+                <span className="ic-tag" data-tone="policy">
+                  {MAILBOX_KIND_LABEL[m.kind]}
+                </span>
+                <span className="ic-note">{m.email_address}</span>
+                {m.last_error !== "" && (
+                  <span className="ic-tag" data-tone="gate" data-testid={`mailbox-error-${m.id}`}>
+                    {m.last_error}
+                  </span>
+                )}
+
+                <label className="ic-check">
+                  <input
+                    type="checkbox"
+                    data-testid={`mailbox-poll-${m.id}`}
+                    checked={m.poll_enabled === 1}
+                    disabled={busy}
+                    onChange={(e) =>
+                      toggleMailboxSetting(m, {
+                        pollEnabled: e.target.checked,
+                        // Auto-triage without polling is refused by the schema,
+                        // so switching polling off has to take it along.
+                        ...(e.target.checked ? {} : { autoTriage: false }),
+                      })
+                    }
+                  />
+                  Abrufen
+                </label>
+                <label className="ic-check">
+                  <input
+                    type="checkbox"
+                    data-testid={`mailbox-triage-${m.id}`}
+                    checked={m.auto_triage === 1}
+                    disabled={busy || m.poll_enabled !== 1}
+                    onChange={(e) => toggleMailboxSetting(m, { autoTriage: e.target.checked })}
+                  />
+                  Auto-Triage
+                </label>
+
+                <button type="button" className="ic-btn" disabled={busy} onClick={() => testMailbox(m.id)}>
+                  Testen
+                </button>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid={`mailbox-poll-now-${m.id}`}
+                  disabled={busy}
+                  onClick={() => pollMailbox(m.id)}
+                >
+                  Jetzt abrufen
+                </button>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid={`mailbox-messages-${m.id}`}
+                  disabled={busy}
+                  onClick={() => openMailboxInbox(m.id)}
+                >
+                  Nachrichten
+                </button>
+                {mailboxTestResults[m.id] && (
+                  <span
+                    className="ic-tag"
+                    data-testid={`mailbox-test-${m.id}`}
+                    data-tone={mailboxTestResults[m.id].ok ? "policy" : "gate"}
+                  >
+                    {mailboxTestResults[m.id].message}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="danger"
+                  data-testid={`mailbox-delete-${m.id}`}
+                  disabled={busy}
+                  onClick={() => deleteMailbox(m.id)}
+                >
+                  Löschen
+                </button>
+
+                <div className="ic-note" style={{ width: "100%" }}>
+                  {(m.agents ?? []).length === 0 ? (
+                    <span data-testid={`mailbox-agents-empty-${m.id}`}>Kein Agent freigeschaltet.</span>
+                  ) : (
+                    (m.agents ?? []).map((g) => (
+                      <span key={g.agent_id} className="ic-tag" data-testid={`mailbox-agent-${m.id}-${g.agent_id}`}>
+                        {g.display_name} · {MAILBOX_ACCESS_LABEL[g.access]}
+                        <button
+                          type="button"
+                          className="ic-btn"
+                          data-variant="danger"
+                          disabled={busy}
+                          onClick={() => revokeMailboxAgent(m.id, g.agent_id)}
+                        >
+                          Entziehen
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap", width: "100%" }}>
+                  <label className="ic-sr-only" htmlFor={`ic-grant-agent-${m.id}`}>
+                    Agent
+                  </label>
+                  <select
+                    id={`ic-grant-agent-${m.id}`}
+                    className="ic-select"
+                    data-testid={`mailbox-grant-agent-${m.id}`}
+                    value={grantDraft[m.id]?.agentId ?? ""}
+                    onChange={(e) =>
+                      setGrantDraft((prev) => ({
+                        ...prev,
+                        [m.id]: { agentId: e.target.value, access: prev[m.id]?.access ?? "read" },
+                      }))
+                    }
+                  >
+                    <option value="">Agent wählen …</option>
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="ic-sr-only" htmlFor={`ic-grant-access-${m.id}`}>
+                    Zugriff
+                  </label>
+                  <select
+                    id={`ic-grant-access-${m.id}`}
+                    className="ic-select"
+                    data-testid={`mailbox-grant-access-${m.id}`}
+                    value={grantDraft[m.id]?.access ?? "read"}
+                    onChange={(e) =>
+                      setGrantDraft((prev) => ({
+                        ...prev,
+                        [m.id]: { agentId: prev[m.id]?.agentId ?? "", access: e.target.value as MailboxAccess },
+                      }))
+                    }
+                  >
+                    <option value="read">{MAILBOX_ACCESS_LABEL.read}</option>
+                    <option value="send">{MAILBOX_ACCESS_LABEL.send}</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="ic-btn"
+                    data-testid={`mailbox-grant-submit-${m.id}`}
+                    disabled={busy || !grantDraft[m.id]?.agentId}
+                    onClick={() => grantMailboxAgent(m.id)}
+                  >
+                    Zuweisen
+                  </button>
+                </div>
+
+                {mailboxInbox?.mailboxId === m.id && (
+                  <ul className="ic-milestone-list" data-testid={`mailbox-inbox-${m.id}`} style={{ width: "100%" }}>
+                    {mailboxInbox.messages.length === 0 && <li className="ic-empty">Keine Nachrichten.</li>}
+                    {mailboxInbox.messages.map((msg) => (
+                      <li key={msg.externalId} data-testid={`mail-message-${msg.externalId}`}>
+                        <span className="ic-milestone-title">{msg.subject || "(kein Betreff)"}</span>
+                        {msg.unread && (
+                          <span className="ic-tag" data-tone="policy">
+                            ungelesen
+                          </span>
+                        )}
+                        <span className="ic-note">
+                          {msg.from}
+                          {msg.snippet ? ` · ${msg.snippet}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Neues Postfach
+          </h3>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-new-mailbox-label">
+              Bezeichnung
+            </label>
+            <input
+              id="ic-new-mailbox-label"
+              data-testid="new-mailbox-label"
+              placeholder="Bezeichnung (z. B. Support)"
+              value={newMailboxLabel}
+              onChange={(e) => setNewMailboxLabel(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-mailbox-kind">
+              Protokoll
+            </label>
+            <select
+              id="ic-new-mailbox-kind"
+              className="ic-select"
+              data-testid="new-mailbox-kind"
+              value={newMailboxKind}
+              onChange={(e) => setNewMailboxKind(e.target.value as MailboxKind)}
+            >
+              <option value="imap">{MAILBOX_KIND_LABEL.imap}</option>
+              <option value="jmap">{MAILBOX_KIND_LABEL.jmap}</option>
+              <option value="m365">{MAILBOX_KIND_LABEL.m365}</option>
+              <option value="gmail">{MAILBOX_KIND_LABEL.gmail}</option>
+            </select>
+            <label className="ic-sr-only" htmlFor="ic-new-mailbox-address">
+              E-Mail-Adresse
+            </label>
+            <input
+              id="ic-new-mailbox-address"
+              data-testid="new-mailbox-address"
+              placeholder="E-Mail-Adresse"
+              value={newMailboxAddress}
+              onChange={(e) => setNewMailboxAddress(e.target.value)}
+            />
+
+            {/* Only the fields the chosen protocol actually needs — the same
+                rule the store enforces (mailbox-store.ts#assertConnectable). */}
+            {newMailboxKind === "imap" && (
+              <>
+                <label className="ic-sr-only" htmlFor="ic-new-mailbox-host">
+                  IMAP-Host
+                </label>
+                <input
+                  id="ic-new-mailbox-host"
+                  data-testid="new-mailbox-host"
+                  placeholder="IMAP-Host"
+                  value={newMailboxHost}
+                  onChange={(e) => setNewMailboxHost(e.target.value)}
+                />
+                <label className="ic-sr-only" htmlFor="ic-new-mailbox-username">
+                  Benutzername
+                </label>
+                <input
+                  id="ic-new-mailbox-username"
+                  data-testid="new-mailbox-username"
+                  placeholder="Benutzername"
+                  value={newMailboxUsername}
+                  onChange={(e) => setNewMailboxUsername(e.target.value)}
+                />
+                <label className="ic-sr-only" htmlFor="ic-new-mailbox-smtp">
+                  SMTP-Host (zum Senden)
+                </label>
+                <input
+                  id="ic-new-mailbox-smtp"
+                  data-testid="new-mailbox-smtp"
+                  placeholder="SMTP-Host (zum Senden)"
+                  value={newMailboxSmtpHost}
+                  onChange={(e) => setNewMailboxSmtpHost(e.target.value)}
+                />
+              </>
+            )}
+            {newMailboxKind === "jmap" && (
+              <>
+                <label className="ic-sr-only" htmlFor="ic-new-mailbox-session">
+                  JMAP-Session-URL
+                </label>
+                <input
+                  id="ic-new-mailbox-session"
+                  data-testid="new-mailbox-session-url"
+                  placeholder="JMAP-Session-URL"
+                  value={newMailboxSessionUrl}
+                  onChange={(e) => setNewMailboxSessionUrl(e.target.value)}
+                />
+              </>
+            )}
+            {newMailboxKind === "m365" && (
+              <>
+                <label className="ic-sr-only" htmlFor="ic-new-mailbox-tenant">
+                  Tenant-ID
+                </label>
+                <input
+                  id="ic-new-mailbox-tenant"
+                  data-testid="new-mailbox-tenant-id"
+                  placeholder="Tenant-ID"
+                  value={newMailboxTenantId}
+                  onChange={(e) => setNewMailboxTenantId(e.target.value)}
+                />
+              </>
+            )}
+            {(newMailboxKind === "m365" || newMailboxKind === "gmail") && (
+              <>
+                <label className="ic-sr-only" htmlFor="ic-new-mailbox-client">
+                  Client-ID
+                </label>
+                <input
+                  id="ic-new-mailbox-client"
+                  data-testid="new-mailbox-client-id"
+                  placeholder="Client-ID"
+                  value={newMailboxClientId}
+                  onChange={(e) => setNewMailboxClientId(e.target.value)}
+                />
+                <label className="ic-sr-only" htmlFor="ic-new-mailbox-refresh">
+                  Refresh-Token
+                </label>
+                <input
+                  id="ic-new-mailbox-refresh"
+                  type="password"
+                  data-testid="new-mailbox-refresh-token"
+                  placeholder="Refresh-Token"
+                  value={newMailboxRefreshToken}
+                  onChange={(e) => setNewMailboxRefreshToken(e.target.value)}
+                />
+              </>
+            )}
+
+            <label className="ic-sr-only" htmlFor="ic-new-mailbox-secret">
+              {newMailboxKind === "jmap" ? "Bearer-Token" : newMailboxKind === "imap" ? "Passwort" : "Client-Secret"}
+            </label>
+            <input
+              id="ic-new-mailbox-secret"
+              type="password"
+              data-testid="new-mailbox-secret"
+              placeholder={
+                newMailboxKind === "jmap" ? "Bearer-Token" : newMailboxKind === "imap" ? "Passwort" : "Client-Secret"
+              }
+              value={newMailboxSecret}
+              onChange={(e) => setNewMailboxSecret(e.target.value)}
+            />
+
+            <label className="ic-check">
+              <input
+                type="checkbox"
+                data-testid="new-mailbox-poll"
+                checked={newMailboxPoll}
+                onChange={(e) => {
+                  setNewMailboxPoll(e.target.checked);
+                  if (!e.target.checked) setNewMailboxAutoTriage(false);
+                }}
+              />
+              Regelmäßig abrufen
+            </label>
+            <label className="ic-check">
+              <input
+                type="checkbox"
+                data-testid="new-mailbox-triage"
+                checked={newMailboxAutoTriage}
+                disabled={!newMailboxPoll}
+                onChange={(e) => setNewMailboxAutoTriage(e.target.checked)}
+              />
+              Eingang automatisch triagieren
+            </label>
+
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="new-mailbox-submit"
+              disabled={busy || !newMailboxLabel.trim() || !newMailboxAddress.trim()}
+              onClick={createMailbox}
+            >
+              Anbinden
+            </button>
+          </div>
+        </DetailDialog>
+      )}
+
+      {showMarketplaces && (
+        <DetailDialog title="Marktplätze" onClose={() => setShowMarketplaces(false)}>
+          <p className="ic-note">
+            Quellen für Skills und MCP-Server. Kataloge werden live gelesen und nie zwischengespeichert — gespeichert
+            wird nur, was tatsächlich installiert wurde, samt Herkunft. Installiert wird über die Eintrags-ID: der
+            Server holt den Eintrag erneut von der Quelle, statt einer mitgeschickten Beschreibung zu vertrauen. Ein
+            Skill wird als Markdown abgelegt, es wird dabei nichts ausgeführt; ein MCP-Server startet erst, wenn Sie ihn
+            in den MCP-Einstellungen verbinden.
+          </p>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Quellenarten
+          </h3>
+          <ul className="ic-milestone-list">
+            {marketplaceKinds.map((k) => (
+              <li key={k.kind} data-testid={`marketplace-kind-${k.kind}`}>
+                <span className="ic-milestone-title">{MARKETPLACE_KIND_LABEL[k.kind]}</span>
+                <span className="ic-tag" data-tone={k.registered ? "policy" : "gate"}>
+                  {k.registered ? "verfügbar" : "nicht registriert"}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Quellen
+          </h3>
+          {marketplaces.length === 0 && <p className="ic-empty">Keine Quelle eingetragen.</p>}
+          <ul className="ic-milestone-list">
+            {marketplaces.map((m) => (
+              <li key={m.id} data-testid={`marketplace-${m.id}`}>
+                <span className="ic-milestone-title">{m.name}</span>
+                <span className="ic-tag" data-tone="policy">
+                  {MARKETPLACE_KIND_LABEL[m.kind]}
+                </span>
+                <span className="ic-note">{m.url}</span>
+                {m.last_synced_at !== null && m.last_error === "" && (
+                  <span className="ic-tag" data-testid={`marketplace-count-${m.id}`}>
+                    {m.entry_count} Einträge
+                  </span>
+                )}
+                {m.last_error !== "" && (
+                  <span className="ic-tag" data-tone="gate" data-testid={`marketplace-error-${m.id}`}>
+                    {m.last_error}
+                  </span>
+                )}
+
+                <label className="ic-check">
+                  <input
+                    type="checkbox"
+                    data-testid={`marketplace-enabled-${m.id}`}
+                    checked={m.enabled === 1}
+                    disabled={busy}
+                    onChange={() => toggleMarketplace(m)}
+                  />
+                  Aktiv
+                </label>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-testid={`marketplace-browse-${m.id}`}
+                  disabled={busy}
+                  onClick={() => browseMarketplace(m.id)}
+                >
+                  Durchsuchen
+                </button>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="danger"
+                  data-testid={`marketplace-delete-${m.id}`}
+                  disabled={busy}
+                  onClick={() => deleteMarketplace(m.id)}
+                >
+                  Entfernen
+                </button>
+
+                {marketplaceEntries?.id === m.id && (
+                  <ul
+                    className="ic-milestone-list"
+                    data-testid={`marketplace-entries-${m.id}`}
+                    style={{ width: "100%" }}
+                  >
+                    {marketplaceEntries.entries.length === 0 && <li className="ic-empty">Nichts im Angebot.</li>}
+                    {marketplaceEntries.entries.map((entry) => (
+                      <li key={entry.id} data-testid={`marketplace-entry-${entry.id}`}>
+                        <span className="ic-milestone-title">{entry.title}</span>
+                        <span className="ic-tag" data-tone="policy">
+                          {MARKETPLACE_ENTRY_TYPE_LABEL[entry.type]}
+                        </span>
+                        {entry.version !== "" && <span className="ic-tag">{entry.version}</span>}
+                        <span className="ic-note">{entry.description}</span>
+                        {entry.mcp?.command && (
+                          <span className="ic-tag" data-testid={`marketplace-entry-command-${entry.id}`}>
+                            {[entry.mcp.command, ...(entry.mcp.args ?? [])].join(" ")}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          className="ic-btn"
+                          data-variant="primary"
+                          data-testid={`marketplace-install-${entry.id}`}
+                          disabled={busy}
+                          onClick={() => installEntry(m.id, entry)}
+                        >
+                          Installieren
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Installiert
+          </h3>
+          {marketplaceInstalls.length === 0 && <p className="ic-empty">Nichts installiert.</p>}
+          <ul className="ic-milestone-list">
+            {marketplaceInstalls.map((install) => (
+              <li key={install.id} data-testid={`marketplace-install-row-${install.name}`}>
+                <span className="ic-milestone-title">{install.name}</span>
+                <span className="ic-tag" data-tone="policy">
+                  {MARKETPLACE_ENTRY_TYPE_LABEL[install.entry_type]}
+                </span>
+                {install.version !== "" && <span className="ic-tag">{install.version}</span>}
+                <span className="ic-note">
+                  {install.source_url || "—"}
+                  {install.marketplace_id === null ? " · Quelle entfernt" : ""}
+                </span>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  data-variant="danger"
+                  data-testid={`marketplace-uninstall-${install.name}`}
+                  disabled={busy}
+                  onClick={() => uninstallEntry(install)}
+                >
+                  Deinstallieren
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
+            Neue Quelle
+          </h3>
+          <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
+            <label className="ic-sr-only" htmlFor="ic-new-marketplace-name">
+              Name
+            </label>
+            <input
+              id="ic-new-marketplace-name"
+              data-testid="new-marketplace-name"
+              placeholder="Name (z. B. acme-katalog)"
+              value={newMarketplaceName}
+              onChange={(e) => setNewMarketplaceName(e.target.value)}
+            />
+            <label className="ic-sr-only" htmlFor="ic-new-marketplace-kind">
+              Art
+            </label>
+            <select
+              id="ic-new-marketplace-kind"
+              className="ic-select"
+              data-testid="new-marketplace-kind"
+              value={newMarketplaceKind}
+              onChange={(e) => setNewMarketplaceKind(e.target.value as MarketplaceKind)}
+            >
+              <option value="catalog">{MARKETPLACE_KIND_LABEL.catalog}</option>
+              <option value="mcp-registry">{MARKETPLACE_KIND_LABEL["mcp-registry"]}</option>
+              <option value="claude-plugin">{MARKETPLACE_KIND_LABEL["claude-plugin"]}</option>
+              <option value="git">{MARKETPLACE_KIND_LABEL.git}</option>
+            </select>
+            <label className="ic-sr-only" htmlFor="ic-new-marketplace-url">
+              URL
+            </label>
+            <input
+              id="ic-new-marketplace-url"
+              data-testid="new-marketplace-url"
+              placeholder={MARKETPLACE_URL_HINT[newMarketplaceKind]}
+              value={newMarketplaceUrl}
+              onChange={(e) => setNewMarketplaceUrl(e.target.value)}
+            />
+            <button
+              type="button"
+              className="ic-btn"
+              data-variant="primary"
+              data-testid="new-marketplace-submit"
+              disabled={busy || !newMarketplaceName.trim() || !newMarketplaceUrl.trim()}
+              onClick={createMarketplace}
+            >
+              Hinzufügen
+            </button>
+          </div>
         </DetailDialog>
       )}
     </div>

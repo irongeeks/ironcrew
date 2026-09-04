@@ -475,3 +475,164 @@ export const NOTIFICATION_CHANNEL_LABEL: Record<string, string> = {
   telegram: "Telegram",
   email: "E-Mail",
 };
+
+export type MailboxKind = "imap" | "jmap" | "m365" | "gmail";
+
+export const MAILBOX_KIND_LABEL: Record<MailboxKind, string> = {
+  imap: "IMAP",
+  jmap: "JMAP",
+  m365: "Microsoft 365",
+  gmail: "Gmail",
+};
+
+export type MailboxAccess = "read" | "send";
+
+export const MAILBOX_ACCESS_LABEL: Record<MailboxAccess, string> = {
+  read: "Lesen",
+  send: "Lesen + Senden",
+};
+
+export interface MailboxAgent {
+  agent_id: string;
+  key: string;
+  display_name: string;
+  access: MailboxAccess;
+  granted_at: number;
+}
+
+/** Never carries credentials — see server/ironcrew/domain/mailbox-store.ts. */
+export interface Mailbox {
+  id: string;
+  company_id: string;
+  label: string;
+  kind: MailboxKind;
+  email_address: string;
+  host: string;
+  port: number;
+  use_tls: number;
+  username: string;
+  smtp_host: string;
+  smtp_port: number;
+  session_url: string;
+  tenant_id: string;
+  client_id: string;
+  poll_enabled: number;
+  poll_interval_seconds: number;
+  auto_triage: number;
+  last_polled_at: number | null;
+  last_error: string;
+  created_at: number;
+  updated_at: number;
+  agents?: MailboxAgent[];
+}
+
+export interface MailboxMessageRef {
+  id: string;
+  mailbox_id: string;
+  external_id: string;
+  message_id: string;
+  subject: string;
+  from_address: string;
+  received_at: number | null;
+  task_id: string | null;
+  triaged_at: number | null;
+  created_at: number;
+}
+
+/** A message as the mail server reports it right now — never stored locally. */
+export interface MailMessage {
+  externalId: string;
+  messageId: string;
+  subject: string;
+  from: string;
+  to: string[];
+  receivedAt: number | null;
+  snippet: string;
+  unread: boolean;
+}
+
+export interface MailProviderStatus {
+  kind: MailboxKind;
+  registered: boolean;
+}
+
+// --- marketplaces: skills and MCP servers from outside this machine --------
+
+export type MarketplaceKind = "catalog" | "mcp-registry" | "claude-plugin" | "git";
+
+export const MARKETPLACE_KIND_LABEL: Record<MarketplaceKind, string> = {
+  catalog: "Katalog (JSON)",
+  "mcp-registry": "MCP-Registry",
+  "claude-plugin": "Claude-Code-Marktplatz",
+  git: "Git-Repository",
+};
+
+/** What an admin has to type in for each kind, in the placeholder. */
+export const MARKETPLACE_URL_HINT: Record<MarketplaceKind, string> = {
+  catalog: "https://…/catalog.json",
+  "mcp-registry": "https://registry.modelcontextprotocol.io",
+  "claude-plugin": "https://github.com/owner/plugins",
+  git: "https://github.com/owner/repo",
+};
+
+export type MarketplaceEntryType = "mcp" | "skill";
+
+export const MARKETPLACE_ENTRY_TYPE_LABEL: Record<MarketplaceEntryType, string> = {
+  mcp: "MCP-Server",
+  skill: "Skill",
+};
+
+export interface Marketplace {
+  id: string;
+  company_id: string;
+  name: string;
+  kind: MarketplaceKind;
+  url: string;
+  enabled: number;
+  last_synced_at: number | null;
+  last_error: string;
+  entry_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
+/** An offer, read live from its source — never stored locally. */
+export interface MarketplaceEntry {
+  id: string;
+  type: MarketplaceEntryType;
+  name: string;
+  title: string;
+  description: string;
+  version: string;
+  homepage: string;
+  sourceUrl: string;
+  mcp?: {
+    transport: "stdio" | "sse";
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    headers?: Record<string, string>;
+  };
+  skill?: { repo?: string; contentUrl?: string; content?: string };
+}
+
+/** What was installed, and where it came from. */
+export interface MarketplaceInstall {
+  id: string;
+  company_id: string;
+  marketplace_id: string | null;
+  entry_id: string;
+  entry_type: MarketplaceEntryType;
+  name: string;
+  version: string;
+  source_url: string;
+  installed_by: string;
+  manifest: string;
+  installed_at: number;
+}
+
+export interface MarketplaceKindStatus {
+  kind: MarketplaceKind;
+  registered: boolean;
+}
