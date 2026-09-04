@@ -12,6 +12,7 @@ import { newId } from "../domain/ids.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STUB = path.join(__dirname, "__fixtures__", "stub-cli.mjs");
+const ARGV_ECHO = path.join(__dirname, "__fixtures__", "argv-echo.mjs");
 
 /**
  * Point a real adapter's argv at the test fixture instead of the real CLI
@@ -390,5 +391,80 @@ describe("resumeRun", () => {
     });
     expect(events[0].type).toBe("run.started");
     expect(events.at(-1)!.type).toBe("run.completed");
+  });
+});
+
+describe("prompt delivery", () => {
+  /**
+   * An adapter that reports the argv it was actually spawned with.
+   *
+   * The prompt of a flag-delivery adapter (agy, openclaw) used to be dropped
+   * here: the runtime only wrote stdin, and stdin is precisely what those
+   * CLIs ignore. The run then succeeded with an empty prompt, which is the
+   * worst kind of bug — it looks like the agent had nothing to say.
+   */
+  function argvReporter(over: Partial<CliAdapter> = {}): CliAdapter {
+    return {
+      name: "argv reporter",
+      providerType: "argv",
+      transport: "cli",
+      supportsTokenTracking: false,
+      promptDelivery: "flag",
+      promptFlag: "-p",
+      buildArgs: () => [process.execPath, ARGV_ECHO],
+      parseStreamChunk: (raw: string) => [{ type: "output" as const, content: raw }],
+      testEnvironment: async () => ({ ok: true, message: "stub" }),
+      ...over,
+    } as CliAdapter;
+  }
+
+  it("appends the prompt for a flag-delivery adapter", async () => {
+    const runtime = new CliAdapterRuntime(argvReporter(), FAST);
+    const events = await collect(runtime, context(), "finde den Fehler");
+    const text = events
+      .filter((e) => e.type === "message.completed")
+      .map((e) => String(e.payload.text ?? ""))
+      .join("");
+
+    expect(JSON.parse(text).args).toEqual(["-p", "finde den Fehler"]);
+  });
+
+  it("passes a prompt containing a bypass flag as data, not as policy", async () => {
+    // The guard runs on the adapter's own argv, before the prompt is appended
+    // — otherwise a prompt merely mentioning the flag would be unrunnable.
+    const runtime = new CliAdapterRuntime(argvReporter(), FAST);
+    const events = await collect(runtime, context({ permissionMode: "restricted" }), "warum nicht --yolo?");
+    const text = events
+      .filter((e) => e.type === "message.completed")
+      .map((e) => String(e.payload.text ?? ""))
+      .join("");
+
+    expect(JSON.parse(text).args).toEqual(["-p", "warum nicht --yolo?"]);
+    expect(events.at(-1)!.type).toBe("run.completed");
+  });
+
+  it("refuses to start a flag-delivery adapter that names no flag, rather than running with no prompt", async () => {
+    const runtime = new CliAdapterRuntime(argvReporter({ promptFlag: undefined }), FAST);
+    await expect(collect(runtime, context())).rejects.toThrow(/names no flag/);
+  });
+
+  it("still uses stdin for adapters that read it", async () => {
+    const runtime = new CliAdapterRuntime(
+      argvReporter({
+        promptDelivery: "stdin",
+        promptFlag: undefined,
+        buildArgs: () => [process.execPath, ARGV_ECHO],
+      }),
+      FAST,
+    );
+    const events = await collect(runtime, context(), "über stdin");
+    const text = events
+      .filter((e) => e.type === "message.completed")
+      .map((e) => String(e.payload.text ?? ""))
+      .join("");
+
+    const reported = JSON.parse(text);
+    expect(reported.args).toEqual([]);
+    expect(reported.stdin).toBe("über stdin");
   });
 });

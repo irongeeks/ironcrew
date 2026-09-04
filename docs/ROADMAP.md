@@ -114,11 +114,31 @@ Requested mid-stream and built with the same standard (domain → orchestrator
   servers deployed against the older transport should not need a redeploy to
   upgrade IronCrew.
 
-Still open, and each needs its own decision rather than a checkbox:
+- **Antigravity (`agy`)** — shipped as a CLI adapter, replacing an inherited
+  HTTP stub that pointed at an endpoint that does not exist, dropped every
+  event and always reported failure. Its flags come from the published
+  headless-mode documentation, not from guessing. Like every other CLI here,
+  it is unverified against a real binary in this environment — that stays a
+  manual test (`docs/PROVIDER_AUTH.md`).
 
-- **Antigravity (`agy`)** — a CLI adapter, blocked on nothing but the adapter
-  itself. Not written blind: the adapter contract is small, but an adapter
-  verified against no binary is a guess with tests around it.
+Phase 3 is done. Two things it turned up, both open and both honest about
+their size:
+
+- **Identity is built but not wired.** `UserStore` and `SessionStore` exist,
+  with password hashing, roles and expiring sessions, and are tested. Nothing
+  calls them: `/api/crew` has no login, no session middleware and no role
+  guard, and the audit log still records the constant `"ceo"` as the actor.
+  On a single-operator machine behind loopback that is defensible; the moment
+  a second person or a tailnet address is involved it is not. Wiring it means
+  a login route, middleware, role guards on the mutating routes, and threading
+  the real actor into every `actorId` — a change that touches every route, not
+  a switch to flip.
+- **A flag-delivery adapter used to run with no prompt.** Found while building
+  the `agy` adapter: `CliAdapterRuntime` only ever wrote the prompt to stdin,
+  and the CLIs that take it as a flag (`agy`, OpenClaw) ignore stdin. Fixed,
+  with a test that spawns a real process and reads back the argv it was given.
+  The lesson is the general one: a contract with two branches needs a test on
+  the branch nobody uses yet.
 
 ## Phase 4 — Business packs
 

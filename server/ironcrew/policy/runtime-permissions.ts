@@ -169,6 +169,16 @@ export function permissionArgsFor(provider: string, mode: PermissionMode): strin
       if (mode === "elevated") return ["--approval-mode", "yolo"];
       if (mode === "workspace_write") return ["--approval-mode", "auto_edit"];
       return ["--approval-mode", "default"];
+    case "antigravity":
+      // agy documents exactly two levels on the command line: its default
+      // ("request-review", which in headless mode means nothing gets
+      // approved) and --dangerously-skip-permissions ("always-proceed").
+      // Finer rules live in its own settings.json, not in argv. So the two
+      // non-elevated modes deliberately produce the same flags — inventing a
+      // middle flag that does not exist would read as policy and enforce
+      // nothing.
+      if (mode === "elevated") return ["--dangerously-skip-permissions"];
+      return ["--sandbox"];
     default:
       return [];
   }

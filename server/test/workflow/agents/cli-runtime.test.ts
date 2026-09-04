@@ -467,6 +467,7 @@ describe("cli-runtime", () => {
         providerType: "openclaw",
         promptDelivery: "flag",
         promptFlag: "--message",
+        sessionFlag: "--session-id",
         buildArgs: vi.fn().mockReturnValue(["openclaw", "--profile", "qwen", "agent", "--local", "--json"]),
       });
       const deps = createMockDeps({
@@ -491,6 +492,30 @@ describe("cli-runtime", () => {
       expect(spawnArgs).toContain("task-42");
       expect(spawnArgs).toContain("--message");
       expect(spawnArgs).toContain("My prompt text");
+    });
+
+    it("omits the session flag for a CLI that has none, rather than passing an unknown flag", () => {
+      // agy takes a prompt by flag but knows no --session-id; handing it one
+      // would turn every run into an unknown-flag error.
+      const adapter = createMockCliAdapter({
+        name: "agy",
+        providerType: "antigravity",
+        promptDelivery: "flag",
+        promptFlag: "-p",
+        sessionFlag: undefined,
+        buildArgs: vi.fn().mockReturnValue(["agy", "--output-format", "stream-json"]),
+      });
+      const deps = createMockDeps({
+        adapterRegistry: createMockAdapterRegistry({ antigravity: adapter }),
+      });
+      const { spawnCliAgent } = createCliRuntimeTools(deps);
+
+      spawnCliAgent("task-43", "antigravity", "Mein Auftrag", "/project", "/logs/task-43.log");
+
+      const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+      expect(spawnArgs).not.toContain("--session-id");
+      expect(spawnArgs).not.toContain("task-43");
+      expect(spawnArgs.slice(-2)).toEqual(["-p", "Mein Auftrag"]);
     });
 
     it("should NOT write prompt to stdin when promptDelivery is flag", () => {

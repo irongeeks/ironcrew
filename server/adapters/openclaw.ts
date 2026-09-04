@@ -11,6 +11,7 @@ export const openclawAdapter: CliAdapter = {
   supportsTokenTracking: true,
   promptDelivery: "flag",
   promptFlag: "--message",
+  sessionFlag: "--session-id",
 
   buildArgs(context: InvocationContext): string[] {
     const args = ["openclaw"];
