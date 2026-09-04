@@ -60,6 +60,8 @@ import { sanitiseLine, wrapUntrusted } from "../policy/untrusted-content.ts";
 import { RESOLVED_AGENT_SELECT, type ResolvedAgentRow } from "../domain/agent-resolution.ts";
 import { AgentLockStore } from "../domain/agent-lock-store.ts";
 import { ExternalEventStore } from "../domain/external-event-store.ts";
+import { MessengerPairingStore, type PairingRole } from "../domain/messenger-pairing-store.ts";
+import type { InboundMessage, MessengerChannel } from "../notify/messenger-channel.ts";
 import {
   ChangeProposalStore,
   ChangeProposalError,
@@ -132,6 +134,8 @@ export class CompanyOrchestrator {
   readonly agentLocks: AgentLockStore;
   readonly externalEvents: ExternalEventStore;
   readonly changeProposals: ChangeProposalStore;
+  readonly messengerPairings: MessengerPairingStore;
+  private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly secretProviders = new Map<SecretProviderKind, SecretProvider>();
   private readonly memoryProviders = new Map<string, MemoryProvider>();
   private readonly notificationChannels = new Map<string, NotificationChannel>();
@@ -172,6 +176,7 @@ export class CompanyOrchestrator {
     this.agentLocks = new AgentLockStore(db);
     this.externalEvents = new ExternalEventStore(db);
     this.changeProposals = new ChangeProposalStore(db);
+    this.messengerPairings = new MessengerPairingStore(db);
   }
 
   private get attachmentStorage(): AttachmentStorage {
@@ -921,6 +926,142 @@ export class CompanyOrchestrator {
     const removed = entryType === "mcp" ? await this.installer.uninstallMcp(name) : this.installer.uninstallSkill(name);
     const hadRecord = this.marketplaces.removeInstall(companyId, entryType, name, actor);
     return removed || hadRecord;
+  }
+
+  // --- inbound messaging: the EA's other direction -------------------------
+  //
+  // Until now IronCrew could tell you about an approval but you could not
+  // answer it. This closes the loop — and because it is a new ingress, the
+  // first question about every message is not what it says but who sent it.
+  //
+  // Three outcomes, decided by MessengerPairingStore and nothing else:
+  //
+  //   unknown/pending/blocked  a pairing prompt, and nothing else happens
+  //   guest                    routed exactly like incoming mail: an `inbox`
+  //                            task, quoted as third-party content (T-10)
+  //   owner                    reaches handleCeoMessage(), i.e. speaks with
+  //                            the owner's authority
+  //
+  // The last one is the feature, and also the risk: handleCeoMessage() can
+  // delegate work immediately. It is reachable only through a pairing the
+  // owner accepted as `owner` in the Command Center, having seen who asked.
+
+  registerMessengerChannel(channel: MessengerChannel): void {
+    this.messengerChannels.set(channel.kind, channel);
+  }
+
+  listMessengerChannelKinds(): string[] {
+    return [...this.messengerChannels.keys()];
+  }
+
+  /**
+   * Polls one channel and acts on whatever is allowed to act.
+   *
+   * Every message is recorded in the external event log first, so a redelivery
+   * — which both Telegram and Discord can produce — is recognised rather than
+   * answered twice.
+   */
+  async pollMessengerChannel(
+    companyId: string,
+    kind: string,
+  ): Promise<{ received: number; handled: number; pairingPrompts: number }> {
+    const channel = this.messengerChannels.get(kind);
+    if (!channel) throw new Error(`No "${kind}" messenger channel is registered on this server.`);
+
+    const messages = await channel.poll();
+    let handled = 0;
+    let pairingPrompts = 0;
+
+    for (const message of messages) {
+      const seen = this.externalEvents.record({
+        companyId,
+        sourceKind: `messenger:${kind}`,
+        sourceId: message.chatId,
+        externalId: message.externalId,
+        eventType: "message",
+        payload: { text: message.text, senderId: message.senderId, senderName: message.senderName },
+        occurredAt: message.receivedAt,
+      });
+      // A repeat was already answered once; answering again would double every
+      // task the first delivery produced.
+      if (!seen.isNew) continue;
+
+      const outcome = await this.handleInboundMessage(companyId, kind, channel, message);
+      if (outcome === "handled") handled++;
+      if (outcome === "pairing") pairingPrompts++;
+      this.externalEvents.markHandled(seen.event.id, `messenger:${kind}`, { taskId: null });
+    }
+
+    return { received: messages.length, handled, pairingPrompts };
+  }
+
+  private async handleInboundMessage(
+    companyId: string,
+    kind: string,
+    channel: MessengerChannel,
+    message: InboundMessage,
+  ): Promise<"handled" | "pairing" | "ignored"> {
+    const decision = this.messengerPairings.resolve({
+      companyId,
+      channelKind: kind,
+      chatId: message.chatId,
+      senderId: message.senderId,
+      displayName: message.senderName,
+    });
+
+    if (decision.allow === "none") {
+      // A blocked sender gets nothing at all — not even the courtesy of
+      // knowing they are blocked, which would only tell them to try from
+      // another account.
+      if (decision.reason === "blocked") return "ignored";
+
+      await channel.reply(
+        message.chatId,
+        `IronCrew: Dieser Zugang ist noch nicht freigegeben. Code für die Freigabe: ${decision.pairing?.pairing_code ?? "—"}`,
+      );
+      return "pairing";
+    }
+
+    if (decision.allow === "ceo") {
+      const result = this.handleCeoMessage(companyId, message.text);
+      await channel.reply(message.chatId, result.reply);
+      return "handled";
+    }
+
+    // A guest is a stranger with a name. Same treatment as incoming mail:
+    // an `inbox` task, never the CEO path.
+    const wrapped = wrapUntrusted(message.text, {
+      source: `${kind}:${sanitiseLine(message.senderName) || message.senderId}`,
+      kind: "Chat-Nachricht",
+    });
+    const classification = triage(message.text);
+    const agent = this.pickAgent(companyId, classification);
+
+    this.tasks.create({
+      companyId,
+      title: `Chat: ${sanitiseLine(message.text, 80) || "(ohne Text)"}`,
+      description: [
+        `Eingegangen über ${kind} von ${sanitiseLine(message.senderName) || message.senderId}.`,
+        "",
+        wrapped.text,
+      ].join("\n"),
+      status: "inbox",
+      riskLevel: classification.riskLevel,
+      sensitive: classification.sensitive,
+      assignedAgentId: agent?.id ?? null,
+      createdBy: `messenger:${kind}:${message.senderId}`,
+      correlationId: newCorrelationId(),
+    });
+
+    await channel.reply(message.chatId, "IronCrew: Deine Nachricht liegt im Eingang und wird gesichtet.");
+    return "handled";
+  }
+
+  /** The owner accepts a pending pairing, choosing what authority it carries. */
+  acceptMessengerPairing(companyId: string, pairingId: string, role: PairingRole) {
+    const pairing = this.messengerPairings.get(pairingId);
+    if (!pairing || pairing.company_id !== companyId) return null;
+    return this.messengerPairings.accept(pairingId, role, { actorType: "owner", actorId: "ceo" });
   }
 
   // --- change proposals: file edits an owner sees before they happen -------

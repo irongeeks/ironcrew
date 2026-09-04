@@ -40,6 +40,7 @@ export type IdPrefix =
   | "xevt"
   | "chg"
   | "chgf"
+  | "pair"
   | "turn"
   | "action"
   | "corr";
