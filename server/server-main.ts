@@ -453,22 +453,26 @@ if (ironCrewScheduler) {
   logger.info("IronCrew scheduler disabled via IRONCREW_SCHEDULER");
 }
 
-// systemd sends SIGTERM and waits. Stopping the scheduler first lets a run in
-// flight finish recording its outcome, rather than leaving a lease to expire
-// and the next few minutes wasted on recovery that was never needed.
-let shuttingDown = false;
+// systemd sends SIGTERM and waits. This handler exists only to stop the loop
+// from *starting* new work; it deliberately does not exit the process.
+//
+// registerGracefulShutdownHandlers (modules/lifecycle.ts) already owns
+// shutdown: it stops child processes, rolls back worktrees, closes the
+// websockets, closes the database and then exits. A second handler calling
+// process.exit() would race that sequence and could cut it off mid-way —
+// closing the database out from under a rollback is a good deal worse than
+// a scheduler tick that never happened.
+//
+// `stop()` clears the timers synchronously before it awaits, so by the time
+// the graceful sequence runs, nothing new can start. A run already in flight
+// may still be cut off, and that is what the run request's lease is for: it
+// expires and the request is reclaimed on the next drain.
+let schedulerStopping = false;
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    logger.info({ signal }, "shutting down");
-    void (async () => {
-      try {
-        await ironCrewScheduler?.stop();
-      } finally {
-        process.exit(0);
-      }
-    })();
+    if (schedulerStopping) return;
+    schedulerStopping = true;
+    void ironCrewScheduler?.stop();
   });
 }
 
