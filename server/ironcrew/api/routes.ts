@@ -39,6 +39,12 @@ import { MeetingMutationError } from "../domain/meeting-store.ts";
 import { InvalidMeetingTransitionError, MEETING_STATUSES } from "../domain/meeting-state.ts";
 import { MemoryMutationError } from "../domain/memory-store.ts";
 import { MEMORY_KINDS } from "../memory/memory-provider.ts";
+import {
+  MailboxAccessError,
+  MailboxMutationError,
+  MAILBOX_ACCESS_LEVELS,
+  MAILBOX_KINDS,
+} from "../domain/mailbox-store.ts";
 import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
@@ -157,6 +163,43 @@ const createActionItemSchema = z.object({
   description: z.string().min(1).max(2000),
   assignedAgentId: z.string().max(200).nullable().optional(),
 });
+const mailboxCredentialsSchema = z.object({
+  password: z.string().max(2000).optional(),
+  bearerToken: z.string().max(4000).optional(),
+  clientSecret: z.string().max(2000).optional(),
+  refreshToken: z.string().max(4000).optional(),
+});
+const createMailboxSchema = z.object({
+  label: z.string().min(1).max(200),
+  kind: z.enum(MAILBOX_KINDS),
+  emailAddress: z.string().min(1).max(320),
+  host: z.string().max(500).optional(),
+  port: z.number().int().min(1).max(65535).optional(),
+  useTls: z.boolean().optional(),
+  username: z.string().max(320).optional(),
+  smtpHost: z.string().max(500).optional(),
+  smtpPort: z.number().int().min(1).max(65535).optional(),
+  sessionUrl: z.string().max(2000).optional(),
+  tenantId: z.string().max(200).optional(),
+  clientId: z.string().max(200).optional(),
+  credentials: mailboxCredentialsSchema.optional(),
+  pollEnabled: z.boolean().optional(),
+  pollIntervalSeconds: z.number().int().min(30).max(86_400).optional(),
+  autoTriage: z.boolean().optional(),
+});
+const updateMailboxSchema = createMailboxSchema.partial().omit({ kind: true });
+const grantMailboxAgentSchema = z.object({
+  agentId: z.string().min(1).max(200),
+  access: z.enum(MAILBOX_ACCESS_LEVELS).optional(),
+});
+const sendMailSchema = z.object({
+  to: z.array(z.string().min(1).max(320)).min(1).max(50),
+  subject: z.string().min(1).max(500),
+  text: z.string().min(1).max(100_000),
+  inReplyTo: z.string().max(500).optional(),
+  /** When set, the send is performed as that agent and needs its grant. */
+  agentId: z.string().max(200).optional(),
+});
 const createMemorySchema = z.object({
   provider: z.string().min(1).max(100),
   kind: z.enum(MEMORY_KINDS),
@@ -246,6 +289,15 @@ function sendDomainError(res: Response, err: unknown): boolean {
   }
   if (err instanceof MemoryMutationError) {
     res.status(400).json({ error: "invalid_memory_mutation", message: err.message });
+    return true;
+  }
+  // A refused grant is not a malformed request — it is a permission answer.
+  if (err instanceof MailboxAccessError) {
+    res.status(403).json({ error: "mailbox_access_denied", message: err.message });
+    return true;
+  }
+  if (err instanceof MailboxMutationError) {
+    res.status(400).json({ error: "invalid_mailbox_mutation", message: err.message });
     return true;
   }
   if (err instanceof z.ZodError) {
@@ -1323,6 +1375,214 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       }
       broadcast("crew_memory_changed", { memoryId: param(req, "id"), deleted: true });
       res.json({ ok: true });
+    }),
+  );
+
+  // --- mailboxes (IMAP, JMAP, Microsoft 365, Gmail) ------------------------
+  //
+  // A mailbox row never carries its credentials (see mailbox-store.ts), so
+  // no response here can leak them — the write endpoints accept them, and
+  // nothing reads them back out. Messages are not stored: the list and read
+  // endpoints go to the mail server live, so this API is a window onto the
+  // mailbox rather than a copy of it.
+
+  app.get(
+    `${base}/mail-providers`,
+    wrap((_req, res) => {
+      const registered = orchestrator.listMailProviderKinds();
+      res.json({
+        providers: MAILBOX_KINDS.map((kind) => ({ kind, registered: registered.includes(kind) })),
+      });
+    }),
+  );
+
+  app.get(
+    `${base}/mailboxes`,
+    wrap((_req, res) => {
+      const mailboxes = orchestrator.mailboxes.list(companyId).map((mailbox) => ({
+        ...mailbox,
+        agents: orchestrator.mailboxes.agentsFor(mailbox.id),
+      }));
+      res.json({ mailboxes });
+    }),
+  );
+
+  app.post(
+    `${base}/mailboxes`,
+    wrap((req, res) => {
+      const input = createMailboxSchema.parse(req.body ?? {});
+      const mailbox = orchestrator.mailboxes.create({
+        companyId,
+        ...input,
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("crew_mailbox_changed", { mailboxId: mailbox.id });
+      res.status(201).json({ mailbox });
+    }),
+  );
+
+  app.get(
+    `${base}/mailboxes/:id`,
+    wrap((req, res) => {
+      const mailbox = orchestrator.mailboxes.get(param(req, "id"));
+      if (!mailbox || mailbox.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({
+        mailbox,
+        agents: orchestrator.mailboxes.agentsFor(mailbox.id),
+        messages: orchestrator.mailboxes.messages(mailbox.id, 50),
+      });
+    }),
+  );
+
+  app.patch(
+    `${base}/mailboxes/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.mailboxes.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { credentials, ...patch } = updateMailboxSchema.parse(req.body ?? {});
+      const mailbox = orchestrator.mailboxes.update(existing.id, patch, { actorType: "owner", actorId: "ceo" });
+      // Credentials are replaced wholesale rather than merged: a partial
+      // update of a secret is how stale halves of a credential survive.
+      if (credentials) orchestrator.mailboxes.writeCredentials(existing.id, credentials);
+      broadcast("crew_mailbox_changed", { mailboxId: existing.id });
+      res.json({ mailbox });
+    }),
+  );
+
+  app.delete(
+    `${base}/mailboxes/:id`,
+    wrap((req, res) => {
+      const existing = orchestrator.mailboxes.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      orchestrator.mailboxes.delete(existing.id, { actorType: "owner", actorId: "ceo" });
+      broadcast("crew_mailbox_changed", { mailboxId: existing.id, deleted: true });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.post(
+    `${base}/mailboxes/:id/test`,
+    wrap(async (req, res) => {
+      const existing = orchestrator.mailboxes.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json(await orchestrator.testMailbox(companyId, existing.id));
+    }),
+  );
+
+  // --- who may work this mailbox (the n:n grants) --------------------------
+
+  app.post(
+    `${base}/mailboxes/:id/agents`,
+    wrap((req, res) => {
+      const existing = orchestrator.mailboxes.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const { agentId, access } = grantMailboxAgentSchema.parse(req.body ?? {});
+      const agents = orchestrator.mailboxes.grantAgent(existing.id, agentId, access ?? "read", {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      broadcast("crew_mailbox_changed", { mailboxId: existing.id });
+      res.status(201).json({ agents });
+    }),
+  );
+
+  app.delete(
+    `${base}/mailboxes/:id/agents/:agentId`,
+    wrap((req, res) => {
+      const existing = orchestrator.mailboxes.get(param(req, "id"));
+      if (!existing || existing.company_id !== companyId) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const revoked = orchestrator.mailboxes.revokeAgent(existing.id, param(req, "agentId"), {
+        actorType: "owner",
+        actorId: "ceo",
+      });
+      if (!revoked) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      broadcast("crew_mailbox_changed", { mailboxId: existing.id });
+      res.json({ agents: orchestrator.mailboxes.agentsFor(existing.id) });
+    }),
+  );
+
+  // --- live mail -----------------------------------------------------------
+
+  app.get(
+    `${base}/mailboxes/:id/messages`,
+    wrap(async (req, res) => {
+      const limit = req.query.limit ? Number(req.query.limit) : undefined;
+      const agentId = typeof req.query.agentId === "string" ? req.query.agentId : undefined;
+      res.json({
+        messages: await orchestrator.listMailboxMessages(companyId, param(req, "id"), { limit, agentId }),
+      });
+    }),
+  );
+
+  app.get(
+    `${base}/mailboxes/:id/messages/:externalId`,
+    wrap(async (req, res) => {
+      const agentId = typeof req.query.agentId === "string" ? req.query.agentId : undefined;
+      const message = await orchestrator.readMailboxMessage(companyId, param(req, "id"), param(req, "externalId"), {
+        agentId,
+      });
+      if (!message) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json({ message });
+    }),
+  );
+
+  app.post(
+    `${base}/mailboxes/:id/send`,
+    wrap(async (req, res) => {
+      const { agentId, ...mail } = sendMailSchema.parse(req.body ?? {});
+      await orchestrator.sendFromMailbox(companyId, param(req, "id"), mail, { agentId });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.post(
+    `${base}/mailboxes/:id/poll`,
+    wrap(async (req, res) => {
+      const result = await orchestrator.pollMailbox(companyId, param(req, "id"));
+      broadcast("crew_mailbox_changed", { mailboxId: result.mailbox.id });
+      for (const task of result.tasksCreated) {
+        broadcast("crew_task_changed", { taskId: task.id, status: task.status });
+      }
+      res.json({
+        mailbox: result.mailbox,
+        seen: result.seen,
+        newMessages: result.newMessages,
+        tasksCreated: result.tasksCreated.length,
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/mailboxes/poll-due`,
+    wrap(async (_req, res) => {
+      const results = await orchestrator.pollDueMailboxes(companyId);
+      if (results.length > 0) broadcast("crew_mailbox_changed", { polled: results.length });
+      res.json({ results });
     }),
   );
 

@@ -778,6 +778,15 @@
   color: var(--ic-text-dim);
 }
 
+.ic-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 8px 0 0;
+  font-size: 11px;
+  color: var(--ic-text-dim);
+}
+
 .ic-select {
   padding: 4px 8px;
   background: var(--ic-bg-inset);

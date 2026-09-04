@@ -19,6 +19,13 @@ import type {
   Goal,
   GoalStatus,
   KnownHostsPolicy,
+  Mailbox,
+  MailboxAccess,
+  MailboxAgent,
+  MailboxKind,
+  MailboxMessageRef,
+  MailMessage,
+  MailProviderStatus,
   Meeting,
   MeetingActionItem,
   MeetingParticipant,
@@ -194,6 +201,51 @@ export const api = {
   searchMemory: (provider: string, query: string) =>
     get<{ hits: MemorySearchHit[] }>(
       `/memory/search?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(query)}`,
+    ),
+
+  mailProviders: () => get<{ providers: MailProviderStatus[] }>("/mail-providers"),
+  mailboxes: () => get<{ mailboxes: Mailbox[] }>("/mailboxes"),
+  mailbox: (id: string) =>
+    get<{ mailbox: Mailbox; agents: MailboxAgent[]; messages: MailboxMessageRef[] }>(`/mailboxes/${id}`),
+  createMailbox: (input: {
+    label: string;
+    kind: MailboxKind;
+    emailAddress: string;
+    host?: string;
+    port?: number;
+    useTls?: boolean;
+    username?: string;
+    smtpHost?: string;
+    smtpPort?: number;
+    sessionUrl?: string;
+    tenantId?: string;
+    clientId?: string;
+    credentials?: { password?: string; bearerToken?: string; clientSecret?: string; refreshToken?: string };
+    pollEnabled?: boolean;
+    pollIntervalSeconds?: number;
+    autoTriage?: boolean;
+  }) => send<{ mailbox: Mailbox }>("/mailboxes", "POST", input),
+  updateMailbox: (
+    id: string,
+    patch: {
+      label?: string;
+      pollEnabled?: boolean;
+      pollIntervalSeconds?: number;
+      autoTriage?: boolean;
+      credentials?: { password?: string; bearerToken?: string; clientSecret?: string; refreshToken?: string };
+    },
+  ) => send<{ mailbox: Mailbox }>(`/mailboxes/${id}`, "PATCH", patch),
+  deleteMailbox: (id: string) => send<{ ok: boolean }>(`/mailboxes/${id}`, "DELETE"),
+  testMailbox: (id: string) => send<{ ok: boolean; message: string }>(`/mailboxes/${id}/test`, "POST"),
+  grantMailboxAgent: (id: string, agentId: string, access: MailboxAccess) =>
+    send<{ agents: MailboxAgent[] }>(`/mailboxes/${id}/agents`, "POST", { agentId, access }),
+  revokeMailboxAgent: (id: string, agentId: string) =>
+    send<{ agents: MailboxAgent[] }>(`/mailboxes/${id}/agents/${agentId}`, "DELETE"),
+  mailboxMessages: (id: string) => get<{ messages: MailMessage[] }>(`/mailboxes/${id}/messages`),
+  pollMailbox: (id: string) =>
+    send<{ mailbox: Mailbox; seen: number; newMessages: number; tasksCreated: number }>(
+      `/mailboxes/${id}/poll`,
+      "POST",
     ),
 
   notificationChannels: () => get<{ channels: NotificationChannelStatus[] }>("/notification-channels"),

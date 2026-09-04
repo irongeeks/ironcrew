@@ -1298,3 +1298,217 @@ describe("notification channels over HTTP (Discord, Telegram, email fan-out)", (
     expect(res.body.ok).toBe(false);
   });
 });
+
+describe("mailboxes over HTTP (IMAP/JMAP/M365/Gmail, n:n agent access)", () => {
+  function fakeMailProvider(over: Record<string, unknown> = {}) {
+    return {
+      kind: "imap",
+      listMessages: async () => [
+        {
+          externalId: "uid-1",
+          messageId: "<m1@example.com>",
+          subject: "Angebot",
+          from: "kunde@example.com",
+          to: ["support@example.com"],
+          receivedAt: Date.now(),
+          snippet: "Bitte um ein Angebot.",
+          unread: true,
+        },
+      ],
+      getMessage: async () => ({
+        summary: {
+          externalId: "uid-1",
+          messageId: "<m1@example.com>",
+          subject: "Angebot",
+          from: "kunde@example.com",
+          to: [],
+          receivedAt: Date.now(),
+          snippet: "Bitte um ein Angebot.",
+          unread: true,
+        },
+        text: "Bitte um ein Angebot.",
+        html: "",
+      }),
+      send: async () => {},
+      testConnection: async () => ({ ok: true, message: "IMAP erreichbar" }),
+      ...over,
+    };
+  }
+
+  const imapBody = {
+    label: "Support",
+    kind: "imap",
+    emailAddress: "support@example.com",
+    host: "imap.example.com",
+    port: 993,
+    username: "support@example.com",
+    credentials: { password: "hunter2" },
+  };
+
+  async function createMailbox(body: Record<string, unknown> = {}) {
+    const res = await request(app)
+      .post("/api/crew/mailboxes")
+      .send({ ...imapBody, ...body })
+      .expect(201);
+    return res.body.mailbox as { id: string; label: string };
+  }
+
+  it("lists which mail providers are registered on this server", async () => {
+    orchestrator.registerMailProvider(fakeMailProvider() as never);
+    const res = await request(app).get("/api/crew/mail-providers").expect(200);
+    expect(res.body.providers).toEqual([
+      { kind: "imap", registered: true },
+      { kind: "jmap", registered: false },
+      { kind: "m365", registered: false },
+      { kind: "gmail", registered: false },
+    ]);
+  });
+
+  it("connects a mailbox and never returns its credentials", async () => {
+    const created = await request(app).post("/api/crew/mailboxes").send(imapBody).expect(201);
+    expect(created.body.mailbox.label).toBe("Support");
+    expect(JSON.stringify(created.body)).not.toMatch(/hunter2/);
+    expect(created.body.mailbox).not.toHaveProperty("credentials_encrypted");
+    expect(broadcasts.some((b) => b.type === "crew_mailbox_changed")).toBe(true);
+
+    const list = await request(app).get("/api/crew/mailboxes").expect(200);
+    expect(list.body.mailboxes).toHaveLength(1);
+    expect(JSON.stringify(list.body)).not.toMatch(/hunter2/);
+  });
+
+  it("rejects a mailbox missing the fields its kind needs, with 400", async () => {
+    const res = await request(app)
+      .post("/api/crew/mailboxes")
+      .send({ ...imapBody, host: "" })
+      .expect(400);
+    expect(res.body.error).toBe("invalid_mailbox_mutation");
+  });
+
+  it("updates settings and replaces credentials without echoing them", async () => {
+    const mailbox = await createMailbox();
+    const res = await request(app)
+      .patch(`/api/crew/mailboxes/${mailbox.id}`)
+      .send({ pollEnabled: true, autoTriage: true, credentials: { password: "neues-passwort" } })
+      .expect(200);
+    expect(res.body.mailbox.poll_enabled).toBe(1);
+    expect(res.body.mailbox.auto_triage).toBe(1);
+    expect(JSON.stringify(res.body)).not.toMatch(/neues-passwort/);
+  });
+
+  it("refuses auto-triage without polling with 400, rather than saving a switch that does nothing", async () => {
+    const mailbox = await createMailbox();
+    const res = await request(app).patch(`/api/crew/mailboxes/${mailbox.id}`).send({ autoTriage: true }).expect(400);
+    expect(res.body.error).toBe("invalid_mailbox_mutation");
+  });
+
+  it("grants and revokes agents — several agents on one mailbox", async () => {
+    const mailbox = await createMailbox();
+    const agents = await request(app).get("/api/crew/agents").expect(200);
+    const [a, b] = agents.body.agents as Array<{ id: string }>;
+
+    await request(app).post(`/api/crew/mailboxes/${mailbox.id}/agents`).send({ agentId: a.id }).expect(201);
+    const granted = await request(app)
+      .post(`/api/crew/mailboxes/${mailbox.id}/agents`)
+      .send({ agentId: b.id, access: "send" })
+      .expect(201);
+    expect(granted.body.agents).toHaveLength(2);
+
+    const detail = await request(app).get(`/api/crew/mailboxes/${mailbox.id}`).expect(200);
+    expect(detail.body.agents).toHaveLength(2);
+
+    const revoked = await request(app).delete(`/api/crew/mailboxes/${mailbox.id}/agents/${a.id}`).expect(200);
+    expect(revoked.body.agents).toHaveLength(1);
+  });
+
+  it("tests a mailbox connection through its provider", async () => {
+    orchestrator.registerMailProvider(fakeMailProvider() as never);
+    const mailbox = await createMailbox();
+    const res = await request(app).post(`/api/crew/mailboxes/${mailbox.id}/test`).expect(200);
+    expect(res.body).toEqual({ ok: true, message: "IMAP erreichbar" });
+  });
+
+  it("reads live messages and one message body from the mail server", async () => {
+    orchestrator.registerMailProvider(fakeMailProvider() as never);
+    const mailbox = await createMailbox();
+
+    const list = await request(app).get(`/api/crew/mailboxes/${mailbox.id}/messages`).expect(200);
+    expect(list.body.messages).toHaveLength(1);
+    expect(list.body.messages[0].subject).toBe("Angebot");
+
+    const body = await request(app).get(`/api/crew/mailboxes/${mailbox.id}/messages/uid-1`).expect(200);
+    expect(body.body.message.text).toContain("Bitte um ein Angebot.");
+  });
+
+  it("answers 403 — not 400 — when an agent reaches a mailbox it holds no grant for", async () => {
+    orchestrator.registerMailProvider(fakeMailProvider() as never);
+    const mailbox = await createMailbox();
+    const agents = await request(app).get("/api/crew/agents").expect(200);
+    const agentId = (agents.body.agents as Array<{ id: string }>)[0].id;
+
+    const denied = await request(app).get(`/api/crew/mailboxes/${mailbox.id}/messages?agentId=${agentId}`).expect(403);
+    expect(denied.body.error).toBe("mailbox_access_denied");
+
+    await request(app).post(`/api/crew/mailboxes/${mailbox.id}/agents`).send({ agentId }).expect(201);
+    await request(app).get(`/api/crew/mailboxes/${mailbox.id}/messages?agentId=${agentId}`).expect(200);
+  });
+
+  it("requires the send grant to send as an agent", async () => {
+    orchestrator.registerMailProvider(fakeMailProvider() as never);
+    const mailbox = await createMailbox();
+    const agents = await request(app).get("/api/crew/agents").expect(200);
+    const agentId = (agents.body.agents as Array<{ id: string }>)[0].id;
+    await request(app).post(`/api/crew/mailboxes/${mailbox.id}/agents`).send({ agentId, access: "read" }).expect(201);
+
+    const mail = { to: ["kunde@example.com"], subject: "Antwort", text: "Gern." };
+    await request(app)
+      .post(`/api/crew/mailboxes/${mailbox.id}/send`)
+      .send({ ...mail, agentId })
+      .expect(403);
+
+    await request(app).post(`/api/crew/mailboxes/${mailbox.id}/agents`).send({ agentId, access: "send" }).expect(201);
+    await request(app)
+      .post(`/api/crew/mailboxes/${mailbox.id}/send`)
+      .send({ ...mail, agentId })
+      .expect(200);
+  });
+
+  it("polls a mailbox and turns new mail into inbox tasks when auto-triage is on", async () => {
+    orchestrator.registerMailProvider(fakeMailProvider() as never);
+    const mailbox = await createMailbox({ pollEnabled: true, autoTriage: true });
+
+    const polled = await request(app).post(`/api/crew/mailboxes/${mailbox.id}/poll`).expect(200);
+    expect(polled.body.newMessages).toBe(1);
+    expect(polled.body.tasksCreated).toBe(1);
+
+    const tasks = await request(app).get("/api/crew/tasks?status=inbox").expect(200);
+    expect(tasks.body.tasks.some((t: { title: string }) => t.title.includes("Angebot"))).toBe(true);
+
+    // The seen-index de-duplicates, so a second poll creates nothing.
+    const again = await request(app).post(`/api/crew/mailboxes/${mailbox.id}/poll`).expect(200);
+    expect(again.body.newMessages).toBe(0);
+  });
+
+  it("polls every due mailbox in one call", async () => {
+    orchestrator.registerMailProvider(fakeMailProvider() as never);
+    await createMailbox({ label: "Due", pollEnabled: true, pollIntervalSeconds: 60 });
+    await createMailbox({ label: "Idle" });
+
+    const res = await request(app).post("/api/crew/mailboxes/poll-due").expect(200);
+    expect(res.body.results).toHaveLength(1);
+  });
+
+  it("deletes a mailbox", async () => {
+    const mailbox = await createMailbox();
+    await request(app).delete(`/api/crew/mailboxes/${mailbox.id}`).expect(200);
+    const list = await request(app).get("/api/crew/mailboxes").expect(200);
+    expect(list.body.mailboxes).toHaveLength(0);
+  });
+
+  it("404s every endpoint for a mailbox that does not exist", async () => {
+    await request(app).get("/api/crew/mailboxes/mbx_nope").expect(404);
+    await request(app).patch("/api/crew/mailboxes/mbx_nope").send({ label: "x" }).expect(404);
+    await request(app).delete("/api/crew/mailboxes/mbx_nope").expect(404);
+    await request(app).post("/api/crew/mailboxes/mbx_nope/test").expect(404);
+    await request(app).post("/api/crew/mailboxes/mbx_nope/agents").send({ agentId: "agt_x" }).expect(404);
+  });
+});
