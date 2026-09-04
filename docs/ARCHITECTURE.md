@@ -1,6 +1,6 @@
 # Architecture
 
-Iron Command OS is a self-hosted, local-first multi-agent company OS. It is a
+IronCrew is a self-hosted, local-first multi-agent company OS. It is a
 fork of OctoOffice (Apache-2.0) with a new governance-grade control plane
 grafted alongside the existing runtime.
 
@@ -12,9 +12,9 @@ grafted alongside the existing runtime.
 │ Command Center · CEO Chat · Kanban · Decision Inbox          │
 │ Agent Roster · Run Timeline                                  │
 └─────────────────────────────┬────────────────────────────────┘
-                              │ REST /api/ic  +  WebSocket
+                              │ REST /api/crew  +  WebSocket
 ┌─────────────────────────────▼────────────────────────────────┐
-│ Control Plane (server/ironcommand)                           │
+│ Control Plane (server/ironcrew)                           │
 │ Orchestrator · Task State Machine · Atomic Claiming          │
 │ Approval Engine · Budget Engine · Vendor Policy              │
 │ Permission Policy · Redaction · Hash-chained Audit           │
@@ -33,8 +33,8 @@ Upstream's `runtimeContext` is a `Record<string, any>` mutated by ~10
 `Object.assign` calls and papered over with a deferred proxy. There is no
 injectable service layer to attach policy, audit or budget interceptors to.
 
-Rather than untangle that first, the Iron Command control plane is built
-**alongside** it. `server/ironcommand/` depends on exactly two things:
+Rather than untangle that first, the IronCrew control plane is built
+**alongside** it. `server/ironcrew/` depends on exactly two things:
 
 - a `node:sqlite` `DatabaseSync` handle, and
 - a `broadcast(type, payload)` function.
@@ -49,31 +49,37 @@ It never imports `runtimeContext`. The consequences are concrete:
 
 ## Module map
 
-| Path                                               | Responsibility                                                    |
-| -------------------------------------------------- | ----------------------------------------------------------------- |
-| `server/ironcommand/domain/task-state.ts`          | Task and agent state machines. Pure, no I/O.                      |
-| `server/ironcommand/domain/task-store.ts`          | Task persistence, atomic claiming, dependencies, orphan recovery. |
-| `server/ironcommand/domain/audit.ts`               | Append-only hash-chained audit log.                               |
-| `server/ironcommand/domain/crew-config.ts`         | Persona / role / policy separation and its enforcement.           |
-| `server/ironcommand/domain/sql.ts`                 | Typed row helpers for `node:sqlite`.                              |
-| `server/ironcommand/policy/vendor-policy.ts`       | Which models and providers may be used.                           |
-| `server/ironcommand/policy/runtime-permissions.ts` | CLI permission modes and sandbox grants.                          |
-| `server/ironcommand/policy/approval-policy.ts`     | Approval requests and the blocking gate.                          |
-| `server/ironcommand/policy/budget-engine.ts`       | Budget scopes, thresholds, pre- and post-spend enforcement.       |
-| `server/ironcommand/runtime/run-events.ts`         | Normalised run protocol and `AgentRuntime`.                       |
-| `server/ironcommand/runtime/run-store.ts`          | Run and event persistence, redaction, sequencing.                 |
-| `server/ironcommand/runtime/mock-runtime.ts`       | MockRuntime.                                                      |
-| `server/ironcommand/orchestrator/triage.ts`        | EA message classification and routing.                            |
-| `server/ironcommand/orchestrator/company.ts`       | The CEO → EA → task → run → review flow.                          |
-| `server/ironcommand/api/routes.ts`                 | REST surface under `/api/ic`.                                     |
-| `server/ironcommand/security/redaction.ts`         | Secret redaction for logs, events and streams.                    |
-| `src/ironcommand/`                                 | Command Center UI.                                                |
+| Path                                            | Responsibility                                                    |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| `server/ironcrew/domain/task-state.ts`          | Task and agent state machines. Pure, no I/O.                      |
+| `server/ironcrew/domain/task-store.ts`          | Task persistence, atomic claiming, dependencies, orphan recovery. |
+| `server/ironcrew/domain/audit.ts`               | Append-only hash-chained audit log.                               |
+| `server/ironcrew/domain/crew-config.ts`         | Persona / role / policy separation and its enforcement.           |
+| `server/ironcrew/domain/sql.ts`                 | Typed row helpers for `node:sqlite`.                              |
+| `server/ironcrew/policy/vendor-policy.ts`       | Which models and providers may be used.                           |
+| `server/ironcrew/policy/runtime-permissions.ts` | CLI permission modes and sandbox grants.                          |
+| `server/ironcrew/policy/approval-policy.ts`     | Approval requests and the blocking gate.                          |
+| `server/ironcrew/policy/budget-engine.ts`       | Budget scopes, thresholds, pre- and post-spend enforcement.       |
+| `server/ironcrew/runtime/run-events.ts`         | Normalised run protocol and `AgentRuntime`.                       |
+| `server/ironcrew/runtime/run-store.ts`          | Run and event persistence, redaction, sequencing.                 |
+| `server/ironcrew/runtime/mock-runtime.ts`       | MockRuntime.                                                      |
+| `server/ironcrew/orchestrator/triage.ts`        | EA message classification and routing.                            |
+| `server/ironcrew/orchestrator/company.ts`       | The CEO → EA → task → run → review flow, plus every provider registry (secrets, memory, notification channels) and their fan-out/dispatch logic. |
+| `server/ironcrew/api/routes.ts`                 | REST surface under `/api/crew`.                                   |
+| `server/ironcrew/security/redaction.ts`         | Secret redaction for logs, events and streams.                    |
+| `server/ironcrew/domain/meeting-store.ts`       | Meetings — moderator, bounded rounds, budget (`docs/UPSTREAM_ANALYSIS.md`'s anti-god-object design). |
+| `server/ironcrew/memory/`                       | `MemoryProvider` contract + `ObsidianProvider` (a real vault of markdown files) — the first memory backend. |
+| `server/ironcrew/secrets/`                      | `SecretProvider` contract + Vaultwarden/Proton Pass — a `SecretRef` never carries a value. |
+| `server/ironcrew/notify/`                       | `NotificationChannel` contract + Discord/Telegram/email — best-effort fan-out for the decision inbox. |
+| `server/ironcrew/network/tailscale-provider.ts` | Tailscale/Headscale status (`tailscale status --json`).           |
+| `server/ironcrew/domain/remote-worker-store.ts` | SSH-over-tailnet worker registry for Tier0/customer networks.     |
+| `src/ironcrew/`                                 | Command Center UI.                                                |
 
 ## Key invariants
 
 These are enforced in code and covered by tests, not merely documented.
 
-1. **One control plane, one truth.** Task status lives in `ic_tasks.status`.
+1. **One control plane, one truth.** Task status lives in `crew_tasks.status`.
    The UI derives everything from it; nothing is stored client-side.
 
 2. **No state change without a valid transition.** `assertTransition()` runs
@@ -110,7 +116,7 @@ These are enforced in code and covered by tests, not merely documented.
 ## Data flow: a CEO request end to end
 
 ```text
-POST /api/ic/chat
+POST /api/crew/chat
   │
   ├─ triage()                       classify; incident and sensitive outrank all
   ├─ audit: ceo.message_received
@@ -122,7 +128,7 @@ POST /api/ic/chat
   │
   └─ otherwise ──►  pickAgent() → task → assigned → ready
 
-POST /api/ic/tasks/execute-next
+POST /api/crew/tasks/execute-next
   │
   ├─ BudgetEngine.assertRunPermitted()      pre-dispatch gate → 402 if blocked
   ├─ RunStore.create()
@@ -137,8 +143,8 @@ POST /api/ic/tasks/execute-next
   ├─ TaskStore.releaseLock()                only if still the owner
   └─ task → review | waiting | failed
 
-POST /api/ic/tasks/:id/accept   → task → done,  EA reports to the CEO
-POST /api/ic/tasks/:id/revise   → task → ready, re-run
+POST /api/crew/tasks/:id/accept   → task → done,  EA reports to the CEO
+POST /api/crew/tasks/:id/revise   → task → ready, re-run
 ```
 
 ## Storage
@@ -148,13 +154,18 @@ SQLite via `node:sqlite` (Node 22 builtin — no native dependency), WAL mode,
 in `server/modules/bootstrap/migrations/`, which has a startup auto-scan that
 fails loudly if a migration file exists but was never registered.
 
-PostgreSQL is deliberately **not** an MVP requirement. Every Iron Command
+PostgreSQL is deliberately **not** an MVP requirement. Every IronCrew
 business table already carries `company_id`, so multi-tenancy and a Postgres
 adapter are additive later rather than a schema rewrite.
 
 ## What is not built yet
 
-See `IMPLEMENTATION_STATUS.md`. In short: the Iron Command control plane does
-not yet drive the real CLI runtimes (the upstream execution path still does
-that, now with safe permission defaults), and memory, MCP registry, native
-runner daemon, Discord and the business packs are Phase 2+.
+See `IMPLEMENTATION_STATUS.md` for the exhaustive, test-backed list. In
+short: `CliAdapterRuntime` now drives real CLI runtimes end-to-end (Phase
+1.5), and Phase 2's Company OS — goals, projects, Kanban, dependencies, the
+decision inbox, the org chart, bounded meetings, an Obsidian `MemoryProvider`,
+and Discord/Telegram/email notification fan-out — is built and tested. What
+remains: the MCP registry, a tool registry with risk-classed approvals, a
+native runner daemon (so the control plane and the runtime stop sharing a
+process), and the business packs (MSP, Web Agency, Finance, Legal,
+Knowledge) — all Phase 3+.

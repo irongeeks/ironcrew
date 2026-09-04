@@ -5,7 +5,7 @@ import MissionControl from "../components/mission-control/MissionControl";
 import { ChatPanel } from "../components/ChatPanel";
 import AgentSidebar from "../components/AgentSidebar";
 import RetroOfficeView from "../components/RetroOfficeView";
-import { CommandCenterView } from "../ironcommand/CommandCenterView";
+import { CommandCenterView } from "../ironcrew/CommandCenterView";
 import TaskBoard from "../components/TaskBoard";
 import AgentManager from "../components/AgentManager";
 import SkillsLibrary from "../components/SkillsLibrary";
@@ -393,7 +393,7 @@ export default function AppMainLayout({
 
         {/* Content area */}
         <div className="relative flex flex-1 overflow-hidden">
-          {/* Iron Command control plane. Its own full-surface shell: it owns
+          {/* IronCrew control plane. Its own full-surface shell: it owns
               the CEO chat, the board and the decision inbox, so it renders
               standalone rather than inside the office chrome. */}
           {view === "command" && <CommandCenterView />}

@@ -3,7 +3,7 @@
 Current state is in `IMPLEMENTATION_STATUS.md`. This is what comes next and why
 in that order.
 
-## Done — Phase 0 and Phase 1
+## Done — Phase 0, Phase 1 and Phase 1.5
 
 - Vendor policy, enforced in the backend
 - Unsafe CLI permission defaults removed; sandbox grants tied to approvals
@@ -15,28 +15,15 @@ in that order.
 - EA triage, seed crew, persona/role/policy separation
 - REST API, live events, Command Center UI
 - The CEO → EA → task → run → review → CEO slice, end to end
+- **Phase 1.5, "make the slice real":** `CliAdapterRuntime implements AgentRuntime`
+  is registered for every CLI-transport adapter this install builds (claude,
+  codex, gemini today) alongside MockRuntime; the resolved `SandboxGrant` is
+  threaded through so an approved elevation actually reaches the CLI call.
+  What's still open here: a live task run through an *authenticated* real
+  CLI login is the user's own manual verification — no CLI login exists in
+  this development environment (see `IMPLEMENTATION_STATUS.md`).
 
-## Next — Phase 1.5: make the slice real
-
-**Bridge the orchestrator to the real CLI runtimes.** This is the single most
-valuable next step, because everything else is already built around it.
-
-1. Implement `UpstreamCliRuntime implements AgentRuntime`, wrapping the existing
-   `server/adapters/*`.
-2. Map the six upstream `AdapterStreamEvent` types onto the seventeen-type run
-   protocol (table in `docs/RUNNER_PROTOCOL.md`).
-3. Thread the resolved `SandboxGrant` from `ic_sandbox_grants` through
-   `spawnCliAgent`, so `elevated` becomes reachable — currently the upstream
-   path always resolves to `restricted`, which is safe but means an approved
-   elevation has no effect.
-4. Capability-detect flags per installed CLI version rather than assuming them.
-5. Wire `StreamRedactor` into the live stdout/stderr path.
-
-**Definition of done:** the same E2E spec passes with a real Claude Code or
-Codex login, and the run history shows the permission mode each run actually
-had.
-
-## Phase 2 — Company OS
+## Done — Phase 2: Company OS
 
 - Goals and goal ancestry in the context builder
 - Projects, milestones, project detail view
@@ -49,8 +36,33 @@ had.
   the O(participants × rounds) "token grab" pattern (see
   `docs/UPSTREAM_ANALYSIS.md`)
 - Action items from meetings become real tasks
-- Obsidian vault as the first `MemoryProvider`
-- Discord as an optional notification channel
+- Obsidian vault as the first `MemoryProvider` (`server/ironcrew/memory/`) —
+  real markdown files with YAML frontmatter, written and read from a
+  configured vault, full-text search over what it wrote
+- Notification channels for the decision inbox — Discord (Incoming Webhook),
+  Telegram (Bot API) and email (SMTP), fanned out best-effort on every
+  notification; grew beyond the original Discord-only scope on request
+
+### Also shipped alongside Phase 2, not originally scoped here
+
+Requested mid-stream and built with the same standard (domain → orchestrator
+→ API → UI, each layer tested) as everything above:
+
+- **Password-manager integration** — `SecretRef`/`SecretProvider` for
+  Vaultwarden and Proton Pass; a secret's value is never stored, only where
+  it lives, resolved live in memory at the moment of use
+  (`server/ironcrew/secrets/`).
+- **File attachments** — task-, project- or general-scoped, content-addressed
+  blob storage on disk (`server/ironcrew/domain/attachment-storage.ts`).
+- **Renamed Iron Command OS → IronCrew** — directory paths, symbols, DB table
+  and index prefixes (with an upgrade migration), WS event names, the REST
+  API base path, all UI/doc text.
+- **Tailscale/Headscale network status** (`server/ironcrew/network/`) and a
+  **remote-worker registry over the tailnet**
+  (`server/ironcrew/domain/remote-worker-store.ts`) for Tier0 environments
+  and customer networks reachable over SSH. Routing actual agent task
+  *execution* to a remote worker (rather than just registering and testing
+  reachability) is a natural follow-up, not yet built.
 
 ## Phase 3 — Runtimes and tools
 

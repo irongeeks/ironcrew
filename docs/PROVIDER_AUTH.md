@@ -1,6 +1,6 @@
 # Provider Authentication
 
-Iron Command OS never stores, copies or exports a provider's OAuth token. It
+IronCrew never stores, copies or exports a provider's OAuth token. It
 uses the official CLI's own credential store, held by the operating system user
 that owns it, and reads only _status_.
 
@@ -15,7 +15,7 @@ The control plane must NOT:   read, copy, export or persist an OAuth token
                               mount the owner's home directory into a container
 ```
 
-`AuthStatus` in `server/ironcommand/runtime/run-events.ts` encodes this by
+`AuthStatus` in `server/ironcrew/runtime/run-events.ts` encodes this by
 contract: booleans, a method enum, and an optional `accountHint` that must never
 carry an email address or a token.
 
@@ -43,7 +43,7 @@ wrong-runtime or wrong-task grant degrades to `restricted`.
 carries a bypass flag the resolved mode does not authorise.
 
 **Status: wired end-to-end.** `SandboxGrantStore.mintFromApproval()` is the
-only path to a grant — reachable solely from an *approved* `sandbox_elevation`
+only path to a grant — reachable solely from an _approved_ `sandbox_elevation`
 `ApprovalRequest`. `CompanyOrchestrator.executeNextTask()` looks up a live
 grant (`SandboxGrantStore.findLive()`) for the task about to run and asks
 `resolvePermissionMode()` to resolve it; the resolver, not the lookup, stays
@@ -60,7 +60,7 @@ mint/revoke audit trail.
 ## Claude Code (subscription)
 
 - Uses the officially installed `claude` CLI and the login already stored by the
-  OS user. Iron Command never touches `~/.claude` credentials.
+  OS user. IronCrew never touches `~/.claude` credentials.
 - Version detection via `claude --version`.
 - Streaming JSON is used. Session resume is not — none of the wrapped
   adapters (claude, codex, gemini) currently expose a resume flag to
@@ -96,6 +96,35 @@ instructions when not authenticated. No token, ever.
 _Status: the upstream Antigravity adapter is HTTP-based. The `agy` CLI adapter
 is not implemented yet — see `IMPLEMENTATION_STATUS.md`._
 
+## Password managers (SecretRef resolution)
+
+Registering a secret in IronCrew (Settings → Zugangsdaten) never stores its
+value — only a `SecretRef` (provider + item locator, `server/ironcrew/secrets/secret-ref.ts`).
+Resolving that ref to its live value happens on demand, in memory, and is
+never persisted. Both providers wrap the vendor's own CLI (argv array only,
+timeouts — the same posture as the CLI runtime adapters above) and are
+registered unconditionally at startup; `GET /api/crew/secret-providers`
+(the Settings UI's provider panel) reports honestly whether each is actually
+reachable, rather than hiding one that isn't configured.
+
+- **Vaultwarden** (self-hosted, Bitwarden-protocol-compatible) — via the
+  official `bw` CLI. Set `VAULTWARDEN_SERVER_URL` to your instance, then
+  authenticate the server process non-interactively: `bw login --apikey`
+  using the `BW_CLIENTID`/`BW_CLIENTSECRET` env vars `bw` itself reads, and
+  either keep an already-unlocked `BW_SESSION` in the environment or set
+  `BW_PASSWORD` so IronCrew can unlock on first use.
+- **Proton Pass** — via the official `pass-cli`
+  (<https://protonpass.github.io/pass-cli/>). Authenticate headlessly with
+  `PROTON_PASS_PERSONAL_ACCESS_TOKEN` + `pass-cli login`; a container
+  deployment should also set `PROTON_PASS_KEY_PROVIDER=fs` (or `=env` with
+  `PROTON_PASS_ENCRYPTION_KEY`). A stored ref's `itemRef` is
+  `"<shareId>:<itemId>"` — IDs, not names, so a later rename in the vault
+  can't silently break it.
+
+Neither provider has been exercised against a real `bw`/`pass-cli` install in
+this project's CI — verify against your actual deployment before relying on
+it in production.
+
 ## OpenRouter
 
 - The API key is referenced as a `SecretRef`, never stored in plaintext or in an
@@ -129,7 +158,7 @@ OpenRouter transport itself is not wired yet._
 ## Vendor policy
 
 `config/vendor-policy.yaml` is the single source of truth, enforced in
-`server/ironcommand/policy/vendor-policy.ts` and validated with Zod at load.
+`server/ironcrew/policy/vendor-policy.ts` and validated with Zod at load.
 
 - **Deny by default** — a model matching no allowed family is refused.
 - **The blocklist always wins**, so widening `allowed_families` cannot
@@ -137,7 +166,7 @@ OpenRouter transport itself is not wired yet._
 - Matching normalises the model id _and_ checks the resolved upstream provider,
   so a re-hosted alias or an allowed-looking model routed through a blocked host
   is still refused.
-- `POST /api/ic/vendor-policy/check` returns **403** for a denied model. This is
+- `POST /api/crew/vendor-policy/check` returns **403** for a denied model. This is
   the same call the execution path makes, so the UI cannot present a model as
   usable that the backend would refuse.
 

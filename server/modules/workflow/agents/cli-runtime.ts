@@ -8,7 +8,7 @@ import { isCliAdapter } from "../../../adapters/index.ts";
 import type { MetricsCollector } from "../../../observability/metrics.ts";
 import { logger } from "../../../observability/logger.ts";
 import { TokenAccumulator } from "./token-accumulator.ts";
-import { assertArgsMatchMode } from "../../../ironcommand/policy/runtime-permissions.ts";
+import { assertArgsMatchMode } from "../../../ironcrew/policy/runtime-permissions.ts";
 import type { InvocationContext } from "../../../adapters/adapter-interface.ts";
 
 const log = logger.child({ module: "cli-runtime" });

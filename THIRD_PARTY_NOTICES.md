@@ -1,6 +1,6 @@
 # Third Party Notices
 
-Iron Command OS incorporates and derives from third-party open source work.
+IronCrew incorporates and derives from third-party open source work.
 This file records what was taken, under which licence, and what was changed.
 
 ---
@@ -12,8 +12,8 @@ This file records what was taken, under which licence, and what was changed.
 - **Licence**: Apache License 2.0
 - **Copyright**: Copyright (c) Joshua Dormann
 
-Iron Command OS is a fork of OctoOffice. The complete upstream tree was
-imported as a single commit (`chore: import OctoOffice v2.7.0 as Iron Command
+IronCrew is a fork of OctoOffice. The complete upstream tree was
+imported as a single commit (`chore: import OctoOffice v2.7.0 as IronCrew
 OS base`) so that every subsequent change is reviewable as a diff against the
 unmodified baseline.
 
@@ -23,7 +23,7 @@ continues to govern the vendored portions.
 ### Modifications made to OctoOffice code
 
 Per section 4(b) of the Apache License, the following files carry
-Iron Command OS modifications:
+IronCrew modifications:
 
 | File                                                                                   | Change                                                                                      |
 | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -33,14 +33,14 @@ Iron Command OS modifications:
 | `server/adapters/gemini.ts`                                                            | Removed hardcoded `--yolo`; defaults to `--approval-mode default`.                          |
 | `server/modules/workflow/core/cli-tools.ts`                                            | Same permission-flag change on the second argv-building path.                               |
 | `server/modules/workflow/agents/cli-runtime.ts`                                        | Added a pre-spawn guard rejecting unauthorised permission-bypass flags.                     |
-| `server/modules/bootstrap/migrations/registry.ts`                                      | Registered migration `0002-iron-command-domain`.                                            |
-| `server/server-main.ts`                                                                | Mounted the Iron Command control plane under `/api/ic`.                                     |
+| `server/modules/bootstrap/migrations/registry.ts`                                      | Registered migration `0002-iron-crew-domain`.                                               |
+| `server/server-main.ts`                                                                | Mounted the IronCrew control plane under `/api/crew`.                                       |
 | `server/test/adapters/{claude,codex,gemini}-adapter.test.ts`                           | Updated to assert the safe defaults instead of the removed unsafe flags.                    |
 | `src/app/types.ts`, `src/app/AppMainLayout.tsx`, `src/components/OctoOfficeTopBar.tsx` | Added the `command` view and its navigation entry.                                          |
-| `.gitignore`                                                                           | Added Iron Command entries.                                                                 |
+| `.gitignore`                                                                           | Added IronCrew entries.                                                                     |
 
-All files under `server/ironcommand/`, `src/ironcommand/` and `config/` are
-original Iron Command OS work, not derived from OctoOffice.
+All files under `server/ironcrew/`, `src/ironcrew/` and `config/` are
+original IronCrew work, not derived from OctoOffice.
 
 ---
 
@@ -51,22 +51,22 @@ original Iron Command OS work, not derived from OctoOffice.
 - **Copyright**: Copyright (c) OneManCompany contributors
 
 **No code was copied.** OneManCompany is a Python/FastAPI project; per the
-Iron Command architecture rules there is no Python sidecar and no bidirectional
+IronCrew architecture rules there is no Python sidecar and no bidirectional
 synchronisation with it.
 
 Concepts studied and independently reimplemented in TypeScript:
 
 - The Executive-Assistant-as-single-entry-point model, and the idea of an
   explicit triage step before any delegation
-  (→ `server/ironcommand/orchestrator/triage.ts`).
+  (→ `server/ironcrew/orchestrator/triage.ts`).
 - An explicit task-phase transition table rather than free-form status strings
-  (→ `server/ironcommand/domain/task-state.ts`).
+  (→ `server/ironcrew/domain/task-state.ts`).
 - Separation of persona ("talent") from runtime limits ("vessel") from tool
-  permissions (→ `server/ironcommand/domain/crew-config.ts`).
+  permissions (→ `server/ironcrew/domain/crew-config.ts`).
 - Prompt assembly from named, priority-ordered sections
   (→ `buildAgentGuidance()`).
 
-Iron Command's implementations differ substantially: they are TypeScript,
+IronCrew's implementations differ substantially: they are TypeScript,
 SQLite-backed rather than YAML-on-disk, and the triage classifier is
 deterministic rather than an LLM call.
 
@@ -79,21 +79,21 @@ deterministic rather than an LLM call.
 - **Copyright**: Copyright (c) 2025 Paperclip AI
 
 **No code was copied.** Paperclip targets PostgreSQL with Drizzle ORM;
-Iron Command targets SQLite via `node:sqlite`, so the mechanics were
+IronCrew targets SQLite via `node:sqlite`, so the mechanics were
 reimplemented rather than ported.
 
 Mechanics studied and independently reimplemented:
 
 - Compare-and-set task claiming instead of a lock table, checking the affected
-  row count (→ `TaskStore.claim()` in `server/ironcommand/domain/task-store.ts`).
+  row count (→ `TaskStore.claim()` in `server/ironcrew/domain/task-store.ts`).
 - The execution-lock triple on the task row, with release guarded on the
   owning run id so a late reaper cannot clear a fresh owner's lock
   (→ `TaskStore.releaseLock()`, `TaskStore.recoverOrphaned()`).
 - Optimistic concurrency via a `status_version` column
-  (→ `ic_tasks.status_version`).
+  (→ `crew_tasks.status_version`).
 - Two-point budget enforcement: a pre-dispatch gate plus post-spend
   re-evaluation, with soft-warn and hard-stop thresholds
-  (→ `server/ironcommand/policy/budget-engine.ts`).
+  (→ `server/ironcrew/policy/budget-engine.ts`).
 - Company-scoped tenancy on every business table from the outset.
 
 Since the MIT licence permits reuse with attribution, this notice serves as the
@@ -110,7 +110,7 @@ attribution for the design influence even though no source was copied.
 optional external memory service reached over its network interface, behind the
 `MemoryProvider` abstraction. Its server code is deliberately not incorporated
 into this repository, which keeps the AGPL's source-provision obligations with
-the Honcho deployment rather than with Iron Command OS.
+the Honcho deployment rather than with IronCrew.
 
 ---
 

@@ -1,6 +1,6 @@
 # Installation — macOS
 
-Iron Command OS is self-hosted and local-first. Tested against macOS 13
+IronCrew is self-hosted and local-first. Tested against macOS 13
 (Ventura) and newer, on both Apple Silicon and Intel.
 
 ## Requirements
@@ -26,7 +26,7 @@ source ~/.zshrc
 ```
 
 Optional runtimes — Claude Code (`claude`), OpenAI Codex (`codex`), Google
-Antigravity (`agy`). None is required: Iron Command ships **MockRuntime**, so
+Antigravity (`agy`). None is required: IronCrew ships **MockRuntime**, so
 the full product works end to end without any provider login. Start there.
 
 ## Install
@@ -45,7 +45,7 @@ cp .env.example .env
 
 ```bash
 API_AUTH_TOKEN=$(openssl rand -hex 32)   # paste the value into .env
-DB_PATH=./data/ironcommand.sqlite
+DB_PATH=./data/ironcrew.sqlite
 LOGS_DIR=./data/logs
 HOST=127.0.0.1
 PORT=8800
@@ -94,7 +94,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
      -X POST -H "Authorization: Bearer $API_AUTH_TOKEN" \
      -H 'Content-Type: application/json' \
      -d '{"model":"deepseek/deepseek-chat"}' \
-     http://127.0.0.1:8800/api/ic/vendor-policy/check
+     http://127.0.0.1:8800/api/crew/vendor-policy/check
 # expect: 403
 ```
 
@@ -104,7 +104,7 @@ Run it as **your own user**, not a system daemon: the CLI runtimes use logins
 stored in your home directory, and a `LaunchDaemon` running as another user
 cannot reach them.
 
-`~/Library/LaunchAgents/com.irongeeks.ironcommand.plist`:
+`~/Library/LaunchAgents/com.irongeeks.ironcrew.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -113,7 +113,7 @@ cannot reach them.
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.irongeeks.ironcommand</string>
+  <string>com.irongeeks.ironcrew</string>
 
   <key>ProgramArguments</key>
   <array>
@@ -130,7 +130,7 @@ cannot reach them.
     <key>NODE_ENV</key><string>production</string>
     <key>HOST</key><string>127.0.0.1</string>
     <key>PORT</key><string>8800</string>
-    <key>DB_PATH</key><string>/Users/YOURNAME/ironcrew/data/ironcommand.sqlite</string>
+    <key>DB_PATH</key><string>/Users/YOURNAME/ironcrew/data/ironcrew.sqlite</string>
     <key>LOGS_DIR</key><string>/Users/YOURNAME/ironcrew/data/logs</string>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
@@ -146,9 +146,9 @@ cannot reach them.
 Replace `YOURNAME`, then:
 
 ```bash
-launchctl load  ~/Library/LaunchAgents/com.irongeeks.ironcommand.plist
-launchctl list | grep ironcommand
-launchctl unload ~/Library/LaunchAgents/com.irongeeks.ironcommand.plist   # to stop
+launchctl load  ~/Library/LaunchAgents/com.irongeeks.ironcrew.plist
+launchctl list | grep ironcrew
+launchctl unload ~/Library/LaunchAgents/com.irongeeks.ironcrew.plist   # to stop
 ```
 
 `API_AUTH_TOKEN` is deliberately absent from the plist — plists are
@@ -177,7 +177,7 @@ Everything is `data/` — one SQLite file plus logs. Stop the service before
 copying; WAL mode means a live copy can be inconsistent. Alternatively:
 
 ```bash
-sqlite3 data/ironcommand.sqlite ".backup 'data/backup-$(date +%F).sqlite'"
+sqlite3 data/ironcrew.sqlite ".backup 'data/backup-$(date +%F).sqlite'"
 ```
 
 ## Troubleshooting

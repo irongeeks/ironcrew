@@ -287,7 +287,7 @@ describe("cli-runtime", () => {
         model: "sonnet",
         reasoningLevel: "medium",
         profile: undefined,
-        // Iron Command: the invocation context now carries the resolved
+        // IronCrew: the invocation context now carries the resolved
         // permission mode, which defaults to restricted.
         permissionMode: "restricted",
       });

@@ -33,10 +33,17 @@ import { assertRuntimeFunctionsResolved, createDeferredRuntimeProxy } from "./mo
 import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
-import { registerIronCommandRoutes } from "./ironcommand/api/routes.ts";
-import { CompanyOrchestrator } from "./ironcommand/orchestrator/company.ts";
-import { MockRuntime } from "./ironcommand/runtime/mock-runtime.ts";
-import { CliAdapterRuntime } from "./ironcommand/runtime/cli-adapter-runtime.ts";
+import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
+import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
+import { MockRuntime } from "./ironcrew/runtime/mock-runtime.ts";
+import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
+import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
+import { ProtonPassSecretProvider } from "./ironcrew/secrets/protonpass-provider.ts";
+import { TailscaleProvider } from "./ironcrew/network/tailscale-provider.ts";
+import { ObsidianProvider } from "./ironcrew/memory/obsidian-provider.ts";
+import { DiscordChannel } from "./ironcrew/notify/discord-channel.ts";
+import { TelegramChannel } from "./ironcrew/notify/telegram-channel.ts";
+import { EmailChannel } from "./ironcrew/notify/email-channel.ts";
 import { createOAuthContext } from "./contexts/oauth-context.ts";
 import { createMessagingContext } from "./contexts/messaging-context.ts";
 import { createTaskExecutionContext } from "./contexts/task-execution-context.ts";
@@ -278,27 +285,69 @@ Object.assign(runtimeContext, initializeWorkflow(runtimeProxy as RuntimeContext)
 graphRunner.setBroadcast((runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast);
 Object.assign(runtimeContext, registerApiRoutes(runtimeContext as RuntimeContext, oauthCtx));
 
-// Iron Command control plane. Mounted under /api/ic and deliberately
+// IronCrew control plane. Mounted under /api/crew and deliberately
 // self-contained: it takes only the db handle and the broadcast function, so
 // it carries no dependency on the upstream runtime god-object.
 //
-// Runtimes are registered explicitly rather than left to registerIronCommandRoutes()'s
+// Runtimes are registered explicitly rather than left to registerIronCrewRoutes()'s
 // MockRuntime-only default: MockRuntime stays available for demos and tests,
 // and every CLI-transport adapter this install already knows about (claude,
 // codex, gemini, ...) is wrapped in a CliAdapterRuntime and registered too.
 // Wrapping is unconditional — capabilities()/healthCheck()/authStatus() (the
-// Provider Health panel, GET /api/ic/runtimes) are what tell an operator
+// Provider Health panel, GET /api/crew/runtimes) are what tell an operator
 // whether a given CLI is actually installed and logged in; a runtime that
 // isn't simply reports itself unhealthy rather than being hidden.
-const ironCommandOrchestrator = new CompanyOrchestrator(db);
-ironCommandOrchestrator.registerRuntime(new MockRuntime());
+const ironCrewOrchestrator = new CompanyOrchestrator(db);
+ironCrewOrchestrator.registerRuntime(new MockRuntime());
 for (const adapter of adapterRegistry.list()) {
-  if (isCliAdapter(adapter)) ironCommandOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
+  if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
 }
-registerIronCommandRoutes(app, {
+// Secret providers: same unconditional-wrapping posture as runtimes above —
+// GET /api/crew/secret-providers (the Settings UI's provider status panel)
+// is what tells an operator whether `bw`/`pass-cli` are actually installed
+// and authenticated; wrapping them here never assumes they are.
+ironCrewOrchestrator.registerSecretProvider(
+  new VaultwardenSecretProvider({ serverUrl: process.env.VAULTWARDEN_SERVER_URL }),
+);
+ironCrewOrchestrator.registerSecretProvider(new ProtonPassSecretProvider());
+// Same posture again: GET /api/crew/tailscale (the Netzwerk panel) reports
+// whether this node is actually on a tailnet rather than assuming it is.
+ironCrewOrchestrator.registerTailscaleProvider(new TailscaleProvider({ tailscalePath: process.env.TAILSCALE_BIN }));
+// Unlike the providers above, ObsidianProvider needs a real vault path to
+// even construct — with none configured, GET /api/crew/memory-providers
+// correctly reports "obsidian" as not registered rather than pointing at a
+// nonsensical default directory.
+if (process.env.OBSIDIAN_VAULT_PATH) {
+  ironCrewOrchestrator.registerMemoryProvider(new ObsidianProvider({ vaultPath: process.env.OBSIDIAN_VAULT_PATH }));
+}
+// Notification channels: same conditional posture as ObsidianProvider above
+// — each needs real configuration to even construct, so an unconfigured
+// channel is simply never registered rather than wrapping a broken one.
+if (process.env.DISCORD_WEBHOOK_URL) {
+  ironCrewOrchestrator.registerNotificationChannel(new DiscordChannel({ webhookUrl: process.env.DISCORD_WEBHOOK_URL }));
+}
+if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+  ironCrewOrchestrator.registerNotificationChannel(
+    new TelegramChannel({ botToken: process.env.TELEGRAM_BOT_TOKEN, chatId: process.env.TELEGRAM_CHAT_ID }),
+  );
+}
+if (process.env.SMTP_HOST && process.env.SMTP_FROM && process.env.SMTP_TO) {
+  ironCrewOrchestrator.registerNotificationChannel(
+    new EmailChannel({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? 587),
+      secure: process.env.SMTP_SECURE === "true",
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+      from: process.env.SMTP_FROM,
+      to: process.env.SMTP_TO,
+    }),
+  );
+}
+registerIronCrewRoutes(app, {
   db,
   broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
-  orchestrator: ironCommandOrchestrator,
+  orchestrator: ironCrewOrchestrator,
 });
 
 app.use(globalErrorHandler);

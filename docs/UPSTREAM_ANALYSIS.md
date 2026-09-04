@@ -1,6 +1,6 @@
 # Upstream Analysis
 
-Assessment of the three reference projects, and what Iron Command OS took from
+Assessment of the three reference projects, and what IronCrew took from
 each. Written after reading the code, not the READMEs.
 
 ## Method
@@ -11,7 +11,7 @@ each. Written after reading the code, not the READMEs.
 - OneManCompany and Paperclip were cloned as gitignored references under
   `.references/` and read for design, not copied.
 
-**Verified upstream baseline (before any Iron Command change):**
+**Verified upstream baseline (before any IronCrew change):**
 
 | Check           | Result                        |
 | --------------- | ----------------------------- |
@@ -31,7 +31,7 @@ than starting over.
 Vite, Pixi.js for the pixel-art office. ~192k LOC across `server/` and `src/`.
 Local-first, single user. Apache-2.0.
 
-**What it already does well, and Iron Command keeps:**
+**What it already does well, and IronCrew keeps:**
 
 - A real versioned migration runner (`server/modules/bootstrap/migrations/`)
   with a `schema_migrations` table, per-migration transactions, fatal-on-failure
@@ -90,8 +90,8 @@ flags from CLI runtimes`.
    by ~10 `Object.assign` calls and papered over with a deferred proxy. There is
    no injectable service layer to attach policy, audit or budget interceptors to.
 
-**Consequence for Iron Command's design.** Because of (7), the Iron Command
-control plane is deliberately _additive_: `server/ironcommand/` takes only a
+**Consequence for IronCrew's design.** Because of (7), the IronCrew
+control plane is deliberately _additive_: `server/ironcrew/` takes only a
 database handle and a broadcast function. It does not reach into
 `runtimeContext`, which is why it is testable headlessly and why 2493 upstream
 tests kept passing throughout.
@@ -106,13 +106,13 @@ architecture rules forbid a Python sidecar.
 **Worth taking:**
 
 - **EA as the root of the task tree.** Every CEO request enters through the
-  Executive Assistant, which classifies before it delegates. Iron Command
+  Executive Assistant, which classifies before it delegates. IronCrew
   implements this in `orchestrator/triage.ts` + `orchestrator/company.ts`.
 - **An explicit transition table** (`core/task_lifecycle.py::VALID_TRANSITIONS`)
   rather than free-form status strings → `domain/task-state.ts`.
 - **The three-way split** of persona ("talent") from runtime limits ("vessel")
   from tool permissions (`core/tool_registry.py::ToolMeta`). This is the single
-  most reusable idea in the repository and became Iron Command's
+  most reusable idea in the repository and became IronCrew's
   persona/policy/role separation.
 - **Review against observed evidence** (`core/task_verification.py`): the
   reviewer is shown the actual tool-call log, not the worker's self-report.
@@ -125,10 +125,10 @@ architecture rules forbid a Python sidecar.
   O(participants × rounds) cost with no convergence guarantee and no moderator.
 - The **hardcoded five-founder org** (`CEO_ID="00001"` … `CSO_ID="00005"`) and
   the physical-office simulation where a meeting can be _denied_ because no room
-  is free. Iron Command keeps org shape data-driven in `config/`.
+  is free. IronCrew keeps org shape data-driven in `config/`.
 - **"No database — everything is YAML on disk."** It produced a 309 KB
   `routes.py` and a 191 KB `vessel.py` with pervasive function-local imports to
-  break cycles. Iron Command keeps operational state in SQLite and reserves
+  break cycles. IronCrew keeps operational state in SQLite and reserves
   Markdown for what humans actually edit.
 
 ---
@@ -147,7 +147,7 @@ UPDATE heartbeat_runs SET status='running', started_at=…
  WHERE id = :runId AND status = 'queued' RETURNING *
 ```
 
-The loser gets zero rows and simply drops out. Iron Command's
+The loser gets zero rows and simply drops out. IronCrew's
 `TaskStore.claim()` is the same idea on SQLite, checking `changes === 1`.
 SQLite serialises writers, so no `SKIP LOCKED` equivalent is needed.
 
@@ -155,20 +155,20 @@ SQLite serialises writers, so no `SKIP LOCKED` equivalent is needed.
 `execution_run_id` / `execution_locked_at` on the task row, and critically:
 locks are never cleared unconditionally, always `WHERE execution_run_id =
 :theRunIObserved`. This prevents a late reaper from clearing a fresh owner's
-lock — a subtle bug Iron Command has an explicit regression test for.
+lock — a subtle bug IronCrew has an explicit regression test for.
 
 **Two-point budget enforcement.** A pre-dispatch `getInvocationBlock()` walking
 company → agent → project, plus post-spend `evaluateCostEvent()` that opens a
-soft or hard incident and pauses the scope. Iron Command mirrors this in
+soft or hard incident and pauses the scope. IronCrew mirrors this in
 `policy/budget-engine.ts`.
 
 **Optimistic concurrency.** `issues.status_version` as a CAS token, plus an
 append-only `status_decisions` table with a sha256 digest over canonical JSON.
-Iron Command adopted both ideas: `ic_tasks.status_version` and the hash-chained
-`ic_audit_events`.
+IronCrew adopted both ideas: `crew_tasks.status_version` and the hash-chained
+`crew_audit_events`.
 
 **Worth noting.** Paperclip's own `activity_log` is _not_ tamper-evident — no
-hash chain, append-only by convention only. Iron Command's audit log is chained
+hash chain, append-only by convention only. IronCrew's audit log is chained
 from the start, which is a deliberate improvement rather than a port.
 
 ---

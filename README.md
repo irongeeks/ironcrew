@@ -1,4 +1,4 @@
-# Iron Command OS
+# IronCrew
 
 A self-hosted, local-first **multi-agent company OS**. You are the owner and
 CEO. You talk to one Executive Assistant, who triages, plans, delegates to a
@@ -11,11 +11,15 @@ atomic task claiming, an approval engine that technically blocks high-risk
 actions, budget enforcement, a hash-chained audit log, and a vendor policy that
 is enforced in the backend rather than hidden in the UI.
 
-> **Status: early.** The vertical CEO workflow works end to end and is covered
-> by 341 tests, but it currently runs on **MockRuntime**. Driving the real CLI
-> runtimes through this control plane is the next step. See
-> [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for an honest list of
-> what is and is not built — nothing is claimed there without a passing test.
+> **Status: Phase 2 (Company OS) complete.** The CEO slice runs end to end on
+> a real, permission-aware `CliAdapterRuntime` (Claude Code, Codex, Gemini)
+> alongside MockRuntime, and goals, projects, Kanban, meetings, an Obsidian
+> memory, and Discord/Telegram/email notifications are all built and tested —
+> 3,600+ tests across the server and client suites. A live task run through
+> an *authenticated* CLI login is still the operator's own manual step (no
+> CLI login exists in this development environment). See
+> [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for an honest,
+> test-backed breakdown of what is and is not built.
 
 ## Quick start
 
@@ -52,6 +56,36 @@ CEO ◄── summary ◄── review ◄────────────�
 - **Everything is on the record.** One correlation id spans your message, the
   task, every run, every event and every audit entry.
 
+## Screenshots
+
+The Command Center — a live Kanban board, decision inbox and CEO chat, all
+backed by the same REST API this README describes elsewhere:
+
+![Command Center board](docs/screenshots/command-center-board.png)
+
+<details>
+<summary>More views (decision inbox, projects, org chart, secrets)</summary>
+
+Decision inbox — notifications and the append-only decision log:
+
+![Decision inbox](docs/screenshots/command-center-inbox.png)
+
+Projects, traced back to the goal they serve:
+
+![Projects](docs/screenshots/command-center-projects.png)
+
+Org chart, grouped by department:
+
+![Org chart](docs/screenshots/command-center-orgchart.png)
+
+Password-manager integration — only ever a reference (provider + item), never
+a value; the "nicht erreichbar" badges here are honest, since neither `bw`
+nor `pass-cli` is installed on this particular machine:
+
+![Secrets](docs/screenshots/command-center-secrets.png)
+
+</details>
+
 ## Design commitments
 
 These are enforced in code and covered by tests, not just documented.
@@ -71,7 +105,7 @@ These are enforced in code and covered by tests, not just documented.
 ## Vendor policy
 
 `config/vendor-policy.yaml` decides which model vendors may be used, and
-`server/ironcommand/policy/vendor-policy.ts` enforces it in the backend. A
+`server/ironcrew/policy/vendor-policy.ts` enforces it in the backend. A
 blocked model is refused with **403** by the same code path the executor uses,
 so the UI cannot offer something the backend would reject.
 
@@ -114,6 +148,7 @@ pnpm lint
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)                                                      | trust boundaries, findings, mitigations, residual risk                                     |
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)                                                          | schema and why it is shaped that way                                                       |
 | [`docs/PROVIDER_AUTH.md`](docs/PROVIDER_AUTH.md)                                                    | runtime authentication and permission modes                                                |
+| [`docs/NETWORKING.md`](docs/NETWORKING.md)                                                          | Tailscale/Headscale status + remote workers over the tailnet                               |
 | [`docs/RUNNER_PROTOCOL.md`](docs/RUNNER_PROTOCOL.md)                                                | the runtime interface and event model                                                      |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md)                                                                | what comes next                                                                            |
 | [`docs/LINUX_INSTALL.md`](docs/LINUX_INSTALL.md) · [`docs/MACOS_INSTALL.md`](docs/MACOS_INSTALL.md) | installation                                                                               |
@@ -121,7 +156,7 @@ pnpm lint
 
 ## Licence and attribution
 
-Apache-2.0. Iron Command OS is a fork of OctoOffice, Copyright (c) Joshua
+Apache-2.0. IronCrew is a fork of OctoOffice, Copyright (c) Joshua
 Dormann, used under Apache-2.0 with the licence preserved.
 
 See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the full attribution,

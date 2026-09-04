@@ -1,11 +1,11 @@
-import type { PermissionMode } from "../ironcommand/policy/runtime-permissions.ts";
+import type { PermissionMode } from "../ironcrew/policy/runtime-permissions.ts";
 
 export interface InvocationContext {
   prompt: string;
   workdir: string;
   /**
    * Effective permission mode for this invocation. Resolved by
-   * server/ironcommand/policy/runtime-permissions.ts. Adapters must treat an
+   * server/ironcrew/policy/runtime-permissions.ts. Adapters must treat an
    * absent value as "restricted" — they must never default to elevated.
    */
   permissionMode?: PermissionMode;

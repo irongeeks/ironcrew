@@ -14,7 +14,7 @@ describe("codexAdapter", () => {
       expect(args).toContain("codex");
       expect(args).toContain("--enable");
       expect(args).toContain("multi_agent");
-      // Iron Command: --yolo is no longer a base flag; default is a read-only sandbox.
+      // IronCrew: --yolo is no longer a base flag; default is a read-only sandbox.
       expect(args).not.toContain("--yolo");
       expect(args).toContain("--sandbox");
       expect(args).toContain("read-only");
