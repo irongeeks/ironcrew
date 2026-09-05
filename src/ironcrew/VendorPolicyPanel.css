@@ -79,7 +79,10 @@
   color: #a8bdc7;
   overflow-wrap: anywhere;
 }
-.vendor-policy-rules {
+.vendor-policy-panel .vendor-policy-rules {
+  /* The shared dialog styles a flat dl as two columns. These grouped rows
+     each own their label/value grid and must span the entire scrollport. */
+  display: block;
   margin: 10px 0 0;
 }
 .vendor-policy-rules div {

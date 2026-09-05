@@ -76,6 +76,17 @@ test("owner restrictions persist, block provider checks, and reject stale revisi
   const heading = panel.getByRole("heading", { name: "Vendor- & Provider-Freigaben", exact: true });
   await heading.scrollIntoViewIfNeeded();
   await expect(heading).toBeInViewport();
+  const assertRuleRowsStacked = async () => {
+    const rows = panel.locator(".vendor-policy-rules > div");
+    await expect(rows).toHaveCount(3);
+    const bounds = await Promise.all([0, 1, 2].map((index) => rows.nth(index).boundingBox()));
+    for (let i = 1; i < bounds.length; i++) {
+      expect(bounds[i]).not.toBeNull();
+      expect(bounds[i - 1]).not.toBeNull();
+      expect(bounds[i]!.y).toBeGreaterThanOrEqual(bounds[i - 1]!.y + bounds[i - 1]!.height - 1);
+    }
+  };
+  await assertRuleRowsStacked();
   await page.screenshot({ path: testInfo.outputPath("vendor-policy-overview.png") });
   await panel.getByRole("textbox", { name: "Modell-ID", exact: true }).fill("openai/browser-policy-example");
   await panel.getByRole("textbox", { name: "Provider (optional)", exact: true }).fill("DeepInfra");
@@ -95,5 +106,6 @@ test("owner restrictions persist, block provider checks, and reject stale revisi
   expect(bounds).not.toBeNull();
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  await assertRuleRowsStacked();
   await page.screenshot({ path: testInfo.outputPath("vendor-policy-mobile.png") });
 });
