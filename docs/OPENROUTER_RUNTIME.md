@@ -67,11 +67,13 @@ executes a deployment, payment or another external action. Repeated identical
 read calls within that task may reuse the approval; this is not an exactly-once
 write authorization mechanism.
 
-Memory search checks company/task/project/agent scope and sensitivity against
+Initial run context and memory tool search check company/task/project/agent scope and sensitivity against
 both the operational reference and the current source frontmatter. Unknown or
 missing classification is excluded from model-facing tool results. A vault edit
 raising sensitivity therefore takes effect even before its database reference is
-updated. Only explicitly scoped sensitive tasks may receive confidential notes.
+updated. Initial context parses the exact content snapshot before including it in
+the prompt; sources without valid current frontmatter are excluded. Only explicitly
+scoped sensitive tasks may receive confidential notes.
 Returned fields are bounded to the search-hit contract and redacted. Owner vault
 search remains available for legacy notes without complete provenance.
 

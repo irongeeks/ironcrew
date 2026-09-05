@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { dump, load } from "js-yaml";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTestDb } from "../domain/test-db.ts";
@@ -167,6 +168,51 @@ describe("orchestrator with real local vault and optional semantic memory", () =
     await orc.executeNextTask(companyId);
     expect(runtime.prompt).not.toContain("CONFIDENTIAL_CUSTOMER_DATA");
   });
+  it.each([
+    ["sensitivity", "confidential"],
+    ["sensitivity", "unknown"],
+    ["companyId", "foreign-company"],
+    ["taskId", "foreign-task"],
+    ["projectId", "foreign-project"],
+    ["agentId", "foreign-agent"],
+    ["missing", ""],
+    ["malformed", ""],
+  ])("does not inject stale-reference content after a local %s=%s change", async (field, value) => {
+    const task = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Backup-Verfahren.").task!;
+    await orc.recordMemory(companyId, "obsidian", { ...note, content: "PUBLIC_CONTEXT_REMAINS_ALLOWED" });
+    await orc.recordMemory(companyId, "obsidian", {
+      ...note,
+      content: "INTERNAL_CONTEXT_REMAINS_ALLOWED",
+      sensitivity: "internal",
+    });
+    const ref = await orc.recordMemory(companyId, "obsidian", {
+      ...note,
+      content: "RECLASSIFIED_VAULT_CONTENT",
+      sensitivity: "internal",
+    });
+    const file = join(directory, ref.path!);
+    const original = readFileSync(file, "utf8");
+    const match = original.match(/^---\n([\s\S]*?)\n---\n/)!;
+    const metadata = load(match[1]) as Record<string, unknown>;
+    metadata[field] = value;
+    const body = original.slice(match[0].length);
+    const edited =
+      field === "missing"
+        ? body
+        : field === "malformed"
+          ? `---\ncompanyId: [invalid\n---\n${body}`
+          : `---\n${dump(metadata)}---\n${body}`;
+    writeFileSync(file, edited);
+    // The DB has deliberately not seen the owner's external vault edit.
+    expect(orc.memories.get(ref.id)?.sensitivity).toBe("internal");
+    const result = await orc.executeNextTask(companyId);
+    expect(result?.task.id).toBe(task.id);
+    expect(runtime.prompt).toContain("PUBLIC_CONTEXT_REMAINS_ALLOWED");
+    expect(runtime.prompt).toContain("INTERNAL_CONTEXT_REMAINS_ALLOWED");
+    expect(runtime.prompt).not.toContain("RECLASSIFIED_VAULT_CONTENT");
+    expect(transport).not.toHaveBeenCalled();
+  });
+
   it("includes confidential source data only in an explicitly sensitive run", async () => {
     await orc.recordMemory(companyId, "obsidian", {
       ...note,

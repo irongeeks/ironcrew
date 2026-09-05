@@ -50,6 +50,7 @@ import { MeetingStore, MeetingMutationError, type MeetingRow, type MeetingTurnRo
 import { MemoryStore, MemoryMutationError, type MemoryRefRow } from "../domain/memory-store.ts";
 import type { MemoryKind, MemoryProvider, MemorySearchHit } from "../memory/memory-provider.ts";
 import { HybridMemoryProvider } from "../memory/hybrid-provider.ts";
+import { readCurrentProvenance, mayRetrieveMemory } from "../memory/current-provenance.ts";
 import { createCompanyToolExecutor, COMPANY_RUNTIME_TOOLS } from "../runtime/company-tool-executor.ts";
 import {
   canonicalToolArguments,
@@ -1707,7 +1708,8 @@ export class CompanyOrchestrator {
           (!ref.task_id || ref.task_id === task.id) &&
           (!ref.project_id || ref.project_id === task.project_id) &&
           (!ref.agent_id || ref.agent_id === agentId) &&
-          (task.sensitive !== 0 || ["public", "internal"].includes(ref.sensitivity)),
+          (["public", "internal"].includes(ref.sensitivity) ||
+            (ref.sensitivity === "confidential" && task.sensitive !== 0)),
       )
       .slice(0, 5);
     const context: string[] = [];
@@ -1716,7 +1718,16 @@ export class CompanyOrchestrator {
       if (!provider) continue;
       try {
         const content = await provider.read(ref.external_id);
-        if (content)
+        if (
+          content &&
+          mayRetrieveMemory(readCurrentProvenance(content), {
+            companyId,
+            taskId: task.id,
+            projectId: task.project_id,
+            agentId,
+            sensitive: task.sensitive !== 0,
+          })
+        )
           context.push(
             wrapUntrusted(redactText(content), {
               source: `${ref.id} · ${ref.source} · ${ref.kind} · confidence ${ref.confidence}`,
@@ -2900,18 +2911,17 @@ export class CompanyOrchestrator {
           const allowed = new Set(refs.filter((r) => r.provider === provider.kind).map((r) => r.external_id));
           found.push(
             ...(await provider.search(query, limit))
-              .filter((hit) => {
-                const provenance = hit.provenance;
-                return (
+              .filter(
+                (hit) =>
                   allowed.has(hit.externalId) &&
-                  provenance?.companyId === companyId &&
-                  (!provenance.projectId || provenance.projectId === ctx.projectId) &&
-                  (!provenance.taskId || provenance.taskId === ctx.taskId) &&
-                  (!provenance.agentId || provenance.agentId === ctx.agentId) &&
-                  (["public", "internal"].includes(provenance.sensitivity ?? "") ||
-                    (provenance.sensitivity === "confidential" && task.sensitive !== 0))
-                );
-              })
+                  mayRetrieveMemory(hit.provenance, {
+                    companyId,
+                    taskId: ctx.taskId,
+                    projectId: ctx.projectId,
+                    agentId: ctx.agentId,
+                    sensitive: task.sensitive !== 0,
+                  }),
+              )
               .map((hit) => ({
                 externalId: redactText(hit.externalId, ctx.redactValues),
                 title: redactText(hit.title, ctx.redactValues),

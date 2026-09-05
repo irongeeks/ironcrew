@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import sharp from "sharp";
+import sharp, { type OutputInfo } from "sharp";
 import { z } from "zod";
 import { CHARACTER_SKIN_IDS } from "../../../src/shared/character-skins.ts";
 import { appendAuditEvent, type ActorType } from "./audit.ts";
@@ -138,7 +138,7 @@ export class CharacterStore {
             ? "webp"
             : null;
     if (!format) throw new CharacterAssetError("Bitte eine echte PNG-, JPEG- oder WebP-Datei hochladen.");
-    let decoded: { data: Buffer; info: sharp.OutputInfo };
+    let decoded: { data: Buffer; info: OutputInfo };
     try {
       const image = sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS, failOn: "error", animated: false });
       const meta = await image.metadata();

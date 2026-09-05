@@ -13,8 +13,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { dump, load } from "js-yaml";
-import { z } from "zod";
+import { dump } from "js-yaml";
+import { readCurrentProvenance } from "./current-provenance.ts";
 import { newId } from "../domain/ids.ts";
 import type {
   MemoryConnectionStatus,
@@ -23,14 +23,6 @@ import type {
   MemoryWriteInput,
   MemoryWriteResult,
 } from "./memory-provider.ts";
-
-const provenanceSchema = z.object({
-  companyId: z.string().min(1),
-  taskId: z.string().nullable().optional(),
-  projectId: z.string().nullable().optional(),
-  agentId: z.string().nullable().optional(),
-  sensitivity: z.enum(["public", "internal", "confidential"]),
-});
 
 export interface ObsidianProviderOptions {
   /** Root of the Obsidian vault on disk. Must already exist. */
@@ -175,18 +167,7 @@ export class ObsidianProvider implements MemoryProvider {
           const externalId = path.relative(this.root, full).replace(/\.md$/, "").split(path.sep).join("/");
           const titleMatch = content.match(/title:\s*"(.*)"/);
           const snippetStart = Math.max(0, idx - 40);
-          const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
-          let provenance;
-          if (frontmatter) {
-            try {
-              const parsed = provenanceSchema.safeParse(load(frontmatter));
-              if (parsed.success) provenance = parsed.data;
-            } catch {
-              // Owner search can still find malformed notes; runtime tools
-              // reject missing classification rather than expose their content.
-              provenance = undefined;
-            }
-          }
+          const provenance = readCurrentProvenance(content);
           hits.push({
             ...(provenance ? { provenance } : {}),
             externalId,

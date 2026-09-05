@@ -2,6 +2,9 @@
 
 ## Unreleased — 2026-09-05
 
+- Update the production image decoder to patched sharp 0.35.4 after the CI audit
+  identified inherited libvips vulnerabilities in the earlier development version.
+
 - Add modern vector office with canonical crew/task IDs, workspace desks,
   meetings, approval zone, fit/zoom, keyboard navigation and reduced motion.
 - Share Office, Tasks and CEO chat state; fix mobile entry and global mission action.
