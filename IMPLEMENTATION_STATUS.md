@@ -37,16 +37,30 @@ passed **73 backend and 199 frontend tests**, both typechecks, ESLint, formattin
 production build. These are overlapping module suites, not additional aggregate counts.
 Full routing evidence at `4eec70b`: [CI 33949377702](https://github.com/irongeeks/ironcrew/actions/runs/33949377702) passed **5,114 backend tests (1 skipped), 599 frontend tests, 40 script tests and 78 browser tests (3 existing skips)**. [Platform CI 33949377720](https://github.com/irongeeks/ironcrew/actions/runs/33949377720) passed Linux/macOS and Docker persistence/restore gates. See [RUNTIME_ROUTING.md](docs/RUNTIME_ROUTING.md).
 
-The subsequent living-office change adds furnished department rooms, connected halls, room focus and bounded ambient walking/encounters. Local verification passed 616 frontend tests before the final accessibility regression, then all 28 focused office tests, typecheck, ESLint and build. New browser tests cover room navigation, mobile roster, actual movement and pause/reduced-motion; their CI result is pending. See [LIVING_OFFICE.md](docs/LIVING_OFFICE.md).
+The living-office change is merged in [PR #21](https://github.com/irongeeks/ironcrew/pull/21)
+at `e7c928b`, with the same tree as verified head `0893311`. It adds furnished
+department rooms, connected halls, room focus and bounded ambient walking/encounters.
+[CI 33950692947](https://github.com/irongeeks/ironcrew/actions/runs/33950692947)
+passed 5,114 backend tests (1 skipped), 617 frontend tests, 40 script tests and
+80 browser tests (3 existing skips). [Platform 33950692948](https://github.com/irongeeks/ironcrew/actions/runs/33950692948)
+passed all Linux/macOS, Docker and supply-chain gates. Actual browser screenshots
+of the overview, focused department and responsive layouts were inspected.
+See [LIVING_OFFICE.md](docs/LIVING_OFFICE.md).
 
-Career levels and task reviews are implemented in a subsequent change: owner-approved
-Junior/Senior/Lead, actual department-routing and independent-review runs, root-task
-budget attribution and immutable work/reviewer model evidence. UI shows per-agent
-and per-model means, counts, difficulty and revision context without automatic promotion.
-The integrated local frontend run passed all 627 tests; 41 focused career backend
-tests and the separately checked canonical owner-approval flow passed. Typechecks
-and production build passed. Full integrated CI and the new three browser cases
-are pending.
+Career levels and task reviews are implemented in [PR #22](https://github.com/irongeeks/ironcrew/pull/22):
+owner-approved Junior/Senior/Lead, actual department-routing and independent-review
+runs, root-task budget attribution and immutable work/reviewer model evidence.
+UI shows per-agent and per-model means, counts, difficulty and revision context
+without automatic promotion. The integrated local frontend run passed 627 tests;
+41 focused career backend tests and the canonical owner-approval flow passed.
+On `963db68`, [CI 33950807360](https://github.com/irongeeks/ironcrew/actions/runs/33950807360)
+passed the complete 5,156 backend tests (1 skipped), 627 frontend tests and 40
+script tests; quality/build and [platform gates](https://github.com/irongeeks/ironcrew/actions/runs/33950807364)
+also passed. The same revision passed **82 browser tests (4 existing conditional skips)**,
+including all new profile/roster, saved configuration, stale revision, self-rating
+and mobile roster cases. Actual profile, configuration and mobile screenshots were
+inspected. A final presentation-only follow-up labels professional roles readably. The final
+exact-revision browser/CI evidence and merge state are recorded in PR #22.
 See [CAREER_REVIEWS.md](docs/CAREER_REVIEWS.md) for setup and limits.
 
 Actual CLI subscriptions, mTLS customer networks, OIDC, Honcho, mail and business
@@ -443,8 +457,8 @@ That is why shipping is a separate mechanism rather than a stronger hash.
 ## MVP acceptance overview
 
 This table distinguishes implemented behavior from installation/account acceptance.
-The `4eec70b` routing counts above are the latest complete CI evidence;
-the subsequent living-office changes require their own linked browser results.
+The linked routing, building and career runs above identify each tested revision.
+The PR links carry final browser and merge results; provider-account acceptance remains separate.
 
 | Criterion                                                      | Current evidence and limit                                                                                                                        |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -466,8 +480,9 @@ the subsequent living-office changes require their own linked browser results.
 
 ## Next technically sensible step
 
-1. Complete the living-office browser checks and inspect the overview, department
-   focus and mobile screenshots; routing is already tested and merged in PR #20.
+1. Configure department leads and model bindings through Team & Leistung, then
+   validate actual model output on a small representative set of bounded tasks.
+   The PR links above record the controlled automated acceptance.
 2. Perform an authenticated CLI acceptance run through the dedicated native runner,
    including revision/resume after a control-plane restart. Keep account credentials
    in the official CLI store and record only redacted events and result evidence.

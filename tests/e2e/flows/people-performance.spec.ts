@@ -69,9 +69,8 @@ test("opens canonical employee performance, filters real review data and reopens
   const roster = panel
     .locator("table")
     .filter({ has: page.getByRole("columnheader", { name: "Mitarbeiter / Fachrolle", exact: true }) });
-  const row = roster.getByRole("row").filter({
-    has: page.getByRole("rowheader", { name: `${agent.displayName} ${agent.professionalRole}`, exact: true }),
-  });
+  const row = roster.getByTestId(`people-agent-${agent.id}`);
+  await expect(row.getByRole("rowheader")).toContainText(agent.displayName);
   await expect(row).toHaveCount(1);
   await expect(row.getByRole("cell", { name: levels[profile!.level], exact: true })).toBeVisible();
   await expect(row.getByRole("cell", { name: routeLabel, exact: true })).toBeVisible();

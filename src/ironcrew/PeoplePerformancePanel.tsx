@@ -25,6 +25,25 @@ interface Props {
 }
 const LEVELS = { junior: "Junior", senior: "Senior", lead: "Lead" } as const;
 const DIFFICULTIES = { simple: "Einfach", normal: "Normal", complex: "Komplex" } as const;
+const PROFESSIONAL_ROLE_NAMES: Record<string, string> = {
+  executive_assistant: "Executive Assistant",
+  chief_operating_officer: "Betriebsleitung · COO",
+  chief_technology_officer: "Technische Leitung · CTO",
+  head_of_infrastructure: "Infrastrukturleitung",
+  chief_information_security_officer: "Informationssicherheit · CISO",
+  finance_and_bookkeeping_lead: "Finanzen & Buchhaltung",
+  legal_and_contracts: "Recht & Verträge",
+  research_and_intelligence: "Recherche & Analyse",
+  qa_root_cause_red_team: "Qualitätssicherung & Fehleranalyse",
+  quality_assurance: "Qualitätssicherung",
+  ui_ux_and_brand: "Design & Marke",
+  marketing_and_messaging: "Marketing & Kommunikation",
+  sales_and_negotiation: "Vertrieb & Verhandlung",
+  knowledge_and_documentation: "Wissen & Dokumentation",
+  automation_and_tools: "Automatisierung & Werkzeuge",
+};
+const roleName = (role: string | undefined) =>
+  role ? (PROFESSIONAL_ROLE_NAMES[role] ?? role.replaceAll("_", " ")) : "";
 const FALLBACK_REVIEW_ROLES = new Set<string>(CAREER_FALLBACK_REVIEWER_ROLES);
 const displayTime = (value: number) => new Date(value).toLocaleString("de-DE");
 const average = (value: number | null) =>
@@ -560,10 +579,10 @@ export function PeoplePerformancePanel({
                       const route = routing?.config.profiles.find((row) => row.key === binding?.profileKey);
                       const rating = snapshot.aggregates.agents.find((row) => row.key === agent.id);
                       return (
-                        <tr key={agent.id}>
+                        <tr key={agent.id} data-testid={`people-agent-${agent.id}`}>
                           <th scope="row">
                             {agent.displayName}
-                            <p className="people-help">{agent.professionalRole ?? ""}</p>
+                            <p className="people-help">{roleName(agent.professionalRole)}</p>
                           </th>
                           <td>{profile ? LEVELS[profile.level] : "–"}</td>
                           <td>

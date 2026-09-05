@@ -1,7 +1,7 @@
 # Master-Prompt-Abdeckung — IronCrew
 
 Stand: 2026-09-05. PR #18 und #19 sind gemergt; [PR #20](https://github.com/irongeeks/ironcrew/pull/20) ist bei `36a71db` gemergt und entspricht dem vollständig geprüften Tree von `4eec70b`.
-Die darauffolgenden Gebäude- und Laufbahnerweiterungen benötigen eigene CI-Nachweise.
+Das Gebäude ist in [PR #21](https://github.com/irongeeks/ironcrew/pull/21) bei `e7c928b` gemergt (80 Browsertests bestanden). [PR #22](https://github.com/irongeeks/ironcrew/pull/22) dokumentiert die genaue Abschlussrevision der Laufbahnerweiterung.
 Diese Matrix trennt implementierten Umfang, kontrollierte CI-Nachweise und
 Betreibertests mit echten Konten.
 Sie ist **keine Behauptung, dass der komplette Master-Prompt produktionsreif erfüllt ist**.
@@ -86,4 +86,4 @@ addiert. Spätere Routing-Arbeit benötigt einen eigenen Gesamt-/Browserlauf.
 
 [CAREER_REVIEWS.md](CAREER_REVIEWS.md) beschreibt Junior/Senior/Lead, die getrennte Modellprofilzuweisung, genehmigte Leveländerungen und aktive Abteilungssteuerung. Tatsächliche Lead-Runs delegieren neue Aufgaben und bewerten abgeschlossene Arbeitsruns mit 1–5 Sternen und Begründung. Junioren sind auf einfache, risikoarme, nicht sensible Aufgaben beschränkt. Eigene Lead-Arbeit benötigt einen ausdrücklich eingerichteten unabhängigen QA-/COO-Reviewer.
 
-Gespeichert werden Arbeits- und Reviewrun einschließlich ihrer tatsächlichen Modellbindung und Rubrikversion. Mittelwerte zählen die aktuelle Bewertung jeder Aufgabe einmal; alte Revisionen bleiben sichtbar. Fehlende Bewertungen erzeugen keine Sterne. Das sind kontextabhängige Reviewerurteile ohne automatische Beförderung, kein objektiver Modellbenchmark. Lokale Store-/Workflow-/UI-Tests bestanden; die vollständige CI dieses neuen Umfangs wird separat dokumentiert.
+Gespeichert werden Arbeits- und Reviewrun einschließlich ihrer tatsächlichen Modellbindung und Rubrikversion. Mittelwerte zählen die aktuelle Bewertung jeder Aufgabe einmal; alte Revisionen bleiben sichtbar. Fehlende Bewertungen erzeugen keine Sterne. Das sind kontextabhängige Reviewerurteile ohne automatische Beförderung, kein objektiver Modellbenchmark. Lokale Store-/Workflow-/UI-Tests und die vollständigen Backend-/Frontend-/Build-/Plattformprüfungen auf `963db68` bestanden; die abschließenden Browsernachweise und der Mergezustand stehen in [PR #22](https://github.com/irongeeks/ironcrew/pull/22).
