@@ -4,7 +4,7 @@ import { establishSession } from "../fixtures/test-helpers";
 import type { Agent } from "../../../src/ironcrew/types";
 
 test.describe("Employee character profiles", () => {
-  test("assigns one of20 presets, persists after reload and leaves professional policy unchanged", async ({
+  test("assigns one of 20 presets, persists after reload and leaves professional policy unchanged", async ({
     page,
     request,
   }, testInfo) => {
@@ -66,6 +66,7 @@ test.describe("Employee character profiles", () => {
     };
     try {
       await page.setViewportSize({ width: 390, height: 844 });
+      await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto("/");
       // The mobile office is still the canonical employee entry.
       await page.getByTestId(`office-person-${agent.id}`).locator(".crew-office-person-button").click();
@@ -89,7 +90,7 @@ test.describe("Employee character profiles", () => {
         .setInputFiles({ name: "private-character.png", mimeType: "image/png", buffer: image });
       const preview = page.getByRole("img", { name: "Vorschau der Bürofigur" });
       await expect(preview).toHaveAttribute("data-character-source", "upload");
-      await expect(page.getByRole("status")).toContainText("Vorschau prüfen");
+      await expect(page.locator(".character-editor-notice")).toContainText("Vorschau prüfen");
       await page
         .locator(".character-editor-preview-row")
         .screenshot({ path: testInfo.outputPath("character-upload-preview-mobile.png") });
