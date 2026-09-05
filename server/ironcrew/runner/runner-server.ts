@@ -27,18 +27,21 @@
  * arbitrary filesystem access under the account that holds the logins.
  */
 
+import { newId } from "../domain/ids.ts";
 import { timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { logger } from "../../observability/logger.ts";
 import {
-  decodeMessage,
+  decodeClientMessage,
   encodeMessage,
   LineDecoder,
   RUNNER_PROTOCOL_VERSION,
   type ClientMessage,
   type ServerMessage,
 } from "./protocol.ts";
+import { runEventSchema } from "../runtime/run-events.ts";
+import { redact, redactValue } from "../security/redaction.ts";
 import type { AgentRuntime, RunContext } from "../runtime/run-events.ts";
 import type { McpHost } from "./mcp-host.ts";
 
@@ -63,6 +66,8 @@ export interface RunnerServerOptions {
    * says so instead of failing in a way that looks like a missing server.
    */
   mcp?: McpHost;
+  /** Maximum time for the control plane to ingest usage and permit continuation. */
+  usageAckTimeoutMs?: number;
 }
 
 /** Constant-time token comparison — a wrong guess must not leak its length. */
@@ -73,17 +78,35 @@ function tokensMatch(expected: string, given: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+interface RunningJob {
+  controller: AbortController;
+  runId: string;
+  runtime: AgentRuntime;
+  companyId: string;
+  taskId: string;
+  awaitingUsage?: { eventId: string; seq: number; ack: () => void };
+}
+
 export class RunnerServer {
+  private readonly activeTasks = new Set<string>();
+  private readonly connections = new Set<RunnerSocket>();
   private readonly runtimes = new Map<string, AgentRuntime>();
   private readonly token: string;
   private readonly workspaceRoot: string;
   private readonly mcp: McpHost | undefined;
+  private readonly usageAckTimeoutMs: number;
 
   constructor(opts: RunnerServerOptions) {
     for (const runtime of opts.runtimes) this.runtimes.set(runtime.type, runtime);
+    if (!opts.token.trim()) throw new Error("Runner requires an authentication token.");
     this.token = opts.token;
     this.workspaceRoot = path.resolve(opts.workspaceRoot);
+    if (this.workspaceRoot === path.parse(this.workspaceRoot).root)
+      throw new Error("Runner workspace root must not be the filesystem root.");
     this.mcp = opts.mcp;
+    this.usageAckTimeoutMs = opts.usageAckTimeoutMs ?? 30_000;
+    if (!Number.isFinite(this.usageAckTimeoutMs) || this.usageAckTimeoutMs <= 0)
+      throw new Error("Invalid usage acknowledgement timeout.");
   }
 
   get runtimeTypes(): string[] {
@@ -129,10 +152,22 @@ export class RunnerServer {
    * waiting on a reply that never comes is the failure mode that leaves a
    * task running and an agent locked.
    */
+  closeConnections(): void {
+    for (const connection of this.connections) connection.destroy();
+    this.connections.clear();
+  }
+
   handleConnection(socket: RunnerSocket): void {
+    if (this.connections.size >= 128) {
+      socket.destroy();
+      return;
+    }
+    this.connections.add(socket);
     const decoder = new LineDecoder();
     let greeted = false;
-    const running = new Map<string, AbortController>();
+    const handshakeTimeout = setTimeout(() => socket.destroy(), 15_000);
+    handshakeTimeout.unref();
+    const running = new Map<string, RunningJob>();
 
     const send = (message: ServerMessage): void => {
       try {
@@ -147,10 +182,15 @@ export class RunnerServer {
       send({ v: RUNNER_PROTOCOL_VERSION, kind: "error", id, message });
 
     socket.on("close", () => {
+      clearTimeout(handshakeTimeout);
+      this.connections.delete(socket);
       // A dropped connection cancels whatever it started. A CLI process left
       // running for a control plane that is no longer listening spends money
       // and holds a workspace for nothing.
-      for (const controller of running.values()) controller.abort();
+      for (const job of running.values()) {
+        job.controller.abort();
+        void job.runtime.cancelRun(job.runId).catch(() => log.warn("runtime cancellation failed"));
+      }
       running.clear();
     });
     socket.on("error", (err) => log.warn({ err: err.message }, "runner connection error"));
@@ -168,7 +208,7 @@ export class RunnerServer {
       for (const line of lines) {
         let message: ClientMessage;
         try {
-          message = decodeMessage(line) as ClientMessage;
+          message = decodeClientMessage(line);
         } catch (err) {
           fail("", err instanceof Error ? err.message : String(err));
           socket.destroy();
@@ -182,6 +222,7 @@ export class RunnerServer {
             return;
           }
           greeted = true;
+          clearTimeout(handshakeTimeout);
           send({ v: RUNNER_PROTOCOL_VERSION, kind: "hello-ok", runtimes: this.runtimeTypes });
           continue;
         }
@@ -229,16 +270,55 @@ export class RunnerServer {
     }
   }
 
+  private waitForUsage(job: RunningJob, eventId: string, seq: number): Promise<"ack" | "aborted" | "timeout"> {
+    return new Promise((resolve) => {
+      let finished = false;
+      const finish = (result: "ack" | "aborted" | "timeout") => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        job.controller.signal.removeEventListener("abort", onAbort);
+        job.awaitingUsage = undefined;
+        resolve(result);
+      };
+      const onAbort = () => finish("aborted");
+      const timer = setTimeout(() => finish("timeout"), this.usageAckTimeoutMs);
+      timer.unref();
+      job.awaitingUsage = { eventId, seq, ack: () => finish("ack") };
+      job.controller.signal.addEventListener("abort", onAbort, { once: true });
+      if (job.controller.signal.aborted) onAbort();
+    });
+  }
+
   private async dispatch(
     message: ClientMessage,
     send: (m: ServerMessage) => void,
     fail: (id: string, message: string) => void,
-    running: Map<string, AbortController>,
+    running: Map<string, RunningJob>,
   ): Promise<void> {
     if (message.kind === "hello") return;
 
+    if (message.kind === "usage-ack") {
+      const job = running.get(message.id);
+      if (
+        job &&
+        job.runId === message.runId &&
+        job.companyId === message.companyId &&
+        job.taskId === message.taskId &&
+        job.awaitingUsage?.eventId === message.eventId &&
+        job.awaitingUsage.seq === message.seq
+      ) {
+        job.awaitingUsage.ack();
+      }
+      return;
+    }
+
     if (message.kind === "cancel") {
-      running.get(message.id)?.abort();
+      const job = running.get(message.id);
+      if (job && job.runId === message.runId) {
+        job.controller.abort();
+        await job.runtime.cancelRun(job.runId).catch(() => log.warn("runtime cancellation failed"));
+      }
       return;
     }
 
@@ -273,6 +353,7 @@ export class RunnerServer {
           id: message.id,
           value: {
             authenticated: status.authenticated,
+            ...(status.verification ? { verification: status.verification } : {}),
             method: status.method,
             detail: status.detail,
             ...(status.accountHint ? { accountHint: status.accountHint } : {}),
@@ -282,21 +363,104 @@ export class RunnerServer {
         return;
       }
 
-      if (message.kind === "start") {
-        if (!this.allowsWorkspace(message.context.workspacePath)) {
+      if (message.kind === "start" || message.kind === "resume") {
+        const capabilities = await runtime.capabilities();
+        if (
+          (message.context.workspacePath !== "" || capabilities.workspaceRequired !== false) &&
+          !this.allowsWorkspace(message.context.workspacePath)
+        ) {
           fail(message.id, `Arbeitsordner "${message.context.workspacePath}" liegt außerhalb dieses Runners.`);
           return;
         }
 
+        const taskKey = JSON.stringify([message.context.companyId, message.context.taskId]);
+        if (running.has(message.id) || this.activeTasks.has(taskKey)) {
+          fail(message.id, "Diese Aufgabe wird bereits auf diesem Runner ausgeführt.");
+          return;
+        }
         const controller = new AbortController();
-        running.set(message.id, controller);
+        const job: RunningJob = {
+          controller,
+          runId: message.context.runId,
+          runtime,
+          companyId: message.context.companyId,
+          taskId: message.context.taskId,
+        };
+        running.set(message.id, job);
+        this.activeTasks.add(taskKey);
         try {
           const context: RunContext = { ...message.context, signal: controller.signal };
-          for await (const event of runtime.startRun(message.input, context)) {
-            send({ v: RUNNER_PROTOCOL_VERSION, kind: "event", id: message.id, event });
+          const sessionRef = message.kind === "resume" ? message.sessionRef : message.input.sessionRef;
+          if (sessionRef && (!runtime.resumeRun || !capabilities.sessionResume)) {
+            fail(message.id, "Diese Laufzeit unterstützt keine Sitzungsfortsetzung.");
+            return;
+          }
+          const events = sessionRef
+            ? runtime.resumeRun!(sessionRef, message.input, context)
+            : runtime.startRun(message.input, context);
+          for await (const raw of events) {
+            const parsed = runEventSchema.safeParse(raw);
+            if (!parsed.success) throw new Error("Runtime emitted an invalid normalized event.");
+            const event = parsed.data;
+            if (
+              event.companyId !== context.companyId ||
+              event.taskId !== context.taskId ||
+              event.runId !== context.runId ||
+              event.projectId !== context.projectId ||
+              event.agentId !== context.agentId ||
+              event.correlationId !== context.correlationId
+            ) {
+              throw new Error("Runtime emitted an event outside its assigned task.");
+            }
+            const payload = redactValue(event.payload, context.redactValues);
+            const changed = JSON.stringify(payload) !== JSON.stringify(event.payload);
+            // Install the waiter before sending: even an immediate ACK must
+            // not race ahead of its barrier. Do not request the next runtime
+            // event (which can initiate a paid round) until ingestion is ACKed.
+            const acknowledgement =
+              event.type === "usage.updated" ? this.waitForUsage(job, event.eventId, event.seq) : null;
+            send({
+              v: RUNNER_PROTOCOL_VERSION,
+              kind: "event",
+              id: message.id,
+              event: {
+                ...event,
+                payload,
+                redaction: {
+                  redacted: event.redaction.redacted || changed,
+                  rules: [...event.redaction.rules, ...(changed ? ["runner_boundary"] : [])],
+                },
+              },
+            });
+            if (acknowledgement) {
+              const result = await acknowledgement;
+              if (result !== "ack") {
+                controller.abort();
+                await runtime.cancelRun(context.runId).catch(() => log.warn("runtime cancellation failed"));
+                if (result === "timeout")
+                  throw new Error("Control plane did not acknowledge usage before the deadline; run stopped.");
+                send({
+                  v: RUNNER_PROTOCOL_VERSION,
+                  kind: "event",
+                  id: message.id,
+                  event: {
+                    ...event,
+                    eventId: newId("evt"),
+                    seq: event.seq + 1,
+                    type: "run.cancelled",
+                    payload: { reason: "Control plane cancelled before permitting the next round." },
+                  },
+                });
+                send({ v: RUNNER_PROTOCOL_VERSION, kind: "end", id: message.id });
+                return;
+              }
+            }
           }
           send({ v: RUNNER_PROTOCOL_VERSION, kind: "end", id: message.id });
+        } catch (err) {
+          fail(message.id, redact(err instanceof Error ? err.message : String(err), message.context.redactValues).text);
         } finally {
+          this.activeTasks.delete(taskKey);
           running.delete(message.id);
         }
       }

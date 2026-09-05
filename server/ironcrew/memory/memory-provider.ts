@@ -25,6 +25,8 @@ export interface MemoryWriteInput {
   title: string;
   content: string;
   tags?: string[];
+  /** Trusted domain provenance; absent provenance never permits external sync. */
+  provenance?: MemoryProvenance;
 }
 
 export interface MemoryWriteResult {
@@ -35,6 +37,9 @@ export interface MemoryWriteResult {
 }
 
 export interface MemorySearchHit {
+  /** Current source classification, read from the same snapshot as the snippet.
+   * Missing/invalid provenance must not authorize model-facing retrieval. */
+  provenance?: MemoryProvenance;
   externalId: string;
   title: string;
   snippet: string;
@@ -57,4 +62,14 @@ export interface MemoryProvider {
   search(query: string, limit?: number): Promise<MemorySearchHit[]>;
   /** Reachability check. Never requires a real entry to succeed. */
   testConnection(): Promise<MemoryConnectionStatus>;
+}
+
+export interface MemoryProvenance {
+  companyId: string;
+  taskId?: string | null;
+  projectId?: string | null;
+  agentId?: string | null;
+  source?: string;
+  confidence?: number;
+  sensitivity?: string;
 }

@@ -128,9 +128,43 @@ describe("a job crosses the boundary and comes back", () => {
     expect((await client.healthCheck()).healthy).toBe(true);
     expect((await client.authStatus()).method).toBeTruthy();
   });
+
+  it("preserves an unverified CLI login across the runner boundary", async () => {
+    const runtime = new ScriptedRuntime("claude");
+    runtime.authStatus = async () => ({
+      authenticated: false,
+      verification: "unverified" as const,
+      method: "subscription-cli" as const,
+      detail: "Anmeldung nicht geprüft",
+    });
+    const { client } = connected([runtime]);
+
+    expect(await client.authStatus()).toMatchObject({ authenticated: false, verification: "unverified" });
+  });
 });
 
 describe("a run always ends", () => {
+  it("closes the transport when a runner never answers its handshake", async () => {
+    vi.useFakeTimers();
+    try {
+      const pair = socketPair();
+      const closed = vi.fn();
+      pair.server.on("close", closed);
+      const client = new RunnerRuntime({
+        runtimeType: "claude",
+        token: TOKEN,
+        connect: async () => pair.client,
+        requestTimeoutMs: 50,
+      });
+      const failed = expect(client.capabilities()).rejects.toThrow(/rechtzeitig/);
+      await vi.advanceTimersByTimeAsync(50);
+      await failed;
+      expect(closed).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("fails cleanly when the runner cannot be reached at all", async () => {
     const client = new RunnerRuntime({
       runtimeType: "claude",
@@ -198,6 +232,15 @@ describe("a run always ends", () => {
 });
 
 describe("cancellation crosses the wire", () => {
+  it("cancelRun interrupts an active idle run without waiting for another event", async () => {
+    const { client } = connected([new ScriptedRuntime("claude", "hang")]);
+    const iterator = client.startRun({ prompt: "x" }, context())[Symbol.asyncIterator]();
+    expect((await iterator.next()).value.type).toBe("run.started");
+    await client.cancelRun("run_1");
+    expect((await iterator.next()).value.type).toBe("run.cancelled");
+    expect((await iterator.next()).done).toBe(true);
+  });
+
   it("aborts the run on the runner when the caller aborts", async () => {
     const { client } = connected([new ScriptedRuntime("claude", "hang")]);
     const abort = new AbortController();
@@ -251,6 +294,80 @@ describe("cancellation crosses the wire", () => {
       if (next.done) break;
     }
     expect(aborted).not.toHaveBeenCalled();
+  });
+});
+
+describe("native run dispatch", () => {
+  it("resumes only when the actual runtime supports resume", async () => {
+    class ResumableRuntime extends ScriptedRuntime {
+      readonly sessions: string[] = [];
+      async capabilities() {
+        return { ...(await super.capabilities()), sessionResume: true };
+      }
+      async *resumeRun(session: string, input: RunInput, ctx: RunContext) {
+        this.sessions.push(session);
+        yield* super.startRun(input, ctx);
+      }
+    }
+    const runtime = new ResumableRuntime("claude");
+    const { client } = connected([runtime]);
+    expect((await collect(client.resumeRun("official-session-1", { prompt: "Weiter" }, context()))).at(-1)?.type).toBe(
+      "run.completed",
+    );
+    expect(runtime.sessions).toEqual(["official-session-1"]);
+    const unsupported = connected([new ScriptedRuntime("claude")]);
+    const events = await collect(unsupported.client.resumeRun("session", { prompt: "Weiter" }, context()));
+    expect(events.at(-1)?.type).toBe("run.failed");
+    expect(events.at(-1)?.payload.message).toMatch(/keine Sitzungsfortsetzung/);
+  });
+
+  it("preserves rate-limit waiting rather than appending a synthetic failure", async () => {
+    class WaitingRuntime extends ScriptedRuntime {
+      async *startRun(_input: RunInput, ctx: RunContext) {
+        yield stubEvent(ctx, "run.started");
+        yield stubEvent(ctx, "rate_limit.detected", { retryAfterMs: 60000 }, 1);
+        yield stubEvent(ctx, "run.waiting", {}, 2);
+      }
+    }
+    const { client } = connected([new WaitingRuntime("openrouter")]);
+    const events = await collect(client.startRun({ prompt: "x" }, context()));
+    expect(events.map((event) => event.type)).toEqual(["run.started", "rate_limit.detected", "run.waiting"]);
+  });
+
+  it("prevents duplicate task execution across separate authenticated connections", async () => {
+    const { client } = connected([new ScriptedRuntime("claude", "hang")]);
+    const first = client.startRun({ prompt: "x" }, context())[Symbol.asyncIterator]();
+    await first.next();
+    const second = await collect(client.startRun({ prompt: "duplicate" }, context({ runId: "run-2" })));
+    expect(second.at(-1)?.type).toBe("run.failed");
+    expect(second.at(-1)?.payload.message).toMatch(/bereits/);
+    await client.cancelRun("run_1");
+    await first.next();
+    await first.next();
+  });
+
+  it("rejects events attributed to a different task", async () => {
+    class WrongScopeRuntime extends ScriptedRuntime {
+      async *startRun(_input: RunInput, ctx: RunContext) {
+        yield stubEvent({ ...ctx, companyId: "other-company" }, "run.completed");
+      }
+    }
+    const { client } = connected([new WrongScopeRuntime("claude")]);
+    const events = await collect(client.startRun({ prompt: "x" }, context()));
+    expect(events.map((event) => event.type)).toEqual(["run.failed"]);
+    expect(events[0].companyId).toBe("cmp_1");
+  });
+
+  it("daemon shutdown closes the transport and cancels its active process", async () => {
+    const runtime = new ScriptedRuntime("claude", "hang");
+    const cancel = vi.spyOn(runtime, "cancelRun");
+    const { client, server } = connected([runtime]);
+    const iterator = client.startRun({ prompt: "x" }, context())[Symbol.asyncIterator]();
+    await iterator.next();
+    server.closeConnections();
+    expect((await iterator.next()).value.type).toBe("run.failed");
+    expect((await iterator.next()).done).toBe(true);
+    expect(cancel).toHaveBeenCalledWith("run_1");
   });
 });
 

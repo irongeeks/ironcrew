@@ -11,6 +11,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./command-center.css";
+import { CrewOffice } from "./CrewOffice.tsx";
+import { CharacterSkinEditor } from "./CharacterSkinEditor.tsx";
+import { CharacterAvatar } from "./CharacterAvatar.tsx";
+import { useCrewLiveUpdates } from "./useCrewLiveUpdates.ts";
 import { api, serverErrorCode, serverMessage } from "./api.ts";
 import {
   AGENT_STATUS_LABEL,
@@ -82,6 +86,7 @@ import {
   type PairingRole,
   type Project,
   type RemoteWorker,
+  type Run,
   type RunEvent,
   type RunRequest,
   type RunRequestStatus,
@@ -204,9 +209,31 @@ function grantRequiresApproval(tool: ToolWithGrants, grant: { requires_approval:
 export interface CommandCenterViewProps {
   /** Injected in tests; defaults to the live REST client. */
   client?: typeof api;
+  initialView?: "office" | "tasks";
+  /** Incremented by the app shell when the CEO starts a mission. */
+  newMissionRequest?: number;
+  /** Test clients opt in explicitly; production always subscribes. */
+  liveUpdates?: boolean;
 }
 
-export function CommandCenterView({ client = api }: CommandCenterViewProps): React.JSX.Element {
+export function CommandCenterView({
+  client = api,
+  initialView = "office",
+  newMissionRequest = 0,
+  liveUpdates = client === api,
+}: CommandCenterViewProps): React.JSX.Element {
+  const [stageView, setStageView] = useState(initialView);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const refreshSequence = useRef(0);
+  useEffect(() => setStageView(initialView), [initialView]);
+  useEffect(() => {
+    if (newMissionRequest > 0) {
+      composerRef.current?.focus();
+      composerRef.current?.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [newMissionRequest]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -281,6 +308,8 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [memories, setMemories] = useState<MemoryRef[]>([]);
   const [showMemory, setShowMemory] = useState(false);
   const [memoryQuery, setMemoryQuery] = useState("");
+  const [semanticMemorySearch, setSemanticMemorySearch] = useState(false);
+  const [newMemorySensitivity, setNewMemorySensitivity] = useState("internal");
   const [memorySearchHits, setMemorySearchHits] = useState<MemorySearchHit[] | null>(null);
   const [memoryDetail, setMemoryDetail] = useState<{ memory: MemoryRef; content: string } | null>(null);
   const [newMemoryKind, setNewMemoryKind] = useState<MemoryKind>("note");
@@ -427,10 +456,17 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const [channelTestResults, setChannelTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
 
   const [draft, setDraft] = useState("");
+  const [revisionNotes, setRevisionNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskRuns, setTaskRuns] = useState<Run[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [taskRunEvents, setTaskRunEvents] = useState<RunEvent[]>([]);
+  const [taskDetailError, setTaskDetailError] = useState<string | null>(null);
+  const taskDetailSequence = useRef(0);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [editingCharacter, setEditingCharacter] = useState(false);
   const [showProjectList, setShowProjectList] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const [projectDetail, setProjectDetail] = useState<{
@@ -443,8 +479,9 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const logRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
     try {
-      const [a, t, c, ap, d, p, n, dec, who] = await Promise.all([
+      const [a, t, c, ap, d, p, n, dec, who, co, mt] = await Promise.all([
         client.agents(),
         client.tasks(),
         client.chat(),
@@ -457,7 +494,10 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
         // can end mid-shift, and a panel that still thinks it knows who you
         // are would hide the vote buttons from the next person to sign in.
         client.authStatus().catch(() => null),
+        client.company(),
+        client.meetings(),
       ]);
+      if (sequence !== refreshSequence.current) return;
       setAgents(a.agents);
       setTasks(t.tasks);
       setMessages(c.messages);
@@ -468,12 +508,36 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
       setUnreadCount(n.unreadCount);
       setDecisions(dec.decisions);
       setMyUserId(who?.user?.id ?? null);
+      setCompanyName(co.company.name);
+      setDepartments(co.departments);
+      setMeetings(mt.meetings);
+      setLastRefreshedAt(d.generatedAt);
+      setLoadState("ready");
       setError(null);
+      return true;
     } catch (err) {
+      if (sequence !== refreshSequence.current) return;
+      setLoadState("error");
       // Never fail silently — an unreachable control plane is information.
       setError(err instanceof Error ? err.message : String(err));
+      return false;
     }
   }, [client]);
+
+  const receiveRunEvent = useCallback(
+    (event: RunEvent) => {
+      setEvents((previous) =>
+        previous.some((item) => item.eventId === event.eventId) ? previous : [...previous, event].slice(-200),
+      );
+      if (event.runId === selectedRunId) {
+        setTaskRunEvents((previous) =>
+          previous.some((item) => item.eventId === event.eventId) ? previous : [...previous, event],
+        );
+      }
+    },
+    [selectedRunId],
+  );
+  const live = useCrewLiveUpdates({ enabled: liveUpdates, refresh, onRunEvent: receiveRunEvent });
 
   // Attachments are not in the plain `tasks`/project-detail payloads — they
   // need their own fetch, declared early so both the task- and
@@ -539,12 +603,17 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
   const refreshTaskDependencies = useCallback(
     async (taskId: string) => {
+      const sequence = ++taskDetailSequence.current;
       try {
         const detail = await client.task(taskId);
+        if (sequence !== taskDetailSequence.current) return;
+        setTaskRuns(detail.runs);
         setTaskBlockers(detail.blockers);
         setTaskBlocking(detail.blocking);
+        setTaskDetailError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        if (sequence !== taskDetailSequence.current) return;
+        setTaskDetailError(serverMessage(err));
       }
     },
     [client],
@@ -552,13 +621,43 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
   const openTaskDetail = useCallback(
     (t: Task) => {
+      setSelectedAgent(null);
       setSelectedTask(t);
+      setTaskRuns([]);
+      setTaskBlockers([]);
+      setTaskBlocking([]);
+      setSelectedRunId(null);
+      setTaskRunEvents([]);
+      setTaskDetailError(null);
       setAddBlockerId("");
-      void refreshTaskDependencies(t.id);
       void refreshTaskAttachments(t.id);
     },
-    [refreshTaskDependencies, refreshTaskAttachments],
+    [refreshTaskAttachments],
   );
+
+  const selectedTaskId = selectedTask?.id;
+  useEffect(() => {
+    if (selectedTaskId) void refreshTaskDependencies(selectedTaskId);
+    return () => {
+      taskDetailSequence.current += 1;
+    };
+  }, [selectedTaskId, tasks, refreshTaskDependencies]);
+
+  useEffect(() => {
+    if (!selectedRunId) return;
+    let active = true;
+    client
+      .runEvents(selectedRunId)
+      .then(({ events: history }) => {
+        if (active) setTaskRunEvents(history);
+      })
+      .catch((err: unknown) => {
+        if (active) setTaskDetailError(serverMessage(err));
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, selectedRunId, tasks]);
 
   // Provider Health: kept separate from refresh() — each registered runtime
   // probes its own CLI (e.g. `claude --version`), so this is refreshed on
@@ -589,6 +688,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   const openAgentDetail = useCallback(
     (agent: Agent) => {
       setSelectedAgent(agent);
+      setEditingCharacter(false);
       setPairingVesselId(null);
       setPairingTalentId(null);
       setAgentTools(null);
@@ -611,15 +711,6 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
   useEffect(() => {
     void refresh();
-    client
-      .company()
-      .then((r) => {
-        setCompanyName(r.company.name);
-        setDepartments(r.departments);
-      })
-      .catch(() => {
-        /* header falls back to the default name; org chart stays empty */
-      });
   }, [refresh, client]);
 
   useEffect(() => {
@@ -654,7 +745,9 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
       const result = await client.executeNext();
       if (result.executed && result.runId) {
         const { events: runEvents } = await client.runEvents(result.runId);
-        setEvents((prev) => [...prev, ...runEvents].slice(-200));
+        setEvents((prev) =>
+          [...new Map([...prev, ...runEvents].map((event) => [event.eventId, event])).values()].slice(-200),
+        );
       }
       await refresh();
     } catch (err) {
@@ -668,7 +761,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   // whichever read-back keeps that dialog's own data current — `refresh()`
   // for the main poll, or a dialog-scoped refresher (refreshSecrets(),
   // refreshTaskAttachments(), ...) for state `refresh()` doesn't cover.
-  const actWith = useCallback(async (fn: () => Promise<unknown>, after: () => Promise<void>) => {
+  const actWith = useCallback(async (fn: () => Promise<unknown>, after: () => Promise<unknown>) => {
     setBusy(true);
     setError(null);
     try {
@@ -1022,14 +1115,23 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     const provider = memoryProviders[0]?.kind;
     if (!title || !content || !provider) return;
     void actWith(
-      () => client.recordMemory({ provider, kind: newMemoryKind, title, content }),
+      () => client.recordMemory({ provider, kind: newMemoryKind, title, content, sensitivity: newMemorySensitivity }),
       async () => {
         setNewMemoryTitle("");
         setNewMemoryContent("");
         await refreshMemory();
       },
     );
-  }, [actWith, client, newMemoryKind, newMemoryTitle, newMemoryContent, memoryProviders, refreshMemory]);
+  }, [
+    actWith,
+    client,
+    newMemoryKind,
+    newMemoryTitle,
+    newMemoryContent,
+    newMemorySensitivity,
+    memoryProviders,
+    refreshMemory,
+  ]);
 
   const openMemoryDetail = useCallback(
     (id: string) => {
@@ -1063,12 +1165,12 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
     if (!query || !provider) return;
     void actWith(
       async () => {
-        const { hits } = await client.searchMemory(provider, query);
+        const { hits } = await client.searchMemory(provider, query, semanticMemorySearch);
         setMemorySearchHits(hits);
       },
       async () => {},
     );
-  }, [actWith, client, memoryQuery, memoryProviders]);
+  }, [actWith, client, memoryQuery, memoryProviders, semanticMemorySearch]);
 
   // --- mailboxes (IMAP/JMAP/M365/Gmail, n:n against agents) ---------------
 
@@ -1987,7 +2089,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   }, [refreshGeneralAttachments]);
 
   const uploadAttachment = useCallback(
-    (file: File, scope: { taskId?: string; projectId?: string }, after: () => Promise<void>) => {
+    (file: File, scope: { taskId?: string; projectId?: string }, after: () => Promise<unknown>) => {
       void actWith(async () => {
         const dataBase64 = await readFileAsBase64(file);
         await client.uploadAttachment({
@@ -2002,7 +2104,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
   );
 
   const deleteAttachment = useCallback(
-    (id: string, after: () => Promise<void>) => {
+    (id: string, after: () => Promise<unknown>) => {
       void actWith(() => client.deleteAttachment(id), after);
     },
     [actWith, client],
@@ -2117,96 +2219,107 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
           <span className="ic-brand-sub">{companyName}</span>
         </div>
 
-        <button type="button" className="ic-btn" data-testid="open-projects" onClick={() => setShowProjectList(true)}>
-          Projekte ({projects.length})
-        </button>
+        <nav className="ic-toolbar" aria-label="Firmenbereiche">
+          <button type="button" className="ic-btn" data-testid="open-projects" onClick={() => setShowProjectList(true)}>
+            Projekte ({projects.length})
+          </button>
 
-        <button
-          type="button"
-          className="ic-btn"
-          data-variant={unreadCount > 0 ? "decision" : undefined}
-          data-testid="open-inbox"
-          onClick={() => setShowInbox(true)}
-        >
-          Postfach ({unreadCount})
-        </button>
+          <button
+            type="button"
+            className="ic-btn"
+            data-variant={unreadCount > 0 ? "decision" : undefined}
+            data-testid="open-inbox"
+            onClick={() => setShowInbox(true)}
+          >
+            Postfach ({unreadCount})
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-org-chart" onClick={() => setShowOrgChart(true)}>
-          Organigramm
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-org-chart" onClick={() => setShowOrgChart(true)}>
+            Organigramm
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-documents" onClick={openDocuments}>
-          Dokumente
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-documents" onClick={openDocuments}>
+            Dokumente
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-secrets" onClick={openSecrets}>
-          Zugangsdaten
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-secrets" onClick={openSecrets}>
+            Zugangsdaten
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-network" onClick={openNetwork}>
-          Netzwerk
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-network" onClick={openNetwork}>
+            Netzwerk
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-meetings" onClick={openMeetings}>
-          Meetings
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-meetings" onClick={openMeetings}>
+            Meetings
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-memory" onClick={openMemory}>
-          Wissen
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-memory" onClick={openMemory}>
+            Wissen
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-channels" onClick={openChannels}>
-          Kanäle
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-channels" onClick={openChannels}>
+            Kanäle
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-mailboxes" onClick={openMailboxes}>
-          E-Mail
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-mailboxes" onClick={openMailboxes}>
+            E-Mail
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-marketplaces" onClick={openMarketplaces}>
-          Marktplätze
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-marketplaces" onClick={openMarketplaces}>
+            Marktplätze
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-messenger" onClick={openMessenger}>
-          Messenger
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-messenger" onClick={openMessenger}>
+            Messenger
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-change-proposals" onClick={openChangeProposals}>
-          Änderungen
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-change-proposals" onClick={openChangeProposals}>
+            Änderungen
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-vessels" onClick={openVessels}>
-          Vessels &amp; Talente
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-vessels" onClick={openVessels}>
+            Vessels &amp; Talente
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-tools" onClick={openTools}>
-          Werkzeuge
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-tools" onClick={openTools}>
+            Werkzeuge
+          </button>
 
-        <button type="button" className="ic-btn" data-testid="open-run-queue" onClick={openRunQueue}>
-          Warteschlange
-        </button>
+          <button type="button" className="ic-btn" data-testid="open-run-queue" onClick={openRunQueue}>
+            Warteschlange
+          </button>
 
-        {/* Sits beside the "Audit" metric on purpose: that one says the local
+          {/* Sits beside the "Audit" metric on purpose: that one says the local
             chain still verifies, this one says whether a copy of it exists
             anywhere the owner of this box cannot reach. */}
-        <button type="button" className="ic-btn" data-testid="open-audit-shipping" onClick={openAuditShipping}>
-          Audit-Kopie
-        </button>
-
+          <button type="button" className="ic-btn" data-testid="open-audit-shipping" onClick={openAuditShipping}>
+            Audit-Kopie
+          </button>
+        </nav>
         <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
-          <Metric label="Läuft" value={dashboard?.tasks.running ?? 0} tone="accent" />
-          <Metric label="Review" value={dashboard?.tasks.review ?? 0} />
-          <Metric label="Freigaben" value={dashboard?.approvalsPending ?? 0} tone="decision" />
+          <Metric label="Läuft" value={dashboard?.tasks.running ?? "—"} tone="accent" />
+          <Metric label="Review" value={dashboard?.tasks.review ?? "—"} />
+          <Metric label="Freigaben" value={dashboard?.approvalsPending ?? "—"} tone="decision" />
           <Metric
             label="Blockiert"
-            value={dashboard?.tasks.blocked ?? 0}
+            value={dashboard?.tasks.blocked ?? "—"}
             tone={dashboard?.tasks.blocked ? "critical" : undefined}
           />
-          <Metric label="Agents aktiv" value={dashboard?.agents.working ?? 0} />
+          <Metric label="Agents aktiv" value={dashboard?.agents.working ?? "—"} />
           <Metric
             label="Audit"
-            value={dashboard?.auditChainValid === false ? "BRUCH" : "OK"}
+            value={
+              loadState !== "ready"
+                ? loadState === "loading"
+                  ? "Lädt"
+                  : "Unbekannt"
+                : dashboard?.auditChainValid === true
+                  ? "OK"
+                  : dashboard?.auditChainValid === false
+                    ? "BRUCH"
+                    : "Unbekannt"
+            }
             tone={dashboard?.auditChainValid === false ? "critical" : undefined}
           />
         </div>
@@ -2246,12 +2359,36 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
         {/* ----------------------------------------------------- board */}
         <main className="ic-stage">
-          <h2 className="ic-section-title">
-            Aufgaben
+          <div className="ic-stage-toolbar">
+            <div className="ic-view-switch" role="group" aria-label="Firmenansicht">
+              <button
+                type="button"
+                className="ic-btn"
+                aria-pressed={stageView === "office"}
+                onClick={() => setStageView("office")}
+              >
+                Office
+              </button>
+              <button
+                type="button"
+                className="ic-btn"
+                aria-pressed={stageView === "tasks"}
+                onClick={() => setStageView("tasks")}
+              >
+                Kanban
+              </button>
+            </div>
+            <span className="ic-sync-status" role="status" data-testid="crew-sync-status">
+              {loadState === "loading"
+                ? "Firmenzustand wird geladen …"
+                : loadState === "error"
+                  ? "Aktualisierung fehlgeschlagen"
+                  : `${live.connection === "live" ? "Live · " : live.connection === "reconnecting" ? "Verbindung unterbrochen · " : live.connection === "connecting" ? "Live-Verbindung wird aufgebaut · " : liveUpdates ? "Live nicht verfügbar · " : ""}Stand ${lastRefreshedAt ? formatTime(lastRefreshedAt) : "unbekannt"}`}
+            </span>
             <button type="button" className="ic-btn" onClick={runNext} disabled={busy} data-testid="run-next">
               Nächste Aufgabe ausführen
             </button>
-          </h2>
+          </div>
 
           {error && (
             <div className="ic-approval" role="alert" data-testid="error-banner">
@@ -2260,7 +2397,18 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
             </div>
           )}
 
-          <div className="ic-board" data-testid="kanban">
+          {stageView === "office" && (
+            <CrewOffice
+              agents={agents}
+              tasks={tasks}
+              departments={departments}
+              meetings={meetings}
+              onSelectAgent={openAgentDetail}
+              onSelectTask={openTaskDetail}
+              onSelectMeeting={(id) => void openMeetingDetail(id)}
+            />
+          )}
+          <div className="ic-board" data-testid="kanban" hidden={stageView !== "tasks"}>
             {BOARD_COLUMNS.map(({ status, accent }) => {
               const items = byStatus.get(status) ?? [];
               return (
@@ -2460,6 +2608,16 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                 <div key={task.id} className="ic-approval" data-testid={`review-${task.id}`}>
                   <div className="ic-approval-type">Review</div>
                   <div className="ic-approval-summary">{task.title}</div>
+                  <label className="ic-revision-note">
+                    Was soll überarbeitet werden?
+                    <textarea
+                      aria-label={`Revision für ${task.title}`}
+                      value={revisionNotes[task.id] ?? ""}
+                      onChange={(event) =>
+                        setRevisionNotes((previous) => ({ ...previous, [task.id]: event.target.value }))
+                      }
+                    />
+                  </label>
                   <div className="ic-approval-actions">
                     <button
                       type="button"
@@ -2473,8 +2631,13 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                     <button
                       type="button"
                       className="ic-btn"
-                      disabled={busy}
-                      onClick={() => act(() => client.revise(task.id, "Bitte überarbeiten."))}
+                      disabled={busy || !(revisionNotes[task.id] ?? "").trim()}
+                      onClick={() =>
+                        act(async () => {
+                          await client.revise(task.id, revisionNotes[task.id].trim());
+                          setRevisionNotes((previous) => ({ ...previous, [task.id]: "" }));
+                        })
+                      }
                     >
                       Revision
                     </button>
@@ -2520,6 +2683,7 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
             </label>
             <textarea
               id="ic-composer-input"
+              ref={composerRef}
               data-testid="chat-input"
               value={draft}
               placeholder="Auftrag an die Executive Assistant …"
@@ -2580,7 +2744,43 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
               <code>{currentTask.correlation_id}</code>
             </dd>
           </dl>
+          <p className="ic-note">{currentTask.description}</p>
           {currentTask.result_summary && <p className="ic-note">{currentTask.result_summary}</p>}
+          {taskDetailError && <p role="alert">{taskDetailError}</p>}
+          <h3 className="ic-section-title">Ausführungen</h3>
+          {taskRuns.length === 0 && <p className="ic-empty">Noch keine Ausführung.</p>}
+          <ul className="ic-milestone-list" data-testid="task-runs">
+            {taskRuns.map((run) => (
+              <li key={run.id}>
+                <span>
+                  {run.runtime_type} · {run.status} · {formatTime(run.created_at)}
+                </span>
+                <button
+                  type="button"
+                  className="ic-btn"
+                  aria-pressed={selectedRunId === run.id}
+                  onClick={() => {
+                    setTaskRunEvents([]);
+                    setSelectedRunId(run.id);
+                  }}
+                >
+                  Run {run.id} öffnen
+                </button>
+              </li>
+            ))}
+          </ul>
+          {selectedRunId && (
+            <section aria-label="Run-Verlauf" data-testid="task-run-events">
+              <p className="ic-note">Run {selectedRunId}</p>
+              {taskRunEvents.map((event) => (
+                <div key={event.eventId} className="ic-event" data-kind={eventKind(event.type)}>
+                  <span className="ic-event-time">{formatTime(event.timestamp)}</span>
+                  <span className="ic-event-type">{event.type}</span>
+                  <span className="ic-event-body">{JSON.stringify(event.payload)}</span>
+                </div>
+              ))}
+            </section>
+          )}
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
             Blockiert durch
@@ -2675,6 +2875,44 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
 
       {currentAgent && (
         <DetailDialog title={currentAgent.displayName} onClose={() => setSelectedAgent(null)}>
+          <div style={{ width: 80, height: 80 }}>
+            <CharacterAvatar
+              characterId={currentAgent.persona.character_id}
+              seed={currentAgent.key}
+              fullBodyUrl={currentAgent.persona.full_body}
+              portraitUrl={currentAgent.persona.portrait}
+              mode="portrait"
+              label={`${currentAgent.displayName} Portrait`}
+            />
+          </div>
+          <button
+            type="button"
+            className="ic-btn"
+            data-testid="edit-agent-character"
+            onClick={() => setEditingCharacter((value) => !value)}
+          >
+            Figur gestalten
+          </button>
+          {editingCharacter && (
+            <CharacterSkinEditor
+              key={currentAgent.id}
+              agent={currentAgent}
+              onClose={() => setEditingCharacter(false)}
+              onSave={async (appearance) => {
+                await client.setAgentAppearance(currentAgent.id, appearance);
+                await refresh();
+                setEditingCharacter(false);
+              }}
+              onUpload={async (file, kind) => {
+                const { asset } = await client.uploadCharacterAsset({
+                  kind,
+                  contentType: file.type,
+                  dataBase64: await readFileAsBase64(file),
+                });
+                return asset.url;
+              }}
+            />
+          )}
           <dl>
             <dt>Rolle</dt>
             <dd>{currentAgent.professionalRole}</dd>
@@ -2714,11 +2952,28 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                 <>
                   <br />
                   <span className="ic-note" data-testid="agent-runtime-detail">
-                    {currentRuntime.auth.authenticated ? "Angemeldet" : "Nicht angemeldet"} ·{" "}
-                    {currentRuntime.health.detail}
+                    {currentRuntime.auth.verification === "unverified"
+                      ? "Anmeldung nicht geprüft"
+                      : currentRuntime.auth.authenticated
+                        ? "Angemeldet"
+                        : "Nicht angemeldet"}{" "}
+                    · {currentRuntime.health.detail}
                   </span>
                 </>
               )}
+            </dd>
+            <dt>Aufgaben</dt>
+            <dd>
+              {tasks
+                .filter(
+                  (task) =>
+                    task.assigned_agent_id === currentAgent.id && task.status !== "done" && task.status !== "cancelled",
+                )
+                .map((task) => (
+                  <button key={task.id} type="button" className="ic-btn" onClick={() => openTaskDetail(task)}>
+                    {task.title} · {TASK_STATUS_LABEL[task.status]}
+                  </button>
+                ))}
             </dd>
             <dt>Max. Risiko</dt>
             <dd>{currentAgent.policy.max_risk_level}</dd>
@@ -3625,6 +3880,12 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                   {p.ok ? "verbunden" : "nicht erreichbar"}
                 </span>
                 <span className="ic-note">{p.message}</span>
+                {p.sync && (
+                  <span className="ic-note" data-testid="memory-sync-status">
+                    Synchronisiert: {p.sync.synced} · Wartend: {p.sync.pending} · Fehler: {p.sync.failed} · Löschungen:{" "}
+                    {p.sync.pendingDeletion}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -3632,6 +3893,26 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
             Suche
           </h3>
+          {memoryProviders.some((p) => p.semanticAvailable) && (
+            <>
+              <label className="ic-note">
+                <input
+                  type="checkbox"
+                  checked={semanticMemorySearch}
+                  onChange={(event) => setSemanticMemorySearch(event.target.checked)}
+                />{" "}
+                Honcho-Suche: Diese Suchanfrage ist öffentlich und darf übertragen werden
+              </label>
+              <button
+                type="button"
+                className="ic-btn"
+                disabled={busy}
+                onClick={() => void actWith(() => client.syncMemory(), refreshMemory)}
+              >
+                Synchronisierung starten
+              </button>
+            </>
+          )}
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-memory-search">
               Suche
@@ -3725,6 +4006,17 @@ export function CommandCenterView({ client = api }: CommandCenterViewProps): Rea
                   {MEMORY_KIND_LABEL[k]}
                 </option>
               ))}
+            </select>
+            <label htmlFor="ic-new-memory-sensitivity">Vertraulichkeit</label>
+            <select
+              id="ic-new-memory-sensitivity"
+              className="ic-select"
+              value={newMemorySensitivity}
+              onChange={(event) => setNewMemorySensitivity(event.target.value)}
+            >
+              <option value="internal">Intern</option>
+              <option value="public">Öffentlich</option>
+              <option value="confidential">Vertraulich</option>
             </select>
             <label className="ic-sr-only" htmlFor="ic-new-memory-title">
               Titel

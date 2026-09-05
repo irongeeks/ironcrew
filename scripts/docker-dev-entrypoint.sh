@@ -23,6 +23,7 @@ fix_owner() {
 
 if [ "${SKIP_OWNERSHIP_FIX:-0}" != "1" ]; then
   fix_owner /workspaces
+  fix_owner /data
 fi
 
 exec gosu node "$@"

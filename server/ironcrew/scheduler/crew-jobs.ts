@@ -80,6 +80,8 @@ export interface CrewJobOptions {
   queueRetentionMs?: number;
   /** Broadcast hook, so the Command Center sees background work live. */
   broadcast?: (type: string, payload: unknown) => void;
+  /** Optional persistent memory outbox; registered only for configured Hybrid. */
+  memorySync?: () => Promise<void>;
 }
 
 export function buildCrewJobs(opts: CrewJobOptions): ScheduledJob[] {
@@ -88,6 +90,7 @@ export function buildCrewJobs(opts: CrewJobOptions): ScheduledJob[] {
   const broadcast = opts.broadcast ?? (() => {});
 
   return [
+    ...(opts.memorySync ? [{ name: "memory-sync", intervalMs: intervals.routineMs, run: opts.memorySync }] : []),
     {
       name: "run-queue",
       intervalMs: intervals.runQueueMs,
@@ -208,6 +211,7 @@ export function buildCrewJobs(opts: CrewJobOptions): ScheduledJob[] {
         const pruned = orchestrator.runRequests.prune(companyId, opts.queueRetentionMs ?? DEFAULT_QUEUE_RETENTION_MS);
         if (locks > 0 || requests > 0 || pruned > 0) {
           log.info({ locks, requests, pruned }, "queue housekeeping");
+          broadcast("crew_run_queue_changed", { locks, requests, pruned });
         }
       },
     },

@@ -8,8 +8,9 @@
  * back is a policy that has already been broken.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { OpenRouterRuntime } from "./openrouter-runtime.ts";
+import * as vendorPolicy from "../policy/vendor-policy.ts";
 import type { RunContext, RunEvent } from "./run-events.ts";
 
 function context(over: Partial<RunContext> = {}): RunContext {
@@ -98,6 +99,56 @@ describe("a normal completion", () => {
 });
 
 describe("vendor policy is enforced before the request is built", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([true, undefined])("pins providers and privacy for sensitive=%s in the actual request", async (sensitive) => {
+    let sent: Record<string, unknown> = {};
+    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return jsonResponse(COMPLETION);
+    }) as unknown as typeof fetch;
+
+    await collect(runtime(fetchImpl).startRun({ prompt: "Analyse", model: "openai/gpt-4.1" }, context({ sensitive })));
+
+    expect(sent.provider).toEqual({
+      order: vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
+      only: vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
+      allow_fallbacks: false,
+      data_collection: "deny",
+      zdr: true,
+    });
+  });
+
+  it("keeps provider restrictions for explicitly non-sensitive tasks", async () => {
+    let sent: Record<string, unknown> = {};
+    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return jsonResponse(COMPLETION);
+    }) as unknown as typeof fetch;
+
+    await collect(runtime(fetchImpl).startRun({ prompt: "x" }, context({ sensitive: false })));
+
+    expect(sent.provider).toEqual({
+      order: vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
+      only: vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
+      allow_fallbacks: false,
+    });
+  });
+
+  it("fails closed without a request when no upstream provider is allowed", async () => {
+    const policy = vendorPolicy.getVendorPolicy();
+    vi.spyOn(vendorPolicy, "getVendorPolicy").mockReturnValue({
+      ...policy,
+      openrouter: { ...policy.openrouter, allowed_providers: [] },
+    });
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    const events = await collect(runtime(fetchImpl).startRun({ prompt: "x" }, context()));
+
+    expect(events.map((e) => e.type)).toEqual(["run.failed"]);
+    expect(events[0].payload.code).toBe("no_allowed_providers");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("refuses a blocked vendor without calling out at all", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(COMPLETION)) as unknown as typeof fetch;
     const events = await collect(
@@ -185,6 +236,69 @@ describe("failures are told apart", () => {
 });
 
 describe("cancellation", () => {
+  it.each([
+    ["headers", "runtime"],
+    ["body", "runtime"],
+    ["headers", "context"],
+    ["body", "context"],
+  ])("cancels while reading %s through %s cancellation", async (phase, source) => {
+    let ready!: () => void;
+    const reading = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    let requestSignal: AbortSignal | undefined;
+    const waitForAbort = () =>
+      new Promise<never>((_resolve, reject) => {
+        requestSignal!.addEventListener("abort", () => reject(requestSignal!.reason), { once: true });
+        ready();
+      });
+    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+      if (phase === "headers") return waitForAbort();
+      return { ok: true, status: 200, json: waitForAbort } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const controller = new AbortController();
+    const rt = runtime(fetchImpl);
+    const result = collect(rt.startRun({ prompt: "x" }, context({ signal: controller.signal })));
+    await reading;
+
+    if (source === "runtime") await rt.cancelRun("run_1");
+    else controller.abort();
+
+    expect((await result).map((event) => event.type)).toEqual(["run.started", "run.cancelled"]);
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
+  it("keeps the timeout active until the response body has been consumed", async () => {
+    vi.useFakeTimers();
+    try {
+      let ready!: () => void;
+      const reading = new Promise<void>((resolve) => {
+        ready = resolve;
+      });
+      const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => ({
+        ok: true,
+        status: 200,
+        json: () =>
+          new Promise<never>((_resolve, reject) => {
+            init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true });
+            ready();
+          }),
+      })) as unknown as typeof fetch;
+      const result = collect(runtime(fetchImpl, { timeoutMs: 1000 }).startRun({ prompt: "x" }, context()));
+      await reading;
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const events = await result;
+      expect(events.map((event) => event.type)).toEqual(["run.started", "run.failed"]);
+      expect(events.at(-1)?.payload.code).toBe("timeout");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("stops before sending when already aborted", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(COMPLETION)) as unknown as typeof fetch;
     const abort = new AbortController();

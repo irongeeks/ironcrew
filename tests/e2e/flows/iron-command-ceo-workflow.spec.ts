@@ -212,6 +212,9 @@ test.describe("Command Center UI", () => {
     const shell = page.getByTestId("command-center");
     await expect(shell).toBeVisible();
 
+    // Office and board are views of the same canonical company.
+    await expect(page.getByTestId("crew-office")).toBeVisible();
+    await page.getByRole("button", { name: "Kanban", exact: true }).click();
     // The board renders the full task state machine, in German.
     await expect(page.getByTestId("kanban")).toBeVisible();
     for (const status of ["inbox", "ready", "running", "review", "approval_required", "done"]) {
@@ -262,3 +265,72 @@ test.describe("Command Center UI", () => {
     await expect(dialog).toContainText("Policy hat immer Vorrang");
   });
 });
+
+test.describe("Canonical office live integration", () => {
+  test("receives external tasks and keeps their identity across office and board", async ({ page, request }) => {
+    const headers = await session(request);
+    await page.goto("/");
+    await expect(page.getByTestId("crew-office")).toBeVisible();
+    await expect(page.getByTestId("crew-sync-status")).toContainText("Live");
+    const response = await request.post(`${CREW}/chat`, {
+      headers,
+      data: { body: `Bitte dokumentiere die Netzwerkarchitektur. E2E Live ${Date.now()}` },
+    });
+    expect(response.status()).toBe(201);
+    const { task } = await response.json();
+    await page.getByRole("button", { name: "Kanban", exact: true }).click();
+    const card = page.getByTestId("kanban").getByRole("button").filter({ hasText: task.title });
+    await expect(card).toBeVisible();
+    await card.click();
+    const detail = page.getByRole("dialog", { name: task.title });
+    await expect(detail).toContainText(task.correlation_id);
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("group", { name: "Firmenansicht" })
+      .getByRole("button", { name: "Office", exact: true })
+      .click();
+    await expect(page.getByTestId(`office-person-${task.assigned_agent_id}`)).toBeVisible();
+  });
+
+  test("mobile CEO entry and global mission open the same composer", async ({ page, request }) => {
+    await session(request);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.getByTestId("crew-office")).toBeVisible();
+    await page.getByRole("button", { name: /CEO/ }).first().click();
+    await expect(page.getByTestId("chat-input")).toBeFocused();
+    await page.getByTestId("chat-input").fill("Entwurf bleibt erhalten");
+    await page.getByRole("button", { name: "Kanban", exact: true }).click();
+    await expect(page.getByTestId("chat-input")).toHaveValue("Entwurf bleibt erhalten");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  });
+});
+
+for (const width of [390, 768, 1440, 1920]) {
+  test(`office layout at ${width}px`, async ({ page, request }, testInfo) => {
+    await session(request);
+    await page.setViewportSize({ width, height: width < 800 ? 1024 : 1080 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await expect(page.getByTestId("crew-office")).toBeVisible();
+    await expect(page.locator('[data-testid^="office-person-"]').first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+    if (width >= 1440) {
+      // ResizeObserver settles the transformed floor after the crew loads.
+      // Width-only fitting used to leave the bottom desks clipped on desktop.
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => {
+              const floor = document.querySelector(".crew-office-floor")?.getBoundingClientRect();
+              const stage = document.querySelector(".ic-stage")?.getBoundingClientRect();
+              if (!floor || !stage || floor.width <= 0 || floor.height <= 0) return Number.POSITIVE_INFINITY;
+              return Math.max(stage.top - floor.top, floor.bottom - Math.min(stage.bottom, window.innerHeight), 0);
+            }),
+          { message: "Einpassen must keep the complete desktop office floor visible inside the stage" },
+        )
+        .toBeLessThanOrEqual(2);
+    }
+    await page.screenshot({ path: testInfo.outputPath(`office-${width}.png`), fullPage: true });
+  });
+}

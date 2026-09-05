@@ -86,4 +86,45 @@ describe("ObsidianProvider", () => {
     const status = await missing.testConnection();
     expect(status.ok).toBe(false);
   });
+  it("rejects symlink escapes and out-of-vault subfolders", async () => {
+    expect(() => new ObsidianProvider({ vaultPath: vaultDir, subfolder: "../escape" })).toThrow("within");
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "crew-outside-"));
+    try {
+      fs.mkdirSync(path.join(vaultDir, "IronCrew"));
+      fs.symlinkSync(outside, path.join(vaultDir, "IronCrew", "note"), "dir");
+      await expect(provider.write({ kind: "note", title: "x", content: "secret" })).rejects.toThrow("symlinks");
+      expect(fs.readdirSync(outside)).toEqual([]);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+  it("encodes multiline titles and provenance without injecting frontmatter fields", async () => {
+    const result = await provider.write({
+      kind: "note",
+      title: "Safe\nsensitivity: public",
+      content: "body",
+      provenance: { companyId: "company", sensitivity: "restricted" },
+    });
+    const raw = (await provider.read(result.externalId))!;
+    expect(raw).toContain("sensitivity: restricted");
+    expect(raw).not.toContain("\nsensitivity: public\n");
+    expect(raw).toContain(`id: ${result.externalId}`);
+  });
+  it("emits file watcher events for externally edited markdown", async () => {
+    const written = await provider.write({ kind: "note", title: "watched", content: "before" });
+    let notify!: (id: string) => void;
+    let fail!: (error: Error) => void;
+    const changed = new Promise<string>((resolve, reject) => {
+      notify = resolve;
+      fail = reject;
+    });
+    const close = provider.watch(notify, fail);
+    try {
+      fs.appendFileSync(path.join(vaultDir, written.path!), "\nExternal edit");
+      expect(await changed).toBe(written.externalId);
+      expect(await provider.search("External edit")).toHaveLength(1);
+    } finally {
+      close();
+    }
+  });
 });

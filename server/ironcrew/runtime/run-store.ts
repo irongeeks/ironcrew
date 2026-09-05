@@ -26,6 +26,7 @@ export interface RunRow {
   status: string;
   correlation_id: string;
   session_ref: string | null;
+  workspace_path: string | null;
   worker_id: string | null;
   heartbeat_at: number | null;
   error_message: string | null;
@@ -87,6 +88,34 @@ export class RunStore {
     return this.db
       .prepare("SELECT * FROM crew_runs WHERE task_id = ? ORDER BY created_at ASC")
       .all(taskId) as unknown as RunRow[];
+  }
+
+  setWorkspace(runId: string, workspacePath: string): void {
+    this.db.prepare("UPDATE crew_runs SET workspace_path = ? WHERE id = ?").run(workspacePath, runId);
+  }
+
+  /** Scope sessions to the exact execution identity; never resume another agent's context. */
+  resumableSession(run: RunRow, workspacePath: string): string | null {
+    const previous = this.db
+      .prepare(
+        `SELECT session_ref FROM crew_runs
+      WHERE id <> ? AND company_id = ? AND task_id = ? AND agent_id IS ?
+        AND runtime_type = ? AND model IS ? AND permission_mode = ?
+        AND workspace_path = ? AND session_ref IS NOT NULL
+        AND status IN ('completed', 'failed', 'waiting', 'rate_limited')
+      ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+      )
+      .get(
+        run.id,
+        run.company_id,
+        run.task_id,
+        run.agent_id,
+        run.runtime_type,
+        run.model,
+        run.permission_mode,
+        workspacePath,
+      ) as { session_ref: string } | undefined;
+    return previous?.session_ref ?? null;
   }
 
   setStatus(runId: string, status: string, opts: { errorMessage?: string } = {}): void {
@@ -157,6 +186,14 @@ export class RunStore {
     // Determine whether redaction actually fired, so the event can say so.
     const probe = redact(JSON.stringify(rawPayload), input.redactValues ?? []);
     const redactionMeta = { redacted: probe.redacted, rules: probe.matchedRules };
+    const sessionRef = (redactedPayload as Record<string, unknown>).sessionRef;
+    if (
+      ["run.started", "run.completed", "run.failed", "run.waiting"].includes(input.type) &&
+      typeof sessionRef === "string" &&
+      /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/.test(sessionRef)
+    ) {
+      this.db.prepare("UPDATE crew_runs SET session_ref = ? WHERE id = ?").run(sessionRef, input.runId);
+    }
 
     const id = newId("evt");
     const timestamp = Date.now();

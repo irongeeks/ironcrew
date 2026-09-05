@@ -644,3 +644,15 @@ describe("defer: could-not-start is not a failed attempt", () => {
     expect(requests.defer("rreq_nope", "x")).toBeNull();
   });
 });
+
+it("refuses settlements from a worker whose lease was reclaimed", () => {
+  const taskId = seedTask();
+  const { request } = requests.enqueue({ companyId, taskId });
+  requests.claimNext(companyId, "old-worker", { now: 1_000, leaseTtlMs: 100 });
+  const successor = requests.claimNext(companyId, "new-worker", { now: 1_101 })!;
+  expect(successor.lease_owner).toBe("new-worker");
+  expect(requests.complete(request.id, { leaseOwner: "old-worker" })).toBeNull();
+  expect(requests.fail(request.id, "late failure", { leaseOwner: "old-worker" })).toBeNull();
+  expect(requests.defer(request.id, "late deferral", { leaseOwner: "old-worker" })).toBeNull();
+  expect(requests.get(request.id)).toEqual(successor);
+});

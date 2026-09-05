@@ -37,6 +37,7 @@ export interface AgentPolicy {
 }
 
 export interface PersonaSkin {
+  character_id?: string | null;
   display_name: string;
   accent: string;
   traits: string[];
@@ -44,6 +45,22 @@ export interface PersonaSkin {
   portrait: string | null;
   full_body: string | null;
   model_3d: string | null;
+}
+
+export interface CharacterAppearance {
+  character_id: string | null;
+  portrait: string | null;
+  full_body: string | null;
+}
+
+export interface CharacterAsset {
+  id: string;
+  url: string;
+  kind: "portrait" | "full_body";
+  contentType: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
 }
 
 export interface Agent {
@@ -226,6 +243,32 @@ export const NOTIFICATION_SEVERITY_LABEL: Record<NotificationSeverity, string> =
   critical: "Kritisch",
 };
 
+/** Persisted run, identical to the control-plane RunRow wire shape. */
+export interface Run {
+  id: string;
+  company_id: string;
+  task_id: string;
+  agent_id: string | null;
+  project_id: string | null;
+  runtime_type: string;
+  model: string | null;
+  permission_mode: string;
+  sandbox_grant_id: string | null;
+  status: string;
+  correlation_id: string;
+  session_ref: string | null;
+  worker_id: string | null;
+  heartbeat_at: number | null;
+  error_message: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cost_micros: number;
+  next_event_seq: number;
+  started_at: number | null;
+  ended_at: number | null;
+  created_at: number;
+}
+
 export interface RunEvent {
   eventId: string;
   type: string;
@@ -290,6 +333,7 @@ export interface RuntimeInfo {
   health: { healthy: boolean; installed: boolean; detail: string; checkedAt: number };
   auth: {
     authenticated: boolean;
+    verification?: "verified" | "unverified";
     method: "subscription-cli" | "oauth-cli" | "api-key" | "none";
     accountHint?: string;
     detail: string;
@@ -494,6 +538,8 @@ export const MEMORY_KIND_LABEL: Record<MemoryKind, string> = {
 };
 
 export interface MemoryProviderStatus {
+  semanticAvailable?: boolean;
+  sync?: { pending: number; failed: number; synced: number; pendingDeletion: number };
   kind: string;
   registered: boolean;
   ok: boolean;

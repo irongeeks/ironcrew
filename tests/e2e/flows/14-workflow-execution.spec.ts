@@ -204,7 +204,7 @@ test.describe("Workflow Execution Flow", () => {
     expect(approvedSub.status).toBe("done");
   });
 
-  test("task with workflow pack appears on board via UI", async ({
+  test("legacy workflow task is preserved without leaking into the canonical board", async ({
     page,
     request,
     csrfToken,
@@ -241,9 +241,11 @@ test.describe("Workflow Execution Flow", () => {
     const mainContent = page.locator("main").first();
     await expect(mainContent).toBeVisible();
 
-    // Verify the task title appears somewhere on the page
-    const taskText = page.getByText(taskTitle).first();
-    await expect(taskText).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("kanban")).toBeVisible();
+    await expect(page.getByText(taskTitle, { exact: true })).toHaveCount(0);
+    const retained = await request.get(`/api/tasks/${taskId}`);
+    expect(retained.ok()).toBeTruthy();
+    expect((await retained.json()).task.title).toBe(taskTitle);
   });
 
   test("workflow pack registry API returns loaded packs with phases", async ({ request, csrfToken }) => {

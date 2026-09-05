@@ -40,6 +40,7 @@ export const personaSkinSchema = z
     accent: z.string().default("cyan"),
     traits: z.array(z.string()).default([]),
     forbidden_traits: z.array(z.string()).default([]),
+    character_id: z.string().nullable().optional(),
     portrait: z.string().nullable().default(null),
     full_body: z.string().nullable().default(null),
     model_3d: z.string().nullable().default(null),

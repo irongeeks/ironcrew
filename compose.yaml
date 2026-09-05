@@ -21,11 +21,16 @@ services:
       - "${BIND_HOST:-127.0.0.1}:8790:8790"
     volumes:
       - octooffice-data:/data
+      # Same existing volume, also at the relative runtime data path. This keeps
+      # character uploads, vault notes and attachments across container rebuilds.
+      - octooffice-data:/app/data
+      - ./config:/app/config:ro
       - ./workspaces:/workspaces
     env_file: .env
     environment:
       DB_PATH: /data/octooffice.sqlite
       LOGS_DIR: /data/logs
+      OBSIDIAN_VAULT_PATH: "${OBSIDIAN_VAULT_PATH:-/data/vault}"
       HOST: "0.0.0.0"
     restart: unless-stopped
 
@@ -41,11 +46,16 @@ services:
       - .:/app
       - dev-node-modules:/app/node_modules
       - octooffice-data:/data
+      # Same existing volume, also at the relative runtime data path. This keeps
+      # character uploads, vault notes and attachments across container rebuilds.
+      - octooffice-data:/app/data
+      - ./config:/app/config:ro
       - ./workspaces:/workspaces
     env_file: .env
     environment:
       DB_PATH: /data/octooffice.sqlite
       LOGS_DIR: /data/logs
+      OBSIDIAN_VAULT_PATH: "${OBSIDIAN_VAULT_PATH:-/data/vault}"
       VITE_DEV: "1"
       HOST: "0.0.0.0"
 

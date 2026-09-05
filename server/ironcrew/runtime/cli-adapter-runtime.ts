@@ -16,8 +16,8 @@
  * protocol documented in docs/RUNNER_PROTOCOL.md.
  *
  * Mandatory runtime behaviour (docs/RUNNER_PROTOCOL.md) this satisfies:
- *   - capability detection via the adapter's own testEnvironment(), not an
- *     assumption that a flag exists
+ *   - version/help capability probes with bounded subprocesses and a short cache
+ *   - explicit, capability-gated session resume (never a silent fresh start)
  *   - auth status without ever emitting a secret
  *   - streaming
  *   - clean process-group termination on cancel
@@ -30,7 +30,10 @@
  *   - argv array only — never shell string concatenation
  */
 
+import { StringDecoder } from "node:string_decoder";
+import { NativeCliParser } from "./cli-native-events.ts";
 import { spawn, type ChildProcess } from "node:child_process";
+import { helpHas, inspectCli, probeCommand, type CliProbe, type ProbeCommand } from "./cli-probe.ts";
 import type { CliAdapter, InvocationContext, AdapterStreamEvent } from "../../adapters/adapter-interface.ts";
 import { assertArgsMatchMode } from "../policy/runtime-permissions.ts";
 import { REDACTED, StreamRedactor } from "../security/redaction.ts";
@@ -55,9 +58,13 @@ const DEFAULT_CONCURRENCY: Record<string, number> = {
   claude: 1,
   codex: 2,
   gemini: 2,
+  antigravity: 2,
 };
 
 export interface CliAdapterRuntimeOptions {
+  /** Native command prefix; intended for an explicitly configured launcher or test fixture. */
+  probeCommand?: ProbeCommand;
+  probeTimeoutMs?: number;
   /** Kill the process if no output arrives for this long. 0 disables. Default 10 min. */
   idleTimeoutMs?: number;
   /** Kill the process unconditionally after this long. 0 disables. Default 30 min. */
@@ -73,7 +80,8 @@ interface RunHandle {
   cancelled: boolean;
 }
 
-const DEFAULT_OPTIONS: Required<CliAdapterRuntimeOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<CliAdapterRuntimeOptions, "probeCommand">> = {
+  probeTimeoutMs: 5_000,
   idleTimeoutMs: 10 * 60_000,
   hardTimeoutMs: 30 * 60_000,
   maxOutputBytes: 8 * 1024 * 1024,
@@ -85,7 +93,9 @@ export class CliAdapterRuntime implements AgentRuntime {
   readonly type: string;
 
   private readonly adapter: CliAdapter;
-  private readonly opts: Required<CliAdapterRuntimeOptions>;
+  private readonly opts: Required<Omit<CliAdapterRuntimeOptions, "probeCommand">>;
+  private readonly probePrefix: ProbeCommand | null;
+  private cachedProbe: { at: number; value: Promise<CliProbe> } | null = null;
   private readonly running = new Map<string, RunHandle>();
 
   constructor(adapter: CliAdapter, options: CliAdapterRuntimeOptions = {}) {
@@ -93,44 +103,94 @@ export class CliAdapterRuntime implements AgentRuntime {
     this.id = adapter.providerType;
     this.type = adapter.providerType;
     this.opts = { ...DEFAULT_OPTIONS, ...options };
+    const executable = adapter.buildArgs({ prompt: "", workdir: process.cwd(), permissionMode: "restricted" })[0];
+    const canonical = (
+      { claude: "claude", codex: "codex", gemini: "gemini", antigravity: "agy" } as Record<string, string>
+    )[this.type];
+    this.probePrefix = options.probeCommand ?? (canonical && executable === canonical ? [executable] : null);
+  }
+
+  private async inspect(): Promise<CliProbe | null> {
+    if (!this.probePrefix) return null;
+    if (!this.cachedProbe || Date.now() - this.cachedProbe.at >= 30_000) {
+      this.cachedProbe = { at: Date.now(), value: inspectCli(this.type, this.probePrefix, this.opts.probeTimeoutMs) };
+    }
+    return this.cachedProbe.value;
   }
 
   async capabilities(): Promise<RuntimeCapabilities> {
-    const env = await this.adapter.testEnvironment();
+    const probe = await this.inspect();
     return {
-      streaming: true,
-      // Honest rather than aspirational: none of the wrapped adapters expose
-      // a session-resume flag today. Claiming true here would be exactly the
-      // "invented integration success" the project principles forbid.
-      sessionResume: false,
-      usageReporting: this.adapter.supportsTokenTracking,
-      // Subscription CLIs report no per-call price.
+      workspaceRequired: true,
+      streaming: probe?.streaming ?? false,
+      sessionResume: probe?.resume ?? false,
+      usageReporting: this.adapter.supportsTokenTracking || this.type === "codex",
       costReporting: false,
-      toolCalls: true,
-      subagents: typeof this.adapter.detectSubtask === "function",
+      toolCalls: probe?.streaming ?? false,
+      subagents: (probe?.streaming ?? false) && typeof this.adapter.detectSubtask === "function",
       defaultConcurrency: DEFAULT_CONCURRENCY[this.type] ?? 1,
-      version: env.version,
+      version: probe?.version,
     };
   }
 
   async healthCheck(): Promise<RuntimeHealth> {
-    const env = await this.adapter.testEnvironment();
-    return { healthy: env.ok, installed: env.ok, detail: env.message, checkedAt: Date.now() };
+    const probe = await this.inspect();
+    if (!probe) {
+      const env = await this.adapter.testEnvironment();
+      return { healthy: false, installed: env.ok, detail: "CLI-Protokoll nicht geprüft.", checkedAt: Date.now() };
+    }
+    return {
+      healthy: probe.installed && probe.streaming,
+      installed: probe.installed,
+      detail: !probe.installed
+        ? "CLI nicht installiert oder Versionsprüfung fehlgeschlagen."
+        : probe.streaming
+          ? "Version und Streaming-Protokoll geprüft. Anmeldung wird separat geprüft."
+          : "CLI vorhanden, benötigtes Streaming-Protokoll nicht in der lokalen Hilfe bestätigt.",
+      checkedAt: Date.now(),
+    };
   }
 
   async authStatus(): Promise<AuthStatus> {
-    const env = await this.adapter.testEnvironment();
-    if (!env.ok) {
-      return {
-        authenticated: false,
-        method: "subscription-cli",
-        detail: env.message,
-        setupHint: `Install the ${this.adapter.name} and log in with its official CLI login, then retry.`,
-      };
+    const probe = await this.inspect();
+    const method = this.type === "codex" || this.type === "antigravity" ? "oauth-cli" : "subscription-cli";
+    const unknown: AuthStatus = {
+      authenticated: false,
+      verification: "unverified",
+      method,
+      detail: "Anmeldung nicht geprüft. Ein erfolgreiches --version bestätigt keinen Login.",
+      setupHint: `Anmeldung lokal unter dem Runner-Benutzer mit der offiziellen ${this.adapter.name} prüfen.`,
+    };
+    if (!probe?.installed || !probe.authArgs || !this.probePrefix) return unknown;
+    const result = await probeCommand(this.probePrefix, probe.authArgs, this.opts.probeTimeoutMs);
+    let authenticated: boolean | undefined;
+    let authMethod: AuthStatus["method"] = method;
+    if (this.type === "claude") {
+      try {
+        const data = JSON.parse(result.text) as { loggedIn?: unknown; authMethod?: unknown };
+        if (typeof data.loggedIn === "boolean" && (result.code === 0 || result.code === 1))
+          authenticated = data.loggedIn && result.code === 0;
+        if (data.authMethod === "api_key" || data.authMethod === "api-key") authMethod = "api-key";
+      } catch {
+        /* Unknown CLI output is unverified, never a successful login. */
+      }
+    } else if (this.type === "codex") {
+      if (result.code === 0 && /logged in using chatgpt/i.test(result.text)) authenticated = true;
+      else if (result.code === 0 && /logged in using an? api key/i.test(result.text)) {
+        authenticated = true;
+        authMethod = "api-key";
+      } else if (result.code === 1 && /not logged in/i.test(result.text)) authenticated = false;
     }
-    // env.version is a CLI version string, not an account identifier — safe
-    // to surface as the non-identifying hint the AuthStatus contract allows.
-    return { authenticated: true, method: "subscription-cli", detail: env.message, accountHint: env.version };
+    if (authenticated === undefined) return unknown;
+    return {
+      authenticated,
+      verification: "verified",
+      method: authMethod,
+      detail: authenticated
+        ? "Lokaler CLI-Login bestätigt; keine Online-Quota-Prüfung."
+        : "Die offizielle CLI meldet keine aktive Anmeldung.",
+      ...(authenticated ? {} : { setupHint: unknown.setupHint }),
+    };
   }
 
   async cancelRun(runId: string): Promise<void> {
@@ -141,9 +201,6 @@ export class CliAdapterRuntime implements AgentRuntime {
   }
 
   async *resumeRun(sessionRef: string, input: RunInput, context: RunContext): AsyncIterable<RunEvent> {
-    // No wrapped adapter supports session resume (see capabilities() above);
-    // resuming degrades to a fresh run rather than silently losing context
-    // differently. The prior sessionRef is at least recorded on the event.
     yield* this.startRun({ ...input, sessionRef }, context);
   }
 
@@ -155,6 +212,57 @@ export class CliAdapterRuntime implements AgentRuntime {
       permissionMode: context.permissionMode,
     };
     const args = this.adapter.buildArgs(invocation);
+    assertArgsMatchMode(args, context.permissionMode ?? "restricted");
+    const probe = await this.inspect();
+    if (probe && (!probe.installed || !probe.streaming))
+      throw new Error("CLI nicht für das benötigte Streaming-Protokoll verfügbar.");
+    if (input.sessionRef && (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,199}$/.test(input.sessionRef) || !probe?.resume)) {
+      throw new Error("Session-Fortsetzung nicht unterstützt oder Session-ID ungültig. Kein neuer Lauf gestartet.");
+    }
+    if (probe) {
+      if (this.type === "claude" && context.permissionMode !== "elevated") {
+        // Do not inherit a permissive local setting or a previous session's
+        // mode. This explicit flag is required in help, otherwise fail closed.
+        args.push("--permission-mode", context.permissionMode === "workspace_write" ? "acceptEdits" : "plan");
+      }
+      // Optional switches are not guessed from a version number. In particular,
+      // a config-specific Codex feature name is never force-enabled globally.
+      const enable = args.indexOf("--enable");
+      if (enable >= 0 && args[enable + 1] === "multi_agent") args.splice(enable, 2);
+      for (const [flag, values] of [
+        ["--include-partial-messages", 0],
+        ["--max-turns", 1],
+      ] as const) {
+        const i = args.indexOf(flag);
+        if (i >= 0 && !helpHas(probe.help, flag)) args.splice(i, values + 1);
+      }
+      if (input.maxTurns !== undefined) {
+        const i = args.indexOf("--max-turns");
+        if (i >= 0) args[i + 1] = String(Math.max(1, Math.floor(input.maxTurns)));
+      }
+      if (input.sessionRef) {
+        if (this.type === "codex") {
+          const i = args.indexOf("exec");
+          if (i < 0) throw new Error("Codex-Adapter hat keinen exec-Einstiegspunkt.");
+          args.splice(i + 1, 0, "resume");
+          args.push(input.sessionRef, "-");
+        } else args.push(this.type === "antigravity" ? "--conversation" : "--resume", input.sessionRef);
+      }
+      if (
+        this.adapter.promptDelivery === "flag" &&
+        (!this.adapter.promptFlag || !helpHas(probe.help, this.adapter.promptFlag))
+      ) {
+        throw new Error("Installierte CLI bestätigt das benötigte Prompt-Flag nicht.");
+      }
+      const help = `${probe.help}\n${probe.execHelp}\n${input.sessionRef ? probe.resumeHelp : ""}`;
+      for (const arg of args.slice(1)) {
+        if (/^-{1,2}[a-zA-Z]/.test(arg) && !helpHas(help, arg.split("=")[0])) {
+          throw new Error(
+            `Installierte CLI bestätigt das erforderliche Flag ${arg.split("=")[0]} nicht. Lauf verweigert.`,
+          );
+        }
+      }
+    }
     // Last line of defence before argv reaches the OS, matching the guard the
     // upstream spawn path carries — this runtime does not delegate to that
     // path, so it must not skip the check it enforces.
@@ -219,6 +327,7 @@ export class CliAdapterRuntime implements AgentRuntime {
       model: input.model ?? null,
       permissionMode: context.permissionMode,
       workspace: context.workspacePath,
+      ...(input.sessionRef ? { sessionRef: input.sessionRef, resumed: true } : {}),
     });
 
     if (context.signal?.aborted) {
@@ -255,6 +364,8 @@ export class CliAdapterRuntime implements AgentRuntime {
     const stderrRedactor = new StreamRedactor(knownValues);
 
     let finished = false;
+    let structuredFailure: string | null = null;
+    const nativeParser = new NativeCliParser(this.type);
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let hardTimer: ReturnType<typeof setTimeout> | null = null;
     let timedOutReason: string | null = null;
@@ -337,8 +448,8 @@ export class CliAdapterRuntime implements AgentRuntime {
           break;
         }
         case "error":
-          // No wrapped adapter emits this today, but a future one may; treat
-          // it as fatal-with-context rather than dropping it silently.
+          // A structured failure is fatal even when the CLI exits with zero.
+          structuredFailure = ev.content || "CLI meldet einen fehlgeschlagenen Lauf.";
           noteStderr(`\n[error] ${ev.content}`);
           break;
       }
@@ -350,6 +461,16 @@ export class CliAdapterRuntime implements AgentRuntime {
         if (rl) rateLimitInfo = rl;
       }
       if (stream === "stdout") {
+        const native = nativeParser.parse(rawText);
+        if (native) {
+          for (const event of native) {
+            if (event.type === "message.delta") stdoutText.push(String(event.payload.text ?? ""));
+            if (event.type === "run.failed")
+              structuredFailure = String(event.payload.message ?? "CLI-Lauf fehlgeschlagen.");
+            else emit(event.type, event.payload, rawText);
+          }
+          return;
+        }
         for (const ev of this.adapter.parseStreamChunk(rawText)) mapAdapterEvent(ev, rawText);
       } else if (rawText.trim()) {
         // stderr rarely carries genuine structured events, but a CLI may
@@ -369,6 +490,21 @@ export class CliAdapterRuntime implements AgentRuntime {
       }
     };
 
+    const decoders = { stdout: new StringDecoder("utf8"), stderr: new StringDecoder("utf8") };
+    const pending = { stdout: "", stderr: "" };
+    const handleLines = (text: string, stream: "stdout" | "stderr", final = false) => {
+      pending[stream] += text;
+      let newline: number;
+      while ((newline = pending[stream].indexOf("\n")) >= 0) {
+        const line = pending[stream].slice(0, newline + 1);
+        pending[stream] = pending[stream].slice(newline + 1);
+        handleChunk(line, stream);
+      }
+      if (final && pending[stream]) {
+        handleChunk(pending[stream], stream);
+        pending[stream] = "";
+      }
+    };
     const onData = (redactor: StreamRedactor, stream: "stdout" | "stderr") => (chunk: Buffer) => {
       touchIdle();
       bytesSeen += chunk.length;
@@ -379,13 +515,17 @@ export class CliAdapterRuntime implements AgentRuntime {
         }
         return;
       }
-      const text = redactor.push(chunk.toString("utf8"));
-      if (text) handleChunk(text, stream);
+      const text = redactor.push(decoders[stream].write(chunk));
+      if (text) handleLines(text, stream);
     };
 
     child.stdout?.on("data", onData(stdoutRedactor, "stdout"));
     child.stderr?.on("data", onData(stderrRedactor, "stderr"));
 
+    const flushStreams = () => {
+      handleLines(stdoutRedactor.push(decoders.stdout.end()) + stdoutRedactor.flush(), "stdout", true);
+      handleLines(stderrRedactor.push(decoders.stderr.end()) + stderrRedactor.flush(), "stderr", true);
+    };
     const finish = (type: RunEventType, payload: Record<string, unknown>) => {
       if (finished) return;
       finished = true;
@@ -393,17 +533,17 @@ export class CliAdapterRuntime implements AgentRuntime {
       context.signal?.removeEventListener("abort", onAbort);
       this.running.delete(context.runId);
 
-      const flushedOut = stdoutRedactor.flush();
-      if (flushedOut) handleChunk(flushedOut, "stdout");
-      const flushedErr = stderrRedactor.flush();
-      if (flushedErr) handleChunk(flushedErr, "stderr");
+      flushStreams();
+      const sessionRef = nativeParser.sessionRef ?? input.sessionRef;
+      if (sessionRef) payload.sessionRef = sessionRef;
 
       // A successful run's summary is stdout only. If the CLI genuinely wrote
       // nothing to stdout (unusual, but seen with some misconfigured tools),
       // fall back to the stderr tail rather than leaving the CEO with an
       // empty result — still better than inventing content.
       const resultText = stdoutText.join("") || stderrTail;
-      if (resultText) emit("message.completed", { text: resultText }, resultText);
+      if (resultText)
+        emit("message.completed", { text: resultText, ...(sessionRef ? { sessionRef } : {}) }, resultText);
 
       // The terminal payload's text fields (message/summary/reason) are all
       // built from already-redacted content; stringify it as the source text
@@ -419,6 +559,8 @@ export class CliAdapterRuntime implements AgentRuntime {
 
     child.on("close", (code) => {
       if (finished) return;
+      // Flush complete NDJSON frames before selecting the terminal outcome.
+      flushStreams();
       if (handle.cancelled) {
         finish("run.cancelled", { reason: "cancelled" });
       } else if (outputTruncated) {
@@ -433,6 +575,8 @@ export class CliAdapterRuntime implements AgentRuntime {
           rl.matchedText,
         );
         finish("run.waiting", { reason: "rate_limited" });
+      } else if (structuredFailure) {
+        finish("run.failed", { message: structuredFailure });
       } else if (code === 0) {
         finish("run.completed", { summary: stdoutText.join("") });
       } else {
@@ -443,7 +587,11 @@ export class CliAdapterRuntime implements AgentRuntime {
       }
     });
 
-    yield* channel;
+    try {
+      yield* channel;
+    } finally {
+      if (!finished) onAbort();
+    }
   }
 }
 

@@ -26,6 +26,9 @@ import { migration as crewRoutines } from "../../modules/bootstrap/migrations/00
 import { migration as crewPacks } from "../../modules/bootstrap/migrations/0022-crew-packs.ts";
 import { migration as crewApprovalReviews } from "../../modules/bootstrap/migrations/0023-crew-approval-reviews.ts";
 import { migration as crewOidcIdentities } from "../../modules/bootstrap/migrations/0024-crew-oidc-identities.ts";
+import { migration as crewCharacterAppearance } from "../../modules/bootstrap/migrations/0025-crew-character-appearance.ts";
+import { migration as crewMemorySync } from "../../modules/bootstrap/migrations/0026-crew-memory-sync.ts";
+import { migration as crewRuntimeSession } from "../../modules/bootstrap/migrations/0027-crew-runtime-session.ts";
 import { newId } from "./ids.ts";
 
 /**
@@ -63,6 +66,9 @@ export function createTestDb(filePath?: string): DatabaseSync {
   crewPacks.up(db);
   crewApprovalReviews.up(db);
   crewOidcIdentities.up(db);
+  crewCharacterAppearance.up(db);
+  crewMemorySync.up(db);
+  crewRuntimeSession.up(db);
   return db;
 }
 

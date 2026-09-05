@@ -17,17 +17,16 @@ test.describe("Reports Flow", () => {
   });
 
   test("report history overlay opens", async ({ page }) => {
-    // Dashboard view was removed; report-history buttons now live on the Tasks board.
-    await navigateTo(page, "tasks");
-
-    const reportBtn = page.getByRole("button", { name: /bericht|report|history|verlauf/i }).first();
-    const btnVisible = await reportBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    test.skip(!btnVisible, "Report/history button not found on dashboard — UI may not expose it");
-
+    // Legacy reports remain available in the explicitly labelled legacy tools.
+    await navigateTo(page, "projects");
+    await page.getByRole("button", { name: "More actions", exact: true }).filter({ visible: true }).click();
+    const reportBtn = page.getByRole("button", { name: /Report History/ });
+    await expect(reportBtn).toBeVisible();
     await reportBtn.click();
 
-    const overlay = page.locator("[role=dialog], .modal, [class*=report], [class*=Report], [class*=history]").first();
-    await expect(overlay).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /Report History|Berichtsverlauf|작업 보고서 이력|レポート履歴/ }),
+    ).toBeVisible();
   });
 
   test("individual task report shows content", async ({ page, request }) => {

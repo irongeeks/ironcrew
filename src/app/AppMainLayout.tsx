@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import RetroSidebar from "../components/RetroSidebar";
 import IronCrewTopBar from "../components/IronCrewTopBar";
-import MissionControl from "../components/mission-control/MissionControl";
-import { ChatPanel } from "../components/ChatPanel";
-import AgentSidebar from "../components/AgentSidebar";
-import RetroOfficeView from "../components/RetroOfficeView";
 import { CommandCenterView } from "../ironcrew/CommandCenterView";
 import { IdentityGate } from "../ironcrew/IdentityGate";
-import TaskBoard from "../components/TaskBoard";
 import AgentManager from "../components/AgentManager";
 import SkillsLibrary from "../components/SkillsLibrary";
 import SettingsPanel from "../components/SettingsPanel";
@@ -187,8 +182,8 @@ export default function AppMainLayout({
   socketOn,
   view,
   setView,
-  agentSidebarOpen,
-  onToggleAgentSidebar,
+  agentSidebarOpen: _agentSidebarOpen,
+  onToggleAgentSidebar: _onToggleAgentSidebar,
   departments,
   agents,
   stats: _stats,
@@ -212,26 +207,26 @@ export default function AppMainLayout({
   unreadAgentIds: _unreadAgentIds,
   crossDeptDeliveries: _crossDeptDeliveries,
   ceoOfficeCalls: _ceoOfficeCalls,
-  servers,
-  serverAllocations,
+  servers: _servers,
+  serverAllocations: _serverAllocations,
   customRoomThemes,
   activeRoomThemeTargetId: _activeRoomThemeTargetId,
   onCrossDeptDeliveryProcessed: _onCrossDeptDeliveryProcessed,
   onCeoOfficeCallProcessed: _onCeoOfficeCallProcessed,
   onOpenActiveMeetingMinutes: _onOpenActiveMeetingMinutes,
-  onSelectAgent,
-  onSelectServer,
-  onSelectDepartment,
+  onSelectAgent: _onSelectAgent,
+  onSelectServer: _onSelectServer,
+  onSelectDepartment: _onSelectDepartment,
   onCreateTask,
-  onUpdateTask,
-  onDeleteTask,
-  onAssignTask,
-  onRunTask,
-  onStopTask,
-  onPauseTask,
-  onResumeTask,
-  onOpenTerminal,
-  onOpenMeetingMinutes,
+  onUpdateTask: _onUpdateTask,
+  onDeleteTask: _onDeleteTask,
+  onAssignTask: _onAssignTask,
+  onRunTask: _onRunTask,
+  onStopTask: _onStopTask,
+  onPauseTask: _onPauseTask,
+  onResumeTask: _onResumeTask,
+  onOpenTerminal: _onOpenTerminal,
+  onOpenMeetingMinutes: _onOpenMeetingMinutes,
   onAgentsChange,
   activeOfficeWorkflowPack,
   onChangeOfficeWorkflowPack,
@@ -251,22 +246,22 @@ export default function AppMainLayout({
   onNavigateToServerSettings,
   settingsInitialTab,
   showChat,
-  chatAgent,
-  chatMessages,
-  chatStreamingMessage,
-  onSendMessage,
-  onSendAnnouncement,
-  onSendDirective,
-  onClearMessages,
-  onSelectChatAgent,
-  onOpenChat,
+  chatAgent: _chatAgent,
+  chatMessages: _chatMessages,
+  chatStreamingMessage: _chatStreamingMessage,
+  onSendMessage: _onSendMessage,
+  onSendAnnouncement: _onSendAnnouncement,
+  onSendDirective: _onSendDirective,
+  onClearMessages: _onClearMessages,
+  onSelectChatAgent: _onSelectChatAgent,
+  onOpenChat: _onOpenChat,
   onCloseChat,
   children,
 }: AppMainLayoutProps) {
   const { isMobile } = useMobile();
 
-  const [officeExpanded, setOfficeExpanded] = useState(false);
-  const [showCreateTask, setShowCreateTask] = useState(false);
+  const [newMissionRequest, setNewMissionRequest] = useState(0);
+  const canonicalView = view === "office" || view === "command" || view === "tasks";
 
   const uiLanguage =
     labels.uiLanguage === "ko" || labels.uiLanguage === "ja" || labels.uiLanguage === "zh" || labels.uiLanguage === "de"
@@ -292,10 +287,11 @@ export default function AppMainLayout({
   const handleChangeView = useCallback(
     (nextView: View) => {
       setView(nextView);
+      if (nextView === "command") setNewMissionRequest((request) => request + 1);
       setMobileNavOpen(false);
       setMobileHeaderMenuOpen(false);
       // Close embedded chat when leaving office view
-      if (nextView !== "office" && showChat) {
+      if (showChat) {
         onCloseChat();
       }
     },
@@ -318,9 +314,9 @@ export default function AppMainLayout({
         className="app-shell flex flex-col h-dvh overflow-hidden"
         style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
       >
-        {/* Desktop: Top Bar (hidden on mobile, hidden when office expanded) */}
-        {!officeExpanded && (
-          <div className="hidden lg:block">
+        {/* Desktop navigation */}
+        {
+          <div className="hidden lg:block shrink-0">
             <IronCrewTopBar
               view={view}
               onChangeView={handleChangeView}
@@ -335,18 +331,22 @@ export default function AppMainLayout({
               onOpenAgentStatus={onOpenAgentStatus}
               onOpenReportHistory={onOpenReportHistory}
               onOpenRoomManager={onOpenRoomManager}
-              onNewMission={() => setShowCreateTask(true)}
-              officePackControl={{
-                label: pack.officePackLabel,
-                value: pack.officePackKey,
-                options: pack.officePackOptions,
-                onChange: onChangeOfficeWorkflowPack,
-              }}
+              onNewMission={() => handleChangeView("command")}
+              officePackControl={
+                canonicalView
+                  ? null
+                  : {
+                      label: pack.officePackLabel,
+                      value: pack.officePackKey,
+                      options: pack.officePackOptions,
+                      onChange: onChangeOfficeWorkflowPack,
+                    }
+              }
               connected={connected}
               setupStatus={setupStatus}
             />
           </div>
-        )}
+        }
 
         {/* Mobile: Sidebar overlay (for mid-range screens where BottomTabBar is not shown) */}
         {mobileNavOpen && (
@@ -368,9 +368,10 @@ export default function AppMainLayout({
           </aside>
         )}
 
-        {/* Mobile header (hidden when office expanded) */}
-        {!officeExpanded && (
+        {/* Mobile header */}
+        {
           <MobileHeader
+            showLegacyActions={!canonicalView}
             labels={labels}
             connected={connected}
             uiLanguage={uiLanguage}
@@ -390,154 +391,19 @@ export default function AppMainLayout({
             toggleTheme={toggleTheme}
             setMobileNavOpen={setMobileNavOpen}
           />
-        )}
+        }
 
         {/* Content area */}
-        <div className="relative flex flex-1 overflow-hidden">
-          {/* IronCrew control plane. Its own full-surface shell: it owns
-              the CEO chat, the board and the decision inbox, so it renders
-              standalone rather than inside the office chrome. */}
-          {view === "command" && (
-            <IdentityGate>
-              <CommandCenterView />
-            </IdentityGate>
-          )}
-
-          {/* Office view: MissionControl (normal) or fullscreen RetroOfficeView (expanded) */}
-          {view === "office" && !officeExpanded && (
-            <>
-              <main
-                className="flex-1 overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0"
-                style={{ background: "var(--bg-base)" }}
-              >
-                <MissionControl
-                  agents={pack.officePresentation.agents}
-                  tasks={pack.tasksForActivePack}
-                  departments={pack.officePresentation.departments}
-                  servers={servers}
-                  serverAllocations={serverAllocations}
-                  activePackKey={pack.officePackKey}
-                  subtasks={subtasks}
-                  socketOn={socketOn}
-                  onAgentClick={onSelectAgent}
-                  onSelectDepartment={onSelectDepartment}
-                  onSelectServer={onSelectServer}
-                  onTaskClick={(task) => onOpenTerminal(task.id)}
-                  onCreateTask={pack.handleCreateTaskForActivePack}
-                  onAssignTask={onAssignTask}
-                  onFullBoard={() => handleChangeView("tasks")}
-                  onExpandOffice={() => setOfficeExpanded(true)}
-                  showCreateTask={showCreateTask}
-                  onCloseCreateTask={() => setShowCreateTask(false)}
+        <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          {/* Office, board and CEO conversation share one company and one mounted control plane. */}
+          {canonicalView && (
+            <main className="crew-command-host flex min-h-0 min-w-0 flex-1 flex-col overflow-auto pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
+              <IdentityGate>
+                <CommandCenterView
+                  initialView={view === "tasks" ? "tasks" : "office"}
+                  newMissionRequest={newMissionRequest}
                 />
-              </main>
-
-              {/* Chat toggle button (when chat is closed) */}
-              {!showChat && (
-                <button
-                  onClick={() => onOpenChat()}
-                  className="hidden lg:flex items-center justify-center"
-                  style={{
-                    width: 40,
-                    flexShrink: 0,
-                    background: "var(--bg-surface-solid)",
-                    borderLeft: "1px solid var(--border)",
-                    cursor: "pointer",
-                    writingMode: "vertical-rl",
-                    fontFamily: "'Press Start 2P', monospace",
-                    fontSize: 7,
-                    color: "var(--text-muted)",
-                    letterSpacing: "0.1em",
-                    transition: "color 0.15s",
-                  }}
-                  title="Open Chat"
-                >
-                  💬 CHAT
-                </button>
-              )}
-
-              {/* Embedded ChatPanel (when open) */}
-              {showChat && (
-                <div className="hidden lg:flex flex-shrink-0" style={{ width: 384 }}>
-                  <ChatPanel
-                    selectedAgent={chatAgent}
-                    messages={chatMessages}
-                    agents={pack.officePresentation.agents}
-                    streamingMessage={chatStreamingMessage}
-                    onSendMessage={onSendMessage}
-                    onSendAnnouncement={onSendAnnouncement}
-                    onSendDirective={onSendDirective}
-                    onClearMessages={onClearMessages}
-                    onSelectAgent={onSelectChatAgent}
-                    onClose={onCloseChat}
-                  />
-                </div>
-              )}
-            </>
-          )}
-
-          {view === "office" && officeExpanded && (
-            <main className="flex-1 overflow-hidden relative" style={{ background: "var(--bg-base)" }}>
-              <div className="relative h-full">
-                <RetroOfficeView
-                  departments={pack.officePresentation.departments}
-                  agents={pack.officePresentation.agents}
-                  servers={servers}
-                  serverAllocations={serverAllocations}
-                  onSelectAgent={onSelectAgent}
-                  onSelectServer={onSelectServer}
-                  onSelectDepartment={onSelectDepartment}
-                />
-                {/* Vignette overlay */}
-                <div
-                  className="pointer-events-none absolute inset-0"
-                  style={{
-                    boxShadow: "inset 0 0 60px 20px rgba(0,0,0,0.3)",
-                    borderRadius: 0,
-                  }}
-                />
-                {/* Collapse button */}
-                <button
-                  onClick={() => setOfficeExpanded(false)}
-                  style={{
-                    position: "absolute",
-                    bottom: 16,
-                    left: 16,
-                    zIndex: 20,
-                    fontFamily: "JetBrains Mono, monospace",
-                    fontSize: 11,
-                    color: "var(--text-muted)",
-                    background: "rgba(0,0,0,0.6)",
-                    border: "1px solid var(--border)",
-                    padding: "6px 14px",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    backdropFilter: "blur(8px)",
-                    transition: "all 0.15s",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.8)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.6)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
-                  }}
-                >
-                  ↙ Collapse
-                </button>
-              </div>
-
-              {/* Right sidebar: only in expanded office, desktop only */}
-              <div className="hidden lg:block absolute right-0 top-0 bottom-0 z-10" style={{ pointerEvents: "auto" }}>
-                <AgentSidebar
-                  agents={pack.officePresentation.agents}
-                  departments={pack.officePresentation.departments}
-                  collapsed={!agentSidebarOpen}
-                  onToggleCollapse={onToggleAgentSidebar}
-                  onSelectAgent={onSelectAgent}
-                />
-              </div>
+              </IdentityGate>
             </main>
           )}
 
@@ -554,36 +420,28 @@ export default function AppMainLayout({
           )}
 
           {/* All other views: padded content */}
-          {view !== "office" && view !== "workflows" && (
+          {!canonicalView && view !== "workflows" && (
             <main
               className="flex-1 overflow-y-auto overflow-x-hidden pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0"
               style={{ background: "var(--bg-base)" }}
             >
               <div className="p-3 sm:p-4 md:p-6">
+                {(view === "agents" || view === "projects" || view === "schedules") && (
+                  <p
+                    role="note"
+                    className="mb-4 rounded border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-secondary)]"
+                  >
+                    OctoOffice-Werkzeuge · Dieser Bereich verwaltet die bisherigen Daten. Ihre aktuelle Crew, Projekte
+                    und Aufgaben finden Sie im Command Center.
+                    <button type="button" className="ml-2 underline" onClick={() => handleChangeView("command")}>
+                      Zum Command Center
+                    </button>
+                  </p>
+                )}
                 {view === "operations" && (
                   <SubsystemErrorBoundary name="Operations Center">
                     <OperationsCenter socketOn={socketOn} onNavigateToServerSettings={onNavigateToServerSettings} />
                   </SubsystemErrorBoundary>
-                )}
-
-                {view === "tasks" && (
-                  <TaskBoard
-                    activePackKey={pack.officePackKey}
-                    tasks={pack.tasksForActivePack}
-                    agents={pack.officePresentation.agents}
-                    departments={pack.officePresentation.departments}
-                    subtasks={subtasks}
-                    onCreateTask={pack.handleCreateTaskForActivePack}
-                    onUpdateTask={onUpdateTask}
-                    onDeleteTask={onDeleteTask}
-                    onAssignTask={onAssignTask}
-                    onRunTask={onRunTask}
-                    onStopTask={onStopTask}
-                    onPauseTask={onPauseTask}
-                    onResumeTask={onResumeTask}
-                    onOpenTerminal={onOpenTerminal}
-                    onOpenMeetingMinutes={onOpenMeetingMinutes}
-                  />
                 )}
 
                 {view === "agents" && (
@@ -651,14 +509,12 @@ export default function AppMainLayout({
           )}
         </div>
 
-        {/* Mobile bottom nav (hidden when office expanded) */}
-        {!officeExpanded && isMobile && (
+        {/* Mobile navigation */}
+        {isMobile && (
           <MobileBottomTabBar
             activeView={view}
             onChangeView={handleChangeView}
-            onOpenChat={() => {
-              onOpenChat();
-            }}
+            onOpenChat={() => handleChangeView("command")}
             officePackKey={pack.officePackKey}
             officePackLabel={pack.officePackLabel}
             officePackOptions={pack.officePackOptions}

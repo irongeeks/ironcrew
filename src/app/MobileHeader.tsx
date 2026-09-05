@@ -21,6 +21,7 @@ interface MobileHeaderLabels {
 
 interface MobileHeaderProps {
   labels: MobileHeaderLabels;
+  showLegacyActions?: boolean;
   connected: boolean;
   uiLanguage: string;
   languageLabel: string;
@@ -42,6 +43,7 @@ interface MobileHeaderProps {
 
 export default function MobileHeader({
   labels,
+  showLegacyActions = true,
   connected,
   uiLanguage,
   languageLabel,
@@ -62,7 +64,7 @@ export default function MobileHeader({
 }: MobileHeaderProps) {
   return (
     <header
-      className="sticky top-0 z-30 flex h-14 items-center justify-between px-3 lg:hidden"
+      className="sticky top-0 z-30 flex shrink-0 h-14 items-center justify-between px-3 lg:hidden"
       style={{ background: "var(--th-bg-header)", borderBottom: "1px solid var(--th-border)" }}
     >
       <button
@@ -75,13 +77,7 @@ export default function MobileHeader({
         <picture>
           <source media="(prefers-color-scheme: dark)" srcSet="/assets/ironcrew-logo-white.svg" />
           <source media="(prefers-color-scheme: light)" srcSet="/assets/ironcrew-logo-black.svg" />
-          <img
-            src="/assets/ironcrew-favicon.png"
-            alt="IronCrew"
-            width={32}
-            height={32}
-            style={{ imageRendering: "pixelated" }}
-          />
+          <img src="/assets/ironcrew-favicon.png" alt="IronCrew" width={32} height={32} />
         </picture>
       </button>
       <div className="min-w-0 flex-1 px-2 text-center">
@@ -89,7 +85,7 @@ export default function MobileHeader({
           className="truncate"
           style={{
             color: "var(--th-text-primary)",
-            fontFamily: "'Press Start 2P', monospace",
+            fontFamily: "system-ui, sans-serif",
             fontSize: 10,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
@@ -102,39 +98,43 @@ export default function MobileHeader({
         className="relative inline-flex items-center gap-1.5 text-[10px]"
         style={{ color: "var(--th-text-secondary)" }}
       >
-        <button
-          type="button"
-          onClick={onOpenDecisionInbox}
-          disabled={decisionInboxLoading}
-          className="inline-flex h-11 w-11 items-center justify-center rounded border border-retro-border bg-retro-dark/40 px-2 text-retro-text disabled:cursor-wait disabled:opacity-60"
-          aria-label={labels.decisionLabel}
-          title={labels.decisionLabel}
-        >
-          {decisionInboxLoading ? "\u23F3" : "\uD83E\uDDED"}
-          {decisionInboxCount > 0 ? (
-            <span className="ml-1 inline-flex min-w-[1rem] items-center justify-center rounded-full border border-retro-yellow px-1 text-[9px] leading-none text-retro-yellow">
-              {decisionInboxCount}
-            </span>
-          ) : null}
-        </button>
-        <button
-          type="button"
-          onClick={onOpenAnnouncement}
-          className="inline-flex h-11 w-11 items-center justify-center rounded border border-retro-border bg-retro-dark/40 px-2 text-retro-text"
-          aria-label={labels.announcementLabel}
-          title={labels.announcementLabel}
-        >
-          {"\uD83D\uDCE2"}
-        </button>
-        <button
-          type="button"
-          onClick={() => onChangeView("tasks")}
-          className="inline-flex h-11 w-11 items-center justify-center rounded border border-retro-border bg-retro-dark/40 px-2 text-retro-text"
-          aria-label={labels.tasksPrimaryLabel}
-          title={labels.tasksPrimaryLabel}
-        >
-          {"\uD83D\uDCCB"}
-        </button>
+        {showLegacyActions && (
+          <>
+            <button
+              type="button"
+              onClick={onOpenDecisionInbox}
+              disabled={decisionInboxLoading}
+              className="inline-flex h-11 w-11 items-center justify-center rounded border border-retro-border bg-retro-dark/40 px-2 text-retro-text disabled:cursor-wait disabled:opacity-60"
+              aria-label={labels.decisionLabel}
+              title={labels.decisionLabel}
+            >
+              {decisionInboxLoading ? "\u23F3" : "\uD83E\uDDED"}
+              {decisionInboxCount > 0 ? (
+                <span className="ml-1 inline-flex min-w-[1rem] items-center justify-center rounded-full border border-retro-yellow px-1 text-[9px] leading-none text-retro-yellow">
+                  {decisionInboxCount}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAnnouncement}
+              className="inline-flex h-11 w-11 items-center justify-center rounded border border-retro-border bg-retro-dark/40 px-2 text-retro-text"
+              aria-label={labels.announcementLabel}
+              title={labels.announcementLabel}
+            >
+              {"\uD83D\uDCE2"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onChangeView("tasks")}
+              className="inline-flex h-11 w-11 items-center justify-center rounded border border-retro-border bg-retro-dark/40 px-2 text-retro-text"
+              aria-label={labels.tasksPrimaryLabel}
+              title={labels.tasksPrimaryLabel}
+            >
+              {"\uD83D\uDCCB"}
+            </button>
+          </>
+        )}
         <select
           value={uiLanguage}
           onChange={(e) => onLanguageChange(e.target.value as UiLanguage)}
@@ -185,39 +185,43 @@ export default function MobileHeader({
               >
                 {"\uD83D\uDCCB"} {labels.tasksPrimaryLabel}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenAgentStatus();
-                  setMobileHeaderMenuOpen(false);
-                }}
-                className="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--th-bg-surface-hover)]"
-                style={{ color: "var(--th-text-primary)" }}
-              >
-                {"\uD83D\uDEE0"} {labels.agentStatusLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenReportHistory();
-                  setMobileHeaderMenuOpen(false);
-                }}
-                className="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--th-bg-surface-hover)]"
-                style={{ color: "var(--th-text-primary)" }}
-              >
-                {labels.reportLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenRoomManager();
-                  setMobileHeaderMenuOpen(false);
-                }}
-                className="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--th-bg-surface-hover)]"
-                style={{ color: "var(--th-text-primary)" }}
-              >
-                {labels.roomManagerLabel}
-              </button>
+              {showLegacyActions && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenAgentStatus();
+                      setMobileHeaderMenuOpen(false);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--th-bg-surface-hover)]"
+                    style={{ color: "var(--th-text-primary)" }}
+                  >
+                    {"\uD83D\uDEE0"} {labels.agentStatusLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenReportHistory();
+                      setMobileHeaderMenuOpen(false);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--th-bg-surface-hover)]"
+                    style={{ color: "var(--th-text-primary)" }}
+                  >
+                    {labels.reportLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenRoomManager();
+                      setMobileHeaderMenuOpen(false);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--th-bg-surface-hover)]"
+                    style={{ color: "var(--th-text-primary)" }}
+                  >
+                    {labels.roomManagerLabel}
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => {

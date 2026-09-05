@@ -61,6 +61,7 @@ export class MockRuntime implements AgentRuntime {
 
   async capabilities(): Promise<RuntimeCapabilities> {
     return {
+      workspaceRequired: false,
       streaming: true,
       sessionResume: true,
       usageReporting: true,

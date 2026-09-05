@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased — 2026-09-05
+
+- Update the production image decoder to patched sharp 0.35.4 after the CI audit
+  identified inherited libvips vulnerabilities in the earlier development version.
+
+- Add modern vector office with canonical crew/task IDs, workspace desks,
+  meetings, approval zone, fit/zoom, keyboard navigation and reduced motion.
+- Share Office, Tasks and CEO chat state; fix mobile entry and global mission action.
+- Add authenticated company SSE, burst batching and persisted reload on reconnect.
+- Recover failed runs after backoff and persist rate-limit continuation across restart.
+- Pass project workspaces to runtimes; fail clearly when a filesystem runtime has none.
+- Enforce OpenRouter provider allowlists in real requests; cancel in-flight requests
+  and retain timeouts until response bodies are consumed.
+- Stop presenting CLI installation as confirmed authentication.
+- Show unknown audit state when data is unavailable; expose original task/run history
+  and submit concrete CEO revision instructions.
+- Preserve existing mail, Sevdesk and other business integrations.
+- Add 20 original full-body character skins, profile selection, authenticated private
+  portrait/full-body uploads, previews and a copyable prompt for external image models.
+  Appearance changes do not grant roles, skills or permissions.
+- Probe installed CLI versions, supported flags and safe auth-status commands;
+  resume supported native sessions across retries/revisions and restarts, scoped to
+  the same task, agent, runtime, model, permission mode and workspace.
+- Parse OpenRouter SSE incrementally, including text, tool calls, usage and rate limits;
+  enforce grants, argument schemas, audit and vendor policy on tool continuations.
+- Add optional Honcho hybrid memory with Obsidian fallback, sensitivity gates,
+  durable write/delete retries and provenance-aware retrieval.
+- Resolve OpenRouter SecretRefs inside the native runner per run; support scoped
+  workspace tools and explicit remote dispatch with mutual TLS and token authentication.
+  Automatic outbound enrollment and registry-driven fleet routing remain future work.
+- Default local memory to `data/vault`; require an explicit development-only opt-in
+  for embedded OpenRouter environment keys.
+
+Verification of this follow-up: **569 frontend and 26 script tests passed; TypeScript and production build passed. Current backend/browser evidence: [PR #18](https://github.com/irongeeks/ironcrew/pull/18)**. Authenticated provider
+and deployment acceptance remain separate manual checks.
+
 All notable changes to IronCrew will be documented in this file.
 
 Every entry below is inherited: releases up to and including 2.6.0 were made by

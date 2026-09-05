@@ -51,7 +51,7 @@ import { SearxngProvider } from "./ironcrew/search/searxng-provider.ts";
 import { BraveProvider } from "./ironcrew/search/brave-provider.ts";
 import { buildCrewJobs, intervalsFromEnv, schedulerEnabled } from "./ironcrew/scheduler/crew-jobs.ts";
 import { CompanyOrchestrator } from "./ironcrew/orchestrator/company.ts";
-import net from "node:net";
+import { runnerTransportFromEnv } from "./ironcrew/runner/transport.ts";
 import { OpenRouterRuntime } from "./ironcrew/runtime/openrouter-runtime.ts";
 import { RunnerRuntime } from "./ironcrew/runner/runner-client.ts";
 import { RunnerMcpConnector } from "./ironcrew/runner/runner-mcp-client.ts";
@@ -62,6 +62,9 @@ import { KeychainSecretProvider } from "./ironcrew/secrets/keychain-provider.ts"
 import { ProtonPassSecretProvider } from "./ironcrew/secrets/protonpass-provider.ts";
 import { TailscaleProvider } from "./ironcrew/network/tailscale-provider.ts";
 import { ObsidianProvider } from "./ironcrew/memory/obsidian-provider.ts";
+import { HybridMemoryProvider } from "./ironcrew/memory/hybrid-provider.ts";
+import { HonchoMemoryProvider } from "./ironcrew/memory/honcho-provider.ts";
+import { loadMemoryConfig } from "./ironcrew/memory/memory-config.ts";
 import { DiscordChannel } from "./ironcrew/notify/discord-channel.ts";
 import { TelegramChannel } from "./ironcrew/notify/telegram-channel.ts";
 import { TelegramInboundChannel } from "./ironcrew/notify/telegram-inbound.ts";
@@ -227,19 +230,7 @@ connectorRegistry.registerConnector(webSearchConnector);
 // Computed here rather than at the CLI-runtime block below, because the MCP
 // manager needs it first. One place decides whether a runner exists; both
 // users read it.
-const runnerTransport = process.env.IRONCREW_RUNNER_SOCKET
-  ? {
-      socketPath: process.env.IRONCREW_RUNNER_SOCKET,
-      token: process.env.IRONCREW_RUNNER_TOKEN ?? "",
-      connect: (): Promise<net.Socket> =>
-        new Promise<net.Socket>((resolve, reject) => {
-          const socket = net.connect(process.env.IRONCREW_RUNNER_SOCKET!);
-          socket.setEncoding("utf-8");
-          socket.once("connect", () => resolve(socket));
-          socket.once("error", reject);
-        }),
-    }
-  : null;
+const runnerTransport = runnerTransportFromEnv();
 
 // ── MCP server connections ──
 //
@@ -364,19 +355,6 @@ Object.assign(runtimeContext, registerApiRoutes(runtimeContext as RuntimeContext
 // isn't simply reports itself unhealthy rather than being hidden.
 const ironCrewOrchestrator = new CompanyOrchestrator(db);
 ironCrewOrchestrator.registerRuntime(new MockRuntime());
-// The first non-CLI runtime. Conditional on a key, like every other
-// integration that needs configuration to be real — and note that the vendor
-// policy is enforced *inside* it: one OpenRouter key reaches hundreds of
-// models from dozens of vendors, so a run could otherwise arrive at a blocked
-// one without anybody having chosen it.
-if (process.env.OPENROUTER_API_KEY) {
-  ironCrewOrchestrator.registerRuntime(
-    new OpenRouterRuntime({
-      apiKey: process.env.OPENROUTER_API_KEY,
-      defaultModel: process.env.OPENROUTER_DEFAULT_MODEL,
-    }),
-  );
-}
 // CLI runtimes: in this process, or in the runner.
 //
 // With IRONCREW_RUNNER_SOCKET set, every CLI runtime is a RunnerRuntime that
@@ -389,6 +367,9 @@ if (process.env.OPENROUTER_API_KEY) {
 // Either way the orchestrator sees the same AgentRuntime contract and cannot
 // tell the difference — that is what makes the security property free.
 if (runnerTransport) {
+  ironCrewOrchestrator.registerRuntime(
+    new RunnerRuntime({ runtimeType: "openrouter", token: runnerTransport.token, connect: runnerTransport.connect }),
+  );
   for (const adapter of adapterRegistry.list()) {
     if (!isCliAdapter(adapter)) continue;
     ironCrewOrchestrator.registerRuntime(
@@ -399,7 +380,10 @@ if (runnerTransport) {
       }),
     );
   }
-  logger.info({ socketPath: runnerTransport.socketPath }, "CLI runtimes are served by the runner daemon");
+  logger.info(
+    { transport: runnerTransport.mode, endpoint: runnerTransport.label },
+    "Runtimes are served by the runner daemon",
+  );
 } else {
   for (const adapter of adapterRegistry.list()) {
     if (isCliAdapter(adapter)) ironCrewOrchestrator.registerRuntime(new CliAdapterRuntime(adapter));
@@ -426,9 +410,6 @@ ironCrewOrchestrator.registerTailscaleProvider(new TailscaleProvider({ tailscale
 // even construct — with none configured, GET /api/crew/memory-providers
 // correctly reports "obsidian" as not registered rather than pointing at a
 // nonsensical default directory.
-if (process.env.OBSIDIAN_VAULT_PATH) {
-  ironCrewOrchestrator.registerMemoryProvider(new ObsidianProvider({ vaultPath: process.env.OBSIDIAN_VAULT_PATH }));
-}
 // Notification channels: same conditional posture as ObsidianProvider above
 // — each needs real configuration to even construct, so an unconfigured
 // channel is simply never registered rather than wrapping a broken one.
@@ -588,10 +569,65 @@ const ironCrewOidc = buildOidcProvider();
 const ironCrewApi = registerIronCrewRoutes(app, {
   db,
   oidc: ironCrewOidc,
-  broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
   orchestrator: ironCrewOrchestrator,
   scheduler: () => ironCrewScheduler,
 });
+
+ironCrewOrchestrator.ensureRuntimeTools(ironCrewApi.companyId);
+// Environment keys are a deliberate embedded-development mode only. Production
+// OpenRouter resolves its SecretRef inside the native runner for each run.
+if (
+  !runnerTransport &&
+  process.env.NODE_ENV !== "production" &&
+  process.env.IRONCREW_EMBEDDED_OPENROUTER === "1" &&
+  process.env.OPENROUTER_API_KEY
+) {
+  ironCrewOrchestrator.registerRuntime(
+    new OpenRouterRuntime({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      defaultModel: process.env.OPENROUTER_DEFAULT_MODEL,
+      toolExecutor: ironCrewOrchestrator.runtimeToolExecutor(ironCrewApi.companyId),
+    }),
+  );
+}
+const memoryConfig = loadMemoryConfig(process.env.IRONCREW_MEMORY_CONFIG ?? "config/memory.yaml");
+const localMemory = new ObsidianProvider({ vaultPath: process.env.OBSIDIAN_VAULT_PATH ?? "data/vault" });
+const hybridMemory = memoryConfig.honcho.enabled
+  ? new HybridMemoryProvider({
+      db,
+      local: localMemory,
+      semantic: new HonchoMemoryProvider({
+        companyId: ironCrewApi.companyId,
+        config: memoryConfig.honcho,
+        resolveApiKey: async () => {
+          const ref = memoryConfig.honcho.secretRef;
+          if (!ref) return null;
+          const provider =
+            ref.provider === "keychain"
+              ? new KeychainSecretProvider()
+              : ref.provider === "protonpass"
+                ? new ProtonPassSecretProvider()
+                : new VaultwardenSecretProvider({ serverUrl: process.env.VAULTWARDEN_SERVER_URL });
+          return provider.resolve(ref);
+        },
+      }),
+    })
+  : null;
+ironCrewOrchestrator.registerMemoryProvider(hybridMemory ?? localMemory);
+let closeMemoryWatcher: (() => void) | undefined;
+if (hybridMemory) {
+  try {
+    closeMemoryWatcher = localMemory.watch(
+      (externalId) => {
+        hybridMemory.localChanged(externalId);
+        ironCrewApi.broadcast("crew_memory_changed", {});
+      },
+      () => logger.warn("Memory file watcher failed; local memory remains available, automatic sync requires restart"),
+    );
+  } catch {
+    logger.warn("Memory watcher unavailable; local memory and queued synchronization remain usable");
+  }
+}
 
 // The audit chain, carried off the box.
 //
@@ -746,7 +782,13 @@ ironCrewScheduler = schedulerEnabled()
         orchestrator: ironCrewOrchestrator,
         companyId: ironCrewApi.companyId,
         intervals: intervalsFromEnv(),
-        broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
+        broadcast: ironCrewApi.broadcast,
+        memorySync: hybridMemory
+          ? async () => {
+              await ironCrewOrchestrator.syncMemoryProviders();
+              ironCrewApi.broadcast("crew_memory_changed", {});
+            }
+          : undefined,
       }),
     })
   : null;
@@ -776,6 +818,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     if (schedulerStopping) return;
     schedulerStopping = true;
+    closeMemoryWatcher?.();
     void ironCrewScheduler?.stop();
   });
 }

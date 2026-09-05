@@ -47,10 +47,10 @@ const NAV_TABS: NavTab[] = [
   { key: "tasks", label: "TASKS" },
   { key: "workflows", label: "WORKFLOWS" },
   { key: "operations", label: "OPS" },
-  { key: "agents", label: "ROSTER" },
+  { key: "agents", label: "LEGACY ROSTER" },
   { key: "skills", label: "LIBRARY" },
-  { key: "projects", label: "PROJECTS" },
-  { key: "schedules", label: "SCHEDULES" },
+  { key: "projects", label: "LEGACY PROJECTS" },
+  { key: "schedules", label: "LEGACY SCHEDULES" },
   { key: "settings", label: "SETTINGS" },
 ];
 
@@ -75,6 +75,7 @@ export default function IronCrewTopBar({
   connected,
   setupStatus,
 }: IronCrewTopBarProps) {
+  const showLegacyActions = view !== "office" && view !== "command" && view !== "tasks";
   const [time, setTime] = useState(new Date());
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
@@ -102,7 +103,7 @@ export default function IronCrewTopBar({
     padding: "0 20px",
     gap: 0,
     position: "relative",
-    zIndex: 100,
+    zIndex: 30,
     flexShrink: 0,
     userSelect: "none",
   };
@@ -178,7 +179,7 @@ export default function IronCrewTopBar({
         </div>
         <span
           style={{
-            fontFamily: "'Press Start 2P', monospace",
+            fontFamily: "system-ui, sans-serif",
             fontSize: 12,
             letterSpacing: "0.08em",
             color: "var(--text-primary)",
@@ -195,7 +196,9 @@ export default function IronCrewTopBar({
           display: "flex",
           alignItems: "center",
           gap: 6,
-          flexShrink: 0,
+          minWidth: 0,
+          overflowX: "auto",
+          flex: 1,
         }}
       >
         {NAV_TABS.map((tab) => {
@@ -299,71 +302,75 @@ export default function IronCrewTopBar({
 
       <div style={dividerStyle} />
 
-      {/* Announcement button */}
-      <button
-        type="button"
-        onClick={onOpenAnnouncement}
-        aria-label="Announcement"
-        title="Announcement"
-        style={ghostBtnBase}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-surface-hover)";
-          (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-          (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
-        }}
-      >
-        &#x1F4E2;
-      </button>
-
-      {/* Decision Inbox with badge */}
-      <div style={{ position: "relative", display: "inline-flex" }}>
-        <button
-          type="button"
-          onClick={onOpenDecisionInbox}
-          disabled={decisionInboxLoading}
-          aria-label="Decision Inbox"
-          title="Decision Inbox"
-          style={{
-            ...ghostBtnBase,
-            opacity: decisionInboxLoading ? 0.6 : 1,
-            cursor: decisionInboxLoading ? "wait" : "pointer",
-          }}
-          onMouseEnter={(e) => {
-            if (!decisionInboxLoading) {
+      {showLegacyActions && (
+        <>
+          {/* Announcement button */}
+          <button
+            type="button"
+            onClick={onOpenAnnouncement}
+            aria-label="Announcement"
+            title="Announcement"
+            style={ghostBtnBase}
+            onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-surface-hover)";
               (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
-          }}
-        >
-          {decisionInboxLoading ? "\u23F3" : "\u{1F9ED}"}
-        </button>
-        {decisionInboxCount > 0 && (
-          <span
-            aria-label={`${decisionInboxCount} decisions pending`}
-            style={{
-              position: "absolute",
-              top: 5,
-              right: 5,
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--accent)",
-              boxShadow: "0 0 6px var(--accent-glow)",
-              pointerEvents: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
             }}
-          />
-        )}
-      </div>
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
+            }}
+          >
+            &#x1F4E2;
+          </button>
+
+          {/* Decision Inbox with badge */}
+          <div style={{ position: "relative", display: "inline-flex" }}>
+            <button
+              type="button"
+              onClick={onOpenDecisionInbox}
+              disabled={decisionInboxLoading}
+              aria-label="Decision Inbox"
+              title="Decision Inbox"
+              style={{
+                ...ghostBtnBase,
+                opacity: decisionInboxLoading ? 0.6 : 1,
+                cursor: decisionInboxLoading ? "wait" : "pointer",
+              }}
+              onMouseEnter={(e) => {
+                if (!decisionInboxLoading) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-surface-hover)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
+              }}
+            >
+              {decisionInboxLoading ? "\u23F3" : "\u{1F9ED}"}
+            </button>
+            {decisionInboxCount > 0 && (
+              <span
+                aria-label={`${decisionInboxCount} decisions pending`}
+                style={{
+                  position: "absolute",
+                  top: 5,
+                  right: 5,
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                  boxShadow: "0 0 6px var(--accent-glow)",
+                  pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              />
+            )}
+          </div>
+        </>
+      )}
 
       {/* Pack selector */}
       {officePackControl && (
@@ -394,81 +401,85 @@ export default function IronCrewTopBar({
         </select>
       )}
 
-      {/* More Actions menu (⋯) — Agent Status, Report History, Room Manager */}
-      <div style={{ position: "relative" }}>
-        <button
-          type="button"
-          onClick={() => setMoreMenuOpen((prev) => !prev)}
-          style={{ ...ghostBtnBase, fontSize: 18, letterSpacing: "1px" }}
-          aria-label="More actions"
-          title="More actions"
-        >
-          &#x22EF;
-        </button>
-        {moreMenuOpen && (
-          <>
+      {showLegacyActions && (
+        <>
+          {/* More Actions menu (⋯) — Agent Status, Report History, Room Manager */}
+          <div style={{ position: "relative" }}>
             <button
-              className="fixed inset-0 z-40"
-              onClick={() => setMoreMenuOpen(false)}
-              aria-label="Close menu"
-              style={{ background: "transparent", border: "none" }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                right: 0,
-                top: "100%",
-                zIndex: 50,
-                marginTop: 4,
-                minWidth: 200,
-                padding: "6px 0",
-                background: "var(--bg-surface-solid)",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                boxShadow: "var(--shadow-modal)",
-              }}
+              type="button"
+              onClick={() => setMoreMenuOpen((prev) => !prev)}
+              style={{ ...ghostBtnBase, fontSize: 18, letterSpacing: "1px" }}
+              aria-label="More actions"
+              title="More actions"
             >
-              {[
-                { label: "🛠 Agent Status", action: onOpenAgentStatus },
-                { label: "📊 Report History", action: onOpenReportHistory },
-                { label: "🏠 Room Manager", action: onOpenRoomManager },
-              ].map((item) => (
+              &#x22EF;
+            </button>
+            {moreMenuOpen && (
+              <>
                 <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => {
-                    item.action();
-                    setMoreMenuOpen(false);
-                  }}
+                  className="fixed inset-0 z-40"
+                  onClick={() => setMoreMenuOpen(false)}
+                  aria-label="Close menu"
+                  style={{ background: "transparent", border: "none" }}
+                />
+                <div
                   style={{
-                    display: "flex",
-                    width: "100%",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 14px",
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--text-secondary)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 11,
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "background 0.1s",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-surface-hover)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    position: "absolute",
+                    right: 0,
+                    top: "100%",
+                    zIndex: 50,
+                    marginTop: 4,
+                    minWidth: 200,
+                    padding: "6px 0",
+                    background: "var(--bg-surface-solid)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    boxShadow: "var(--shadow-modal)",
                   }}
                 >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+                  {[
+                    { label: "🛠 Agent Status", action: onOpenAgentStatus },
+                    { label: "📊 Report History", action: onOpenReportHistory },
+                    { label: "🏠 Room Manager", action: onOpenRoomManager },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        item.action();
+                        setMoreMenuOpen(false);
+                      }}
+                      style={{
+                        display: "flex",
+                        width: "100%",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 14px",
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text-secondary)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-surface-hover)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       <div style={dividerStyle} />
 

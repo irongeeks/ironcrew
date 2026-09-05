@@ -543,6 +543,7 @@ describe("goal ancestry in the run context", () => {
 
     async capabilities() {
       return {
+        workspaceRequired: false,
         streaming: false,
         sessionResume: false,
         usageReporting: false,
@@ -1162,6 +1163,15 @@ describe("memory (Obsidian and other MemoryProviders)", () => {
       title: "Backup policy",
       content: "Nightly at 02:00.",
       tags: undefined,
+      provenance: {
+        companyId,
+        taskId: undefined,
+        projectId: undefined,
+        agentId: undefined,
+        source: undefined,
+        confidence: undefined,
+        sensitivity: "internal",
+      },
     });
     expect(ref.external_id).toBe("note/mem_fake");
     expect(ref.path).toBe("IronCrew/note/mem_fake.md");
@@ -1893,6 +1903,7 @@ describe("agent run lock — one agent never has two runs in flight", () => {
     expect(await orc.executeNextTask(companyId)).toBeNull();
 
     orc.agentLocks.release(agentId, "run_in_flight");
+    db.prepare("UPDATE crew_run_requests SET not_before = 0 WHERE task_id = ?").run(task.id);
     const result = await orc.executeNextTask(companyId);
     expect(result).not.toBeNull();
     expect(result!.task.id).toBe(task.id);
@@ -1902,6 +1913,7 @@ describe("agent run lock — one agent never has two runs in flight", () => {
     orc.registerRuntime({
       type: "exploding",
       capabilities: async () => ({
+        workspaceRequired: false,
         streaming: false,
         sessionResume: false,
         usageReporting: false,

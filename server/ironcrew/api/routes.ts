@@ -20,6 +20,7 @@ import { BUSINESS_PACKS, findPack } from "../packs/catalog.ts";
 import type { BusinessPack } from "../packs/business-pack.ts";
 import { PackMutationError } from "../packs/pack-store.ts";
 import { registerCrewAuthRoutes } from "./auth-routes.ts";
+import { CrewLiveEvents } from "./live-events.ts";
 import type { OidcProvider } from "../auth/oidc-provider.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
@@ -46,6 +47,7 @@ import { MeetingMutationError } from "../domain/meeting-store.ts";
 import { InvalidMeetingTransitionError, MEETING_STATUSES } from "../domain/meeting-state.ts";
 import { MemoryMutationError } from "../domain/memory-store.ts";
 import { MEMORY_KINDS } from "../memory/memory-provider.ts";
+import { registerCharacterRoutes } from "./character-routes.ts";
 import {
   MailboxAccessError,
   MailboxMutationError,
@@ -574,11 +576,12 @@ export interface IronCrewApi {
   orchestrator: CompanyOrchestrator;
   companyId: string;
   auth: CrewAuth;
+  /** Also used by scheduler/native-worker callbacks; never send to legacy WS. */
+  broadcast: Broadcast;
 }
 
 export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): IronCrewApi {
   const { db } = opts;
-  const broadcast: Broadcast = opts.broadcast ?? (() => {});
 
   const orchestrator = opts.orchestrator ?? new CompanyOrchestrator(db);
   if (!opts.orchestrator) orchestrator.registerRuntime(new MockRuntime());
@@ -588,6 +591,13 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     slug: opts.companySlug ?? "iron-crew",
   });
 
+  const live = new CrewLiveEvents(companyId);
+  const broadcast: Broadcast = (type, payload) => {
+    live.publish(type, payload);
+    // Optional observer for embedding/tests. Production uses only the
+    // authenticated SSE channel, never the shared legacy WebSocket.
+    opts.broadcast?.(type, payload);
+  };
   const base = "/api/crew";
 
   // --- identity -----------------------------------------------------------
@@ -612,6 +622,17 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   registerCrewAuthRoutes(app, { base, auth, oidc: opts.oidc ?? null });
   app.use(base, auth.requireUser);
   app.use(base, methodGuard(auth));
+  app.get(`${base}/events`, (req, res) => live.connect(req, res, auth));
+  // Cover successful writes even where an older route has no specific event.
+  // Domain background jobs use the same broadcast function below.
+  app.use(base, (req, res, next) => {
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      res.once("finish", () => {
+        if (res.statusCode < 400) broadcast("crew_state_changed", {});
+      });
+    }
+    next();
+  });
 
   /** Who to record for this request — a real user id once anyone is signed in. */
   const actorOf = (req: Request) => auth.actorOf(req);
@@ -625,6 +646,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
    * decides what the company is allowed to do.
    */
   const ownerOnly = auth.requireRole("owner");
+  registerCharacterRoutes(app, { db, companyId, auth, base });
 
   // --- company / org ------------------------------------------------------
 
@@ -1703,11 +1725,26 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     wrap(async (req, res) => {
       const provider = typeof req.query.provider === "string" ? req.query.provider : "";
       const query = typeof req.query.q === "string" ? req.query.q : "";
-      if (!provider || !query) {
+      if (!provider || !query || query.length > 2000) {
         res.status(400).json({ error: "invalid_request", message: "provider and q query params are required." });
         return;
       }
-      res.json({ hits: await orchestrator.searchMemory(provider, query) });
+      res.json({
+        hits:
+          req.query.semantic === "1"
+            ? await orchestrator.searchSemanticMemory(provider, query)
+            : await orchestrator.searchMemory(provider, query),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/memory/sync`,
+    ownerOnly,
+    wrap(async (_req, res) => {
+      await orchestrator.syncMemoryProviders();
+      broadcast("crew_memory_changed", {});
+      res.json({ ok: true });
     }),
   );
 
@@ -3082,5 +3119,5 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     }),
   );
 
-  return { orchestrator, companyId, auth };
+  return { orchestrator, companyId, auth, broadcast };
 }

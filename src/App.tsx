@@ -618,7 +618,7 @@ function AppAuthenticated() {
         onSelectChatAgent={handleSelectChatAgent}
       >
         <AppOverlays
-          chatEmbedded={view === "office"}
+          chatEmbedded={false}
           showChat={showChat}
           chatAgent={chatAgent}
           messages={messages}

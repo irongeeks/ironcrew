@@ -13,6 +13,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { dump } from "js-yaml";
+import { readCurrentProvenance } from "./current-provenance.ts";
 import { newId } from "../domain/ids.ts";
 import type {
   MemoryConnectionStatus,
@@ -39,13 +41,16 @@ function slugify(title: string): string {
   return slug || "note";
 }
 
-function frontmatter(entry: MemoryWriteInput, createdAt: string): string {
-  const lines = ["---", `title: "${entry.title.replace(/"/g, '\\"')}"`, `kind: ${entry.kind}`, `created: ${createdAt}`];
-  if (entry.tags && entry.tags.length > 0) {
-    lines.push("tags:", ...entry.tags.map((t) => `  - ${t}`));
-  }
-  lines.push("---", "");
-  return lines.join("\n");
+function frontmatter(entry: MemoryWriteInput, createdAt: string, id: string): string {
+  const meta = {
+    id,
+    kind: entry.kind,
+    created: createdAt,
+    updated: createdAt,
+    ...(entry.tags?.length ? { tags: entry.tags } : {}),
+    ...(entry.provenance ?? {}),
+  };
+  return `---\ntitle: ${JSON.stringify(entry.title)}\n${dump(meta)}---\n\n`;
 }
 
 export class ObsidianProvider implements MemoryProvider {
@@ -56,7 +61,42 @@ export class ObsidianProvider implements MemoryProvider {
 
   constructor(opts: ObsidianProviderOptions) {
     this.vaultPath = path.resolve(opts.vaultPath);
-    this.root = path.join(this.vaultPath, opts.subfolder ?? "IronCrew");
+    this.root = path.resolve(this.vaultPath, opts.subfolder ?? "IronCrew");
+    if (this.root !== this.vaultPath && !this.root.startsWith(this.vaultPath + path.sep)) {
+      throw new Error("Memory subfolder must stay within the vault.");
+    }
+    this.assertNoSymlink(this.root);
+  }
+
+  private assertNoSymlink(target: string): void {
+    let current = this.vaultPath;
+    const relative = path.relative(this.vaultPath, target);
+    for (const segment of relative.split(path.sep).filter(Boolean)) {
+      current = path.join(current, segment);
+      try {
+        if (fs.lstatSync(current).isSymbolicLink()) throw new Error("Memory paths must not follow symlinks.");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
+  }
+
+  /** Observe local edits without polling; only locators leave this provider. */
+  watch(onChange: (externalId: string) => void, onError: (error: Error) => void): () => void {
+    this.assertNoSymlink(this.root);
+    fs.mkdirSync(this.root, { recursive: true });
+    const watcher = fs.watch(this.root, { recursive: true }, (_event, filename) => {
+      if (!filename?.endsWith(".md")) return;
+      const externalId = filename.replace(/\.md$/, "").split(path.sep).join("/");
+      try {
+        this.resolve(externalId);
+        onChange(externalId);
+      } catch (error) {
+        onError(error instanceof Error ? error : new Error("Memory watcher failed."));
+      }
+    });
+    watcher.on("error", onError);
+    return () => watcher.close();
   }
 
   /** externalId is always "<kind>/<generated-filename>" — see write(). Defense in depth against path traversal, same posture as AttachmentStorage#resolve. */
@@ -65,18 +105,20 @@ export class ObsidianProvider implements MemoryProvider {
     if (filePath !== this.root && !filePath.startsWith(this.root + path.sep)) {
       throw new Error(`Refusing to resolve a memory id outside the vault's IronCrew folder: "${externalId}"`);
     }
+    this.assertNoSymlink(filePath);
     return filePath;
   }
 
   async write(entry: MemoryWriteInput): Promise<MemoryWriteResult> {
     if (!entry.title.trim()) throw new Error("A memory entry needs a title.");
     const kindDir = path.join(this.root, entry.kind);
+    this.assertNoSymlink(kindDir);
     fs.mkdirSync(kindDir, { recursive: true });
 
     const filename = `${newId("mem")}-${slugify(entry.title)}`;
     const externalId = `${entry.kind}/${filename}`;
     const filePath = this.resolve(externalId);
-    const body = frontmatter(entry, new Date().toISOString()) + entry.content.trimEnd() + "\n";
+    const body = frontmatter(entry, new Date().toISOString(), externalId) + entry.content.trimEnd() + "\n";
     fs.writeFileSync(filePath, body, "utf8");
 
     return { externalId, path: path.relative(this.vaultPath, filePath) };
@@ -105,6 +147,7 @@ export class ObsidianProvider implements MemoryProvider {
     const hits: MemorySearchHit[] = [];
 
     const walk = (dir: string): void => {
+      this.assertNoSymlink(dir);
       if (hits.length >= limit) return;
       let entries: fs.Dirent[];
       try {
@@ -124,7 +167,9 @@ export class ObsidianProvider implements MemoryProvider {
           const externalId = path.relative(this.root, full).replace(/\.md$/, "").split(path.sep).join("/");
           const titleMatch = content.match(/title:\s*"(.*)"/);
           const snippetStart = Math.max(0, idx - 40);
+          const provenance = readCurrentProvenance(content);
           hits.push({
+            ...(provenance ? { provenance } : {}),
             externalId,
             title: titleMatch ? titleMatch[1] : externalId,
             snippet: content
@@ -147,6 +192,7 @@ export class ObsidianProvider implements MemoryProvider {
       return { ok: false, message: `Vault-Pfad existiert nicht: "${this.vaultPath}"` };
     }
     try {
+      this.assertNoSymlink(this.root);
       fs.mkdirSync(this.root, { recursive: true });
       const probe = path.join(this.root, `.ironcrew-probe-${Date.now()}`);
       fs.writeFileSync(probe, "ok");

@@ -1,63 +1,59 @@
 import { test, expect } from "@playwright/test";
 import { navigateTo, establishSession } from "../fixtures/test-helpers";
 
-test.describe("Office View Flow", () => {
-  let savedCsrfToken: string | null = null;
-
+test.describe("Canonical Crew Office", () => {
   test.beforeEach(async ({ page, request }) => {
-    savedCsrfToken = await establishSession(request);
+    await establishSession(request);
     await page.goto("/");
-    await page.waitForLoadState("domcontentloaded");
+    await navigateTo(page, "office");
+    await expect(page.getByTestId("crew-office")).toBeVisible();
   });
 
-  test.afterEach(async ({ request }) => {
-    // Reset officeWorkflowPack to default after each test — the pack selector test
-    // writes a non-default value to settings which would corrupt department lookups
-    // in all subsequent tests (departments go to office_pack_departments, not departments).
-    if (savedCsrfToken) {
-      await request.put("/api/settings", {
-        data: { officeWorkflowPack: "development" },
-        headers: { "x-csrf-token": savedCsrfToken },
-      });
+  test("renders the backend crew as a modern vector office without WebGL", async ({ page, request }) => {
+    const response = await request.get("/api/crew/agents");
+    expect(response.ok()).toBeTruthy();
+    const { agents } = (await response.json()) as { agents: Array<{ id: string; status: string }> };
+    expect(agents.length).toBeGreaterThan(0);
+    const office = page.getByTestId("crew-office");
+    await expect(office.locator(".crew-office-floor > svg")).toBeVisible();
+    await expect(office.locator("canvas")).toHaveCount(0);
+    await expect(office.locator(".crew-office-person-button")).toHaveCount(agents.length);
+    for (const agent of agents) {
+      await expect(page.getByTestId(`office-person-${agent.id}`)).toHaveAttribute("data-status", agent.status);
     }
-    savedCsrfToken = null;
+    await expect(page.getByRole("heading", { name: "Die Crew bei der Arbeit" })).toBeVisible();
   });
 
-  test("office canvas renders and is interactive", async ({ page }) => {
-    await navigateTo(page, "office");
-    const canvas = page.locator("canvas").first();
-    await expect(canvas).toBeVisible({ timeout: 5000 });
-    const box = await canvas.boundingBox();
-    expect(box).toBeTruthy();
-    expect(box!.width).toBeGreaterThan(100);
-    expect(box!.height).toBeGreaterThan(100);
+  test("opens the canonical agent details from a figure with the keyboard", async ({ page, request }) => {
+    const { agents } = (await (await request.get("/api/crew/agents")).json()) as {
+      agents: Array<{ id: string; displayName: string }>;
+    };
+    const agent = agents[0];
+    const figure = page.getByTestId(`office-person-${agent.id}`).getByRole("button").first();
+    await figure.focus();
+    await page.keyboard.press("Enter");
+    const details = page.getByRole("dialog", { name: agent.displayName, exact: true });
+    await expect(details).toBeVisible();
+    await expect(details.getByTestId("agent-tools-line")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(details).not.toBeVisible();
   });
 
-  test("clicking department area opens overlay", async ({ page }) => {
-    // Pixi.js canvas click interactions are unreliable in headless browsers.
-    // The hit-testing depends on WebGL rendering which may not work in CI.
-    test.fixme(true, "Pixi.js canvas click-to-overlay is unreliable in headless Chrome");
-
-    await navigateTo(page, "office");
-    const canvas = page.locator("canvas").first();
-    await expect(canvas).toBeVisible({ timeout: 5000 });
-    const box = await canvas.boundingBox();
-    expect(box).toBeTruthy();
-    await canvas.click({ position: { x: box!.width * 0.25, y: box!.height * 0.4 } });
-
-    const overlay = page.locator("[class*=department], [class*=Department], [role=dialog]").first();
-    await expect(overlay).toBeVisible({ timeout: 3000 });
-
-    const closeBtn = page.getByRole("button", { name: /close|×|✕|back/i }).first();
-    if (await closeBtn.isVisible()) await closeBtn.click();
-  });
-
-  test("office pack selector changes pack", async ({ page }) => {
-    await navigateTo(page, "office");
-    const packSelector = page.getByRole("combobox").first();
-    await expect(packSelector).toBeVisible({ timeout: 3000 });
-    await packSelector.selectOption({ index: 1 });
-    // Verify the canvas is still rendered after pack change
-    await expect(page.locator("canvas").first()).toBeVisible();
+  test("filters departments and keeps the accessible list on the same crew", async ({ page, request }) => {
+    const { agents } = (await (await request.get("/api/crew/agents")).json()) as {
+      agents: Array<{ id: string; departmentId: string | null; displayName: string }>;
+    };
+    const departmentId = agents.find((agent) => agent.departmentId)?.departmentId;
+    expect(departmentId).toBeTruthy();
+    const expected = agents.filter((agent) => agent.departmentId === departmentId);
+    const office = page.getByTestId("crew-office");
+    await office.getByLabel("Büro nach Abteilung filtern").selectOption(departmentId!);
+    await expect(office.locator(".crew-office-person-button:enabled")).toHaveCount(expected.length);
+    await office.getByRole("button", { name: "Liste", exact: true }).click();
+    const list = office.getByRole("list", { name: "Crew und aktuelle Aufgaben" });
+    await expect(list.getByRole("listitem")).toHaveCount(expected.length);
+    for (const agent of expected) await expect(list.getByText(agent.displayName, { exact: true })).toBeVisible();
+    await office.getByLabel("Büro nach Abteilung filtern").selectOption("");
+    await expect(list.getByRole("listitem")).toHaveCount(agents.length);
   });
 });

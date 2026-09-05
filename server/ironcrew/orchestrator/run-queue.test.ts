@@ -202,7 +202,6 @@ describe("a failing run spends its attempts and then stops", () => {
 
     // Backoff is real time; the test moves the clock rather than waiting.
     db.prepare("UPDATE crew_run_requests SET not_before = 0 WHERE id = ?").run(requestId);
-    orc.tasks.transition(result.task!.id, "ready", { reason: "retry" });
 
     const second = await orc.drainRunQueue(companyId);
     expect(second.failed).toBe(1);

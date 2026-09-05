@@ -47,8 +47,17 @@ import {
 import { createSshConnector, type SshConnectorInterface } from "../../modules/workflow/ssh/ssh-connector.ts";
 import type { SshConfig } from "../../modules/workflow/ssh/types.ts";
 import { MeetingStore, MeetingMutationError, type MeetingRow, type MeetingTurnRow } from "../domain/meeting-store.ts";
-import { MemoryStore, type MemoryRefRow } from "../domain/memory-store.ts";
+import { MemoryStore, MemoryMutationError, type MemoryRefRow } from "../domain/memory-store.ts";
 import type { MemoryKind, MemoryProvider, MemorySearchHit } from "../memory/memory-provider.ts";
+import { HybridMemoryProvider } from "../memory/hybrid-provider.ts";
+import { readCurrentProvenance, mayRetrieveMemory } from "../memory/current-provenance.ts";
+import { createCompanyToolExecutor, COMPANY_RUNTIME_TOOLS } from "../runtime/company-tool-executor.ts";
+import {
+  canonicalToolArguments,
+  isToolApprovalBinding,
+  toolApprovalBinding,
+} from "../runtime/tool-approval-binding.ts";
+import { redactText } from "../security/redaction.ts";
 import type { ChannelSeverity, NotificationChannel } from "../notify/notification-channel.ts";
 import {
   MailboxStore,
@@ -101,7 +110,7 @@ import {
   type MarketplaceKind,
   type MarketplaceSource,
 } from "../marketplace/marketplace-source.ts";
-import { MarketplaceInstaller, type InstallOptions, type InstallResult } from "../marketplace/marketplace-installer.ts";
+import type { MarketplaceInstaller, InstallOptions, InstallResult } from "../marketplace/marketplace-installer.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -112,7 +121,7 @@ import {
   type DepartmentConfig,
   type SeedAgent,
 } from "../domain/crew-config.ts";
-import type { AgentRuntime, RunEvent } from "../runtime/run-events.ts";
+import type { AgentRuntime, RunEvent, RunInput, RunContext } from "../runtime/run-events.ts";
 
 /**
  * An agent as every consumer here needs it: the row plus its talent and vessel
@@ -470,7 +479,8 @@ export class CompanyOrchestrator {
           runId: newId("run"),
           agentId: speakerAgentId,
           correlationId: newCorrelationId(),
-          workspacePath: opts.workspacePath ?? "/tmp/iron-crew-workspace",
+          workspacePath: await this.resolveWorkspace(companyId, meeting.project_id, runtime, opts.workspacePath),
+          sensitive: true,
           permissionMode: "restricted",
         },
       )) {
@@ -1526,9 +1536,9 @@ export class CompanyOrchestrator {
    * real) was the one path that could never complete.
    *
    * Deliberately narrow: it acts only on a task currently sitting in
-   * `approval_required`. An approval raised *during* a run leaves its task in
-   * `running` or `waiting`, and that run is still in progress — resuming it
-   * from here would start a second one. A `file_change` approval has no
+   * `approval_required`. Bound runtime-tool approvals finish their run and
+   * park here too. Other mid-run approvals leave tasks `running` or `waiting`;
+   * resuming those here could start a second run. A `file_change` approval has no
    * parked task at all; that one is applied through `applyChangeProposal`,
    * which re-reads this same approval.
    */
@@ -1668,17 +1678,86 @@ export class CompanyOrchestrator {
     return [...this.memoryProviders.keys()];
   }
 
-  async testMemoryProvider(kind: string): Promise<{ ok: boolean; message: string }> {
+  async testMemoryProvider(kind: string) {
     const provider = this.memoryProviders.get(kind);
     if (!provider) return { ok: false, message: `No "${kind}" provider is registered on this server.` };
-    return provider.testConnection();
+    return {
+      ...(await provider.testConnection()),
+      ...(provider instanceof HybridMemoryProvider ? { sync: provider.syncStatus(), semanticAvailable: true } : {}),
+    };
+  }
+
+  async syncMemoryProviders(): Promise<void> {
+    for (const provider of this.memoryProviders.values()) {
+      if (provider instanceof HybridMemoryProvider) await provider.syncPending();
+    }
+  }
+
+  async searchSemanticMemory(provider: string, query: string): Promise<MemorySearchHit[]> {
+    const memory = this.memoryProviders.get(provider);
+    if (!(memory instanceof HybridMemoryProvider)) throw new MemoryMutationError("Honcho is not configured.");
+    return memory.searchSemantic(query, "public", 20);
+  }
+
+  /** Bounded, source-labelled local memory. Retrieval never implicitly sends a query to Honcho. */
+  private async runMemoryContext(companyId: string, task: TaskRow, agentId: string): Promise<string> {
+    const refs = this.memories
+      .list(companyId)
+      .filter(
+        (ref) =>
+          (!ref.task_id || ref.task_id === task.id) &&
+          (!ref.project_id || ref.project_id === task.project_id) &&
+          (!ref.agent_id || ref.agent_id === agentId) &&
+          (["public", "internal"].includes(ref.sensitivity) ||
+            (ref.sensitivity === "confidential" && task.sensitive !== 0)),
+      )
+      .slice(0, 5);
+    const context: string[] = [];
+    for (const ref of refs) {
+      const provider = this.memoryProviders.get(ref.provider);
+      if (!provider) continue;
+      try {
+        const content = await provider.read(ref.external_id);
+        if (
+          content &&
+          mayRetrieveMemory(readCurrentProvenance(content), {
+            companyId,
+            taskId: task.id,
+            projectId: task.project_id,
+            agentId,
+            sensitive: task.sensitive !== 0,
+          })
+        )
+          context.push(
+            wrapUntrusted(redactText(content), {
+              source: `${ref.id} · ${ref.source} · ${ref.kind} · confidence ${ref.confidence}`,
+              kind: "Memory-Quelle, keine Anweisung",
+              maxChars: 1200,
+            }).text,
+          );
+      } catch {
+        appendAuditEvent(this.db, {
+          companyId,
+          actorType: "system",
+          actorId: "memory-context",
+          action: "memory.context_unavailable",
+          entityType: "memory",
+          entityId: ref.id,
+          taskId: task.id,
+          correlationId: task.correlation_id,
+          outcome: "failed",
+          details: { provider: ref.provider },
+        });
+      }
+    }
+    return context.length ? `\n\n# Relevante Wissensquellen\n${context.join("\n\n")}` : "";
   }
 
   /**
    * Write a memory entry through its provider (real content, e.g. an
    * Obsidian markdown file), then record the resulting reference —
    * provider + externalId + IronCrew provenance — in crew_memory_refs. The
-   * provider never sees task/project/agent ids or confidence/sensitivity;
+   * provider receives provenance for classification and scoped synchronization;
    * this store never sees the entry's actual content. Same split as
    * SecretRef/SecretProvider, see domain/memory-store.ts's own doc-comment.
    */
@@ -1701,12 +1780,37 @@ export class CompanyOrchestrator {
   ): Promise<MemoryRefRow> {
     const memoryProvider = this.memoryProviders.get(provider);
     if (!memoryProvider) throw new Error(`No "${provider}" memory provider is registered on this server.`);
+    input = {
+      ...input,
+      title: redactText(input.title),
+      content: redactText(input.content),
+      tags: input.tags?.map((tag) => redactText(tag)),
+      source: input.source === undefined ? undefined : redactText(input.source),
+    };
 
+    for (const [table, id] of [
+      ["crew_tasks", input.taskId],
+      ["crew_projects", input.projectId],
+      ["crew_agents", input.agentId],
+    ] as const) {
+      if (id && !this.db.prepare(`SELECT id FROM ${table} WHERE id = ? AND company_id = ?`).get(id, companyId)) {
+        throw new MemoryMutationError("Memory provenance must reference an entity in the same company.");
+      }
+    }
     const written = await memoryProvider.write({
       kind: input.kind,
       title: input.title,
       content: input.content,
       tags: input.tags,
+      provenance: {
+        companyId,
+        taskId: input.taskId,
+        projectId: input.projectId,
+        agentId: input.agentId,
+        source: input.source,
+        confidence: input.confidence,
+        sensitivity: input.sensitivity ?? "internal",
+      },
     });
 
     return this.memories.create({
@@ -2046,7 +2150,7 @@ export class CompanyOrchestrator {
     return deriveAgentStatus({
       online: agent?.status !== "offline",
       paused: agent?.status === "paused",
-      rateLimited: agent?.status === "rate_limited" || lastRun?.status === "rate_limited",
+      rateLimited: lastRun?.status === "rate_limited" && rows.some((row) => row.status === "waiting"),
       taskStatuses: rows.map((r) => r.status),
       lastRunFailed: lastRun?.status === "failed",
     });
@@ -2715,6 +2819,136 @@ export class CompanyOrchestrator {
     }
   }
 
+  /** Tool presence never grants access; the existing owner UI manages grants. */
+  ensureRuntimeTools(companyId: string): void {
+    for (const key of [...Object.values(COMPANY_RUNTIME_TOOLS), "workspace.read", "workspace.list"]) {
+      this.tools.ensure(
+        { companyId, key, label: key, riskClass: "read", origin: "builtin" },
+        { actorType: "system", actorId: "boot" },
+      );
+    }
+  }
+
+  runtimeToolExecutor(companyId: string) {
+    this.ensureRuntimeTools(companyId);
+    return createCompanyToolExecutor({
+      companyId,
+      permitted: async (key, ctx) =>
+        this.tools.resolve(companyId, ctx.agentId!, key, { projectId: ctx.projectId }).allowed,
+      authorize: async (key, ctx, call) => {
+        const task = this.tasks.get(ctx.taskId);
+        if (
+          !task ||
+          task.company_id !== companyId ||
+          task.assigned_agent_id !== ctx.agentId ||
+          task.project_id !== ctx.projectId
+        ) {
+          return { status: "denied", reason: "Aufgabe gehört nicht zu diesem Agenten-/Projekt-Scope." };
+        }
+        const grant = this.tools.resolve(companyId, ctx.agentId!, key, { projectId: ctx.projectId });
+        if (!grant.allowed) return { status: "denied", reason: "Werkzeug nicht freigegeben." };
+        if (!grant.requiresApproval && key !== "approval.request") return { status: "allowed" };
+        const proposedAction = toolApprovalBinding(ctx, key, call.arguments);
+        const previous = this.db
+          .prepare(
+            `
+          SELECT id, status, expires_at FROM crew_approvals
+          WHERE company_id = ? AND task_id = ? AND requested_by = ? AND proposed_action = ?
+          ORDER BY created_at DESC, rowid DESC LIMIT 1
+        `,
+          )
+          .get(companyId, ctx.taskId, ctx.agentId, proposedAction) as
+          | { id: string; status: string; expires_at: number | null }
+          | undefined;
+        if (previous?.status === "approved" && (previous.expires_at === null || previous.expires_at > Date.now())) {
+          return { status: "allowed", approvalId: previous.id };
+        }
+        if (previous?.status === "rejected" || previous?.status === "cancelled") {
+          return { status: "denied", reason: "Diese konkrete Werkzeugaktion wurde abgelehnt oder widerrufen." };
+        }
+        return {
+          status: "approval_required",
+          approvalType: key === "approval.request" ? String(call.arguments.approvalType) : "runtime_tool_use",
+          summary:
+            key === "approval.request"
+              ? String(call.arguments.summary)
+              : `Werkzeug ${key} verwenden. Parameter: ${redactText(canonicalToolArguments(call.arguments))}`,
+          riskLevel: key === "approval.request" ? String(call.arguments.riskLevel ?? "high") : "medium",
+          proposedAction,
+        };
+      },
+      listTasks: async (ctx, limit) =>
+        this.tasks
+          .list(companyId)
+          .filter((t) => !ctx.projectId || t.project_id === ctx.projectId)
+          .slice(0, limit),
+      readTask: async (ctx, id) => {
+        const task = this.tasks.get(id);
+        return task?.company_id === companyId && (!ctx.projectId || task.project_id === ctx.projectId) ? task : null;
+      },
+      searchMemory: async (ctx, query, limit) => {
+        const task = this.tasks.get(ctx.taskId);
+        if (
+          !task ||
+          task.company_id !== companyId ||
+          task.assigned_agent_id !== ctx.agentId ||
+          task.project_id !== ctx.projectId
+        ) {
+          throw new Error("Ungültiger Aufgaben-Scope für Memory Search.");
+        }
+        const refs = this.memories
+          .list(companyId)
+          .filter(
+            (r) =>
+              (!r.project_id || r.project_id === ctx.projectId) &&
+              (!r.task_id || r.task_id === ctx.taskId) &&
+              (!r.agent_id || r.agent_id === ctx.agentId) &&
+              (["public", "internal"].includes(r.sensitivity) ||
+                (r.sensitivity === "confidential" && task.sensitive !== 0)),
+          );
+        const found: MemorySearchHit[] = [];
+        for (const provider of this.memoryProviders.values()) {
+          const allowed = new Set(refs.filter((r) => r.provider === provider.kind).map((r) => r.external_id));
+          found.push(
+            ...(await provider.search(query, limit))
+              .filter(
+                (hit) =>
+                  allowed.has(hit.externalId) &&
+                  mayRetrieveMemory(hit.provenance, {
+                    companyId,
+                    taskId: ctx.taskId,
+                    projectId: ctx.projectId,
+                    agentId: ctx.agentId,
+                    sensitive: task.sensitive !== 0,
+                  }),
+              )
+              .map((hit) => ({
+                externalId: redactText(hit.externalId, ctx.redactValues),
+                title: redactText(hit.title, ctx.redactValues),
+                snippet: redactText(hit.snippet, ctx.redactValues),
+                path: hit.path === null ? null : redactText(hit.path, ctx.redactValues),
+              })),
+          );
+        }
+        return found.slice(0, limit);
+      },
+      audit: async (stage, call, ctx, result) => {
+        appendAuditEvent(this.db, {
+          companyId,
+          actorType: "agent",
+          actorId: ctx.agentId!,
+          action: `runtime.tool.${stage}`,
+          entityType: "tool",
+          entityId: call.name,
+          taskId: ctx.taskId,
+          runId: ctx.runId,
+          correlationId: ctx.correlationId,
+          details: { callId: call.id, arguments: call.arguments, result },
+        });
+      },
+    });
+  }
+
   /**
    * Mirrors the configured MCP servers into the tool registry.
    *
@@ -2936,7 +3170,7 @@ export class CompanyOrchestrator {
    * Three outcomes per request, and the difference between the last two is the
    * point of the whole queue:
    *
-   *   completed  the run finished; the task moved to review or waiting
+   *   completed  the run finished; the task moved to review or approval waiting
    *   failed     the run happened and went wrong — that spends an attempt,
    *              and enough of them dead-letter the request for a human
    *   deferred   the run never started because the agent or the vessel was
@@ -2948,7 +3182,7 @@ export class CompanyOrchestrator {
     opts: ExecuteOptions & { limit?: number; leaseOwner?: string } = {},
   ): Promise<{ claimed: number; completed: number; failed: number; deferred: number }> {
     const limit = Math.max(1, opts.limit ?? 5);
-    const leaseOwner = opts.leaseOwner ?? `drain:${process.pid}`;
+    const leaseOwner = `${opts.leaseOwner ?? `drain:${process.pid}`}:${newCorrelationId()}`;
     const result = { claimed: 0, completed: 0, failed: 0, deferred: 0 };
 
     // A drain that crashed mid-run holds a lease nobody will release. Sweeping
@@ -2962,34 +3196,104 @@ export class CompanyOrchestrator {
       result.claimed++;
 
       try {
-        const executed = await this.executeTaskById(companyId, request.task_id, opts);
+        const task = this.tasks.get(request.task_id);
+        if (!task || task.company_id !== companyId || task.status === "cancelled") {
+          this.runRequests.cancel(request.id, { reason: "Aufgabe nicht mehr ausführbar." });
+          continue;
+        }
+        if (task.status === "done" || task.status === "review") {
+          this.runRequests.complete(request.id, { leaseOwner });
+          result.completed++;
+          continue;
+        }
+        const previousRun = request.run_id ? this.runs.get(request.run_id) : null;
+        const retryDue = task.status === "failed" && request.attempts > 1;
+        const cooldownOver = task.status === "waiting" && previousRun?.status === "rate_limited";
+        // Only the due queue lease may revive these states. An approval or a
+        // human blocker must never be interpreted as a retry opportunity.
+        const unresolvedApproval = this.db
+          .prepare(
+            "SELECT 1 FROM crew_approvals WHERE task_id = ? AND status IN ('pending', 'rejected', 'expired') LIMIT 1",
+          )
+          .get(task.id);
+        if ((retryDue || cooldownOver) && !unresolvedApproval) {
+          this.tasks.transition(task.id, "ready", {
+            expectedVersion: task.status_version,
+            reason: cooldownOver ? "Provider-Cooldown beendet" : "Automatischer Wiederholungsversuch nach Backoff",
+            actorType: "system",
+            actorId: "scheduler",
+            correlationId: task.correlation_id,
+          });
+        }
+        const executed = await this.withRunRequestLease(request, () =>
+          this.executeTaskById(companyId, request.task_id, opts),
+        );
 
         if (!executed) {
-          this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.");
+          this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.", { leaseOwner });
           result.deferred++;
           continue;
         }
 
-        if (executed.task.status === "failed") {
-          // The run's own summary is the useful text here; the queue records
-          // it so the reason survives on the request a human is looking at.
-          this.runRequests.fail(request.id, executed.task.result_summary || "Lauf fehlgeschlagen.");
-          result.failed++;
-        } else {
-          this.runRequests.complete(request.id, { runId: executed.runId });
-          result.completed++;
-        }
+        result[this.settleRunRequest(request, executed)]++;
       } catch (err) {
         // An exception here is the drain's own failure, not the runtime's —
         // executeTask already catches those. Spending an attempt is right:
         // whatever broke will break again next tick, and the dead letter is
         // how it becomes visible instead of looping forever.
-        this.runRequests.fail(request.id, err instanceof Error ? err.message : String(err));
+        this.runRequests.fail(request.id, err instanceof Error ? err.message : String(err), { leaseOwner });
         result.failed++;
       }
     }
 
     return result;
+  }
+
+  private async withRunRequestLease<T>(request: RunRequestRow, execute: () => Promise<T>): Promise<T> {
+    const heartbeat = setInterval(() => {
+      this.runRequests.renew(request.id, request.lease_owner!);
+    }, 30_000);
+    heartbeat.unref?.();
+    try {
+      return await execute();
+    } finally {
+      clearInterval(heartbeat);
+    }
+  }
+
+  private settleRunRequest(
+    request: RunRequestRow,
+    executed: { task: TaskRow; runId: string; events: RunEvent[] },
+  ): "completed" | "failed" | "deferred" {
+    if (executed.task.status === "failed") {
+      // The run's own summary is the useful text here; the queue records
+      // it so the reason survives on the request a human is looking at.
+      this.runRequests.fail(
+        request.id,
+        this.runs.get(executed.runId)?.error_message || executed.task.result_summary || "Lauf fehlgeschlagen.",
+        {
+          runId: executed.runId,
+          leaseOwner: request.lease_owner!,
+        },
+      );
+      return "failed";
+    } else if (executed.task.status === "waiting" && this.runs.get(executed.runId)?.status === "rate_limited") {
+      const rateLimit = [...executed.events].reverse().find((event) => event.type === "rate_limit.detected");
+      const resetAt = rateLimit?.payload.resetAt;
+      const now = Date.now();
+      const delayMs =
+        typeof resetAt === "number" && Number.isFinite(resetAt) ? Math.max(30_000, resetAt - now) : 60_000;
+      this.runRequests.defer(request.id, "Provider-Limit: Fortsetzung nach Cooldown.", {
+        delayMs,
+        now,
+        runId: executed.runId,
+        leaseOwner: request.lease_owner!,
+      });
+      return "deferred";
+    } else {
+      this.runRequests.complete(request.id, { runId: executed.runId, leaseOwner: request.lease_owner! });
+      return "completed";
+    }
   }
 
   async executeNextTask(
@@ -2998,7 +3302,21 @@ export class CompanyOrchestrator {
   ): Promise<{ task: TaskRow; runId: string; events: RunEvent[] } | null> {
     const claimable = this.tasks.findClaimable(companyId);
     if (claimable.length === 0) return null;
-    return this.executeTask(companyId, claimable[0], opts);
+    const candidate = claimable[0];
+    const intent = this.enqueueRun(companyId, candidate.id);
+    if (!intent) return null;
+    const leaseOwner = `manual:${process.pid}:${newCorrelationId()}`;
+    const request = this.runRequests.claimNext(companyId, leaseOwner, { taskId: candidate.id });
+    if (!request) return null;
+    try {
+      const executed = await this.withRunRequestLease(request, () => this.executeTask(companyId, candidate, opts));
+      if (executed) this.settleRunRequest(request, executed);
+      else this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.", { leaseOwner });
+      return executed;
+    } catch (error) {
+      this.runRequests.fail(request.id, error instanceof Error ? error.message : String(error), { leaseOwner });
+      throw error;
+    }
   }
 
   /**
@@ -3024,6 +3342,25 @@ export class CompanyOrchestrator {
     return this.executeTask(companyId, candidate, opts);
   }
 
+  private async resolveWorkspace(
+    companyId: string,
+    projectId: string | null,
+    runtime: AgentRuntime,
+    override?: string,
+  ): Promise<string> {
+    const project = projectId ? this.projects.get(projectId) : null;
+    if (project && project.company_id !== companyId) throw new Error("Projekt gehört zu einer anderen Firma.");
+    const workspace = override ?? project?.workspace_path;
+    if (workspace) {
+      if (!path.isAbsolute(workspace)) throw new Error("Projekt-Workspace muss ein absoluter Pfad sein.");
+      return path.normalize(workspace);
+    }
+    // A mock never touches disk. Every real runtime must explicitly declare
+    // filesystem independence or receive a configured project workspace.
+    if ((await runtime.capabilities()).workspaceRequired === false) return "";
+    throw new Error("Kein Projekt-Workspace konfiguriert. Bitte dem Projekt einen absoluten Arbeitsordner zuweisen.");
+  }
+
   private async executeTask(
     companyId: string,
     candidate: TaskRow,
@@ -3038,6 +3375,20 @@ export class CompanyOrchestrator {
     const runtimeType = opts.runtimeType ?? agent.runtime_provider;
     const runtime = this.runtimes.get(runtimeType);
     if (!runtime) throw new Error(`No runtime registered for type "${runtimeType}".`);
+
+    // A provider cooldown applies to its other queued tasks too. The source
+    // is durable queue state, so a restart cannot reset the provider's limit.
+    const coolingDown = this.db
+      .prepare(
+        `
+      SELECT 1 FROM crew_run_requests q JOIN crew_runs r ON r.id = q.run_id
+      WHERE q.company_id = ? AND q.status IN ('queued', 'running')
+        AND q.not_before > ? AND r.runtime_type = ? AND r.status = 'rate_limited'
+      LIMIT 1
+    `,
+      )
+      .get(companyId, Date.now(), runtimeType);
+    if (coolingDown) return null;
 
     // Pre-dispatch budget gate.
     this.budgets.assertRunPermitted(companyId, {
@@ -3168,6 +3519,8 @@ export class CompanyOrchestrator {
     const events: RunEvent[] = [];
     let failed = false;
     let waiting = false;
+    let rateLimited = false;
+    let runtimeToolApproval = false;
     let summary = "";
 
     // The vessel's timeout, as an abort signal. Both runtimes already honour
@@ -3185,6 +3538,14 @@ export class CompanyOrchestrator {
     // vessel's timeout — which, at ten minutes by default, is exactly what an
     // un-unref'd timer would do to a server trying to shut down.
     timer.unref?.();
+    const lockHeartbeat = setInterval(() => {
+      if (!this.tasks.renewLock(candidate.id, run.id) || !this.agentLocks.renew(agentId, run.id)) {
+        abort.abort();
+        return;
+      }
+      this.runs.heartbeat(run.id);
+    }, 30_000);
+    lockHeartbeat.unref?.();
 
     /**
      * Records a failure the runtime did not report itself.
@@ -3211,23 +3572,53 @@ export class CompanyOrchestrator {
     };
 
     try {
-      for await (const ev of runtime.startRun(
-        {
-          prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}`,
-          model,
-        },
-        {
+      const workspacePath = await this.resolveWorkspace(companyId, candidate.project_id, runtime, opts.workspacePath);
+      this.runs.setWorkspace(run.id, workspacePath);
+      const memoryContext = await this.runMemoryContext(companyId, candidate, agentId);
+      const input: RunInput = {
+        prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}${candidate.review_notes ? `\n\n# Revision des CEO\n${candidate.review_notes}` : ""}${memoryContext}`,
+        model,
+      };
+      const context: RunContext = {
+        companyId,
+        projectId: candidate.project_id,
+        taskId: candidate.id,
+        runId: run.id,
+        agentId,
+        correlationId: candidate.correlation_id,
+        workspacePath,
+        sensitive: candidate.sensitive !== 0 || memoryContext.length > 0,
+        permissionMode: permission.mode,
+        signal: abort.signal,
+        allowedTools: ["workspace.read", "workspace.list"].filter((key) => {
+          const decision = this.tools.resolve(companyId, agentId, key, { projectId: candidate.project_id });
+          return decision.allowed && !decision.requiresApproval;
+        }),
+      };
+      const sessionRef = this.runs.resumableSession(run, workspacePath);
+      const canResume = sessionRef && runtime.resumeRun && (await runtime.capabilities()).sessionResume;
+      const stream = canResume
+        ? runtime.resumeRun!(sessionRef, { ...input, sessionRef }, context)
+        : runtime.startRun(input, context);
+      if (canResume) {
+        appendAuditEvent(this.db, {
           companyId,
-          projectId: candidate.project_id,
+          actorType: "system",
+          actorId: "orchestrator",
+          action: "run.resumed",
+          entityType: "run",
+          entityId: run.id,
           taskId: candidate.id,
-          runId: run.id,
-          agentId,
           correlationId: candidate.correlation_id,
-          workspacePath: opts.workspacePath ?? "/tmp/iron-crew-workspace",
-          permissionMode: permission.mode,
-          signal: abort.signal,
-        },
-      )) {
+          details: { runtimeType, sessionRef },
+        });
+      }
+      for await (const ev of stream) {
+        const currentTask = this.tasks.get(candidate.id);
+        if (currentTask?.execution_run_id !== run.id || currentTask.status !== "running") {
+          abort.abort();
+          break;
+        }
         const persisted = this.runs.appendEvent({
           companyId,
           runId: run.id,
@@ -3259,25 +3650,64 @@ export class CompanyOrchestrator {
             outputTokens: p.outputTokens ?? 0,
             costMicros: p.costMicros ?? 0,
           });
+          // Usage can arrive between paid model/tool rounds. Stop the
+          // iterator before requesting its next event once any applicable
+          // monetary hard stop is reached; quota-only events retain cost 0.
+          try {
+            this.budgets.assertRunPermitted(companyId, {
+              agentId,
+              projectId: candidate.project_id,
+              taskId: candidate.id,
+              runtimeType,
+            });
+          } catch (err) {
+            abort.abort(err);
+            throw err;
+          }
         }
 
-        if (ev.type === "message.completed") summary = String((ev.payload as { text?: string }).text ?? "");
+        if (ev.type === "message.completed") summary = String((persisted.payload as { text?: string }).text ?? "");
         if (ev.type === "run.failed") failed = true;
         if (ev.type === "run.cancelled") failed = true;
+        if (ev.type === "rate_limit.detected") {
+          rateLimited = true;
+          waiting = true;
+        }
         if (ev.type === "run.waiting") waiting = true;
         if (ev.type === "approval.required") {
-          const p = ev.payload as { approvalType?: string; summary?: string; riskLevel?: string };
-          const approval = this.approvals.request(
-            companyId,
-            {
-              approvalType: p.approvalType ?? "irreversible_data_change",
-              requestedBy: agentId,
-              summary: p.summary ?? "Agent requested approval",
-              riskLevel: (p.riskLevel as "high") ?? "high",
-            },
-            { taskId: candidate.id, runId: run.id, correlationId: candidate.correlation_id },
-          );
-          this.notifyApprovalRequested(companyId, approval);
+          const p = ev.payload as {
+            approvalType?: string;
+            summary?: string;
+            riskLevel?: string;
+            proposedAction?: string;
+          };
+          const boundAction = isToolApprovalBinding(p.proposedAction) ? p.proposedAction : undefined;
+          if (boundAction) runtimeToolApproval = true;
+          const pending = boundAction
+            ? (this.db
+                .prepare(
+                  `
+            SELECT id FROM crew_approvals WHERE company_id = ? AND task_id = ? AND requested_by = ?
+              AND proposed_action = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)
+            LIMIT 1
+          `,
+                )
+                .get(companyId, candidate.id, agentId, boundAction, Date.now()) as { id: string } | undefined)
+            : undefined;
+          if (!pending) {
+            const approval = this.approvals.request(
+              companyId,
+              {
+                approvalType: p.approvalType ?? "irreversible_data_change",
+                requestedBy: agentId,
+                summary: p.summary ?? "Agent requested approval",
+                riskLevel: (p.riskLevel as "high") ?? "high",
+                proposedAction: boundAction,
+              },
+              { taskId: candidate.id, runId: run.id, correlationId: candidate.correlation_id },
+            );
+            this.notifyApprovalRequested(companyId, approval);
+          }
         }
       }
     } catch (err) {
@@ -3291,6 +3721,7 @@ export class CompanyOrchestrator {
       );
     } finally {
       clearTimeout(timer);
+      clearInterval(lockHeartbeat);
     }
 
     // A runtime that ends its stream quietly on abort would otherwise leave a
@@ -3299,13 +3730,29 @@ export class CompanyOrchestrator {
       recordFailure({ message: `Zeitlimit des Vessels erreicht (${timeoutMs} ms).`, timedOut: true });
     }
 
+    // A recovered/reassigned task belongs to its successor. A late stream
+    // may leave evidence on its own run, but cannot finish the successor's task.
+    const heldTask = this.tasks.get(candidate.id);
+    if (!heldTask || heldTask.execution_run_id !== run.id || heldTask.status !== "running") {
+      this.tasks.releaseLock(candidate.id, run.id);
+      this.agentLocks.release(agentId, run.id);
+      return { task: heldTask ?? candidate, runId: run.id, events };
+    }
+    if (rateLimited && !failed) this.runs.setStatus(run.id, "rate_limited");
+
     this.tasks.releaseLock(candidate.id, run.id);
     // Guarded on run.id, so a run whose lease already expired and was taken
     // over cannot free the new owner's lock on its way out.
     this.agentLocks.release(agentId, run.id);
 
     const current = this.tasks.get(candidate.id)!;
-    const target: TaskStatus = failed ? "failed" : waiting ? "waiting" : "review";
+    const target: TaskStatus = failed
+      ? "failed"
+      : runtimeToolApproval
+        ? "approval_required"
+        : waiting
+          ? "waiting"
+          : "review";
     this.tasks.transition(candidate.id, target, {
       expectedVersion: current.status_version,
       reason: `run ${run.id} finished`,
@@ -3314,6 +3761,40 @@ export class CompanyOrchestrator {
       resultSummary: summary || null,
       correlationId: candidate.correlation_id,
     });
+
+    if (target === "review" && summary && this.memoryProviders.has("obsidian")) {
+      try {
+        await this.recordMemory(
+          companyId,
+          "obsidian",
+          {
+            kind: "summary",
+            title: `Run-Ergebnis: ${candidate.title}`,
+            content: summary.slice(0, 16000),
+            taskId: candidate.id,
+            projectId: candidate.project_id,
+            agentId,
+            source: `run:${run.id} (noch nicht vom CEO abgenommen)`,
+            confidence: 0.5,
+            sensitivity: candidate.sensitive ? "confidential" : "internal",
+          },
+          { actorType: "agent", actorId: agentId },
+        );
+      } catch {
+        appendAuditEvent(this.db, {
+          companyId,
+          actorType: "system",
+          actorId: "memory",
+          action: "memory.run_result_failed",
+          entityType: "run",
+          entityId: run.id,
+          taskId: candidate.id,
+          correlationId: candidate.correlation_id,
+          outcome: "failed",
+          details: { provider: "obsidian" },
+        });
+      }
+    }
 
     this.syncAgentStatuses(companyId);
     return { task: this.tasks.get(candidate.id)!, runId: run.id, events };

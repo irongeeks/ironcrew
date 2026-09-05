@@ -1,0 +1,14 @@
+version: 1
+# Operational state remains in SQLite, readable notes remain in Obsidian.
+honcho:
+  enabled: false
+  baseUrl: https://api.honcho.dev
+  allowLocal: false
+  allowedSensitivity: [public]
+  timeoutMs: 5000
+# Authentication is resolved through a configured SecretRef, never stored here.
+# Optional under honcho (reference only):
+#   secretRef:
+#     provider: keychain
+#     itemRef: ironcrew/honcho/api-key
+#     field: password

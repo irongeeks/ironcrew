@@ -86,6 +86,8 @@ export function runStatusForEvent(type: RunEventType): string | null {
 // --- Runtime interface -----------------------------------------------------
 
 export interface RuntimeCapabilities {
+  /** False only for runtimes without filesystem access. Defaults to required. */
+  workspaceRequired?: boolean;
   /** Streaming incremental message deltas. */
   streaming: boolean;
   /** Resuming a previous session by id. */
@@ -113,6 +115,8 @@ export interface RuntimeHealth {
 export interface AuthStatus {
   /** Never carries a token, only whether one is present and usable. */
   authenticated: boolean;
+  /** Unverified means no authentication probe has established either state. */
+  verification?: "verified" | "unverified";
   method: "subscription-cli" | "oauth-cli" | "api-key" | "none";
   /** Non-identifying hint, e.g. a plan name. Never an email or a token. */
   accountHint?: string;
@@ -139,6 +143,10 @@ export interface RunContext {
   correlationId: string;
   workspacePath: string;
   permissionMode: "restricted" | "workspace_write" | "elevated";
+  /** Granted low-risk tools, scoped to this agent/project by the control plane. */
+  allowedTools?: string[];
+  /** Persisted task sensitivity. Unclassified requests use sensitive defaults. */
+  sensitive?: boolean;
   /** Literal secret values to redact from this run's output, if any. */
   redactValues?: readonly string[];
   signal?: AbortSignal;

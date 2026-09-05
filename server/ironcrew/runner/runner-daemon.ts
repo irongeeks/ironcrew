@@ -109,6 +109,7 @@ export class RunnerDaemon {
     this.listener = null;
     if (!listener) return;
 
+    this.server.closeConnections();
     await new Promise<void>((resolve) => listener.close(() => resolve()));
     // MCP servers outlive a single connection on purpose (mcp-host.ts), so
     // stopping the daemon is the only thing that stops them. Left running,
