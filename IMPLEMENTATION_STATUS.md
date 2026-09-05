@@ -39,6 +39,16 @@ Full routing evidence at `4eec70b`: [CI 33949377702](https://github.com/irongeek
 
 The subsequent living-office change adds furnished department rooms, connected halls, room focus and bounded ambient walking/encounters. Local verification passed 616 frontend tests before the final accessibility regression, then all 28 focused office tests, typecheck, ESLint and build. New browser tests cover room navigation, mobile roster, actual movement and pause/reduced-motion; their CI result is pending. See [LIVING_OFFICE.md](docs/LIVING_OFFICE.md).
 
+Career levels and task reviews are implemented in a subsequent change: owner-approved
+Junior/Senior/Lead, actual department-routing and independent-review runs, root-task
+budget attribution and immutable work/reviewer model evidence. UI shows per-agent
+and per-model means, counts, difficulty and revision context without automatic promotion.
+The integrated local frontend run passed all 627 tests; 41 focused career backend
+tests and the separately checked canonical owner-approval flow passed. Typechecks
+and production build passed. Full integrated CI and the new three browser cases
+are pending.
+See [CAREER_REVIEWS.md](docs/CAREER_REVIEWS.md) for setup and limits.
+
 Actual CLI subscriptions, mTLS customer networks, OIDC, Honcho, mail and business
 providers require separately documented operator tests. Services were not installed,
 accounts were not modified, and no production system was deployed in this session.

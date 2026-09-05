@@ -2,6 +2,12 @@
 
 ## Unreleased — 2026-09-05
 
+- Add separate Junior/Senior/Lead levels, owner-approved changes and per-department leadership setup.
+- Delegate new work through real Lead runs with enforced Junior scope and existing per-agent model profiles.
+- Create independent 1–5-star task reviews with immutable work/reviewer model snapshots, rationale and rubric.
+- Show employee/model averages, counts, distribution and revision history; count the latest work result per task once.
+- Include Lead overhead in root-task budgets, retain pending reviews after CEO acceptance and reject wrong internal executors before runtime start.
+
 - Add individually furnished department rooms, connected halls, a lounge and dedicated decision/meeting spaces.
 - Let idle figures visit rooms and share bounded ambient encounters; real work preempts movement.
 - Add room focus, motion pause, reduced-motion support and focus exclusion for clipped figures.

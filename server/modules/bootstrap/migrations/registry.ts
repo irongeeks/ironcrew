@@ -1,3 +1,4 @@
+import { migration as crewCareerReviews } from "./0034-crew-career-reviews.ts";
 import { migration as crewRoutingProfiles } from "./0033-crew-routing-profiles.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -87,6 +88,7 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0031-crew-coaching.ts", migration: crewCoaching },
   { filename: "0032-crew-project-plans.ts", migration: crewProjectPlans },
   { filename: "0033-crew-routing-profiles.ts", migration: crewRoutingProfiles },
+  { filename: "0034-crew-career-reviews.ts", migration: crewCareerReviews },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

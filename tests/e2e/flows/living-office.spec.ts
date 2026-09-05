@@ -40,7 +40,9 @@ test("opens individually furnished department rooms and returns to the building"
   await expect(roster).toBeVisible();
   const { agents } = await expectOkJson<{ agents: Agent[] }>(await request.get("/api/crew/agents"), "Read crew");
   await expect(roster.getByRole("listitem")).toHaveCount(agents.length);
-  await office.screenshot({ path: testInfo.outputPath("living-building-mobile-list.png") });
+  await roster.getByRole("listitem").last().scrollIntoViewIfNeeded();
+  await expect(roster.getByRole("listitem").last()).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("living-building-mobile-list.png") });
 });
 
 test("walks idle figures through the building and freezes ambient motion on request", async ({ page, request }) => {

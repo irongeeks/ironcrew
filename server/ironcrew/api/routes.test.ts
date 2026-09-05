@@ -7,6 +7,7 @@ import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { createTestDb } from "../domain/test-db.ts";
 import { registerIronCrewRoutes } from "./routes.ts";
+import { createCrewAuth } from "../auth/crew-auth.ts";
 import { CompanyOrchestrator } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts";
@@ -43,6 +44,41 @@ beforeEach(() => {
 afterEach(() => db.close());
 
 describe("company and org", () => {
+  it("connects career changes to the canonical owner decision, persistence and live events", async () => {
+    const auth = createCrewAuth(db);
+    const owner = await auth.users.create({
+      email: "career-owner@example.invalid",
+      password: "career-owner-test-password",
+      role: "owner",
+    });
+    const session = { "x-ironcrew-session": auth.sessions.create(owner.id).token };
+    const before = await request(app).get("/api/crew/people").set(session).expect(200);
+    const profile = before.body.profiles[0];
+    const requested = await request(app)
+      .post(`/api/crew/people/agents/${profile.agentId}/level`)
+      .set(session)
+      .send({ baseRevision: profile.revision, level: "lead", reason: "Verantwortliche Abteilungsleitung" })
+      .expect(201);
+    expect(orchestrator.career.forAgent(companyId, profile.agentId).level).toBe("senior");
+    const approvalId = requested.body.approval.id;
+    const inbox = await request(app).get("/api/crew/approvals").set(session).expect(200);
+    expect(inbox.body.approvals).toEqual(expect.arrayContaining([expect.objectContaining({ id: approvalId })]));
+    await request(app)
+      .post(`/api/crew/approvals/${approvalId}/decide`)
+      .set(session)
+      .send({ decision: "approved", reason: "Fachliche Verantwortung geprüft" })
+      .expect(200);
+    const after = await request(app).get("/api/crew/people").set(session).expect(200);
+    expect(after.body.profiles).toEqual(
+      expect.arrayContaining([expect.objectContaining({ agentId: profile.agentId, level: "lead", revision: 1 })]),
+    );
+    expect(new CompanyOrchestrator(db).career.forAgent(companyId, profile.agentId).level).toBe("lead");
+    expect(broadcasts.map((event) => event.type)).toEqual(
+      expect.arrayContaining(["crew_agent_changed", "crew_approval_decided"]),
+    );
+    await request(app).post("/api/crew/people/reviews").set(session).send({ score: 5 }).expect(404);
+  });
+
   it("returns the company and its departments", async () => {
     const res = await request(app).get("/api/crew/company").expect(200);
     expect(res.body.company.id).toBe(companyId);
