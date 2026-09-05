@@ -36,6 +36,9 @@ test("captures the documented company views from an isolated test installation",
   await office.screenshot({ path: info.outputPath("ironcrew-department.png") });
   await office.getByRole("button", { name: "Gebäudeübersicht", exact: true }).click();
 
+  // The complete roster is taller than the normal viewport. Give its scroll
+  // container enough real viewport space rather than capturing clipped rows.
+  await page.setViewportSize({ width: 1920, height: 2000 });
   await page.getByTestId("open-people").click();
   const people = page.getByRole("region", { name: "Team und Leistung", exact: true });
   await expect(people).toHaveAttribute("aria-busy", "false");
@@ -44,6 +47,9 @@ test("captures the documented company views from an isolated test installation",
   });
   await expect(roster.locator("tbody tr")).toHaveCount(agents.length);
   await expect(roster).toContainText("Unbewertet");
+  await roster.scrollIntoViewIfNeeded();
+  await expect(roster.locator("tbody tr").first()).toBeInViewport();
+  await expect(roster.locator("tbody tr").last()).toBeInViewport();
   await roster.screenshot({ path: info.outputPath("ironcrew-crew.png") });
   await page.keyboard.press("Escape");
   await expect(people).toHaveCount(0);
