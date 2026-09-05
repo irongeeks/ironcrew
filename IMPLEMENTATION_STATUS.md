@@ -9,7 +9,7 @@ review, or not verifiable in this environment, is said so explicitly.
 PR #18 is merged at `1e441e4`; PR #19 is merged on `main` at
 `e365cfb9bdd887d1a77570749edd84b3374229a4`. The merged tree is unchanged from
 verified revision `ebfad74`. [PR #20](https://github.com/irongeeks/ironcrew/pull/20)
-adds owner-managed routing profiles and carries the subsequent CI evidence.
+is merged at `36a71db`; its tree matches tested head `4eec70b`.
 [MASTER_PROMPT_COVERAGE.md](docs/MASTER_PROMPT_COVERAGE.md) maps the exact scope.
 
 Implemented additions include the outbound runner fleet, scoped sandbox approvals
@@ -35,8 +35,9 @@ agent bindings, actual task/meeting dispatch, explicit fallback, persistent rout
 selection and original/selected budget and concurrency enforcement. Focused checks
 passed **73 backend and 199 frontend tests**, both typechecks, ESLint, formatting and
 production build. These are overlapping module suites, not additional aggregate counts.
-The full current CI/browser/platform result is linked from PR #20; the `ebfad74`
-counts above identify the earlier tested baseline. See [RUNTIME_ROUTING.md](docs/RUNTIME_ROUTING.md).
+Full routing evidence at `4eec70b`: [CI 33949377702](https://github.com/irongeeks/ironcrew/actions/runs/33949377702) passed **5,114 backend tests (1 skipped), 599 frontend tests, 40 script tests and 78 browser tests (3 existing skips)**. [Platform CI 33949377720](https://github.com/irongeeks/ironcrew/actions/runs/33949377720) passed Linux/macOS and Docker persistence/restore gates. See [RUNTIME_ROUTING.md](docs/RUNTIME_ROUTING.md).
+
+The subsequent living-office change adds furnished department rooms, connected halls, room focus and bounded ambient walking/encounters. Local verification passed 616 frontend tests before the final accessibility regression, then all 28 focused office tests, typecheck, ESLint and build. New browser tests cover room navigation, mobile roster, actual movement and pause/reduced-motion; their CI result is pending. See [LIVING_OFFICE.md](docs/LIVING_OFFICE.md).
 
 Actual CLI subscriptions, mTLS customer networks, OIDC, Honcho, mail and business
 providers require separately documented operator tests. Services were not installed,
@@ -432,8 +433,8 @@ That is why shipping is a separate mechanism rather than a stronger hash.
 ## MVP acceptance overview
 
 This table distinguishes implemented behavior from installation/account acceptance.
-The consolidated `ebfad74` counts and linked CI runs above are the current evidence;
-routing changes after that revision are not covered by those results.
+The `4eec70b` routing counts above are the latest complete CI evidence;
+the subsequent living-office changes require their own linked browser results.
 
 | Criterion                                                      | Current evidence and limit                                                                                                                        |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -455,8 +456,8 @@ routing changes after that revision are not covered by those results.
 
 ## Next technically sensible step
 
-1. Use the exact-revision checks on PR #20 for routing acceptance; the earlier
-   `ebfad74` results identify its baseline and do not cover later changes.
+1. Complete the living-office browser checks and inspect the overview, department
+   focus and mobile screenshots; routing is already tested and merged in PR #20.
 2. Perform an authenticated CLI acceptance run through the dedicated native runner,
    including revision/resume after a control-plane restart. Keep account credentials
    in the official CLI store and record only redacted events and result evidence.

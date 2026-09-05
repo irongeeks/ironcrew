@@ -93,9 +93,9 @@ describe("CrewOffice canonical office", () => {
   it("moves an existing figure from the desk to the meeting zone on a backend status change", () => {
     const input = props();
     const { rerender } = render(<CrewOffice {...input} />);
-    const before = screen.getByTestId("office-person-agent-engineer").style.transform;
+    const before = screen.getByTestId("office-person-agent-engineer").style.cssText;
     rerender(<CrewOffice {...input} agents={[agent({ status: "in_meeting" })]} />);
-    expect(screen.getByTestId("office-person-agent-engineer").style.transform).not.toBe(before);
+    expect(screen.getByTestId("office-person-agent-engineer").style.cssText).not.toBe(before);
     expect(screen.getByRole("button", { name: /Forge – Im Meeting/ })).toBeInTheDocument();
     rerender(
       <CrewOffice {...input} agents={[agent({ status: "rate_limited" })]} tasks={[task({ status: "waiting" })]} />,
@@ -122,12 +122,14 @@ describe("CrewOffice canonical office", () => {
         departments={[...input.departments, { id: "finance", key: "finance", name: "Finanzen", description: "" }]}
       />,
     );
-    const before = screen.getByTestId("office-person-agent-engineer").style.transform;
+    const before = screen.getByTestId("office-person-agent-engineer").style.cssText;
     fireEvent.change(screen.getByRole("combobox", { name: "Büro nach Abteilung filtern" }), {
       target: { value: "finance" },
     });
-    expect(screen.getByTestId("office-person-agent-engineer").style.transform).toBe(before);
-    expect(screen.getByRole("button", { name: /Forge – Arbeitet/ })).toBeDisabled();
+    expect(screen.getByTestId("office-person-agent-engineer").style.cssText).toBe(before);
+    expect(screen.getByTestId("office-person-agent-engineer")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("office-person-agent-engineer").querySelector("button")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Forge – Arbeitet/ })).not.toBeInTheDocument();
     expect(screen.getByText("Dieser Abteilung ist noch kein Agent zugeordnet.")).toBeInTheDocument();
   });
 
@@ -171,20 +173,41 @@ describe("CrewOffice canonical office", () => {
         agent({ id: `agent-${index}`, key: `key-${index}`, status }),
       );
       const { container } = render(<CrewOffice {...props()} agents={agents} tasks={[]} />);
-      const rooms = container.querySelectorAll<SVGRectElement>('svg > rect[x="822"]');
-      const meetingBottom = Number(rooms[0].getAttribute("y")) + Number(rooms[0].getAttribute("height"));
-      expect(meetingBottom).toBeLessThan(Number(rooms[1].getAttribute("y")));
+      const meeting = container.querySelector('[data-testid="office-room-meeting"]')!;
+      const decision = container.querySelector('[data-testid="office-room-decision"]')!;
+      expect(meeting.getAttribute("transform")).not.toBe(decision.getAttribute("transform"));
       const floor = container.querySelector<HTMLElement>(".crew-office-floor")!;
-      const positions = Array.from(container.querySelectorAll<HTMLElement>(".crew-office-occupant")).map(
-        (person) => person.style.transform,
-      );
-      expect(new Set(positions).size).toBe(14);
+      const positions = Array.from(container.querySelectorAll<HTMLElement>(".crew-office-occupant")).map((person) => ({
+        x: Number(person.style.getPropertyValue("--office-x")),
+        y: Number(person.style.getPropertyValue("--office-y")),
+      }));
+      expect(new Set(positions.map((point) => `${point.x},${point.y}`)).size).toBe(14);
       for (const position of positions) {
-        const y = Number(position.match(/,\s*([\d.]+)px/)![1]);
-        expect(y + 140).toBeLessThan(Number.parseFloat(floor.style.height) - 68);
+        expect(position.y + 65).toBeLessThan(Number.parseFloat(floor.style.height) - 68);
       }
     },
   );
+
+  it("opens furnished department rooms and returns to the full building without changing business records", () => {
+    const input = props();
+    const { container } = render(<CrewOffice {...input} />);
+    fireEvent.click(screen.getByRole("button", { name: "Raum öffnen: Technik" }));
+    expect(container.querySelector(".crew-office-canvas-space")).toHaveAttribute("data-focused-room", "engineering");
+    expect(screen.getByRole("heading", { name: "Technik" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Forge – Arbeitet/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gebäudeübersicht" }));
+    expect(container.querySelector(".crew-office-canvas-space")).not.toHaveAttribute("data-focused-room");
+    expect(input.onSelectAgent).not.toHaveBeenCalled();
+    expect(input.onSelectTask).not.toHaveBeenCalled();
+  });
+  it("pauses ambient movement without changing the persisted agent status", () => {
+    render(<CrewOffice {...props()} agents={[agent()]} tasks={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bürobewegung pausieren" }));
+    const person = screen.getByTestId("office-person-agent-engineer");
+    expect(person).toHaveAttribute("data-motion-paused", "true");
+    expect(person).toHaveAttribute("data-status", "idle");
+    expect(screen.getByRole("button", { name: "Bürobewegung fortsetzen" })).toHaveAttribute("aria-pressed", "true");
+  });
 
   it("selects current running work ahead of older failures and excludes completed work", () => {
     const live = task();

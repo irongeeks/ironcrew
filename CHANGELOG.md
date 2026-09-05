@@ -2,6 +2,10 @@
 
 ## Unreleased — 2026-09-05
 
+- Add individually furnished department rooms, connected halls, a lounge and dedicated decision/meeting spaces.
+- Let idle figures visit rooms and share bounded ambient encounters; real work preempts movement.
+- Add room focus, motion pause, reduced-motion support and focus exclusion for clipped figures.
+
 - Add nine owner-managed routing profiles with versioned UI/API configuration and agent binding.
 - Route actual task and meeting runs through explicit, policy-checked targets and pre-start fallbacks.
 - Persist original/selected vessels atomically; retain both budgets and capacity limits, charge costs once,
