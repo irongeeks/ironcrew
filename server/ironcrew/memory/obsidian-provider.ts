@@ -81,22 +81,123 @@ export class ObsidianProvider implements MemoryProvider {
     }
   }
 
-  /** Observe local edits without polling; only locators leave this provider. */
+  /**
+   * Observe edits without polling. macOS uses kqueue for files, FSEvents for
+   * directories; filenames may be missing and watches remain on replaced inodes.
+   * https://nodejs.org/docs/latest-v22.x/api/fs.html#caveats
+   */
   watch(onChange: (externalId: string) => void, onError: (error: Error) => void): () => void {
     this.assertNoSymlink(this.root);
     fs.mkdirSync(this.root, { recursive: true });
-    const watcher = fs.watch(this.root, { recursive: true }, (_event, filename) => {
-      if (!filename?.endsWith(".md")) return;
-      const externalId = filename.replace(/\.md$/, "").split(path.sep).join("/");
-      try {
-        this.resolve(externalId);
-        onChange(externalId);
-      } catch (error) {
-        onError(error instanceof Error ? error : new Error("Memory watcher failed."));
+    const files = new Map<string, { signature: string; inode: string; watcher: fs.FSWatcher }>();
+    let directoryWatcher: fs.FSWatcher | undefined;
+    let closed = false;
+    let queued = false;
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      directoryWatcher?.close();
+      for (const file of files.values()) file.watcher.close();
+      files.clear();
+    };
+    const fail = (error: unknown) => {
+      if (closed) return;
+      close();
+      onError(error instanceof Error ? error : new Error("Memory watcher failed."));
+    };
+    const reconcile = (notify: boolean) => {
+      if (closed) return;
+      const found = new Map<string, { signature: string; inode: string; full: string }>();
+      const walk = (directory: string) => {
+        this.assertNoSymlink(directory);
+        let entries: fs.Dirent[];
+        try {
+          entries = fs.readdirSync(directory, { withFileTypes: true });
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+          throw error;
+        }
+        for (const entry of entries) {
+          if (entry.isSymbolicLink()) continue;
+          const full = path.join(directory, entry.name);
+          if (entry.isDirectory()) {
+            walk(full);
+            continue;
+          }
+          if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+          this.assertNoSymlink(full);
+          let stat: fs.BigIntStats;
+          try {
+            stat = fs.lstatSync(full, { bigint: true });
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+            throw error;
+          }
+          if (!stat.isFile()) continue;
+          const id = path.relative(this.root, full).slice(0, -3).split(path.sep).join("/");
+          found.set(id, {
+            full,
+            inode: `${stat.dev}:${stat.ino}`,
+            signature: `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`,
+          });
+        }
+      };
+      walk(this.root);
+      const changed: string[] = [];
+      for (const [id, next] of found) {
+        const previous = files.get(id);
+        const differs = !previous || previous.signature !== next.signature;
+        if (!previous || previous.inode !== next.inode) {
+          previous?.watcher.close();
+          // Direct file watches are registered before watch() returns; do not rely
+          // solely on the asynchronous directory stream for existing-file edits.
+          let watcher: fs.FSWatcher;
+          try {
+            watcher = fs.watch(next.full, schedule);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+              schedule();
+              continue;
+            }
+            throw error;
+          }
+          watcher.on("error", fail);
+          files.set(id, { ...next, watcher });
+        } else previous.signature = next.signature;
+        if (notify && differs) changed.push(id);
       }
-    });
-    watcher.on("error", onError);
-    return () => watcher.close();
+      for (const [id, previous] of files) {
+        if (found.has(id)) continue;
+        previous.watcher.close();
+        files.delete(id);
+        if (notify) changed.push(id);
+      }
+      for (const id of changed) if (!closed) onChange(id);
+    };
+    function schedule() {
+      if (closed || queued) return;
+      queued = true;
+      queueMicrotask(() => {
+        queued = false;
+        try {
+          reconcile(true);
+        } catch (error) {
+          fail(error);
+        }
+      });
+    }
+    try {
+      // Reconcile on every event, including directory-only and missing filenames.
+      directoryWatcher = fs.watch(this.root, { recursive: true }, schedule);
+      directoryWatcher.on("error", fail);
+      reconcile(false);
+      // One registration-boundary reconciliation, not an interval/readiness sleep.
+      schedule();
+      return close;
+    } catch (error) {
+      close();
+      throw error;
+    }
   }
 
   /** externalId is always "<kind>/<generated-filename>" — see write(). Defense in depth against path traversal, same posture as AttachmentStorage#resolve. */

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
+import { EventEmitter } from "node:events";
 import path from "node:path";
 import os from "node:os";
 import { ObsidianProvider } from "./obsidian-provider.ts";
@@ -13,6 +14,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   fs.rmSync(vaultDir, { recursive: true, force: true });
 });
 
@@ -118,13 +120,136 @@ describe("ObsidianProvider", () => {
       notify = resolve;
       fail = reject;
     });
-    const close = provider.watch(notify, fail);
+    const close = provider.watch(
+      (id) => notify(id),
+      (error) => fail(error),
+    );
     try {
       fs.appendFileSync(path.join(vaultDir, written.path!), "\nExternal edit");
       expect(await changed).toBe(written.externalId);
       expect(await provider.search("External edit")).toHaveLength(1);
+      // The registration reconciliation already ran. A subsequent edit must now
+      // arrive through a real native event, not only that one startup scan.
+      const laterChange = new Promise<string>((resolve, reject) => {
+        notify = resolve;
+        fail = reject;
+      });
+      fs.appendFileSync(path.join(vaultDir, written.path!), "\nLater native edit");
+      expect(await laterChange).toBe(written.externalId);
+      expect(await provider.search("Later native edit")).toHaveLength(1);
     } finally {
       close();
+    }
+  });
+});
+
+describe("Obsidian watcher reconciliation", () => {
+  function controlledWatch() {
+    const handles: Array<{
+      target: string;
+      callback: (event: string, filename: string | null) => void;
+      close: ReturnType<typeof vi.fn>;
+      emitter: EventEmitter;
+    }> = [];
+    vi.spyOn(fs, "watch").mockImplementation(((target: fs.PathLike, options: unknown, listener?: unknown) => {
+      const callback = (typeof options === "function" ? options : listener) as (
+        event: string,
+        filename: string | null,
+      ) => void;
+      const emitter = new EventEmitter();
+      const close = vi.fn();
+      handles.push({ target: String(target), callback, close, emitter });
+      return Object.assign(emitter, {
+        close,
+        ref() {
+          return this;
+        },
+        unref() {
+          return this;
+        },
+      }) as unknown as fs.FSWatcher;
+    }) as typeof fs.watch);
+    return handles;
+  }
+
+  it("reconciles directory-only and null events, detects deletions, and deduplicates unchanged notifications", async () => {
+    const written = await provider.write({ kind: "note", title: "coarse", content: "before" });
+    const handles = controlledWatch();
+    const changed = vi.fn();
+    const failed = vi.fn();
+    const close = provider.watch(changed, failed);
+    try {
+      await Promise.resolve(); // Drain the one registration-boundary reconciliation.
+      fs.appendFileSync(path.join(vaultDir, written.path!), "after");
+      handles[0].callback("change", "note");
+      handles[0].callback("change", null);
+      await Promise.resolve();
+      expect(changed.mock.calls).toEqual([[written.externalId]]);
+      handles[0].callback("change", null);
+      await Promise.resolve();
+      expect(changed).toHaveBeenCalledTimes(1);
+      fs.unlinkSync(path.join(vaultDir, written.path!));
+      handles[0].callback("rename", "note");
+      await Promise.resolve();
+      expect(changed.mock.calls).toEqual([[written.externalId], [written.externalId]]);
+      expect(failed).not.toHaveBeenCalled();
+    } finally {
+      close();
+    }
+    expect(handles.every((handle) => handle.close.mock.calls.length === 1)).toBe(true);
+  });
+
+  it("rebinds an atomically replaced inode and subsequently receives its direct file events", async () => {
+    const written = await provider.write({ kind: "note", title: "replacement", content: "before" });
+    const full = path.join(vaultDir, written.path!);
+    const handles = controlledWatch();
+    const changed = vi.fn();
+    const close = provider.watch(changed, (error) => {
+      throw error;
+    });
+    try {
+      await Promise.resolve();
+      const original = handles.find((handle) => handle.target === full)!;
+      fs.writeFileSync(`${full}.tmp`, "replacement");
+      fs.renameSync(`${full}.tmp`, full);
+      handles[0].callback("rename", null);
+      await Promise.resolve();
+      const replacement = handles.filter((handle) => handle.target === full).at(-1)!;
+      expect(replacement).not.toBe(original);
+      expect(original.close).toHaveBeenCalledOnce();
+      fs.appendFileSync(full, "second edit");
+      replacement.callback("change", null);
+      await Promise.resolve();
+      expect(changed.mock.calls).toEqual([[written.externalId], [written.externalId]]);
+    } finally {
+      close();
+    }
+    expect(handles.every((handle) => handle.close.mock.calls.length === 1)).toBe(true);
+  });
+
+  it("does not watch symlink targets and closes every handle on failure before queued work runs", async () => {
+    const written = await provider.write({ kind: "note", title: "safe", content: "before" });
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "crew-watch-outside-"));
+    try {
+      fs.writeFileSync(path.join(outside, "secret.md"), "outside");
+      fs.symlinkSync(outside, path.join(vaultDir, "IronCrew", "linked"), "dir");
+      const handles = controlledWatch();
+      const changed = vi.fn();
+      const failed = vi.fn();
+      const close = provider.watch(changed, failed);
+      expect(handles.map((handle) => handle.target)).toEqual([
+        path.join(vaultDir, "IronCrew"),
+        path.join(vaultDir, written.path!),
+      ]);
+      const failure = new Error("watch backend unavailable");
+      handles[0].emitter.emit("error", failure);
+      close();
+      await Promise.resolve();
+      expect(changed).not.toHaveBeenCalled();
+      expect(failed).toHaveBeenCalledWith(failure);
+      expect(handles.every((handle) => handle.close.mock.calls.length === 1)).toBe(true);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
     }
   });
 });

@@ -59,7 +59,8 @@ script tests; quality/build and [platform gates](https://github.com/irongeeks/ir
 also passed. The same revision passed **82 browser tests (4 existing conditional skips)**,
 including all new profile/roster, saved configuration, stale revision, self-rating
 and mobile roster cases. Actual profile, configuration and mobile screenshots were
-inspected. A final presentation-only follow-up labels professional roles readably. The final
+inspected. The final follow-up labels professional roles readably and hardens native vault
+watching after a macOS directory-event regression. The final
 exact-revision browser/CI evidence and merge state are recorded in PR #22.
 See [CAREER_REVIEWS.md](docs/CAREER_REVIEWS.md) for setup and limits.
 

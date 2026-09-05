@@ -2,6 +2,7 @@
 
 ## Unreleased — 2026-09-05
 
+- Handle coalesced native vault events and atomic file replacement without polling; close watcher handles on cleanup.
 - Add separate Junior/Senior/Lead levels, owner-approved changes and per-department leadership setup.
 - Delegate new work through real Lead runs with enforced Junior scope and existing per-agent model profiles.
 - Create independent 1–5-star task reviews with immutable work/reviewer model snapshots, rationale and rubric.
