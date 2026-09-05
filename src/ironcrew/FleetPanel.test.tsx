@@ -85,7 +85,11 @@ describe("FleetPanel", () => {
     confirm.mockReturnValue(true);
     await userEvent.click(button);
     expect(await screen.findByRole("alert")).toHaveTextContent("Widerruf fehlgeschlagen");
-    expect(mock).toHaveBeenCalledWith("/api/crew/fleet/workers/worker-one/revoke", { method: "POST", body: "{}" });
+    expect(mock).toHaveBeenCalledWith("/api/crew/fleet/workers/worker-one/revoke", {
+      method: "POST",
+      headers: expect.any(Headers),
+      body: "{}",
+    });
     expect(screen.getByText(/active · 0\/1 Runs/)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Zugriff widerrufen" })).toBeEnabled());
   });

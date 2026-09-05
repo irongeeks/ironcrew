@@ -40,6 +40,34 @@ const agent: Agent = {
 };
 
 describe("character appearance editor", () => {
+  it("labels the preview state independently of option text and changes it without changing the agent", async () => {
+    render(
+      <CharacterSkinEditor
+        agent={{
+          ...agent,
+          persona: {
+            ...agent.persona,
+            animation_config: {
+              url: "/api/crew/character-assets/sprite",
+              frameWidth: 48,
+              frameHeight: 64,
+              columns: 2,
+              states: { idle: { row: 0, frames: 2, fps: 6, loop: false } },
+            },
+          },
+        }}
+        onSave={vi.fn()}
+        onUpload={vi.fn()}
+      />,
+    );
+    const state = screen.getByRole<HTMLSelectElement>("combobox", { name: "Vorschauzustand" });
+    expect(state.labels?.[0].textContent).toBe("Vorschauzustand");
+    expect(screen.getByLabelText("Vorschauzustand", { exact: true })).toBe(state);
+    await userEvent.selectOptions(state, "idle");
+    expect(state).toHaveValue("idle");
+    expect(agent.status).toBe("working");
+  });
+
   it("offers20 distinct presets, previews selection, and saves only cosmetic fields", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<CharacterSkinEditor agent={agent} onSave={onSave} onUpload={vi.fn()} />);

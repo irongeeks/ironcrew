@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useId, useState } from "react";
 import { CHARACTER_SKINS } from "../shared/character-skins";
 import { CharacterAvatar, resolveCharacterId } from "./CharacterAvatar";
 import { buildCharacterPrompt } from "./CharacterPrompt";
@@ -51,6 +51,7 @@ export function CharacterSkinEditor({
   onListAssets,
   onDeleteAsset,
 }: CharacterSkinEditorProps): React.JSX.Element {
+  const previewStatusId = useId();
   const [draft, setDraft] = useState<CharacterAppearance>(() => initialAppearance(agent));
   const [previewStatus, setPreviewStatus] = useState<AgentStatus>(agent.status);
   const [showModel, setShowModel] = useState(false);
@@ -183,16 +184,20 @@ export function CharacterSkinEditor({
         </div>
       </div>
       {(draft.animation_config || draft.model_3d) && (
-        <label className="character-preview-status">
-          Vorschauzustand
-          <select value={previewStatus} onChange={(event) => setPreviewStatus(event.target.value as AgentStatus)}>
+        <div className="character-preview-status">
+          <label htmlFor={previewStatusId}>Vorschauzustand</label>
+          <select
+            id={previewStatusId}
+            value={previewStatus}
+            onChange={(event) => setPreviewStatus(event.target.value as AgentStatus)}
+          >
             {(Object.entries(AGENT_STATUS_LABEL) as [AgentStatus, string][]).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
           </select>
-        </label>
+        </div>
       )}
       {error && (
         <p className="character-editor-error" role="alert">

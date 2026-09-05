@@ -85,6 +85,7 @@ describe("ProjectPlanningPanel", () => {
     await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
     expect(mock).toHaveBeenCalledWith("/api/crew/project-plans/task-1/review", {
       method: "POST",
+      headers: expect.any(Headers),
       body: JSON.stringify({ decision: "approved" }),
     });
     expect(screen.queryByRole("button", { name: "Plan freigeben" })).not.toBeInTheDocument();
@@ -102,6 +103,7 @@ describe("ProjectPlanningPanel", () => {
     ).toBeInTheDocument();
     expect(mock).toHaveBeenCalledWith("/api/crew/project-plans/task-1/review", {
       method: "POST",
+      headers: expect.any(Headers),
       body: JSON.stringify({ decision: "rejected" }),
     });
   });

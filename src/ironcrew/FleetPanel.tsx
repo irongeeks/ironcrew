@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { request } from "../api/core";
+import { requestJson as request } from "./panel-api";
 interface Worker {
   id: string;
   label: string;

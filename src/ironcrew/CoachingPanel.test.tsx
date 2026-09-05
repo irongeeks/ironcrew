@@ -106,6 +106,7 @@ describe("CoachingPanel", () => {
     await screen.findByText("Aktive Guidance · Version 1");
     expect(mocked).toHaveBeenCalledWith("/api/crew/coaching/proposals/proposal-1/review", {
       method: "POST",
+      headers: expect.any(Headers),
       body: JSON.stringify({ decision: "approve", reason: "Nachweise und konkrete Formulierung geprüft." }),
     });
   });

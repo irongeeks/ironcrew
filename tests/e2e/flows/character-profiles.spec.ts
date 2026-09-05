@@ -1,9 +1,16 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import sharp from "sharp";
 import { establishSession } from "../fixtures/test-helpers";
 import type { Agent } from "../../../src/ironcrew/types";
 
 test.describe("Employee character profiles", () => {
+  // Teardown has its own Playwright timeout and cannot replace a failed UI step.
+  const cleanups = new Map<string, (request: APIRequestContext) => Promise<void>>();
+  test.afterEach(async ({ request }, testInfo) => {
+    const cleanup = cleanups.get(testInfo.testId);
+    cleanups.delete(testInfo.testId);
+    await cleanup?.(request);
+  });
   test("plays a private sprite, respects reduced motion and explicitly detaches before deleting its file", async ({
     page,
     request,
@@ -19,72 +26,74 @@ test.describe("Employee character profiles", () => {
       animation_config: agent.persona.animation_config ?? null,
     };
     let assetId: string | null = null;
-    try {
-      await page.setViewportSize({ width: 1440, height: 1080 });
-      await page.emulateMedia({ reducedMotion: "no-preference" });
-      await page.goto("/");
-      await page.locator(".ic-agent").filter({ hasText: agent.displayName }).click();
-      await page.getByTestId("edit-agent-character").click();
-      const sheet = await sharp(
-        Buffer.from(
-          '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64"><rect width="48" height="64" fill="#209ca7"/><rect x="48" width="48" height="64" fill="#e3ad4b"/></svg>',
-        ),
-      )
-        .png()
-        .toBuffer();
-      const uploaded = page.waitForResponse(
-        (response) => response.url().endsWith("/api/crew/character-assets") && response.request().method() === "POST",
-      );
-      await page
-        .getByLabel("Animationsraster hochladen", { exact: true })
-        .setInputFiles({ name: "two-frames.png", mimeType: "image/png", buffer: sheet });
-      const { asset } = (await (await uploaded).json()) as { asset: { id: string; url: string } };
-      assetId = asset.id;
-      await expect(page.getByLabel("Framebreite in Pixel")).toHaveValue("96");
-      await page.getByLabel("Framebreite in Pixel").fill("48");
-      await page.getByLabel("Spalten", { exact: true }).fill("2");
-      await page.getByLabel("Bereit: Frames", { exact: true }).fill("2");
-      await page.getByLabel("Vorschauzustand", { exact: true }).selectOption("idle");
-      const sprite = page.locator(".character-editor-preview [data-sprite-state]");
-      await expect(sprite).toHaveAttribute("data-sprite-frame", "1");
-      await expect(sprite).toHaveAttribute("viewBox", "48 0 48 64");
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      await expect(sprite).toHaveAttribute("data-sprite-frame", "0");
-      await expect(sprite).toHaveAttribute("viewBox", "0 0 48 64");
-      await page.getByRole("button", { name: "Figur speichern", exact: true }).click();
-      await expect(page.locator(".character-editor")).toHaveCount(0);
-      await page.keyboard.press("Escape");
-      await page.reload();
-      await expect(page.getByTestId(`office-person-${agent.id}`).locator("[data-sprite-state]")).toHaveAttribute(
-        "data-reduced-motion",
-        "true",
-      );
-      expect((await request.delete(asset.url, { headers: { "x-csrf-token": csrf }, data: {} })).status()).toBe(409);
-      await page.locator(".ic-agent").filter({ hasText: agent.displayName }).click();
-      await page.getByTestId("edit-agent-character").click();
-      const manager = page.getByRole("region", { name: "Private Figurdateien" });
-      await manager.getByRole("button", { name: `Animation ${asset.id} löschen`, exact: true }).click();
-      await expect(manager).toContainText("Verknüpfungen entfernt");
-      await manager.screenshot({ path: testInfo.outputPath("character-delete-confirmation.png") });
-      await manager.getByRole("button", { name: "Verknüpfungen lösen und Datei löschen", exact: true }).click();
-      await expect(manager).toContainText("Datei physisch gelöscht");
-      expect((await request.get(asset.url)).status()).toBe(404);
-      const saved = ((await (await request.get("/api/crew/agents")).json()) as { agents: Agent[] }).agents.find(
-        (a) => a.id === agent.id,
-      )!;
-      expect(saved.persona.animation_config).toBeNull();
-      expect(saved.policy).toEqual(agent.policy);
-    } finally {
-      await request.patch(`/api/crew/agents/${agent.id}/appearance`, {
+    cleanups.set(testInfo.testId, async (request) => {
+      const restored = await request.patch(`/api/crew/agents/${agent.id}/appearance`, {
         headers: { "x-csrf-token": csrf },
         data: before,
       });
-      if (assetId)
-        await request.delete(`/api/crew/character-assets/${assetId}`, {
+      expect(restored.ok()).toBeTruthy();
+      if (assetId) {
+        const removed = await request.delete(`/api/crew/character-assets/${assetId}`, {
           headers: { "x-csrf-token": csrf },
           data: { detach: true },
         });
-    }
+        expect([200, 202, 404]).toContain(removed.status());
+      }
+    });
+    await page.setViewportSize({ width: 1440, height: 1080 });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/");
+    await page.locator(".ic-agent").filter({ hasText: agent.displayName }).click();
+    await page.getByTestId("edit-agent-character").click();
+    const sheet = await sharp(
+      Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64"><rect width="48" height="64" fill="#209ca7"/><rect x="48" width="48" height="64" fill="#e3ad4b"/></svg>',
+      ),
+    )
+      .png()
+      .toBuffer();
+    const uploaded = page.waitForResponse(
+      (response) => response.url().endsWith("/api/crew/character-assets") && response.request().method() === "POST",
+    );
+    await page
+      .getByLabel("Animationsraster hochladen", { exact: true })
+      .setInputFiles({ name: "two-frames.png", mimeType: "image/png", buffer: sheet });
+    const { asset } = (await (await uploaded).json()) as { asset: { id: string; url: string } };
+    assetId = asset.id;
+    await expect(page.getByLabel("Framebreite in Pixel")).toHaveValue("96");
+    await page.getByLabel("Framebreite in Pixel").fill("48");
+    await page.getByLabel("Spalten", { exact: true }).fill("2");
+    await page.getByLabel("Bereit: Frames", { exact: true }).fill("2");
+    await page.getByLabel("Vorschauzustand", { exact: true }).selectOption("idle");
+    const sprite = page.locator(".character-editor-preview [data-sprite-state]");
+    await expect(sprite).toHaveAttribute("data-sprite-frame", "1");
+    await expect(sprite).toHaveAttribute("viewBox", "48 0 48 64");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(sprite).toHaveAttribute("data-sprite-frame", "0");
+    await expect(sprite).toHaveAttribute("viewBox", "0 0 48 64");
+    await page.getByRole("button", { name: "Figur speichern", exact: true }).click();
+    await expect(page.locator(".character-editor")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.reload();
+    await expect(page.getByTestId(`office-person-${agent.id}`).locator("[data-sprite-state]")).toHaveAttribute(
+      "data-reduced-motion",
+      "true",
+    );
+    expect((await request.delete(asset.url, { headers: { "x-csrf-token": csrf }, data: {} })).status()).toBe(409);
+    await page.locator(".ic-agent").filter({ hasText: agent.displayName }).click();
+    await page.getByTestId("edit-agent-character").click();
+    const manager = page.getByRole("region", { name: "Private Figurdateien" });
+    await manager.getByRole("button", { name: `Animation ${asset.id} löschen`, exact: true }).click();
+    await expect(manager).toContainText("Verknüpfungen entfernt");
+    await manager.screenshot({ path: testInfo.outputPath("character-delete-confirmation.png") });
+    await manager.getByRole("button", { name: "Verknüpfungen lösen und Datei löschen", exact: true }).click();
+    await expect(manager).toContainText("Datei physisch gelöscht");
+    expect((await request.get(asset.url)).status()).toBe(404);
+    const saved = ((await (await request.get("/api/crew/agents")).json()) as { agents: Agent[] }).agents.find(
+      (a) => a.id === agent.id,
+    )!;
+    expect(saved.persona.animation_config).toBeNull();
+    expect(saved.policy).toEqual(agent.policy);
   });
 
   test("assigns one of 20 presets, persists after reload and leaves professional policy unchanged", async ({

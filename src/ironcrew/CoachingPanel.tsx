@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { request } from "../api/core";
+import { requestJson as request } from "./panel-api";
 import type {
   CoachingCase,
   CoachingCaseKind,
