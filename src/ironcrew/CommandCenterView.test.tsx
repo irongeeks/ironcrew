@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { ApiRequestError } from "../api/core";
 import { CommandCenterView } from "./CommandCenterView.tsx";
+import { vendorPolicyApi } from "./vendor-policy-api";
+import type { CompanyPolicySnapshot } from "../shared/company-policy";
 import type { api } from "./api.ts";
 import type {
   Agent,
@@ -4234,6 +4236,85 @@ describe("people setup identity consistency", () => {
       }
     } finally {
       fetchSpy.mockRestore();
+    }
+  });
+});
+
+describe("vendor policy identity permissions", () => {
+  it.each([
+    { mode: "bootstrap", writable: true },
+    { mode: "owner", writable: true },
+    { mode: "viewer", writable: false },
+    { mode: "auth failure", writable: false },
+    { mode: "bootstrap then auth failure", writable: false },
+    { mode: "signed out", writable: false },
+  ])("allows policy writes only for explicitly confirmed identity: $mode", async ({ mode, writable }) => {
+    const policy: CompanyPolicySnapshot = {
+      revision: 0,
+      baselineFingerprint: "a".repeat(64),
+      baseline: { allowedFamilies: ["openai/*"], allowedProviders: ["OpenAI"] },
+      restrictions: { allowedFamilies: ["openai/*"], allowedProviders: ["OpenAI"] },
+      effectivePolicy: {
+        version: 1,
+        policy_name: "Identity test",
+        allowed_families: ["openai/*"],
+        blocked_families: [],
+        blocked_endpoints: [],
+        openrouter: {
+          allowed_providers: ["OpenAI"],
+          allow_fallbacks: false,
+          sensitive_defaults: { data_collection: "deny", zdr: true, allow_fallbacks: false },
+        },
+        telemetry: { enabled: false },
+      },
+      history: [],
+    };
+    const loadPolicy = vi.spyOn(vendorPolicyApi, "load").mockResolvedValue(policy);
+    const savePolicy = vi.spyOn(vendorPolicyApi, "save").mockResolvedValue({ ...policy, revision: 1 });
+    try {
+      const authStatus =
+        mode === "auth failure"
+          ? vi.fn().mockRejectedValue(new Error("Authentication unavailable"))
+          : vi.fn().mockResolvedValue({
+              bootstrap: mode === "bootstrap" || mode === "bootstrap then auth failure",
+              authenticated: mode === "owner" || mode === "viewer",
+              user:
+                mode === "owner" || mode === "viewer"
+                  ? { id: `usr_${mode}`, role: mode, display_name: mode, status: "active" }
+                  : null,
+            });
+      const client = makeClient({ authStatus });
+      const view = render(<CommandCenterView initialView="tasks" client={client} />);
+      await userEvent.setup().click(await screen.findByTestId("open-vendor-policy"));
+      const family = await screen.findByLabelText("openai/*");
+      if (mode === "bootstrap then auth failure") {
+        expect(family).toBeEnabled();
+        const failedClient = makeClient({
+          authStatus: vi.fn().mockRejectedValue(new Error("Session status unavailable")),
+        });
+        view.rerender(<CommandCenterView initialView="tasks" client={failedClient} />);
+        await waitFor(() => expect(family).toBeDisabled());
+      }
+      if (writable) {
+        expect(family).toBeEnabled();
+        fireEvent.click(family);
+        fireEvent.change(screen.getByLabelText("Begründung der Änderung"), {
+          target: { value: "Modellzugriff im Pilotbetrieb pausieren" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Freigaben speichern" }));
+        await waitFor(() => expect(savePolicy).toHaveBeenCalledOnce());
+        expect(savePolicy).toHaveBeenCalledWith(
+          expect.objectContaining({ restrictions: { allowedFamilies: [], allowedProviders: ["OpenAI"] } }),
+        );
+      } else {
+        expect(family).toBeDisabled();
+        expect(screen.queryByRole("button", { name: "Freigaben speichern" })).not.toBeInTheDocument();
+        expect(screen.getByText(/Leseansicht: Nur der Owner/)).toBeVisible();
+        expect(savePolicy).not.toHaveBeenCalled();
+      }
+    } finally {
+      loadPolicy.mockRestore();
+      savePolicy.mockRestore();
     }
   });
 });

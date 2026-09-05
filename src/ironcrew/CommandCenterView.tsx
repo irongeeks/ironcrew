@@ -1,5 +1,6 @@
 import { PeoplePerformancePanel, PeopleAgentSummary } from "./PeoplePerformancePanel";
 import { RoutingProfilesPanel } from "./RoutingProfilesPanel";
+import { VendorPolicyPanel } from "./VendorPolicyPanel";
 import { CoachingPanel } from "./CoachingPanel.tsx";
 import { ProjectPlanningPanel } from "./ProjectPlanningPanel.tsx";
 import { SandboxAccessPanel } from "./SandboxAccessPanel.tsx";
@@ -314,9 +315,12 @@ export function CommandCenterView({
   const [memories, setMemories] = useState<MemoryRef[]>([]);
   const [showMemory, setShowMemory] = useState(false);
   const [companyPanel, setCompanyPanel] = useState<
-    "coaching" | "planning" | "sandbox" | "fleet" | "routing" | "people" | null
+    "coaching" | "planning" | "sandbox" | "fleet" | "routing" | "people" | "vendor-policy" | null
   >(null);
   const [myRole, setMyRole] = useState<string | null>(null);
+  // Only an explicit successful auth response grants bootstrap privileges.
+  // A missing identity or failed status request must remain read-only.
+  const [singleOwnerBootstrap, setSingleOwnerBootstrap] = useState(false);
   const [memoryQuery, setMemoryQuery] = useState("");
   const [semanticMemorySearch, setSemanticMemorySearch] = useState(false);
   const [newMemorySensitivity, setNewMemorySensitivity] = useState("internal");
@@ -520,6 +524,7 @@ export function CommandCenterView({
       setDecisions(dec.decisions);
       setMyUserId(who?.user?.id ?? null);
       setMyRole(who?.user?.role ?? null);
+      setSingleOwnerBootstrap(who?.bootstrap === true);
       setCompanyName(co.company.name);
       setDepartments(co.departments);
       setMeetings(mt.meetings);
@@ -2289,6 +2294,14 @@ export function CommandCenterView({
           <button
             type="button"
             className="ic-btn"
+            data-testid="open-vendor-policy"
+            onClick={() => setCompanyPanel("vendor-policy")}
+          >
+            Provider-Freigaben
+          </button>
+          <button
+            type="button"
+            className="ic-btn"
             data-testid="open-coaching"
             onClick={() => setCompanyPanel("coaching")}
           >
@@ -3953,6 +3966,7 @@ export function CommandCenterView({
               sandbox: "Sandbox-Freigaben",
               fleet: "Native Runner-Flotte",
               routing: "Modell-Routing",
+              "vendor-policy": "Provider-Freigaben",
               people: "Team & Leistung",
             }[companyPanel]
           }
@@ -3971,6 +3985,12 @@ export function CommandCenterView({
             <RoutingProfilesPanel
               agents={agents}
               canManage={myRole === "owner" || myRole === null}
+              refreshKey={lastRefreshedAt ?? undefined}
+            />
+          )}
+          {companyPanel === "vendor-policy" && (
+            <VendorPolicyPanel
+              canManage={myRole === "owner" || singleOwnerBootstrap}
               refreshKey={lastRefreshedAt ?? undefined}
             />
           )}

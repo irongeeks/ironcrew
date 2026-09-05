@@ -14,7 +14,8 @@ import {
 } from "../../../src/shared/routing-profiles.ts";
 import { appendAuditEvent } from "./audit.ts";
 import { type VesselRow, VesselStore } from "./vessel-store.ts";
-import { evaluateModel, getVendorPolicy, type VendorPolicy } from "../policy/vendor-policy.ts";
+import { evaluateModel, type VendorPolicy } from "../policy/vendor-policy.ts";
+import { CompanyPolicyStore } from "../policy/company-policy-store.ts";
 import { redact } from "../security/redaction.ts";
 
 export class RoutingError extends Error {
@@ -42,7 +43,8 @@ export class RoutingStore {
   constructor(
     private readonly db: DatabaseSync,
     private readonly configPath = path.resolve("config/routing-profiles.yaml"),
-    private readonly policy: () => VendorPolicy = getVendorPolicy,
+    private readonly policy: (companyId: string) => VendorPolicy = (companyId) =>
+      new CompanyPolicyStore(db).effective(companyId),
   ) {}
   private atomic<T>(action: () => T): T {
     this.db.exec("SAVEPOINT routing_change");
@@ -104,10 +106,14 @@ export class RoutingStore {
         "Vendor-ID muss exakt dem Modell entsprechen; CLI-Alias benötigt den festen Runtime-Vendorpräfix.",
         400,
       );
-    const policy = this.policy();
+    const policy = this.policy(companyId);
     const actual = evaluateModel(policy, target.model, target.runtimeType);
     const vendor = evaluateModel(policy, target.vendorModel, target.runtimeType);
-    if (actual.code === "blocked_family" || !vendor.allowed)
+    if (
+      actual.code === "blocked_family" ||
+      !vendor.allowed ||
+      (target.runtimeType === "openrouter" && policy.openrouter.allowed_providers.length === 0)
+    )
       throw new RoutingError("vendor_denied", "Modell oder Anbieter durch zentrale Vendor-Policy gesperrt.", 403);
     return vessel;
   }

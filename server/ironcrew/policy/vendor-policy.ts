@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { load as parseYaml } from "js-yaml";
 import { z } from "zod";
+import type { CompanyPolicyRestrictions } from "../../../src/shared/company-policy.ts";
 
 const blockedFamilySchema = z.object({
   id: z.string().min(1),
@@ -128,6 +129,58 @@ export function evaluateModel(policy: VendorPolicy, modelId: string, provider?: 
   return { allowed: true, code: "allowed", reason: "Model permitted by vendor policy." };
 }
 
+/** Official CLI aliases have a fixed vendor; an arbitrary namespace cannot change it. */
+export const RUNTIME_VENDORS: Readonly<Record<string, string>> = {
+  claude: "anthropic",
+  "claude-code": "anthropic",
+  codex: "openai",
+  "codex-cli": "openai",
+  antigravity: "google",
+  agy: "google",
+  gemini: "google",
+};
+export function runtimeVendorModel(runtimeType: string, model?: string): string {
+  const value = (model ?? "").trim();
+  const vendor = RUNTIME_VENDORS[runtimeType];
+  return vendor && !value.includes("/") ? `${vendor}/${value || "default"}` : value;
+}
+
+/** Admission for unbound vessels as well as routed task/meeting runs. */
+export function evaluateRuntimeModel(policy: VendorPolicy, runtimeType: string, model?: string): PolicyDecision {
+  // The built-in deterministic mock has no vendor connection or model selection.
+  if (runtimeType === "mock") return { allowed: true, code: "allowed", reason: "Offline MockRuntime." };
+  const canonical = runtimeVendorModel(runtimeType, model);
+  const vendor = RUNTIME_VENDORS[runtimeType];
+  if (vendor && !normaliseModelId(canonical).startsWith(`${vendor}/`))
+    return { allowed: false, code: "not_in_allowlist", reason: "Modell gehört nicht zum offiziellen CLI-Anbieter." };
+  if (runtimeType === "openrouter" && policy.openrouter.allowed_providers.length === 0)
+    return { allowed: false, code: "not_in_allowlist", reason: "Kein OpenRouter-Provider freigegeben." };
+  // The actual OpenRouter default is resolved only inside its adapter (also on
+  // native runners). It checks that concrete model before its first request.
+  if (runtimeType === "openrouter" && !canonical && policy.allowed_families.length > 0)
+    return {
+      allowed: true,
+      code: "allowed",
+      reason: "OpenRouter prüft sein konkretes Standardmodell vor dem Request.",
+    };
+  return evaluateModel(policy, canonical, runtimeType);
+}
+
+/** Wire data can tighten the runner's own baseline, never relax any guard. */
+export function restrictVendorPolicy(policy: VendorPolicy, restrictions?: CompanyPolicyRestrictions): VendorPolicy {
+  if (!restrictions) return policy;
+  return {
+    ...policy,
+    allowed_families: policy.allowed_families.filter((family) => restrictions.allowedFamilies.includes(family)),
+    openrouter: {
+      ...policy.openrouter,
+      allowed_providers: policy.openrouter.allowed_providers.filter((provider) =>
+        restrictions.allowedProviders.includes(provider),
+      ),
+    },
+  };
+}
+
 /** Thrown when a denied model reaches an execution path. */
 export class VendorPolicyError extends Error {
   readonly decision: PolicyDecision;
@@ -218,14 +271,20 @@ export function defaultVendorPolicyPath(): string {
 }
 
 let cached: VendorPolicy | null = null;
+let cachedSource: string | null = null;
 
 /** Process-wide policy singleton. Fails loudly if the config is invalid. */
 export function getVendorPolicy(): VendorPolicy {
-  if (!cached) cached = loadVendorPolicyFromFile(defaultVendorPolicyPath());
+  const source = readFileSync(defaultVendorPolicyPath(), "utf8");
+  if (!cached || source !== cachedSource) {
+    cached = parseVendorPolicy(parseYaml(source));
+    cachedSource = source;
+  }
   return cached;
 }
 
 /** Test seam: drop the cached policy. */
 export function resetVendorPolicyCache(): void {
   cached = null;
+  cachedSource = null;
 }

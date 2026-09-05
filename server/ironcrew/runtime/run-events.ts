@@ -11,6 +11,7 @@
  */
 
 import { z } from "zod";
+import type { CompanyPolicyRestrictions } from "../../../src/shared/company-policy.ts";
 
 export const RUN_EVENT_TYPES = [
   "run.started",
@@ -153,6 +154,8 @@ export interface RunContext {
   allowedTools?: string[];
   /** Persisted task sensitivity. Unclassified requests use sensitive defaults. */
   sensitive?: boolean;
+  /** Control-plane allowlists; native runners intersect these with their own YAML baseline. */
+  vendorRestrictions?: CompanyPolicyRestrictions;
   /** Literal secret values to redact from this run's output, if any. */
   redactValues?: readonly string[];
   signal?: AbortSignal;

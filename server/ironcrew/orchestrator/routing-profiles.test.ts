@@ -93,6 +93,25 @@ function configure(patch: Partial<RoutingProfile> = {}) {
   orc.routing.bind(companyId, agentId, { profileKey: "coding" }, "ceo");
 }
 describe("persisted profile dispatch", () => {
+  it("revalidates saved profiles against company policy and never falls back around denial", async () => {
+    configure();
+    const current = orc.companyPolicies.snapshot(companyId);
+    orc.companyPolicies.save(
+      companyId,
+      {
+        baseRevision: current.revision,
+        baselineFingerprint: current.baselineFingerprint,
+        reason: "Nur OpenAI für neue Ausführungen freigeben.",
+        restrictions: { ...current.restrictions, allowedFamilies: ["openai/*"] },
+      },
+      "ceo",
+    );
+    await expect(orc.executeTaskById(companyId, taskId)).rejects.toThrow("Vendor-Policy");
+    expect(primary.calls).toHaveLength(0);
+    expect(fallback.calls).toHaveLength(0);
+    expect(orc.tasks.get(taskId)?.status).toBe("ready");
+  });
+
   it("leaves unbound agents on their original vessel", async () => {
     const mock = new Runtime("mock");
     orc.registerRuntime(mock);

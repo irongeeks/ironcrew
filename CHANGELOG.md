@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 — 2026-09-05
+
+- Add owner-managed company model/provider restrictions below the central YAML ceiling.
+- Persist immutable revisions, reasons and audit references with stale-write protection.
+- Add German policy editor, effective-state preview, read-only model checks and history.
+- Enforce policy on task, meeting, resume and routed execution; carry tightening-only restrictions to native runners.
+- Re-read the installation policy when changed and refuse empty provider allowlists.
+- Add persistence, authorization, concurrency, runtime and browser regressions.
+
 ## 0.1.0 — 2026-09-05
 
 - Begin IronCrew’s own product versioning at 0.1.0, retaining 2.8.0 as immutable release history.

@@ -38,7 +38,7 @@ afterEach(() => db.close());
 /** A runtime that always fails, to exercise the attempt budget. */
 class BrokenRuntime extends StubRuntime {
   constructor() {
-    super("broken");
+    super("mock");
   }
   // eslint-disable-next-line require-yield
   async *startRun(): AsyncIterable<RunEvent> {
@@ -189,7 +189,7 @@ describe("a busy company defers rather than failing", () => {
 describe("a failing run spends its attempts and then stops", () => {
   it("retries up to the vessel's budget, then dead-letters", async () => {
     orc.registerRuntime(new BrokenRuntime());
-    setVessel({ runtime_provider: "broken", max_retries: 1 });
+    setVessel({ runtime_provider: "mock", max_retries: 1 });
 
     const result = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Deployment-Verfahren.");
     const requestId = orc.runRequests.liveForTask(result.task!.id)!.id;
@@ -213,7 +213,7 @@ describe("a failing run spends its attempts and then stops", () => {
 
   it("leaves a dead request alone on the next drain", async () => {
     orc.registerRuntime(new BrokenRuntime());
-    setVessel({ runtime_provider: "broken", max_retries: 0 });
+    setVessel({ runtime_provider: "mock", max_retries: 0 });
 
     orc.handleCeoMessage(companyId, "Bitte dokumentiere das Deployment-Verfahren.");
     await orc.drainRunQueue(companyId);

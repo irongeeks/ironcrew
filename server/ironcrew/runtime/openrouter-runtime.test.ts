@@ -364,3 +364,61 @@ describe("status probes", () => {
     expect(caps.usageReporting).toBe(true);
   });
 });
+
+describe("company restrictions inside direct OpenRouter invocation", () => {
+  it("uses the current trusted company resolver for every new invocation", async () => {
+    let allowed = true;
+    const policy = vendorPolicy.getVendorPolicy();
+    const fetchImpl = vi.fn(async () => jsonResponse(COMPLETION)) as unknown as typeof fetch;
+    const resolver = vi.fn(() => ({ ...policy, allowed_families: allowed ? ["anthropic/*"] : ["openai/*"] }));
+    const rt = new OpenRouterRuntime({ apiKey: "fixture", fetchImpl, vendorPolicy: resolver });
+    await collect(rt.startRun({ prompt: "x" }, context()));
+    allowed = false;
+    const events = await collect(rt.startRun({ prompt: "x" }, context()));
+    expect(resolver).toHaveBeenLastCalledWith("cmp_1");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(events.map((e) => e.type)).toEqual(["run.failed"]);
+  });
+  it("pins company provider intersection and cannot relax local privacy or vendor blocks", async () => {
+    const baseline = vendorPolicy.getVendorPolicy();
+    const provider = baseline.openrouter.allowed_providers[0];
+    let body: Record<string, unknown> = {};
+    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return jsonResponse(COMPLETION);
+    }) as unknown as typeof fetch;
+    const ctx = context({
+      vendorRestrictions: {
+        allowedFamilies: ["anthropic/*", "deepseek/*", "*/*"],
+        allowedProviders: [provider, "unapproved-host"],
+      },
+    });
+    await collect(runtime(fetchImpl).startRun({ prompt: "x" }, ctx));
+    expect(body.provider).toMatchObject({
+      only: [provider],
+      order: [provider],
+      allow_fallbacks: false,
+      data_collection: "deny",
+      zdr: true,
+    });
+    const events = await collect(runtime(fetchImpl).startRun({ prompt: "x", model: "deepseek/example" }, ctx));
+    expect(events.at(-1)?.type).toBe("run.failed");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it.each(["families", "providers"])("fails closed on an empty %s intersection before fetch", async (empty) => {
+    const fetchImpl = vi.fn(async () => jsonResponse(COMPLETION)) as unknown as typeof fetch;
+    const events = await collect(
+      runtime(fetchImpl).startRun(
+        { prompt: "x" },
+        context({
+          vendorRestrictions: {
+            allowedFamilies: empty === "families" ? [] : ["anthropic/*"],
+            allowedProviders: empty === "providers" ? [] : vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
+          },
+        }),
+      ),
+    );
+    expect(events.map((e) => e.type)).toEqual(["run.failed"]);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});

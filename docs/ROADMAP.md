@@ -7,12 +7,10 @@ prompt is implemented, integrated and accepted.
 
 ## Current work: complete and verify the integrated product
 
-The branch `feature/company-os-completion` extends the merged modern Office/CEO
-workflow with the outbound runner fleet, concrete sandbox access and approval
-consumption, character media/3D, coaching/evaluation, project planning, native service
-installation and production verification. These changes need a final consolidated
-CI and browser run after integration; individually present modules are not equivalent
-to a completed end-to-end product acceptance.
+The Company OS completion, routing, living office, career reviews and release
+work are merged. Version 0.1.0 established the product version line and current
+README/screenshots. The next feature milestone adds versioned company vendor
+restrictions, effective enforcement and an owner editor; see [VENDOR_POLICIES.md](VENDOR_POLICIES.md).
 
 The new platform workflow covers Linux/macOS native tests, migration/recovery,
 portable installation definitions, a booted production Docker image, persistent
@@ -37,8 +35,9 @@ No actual operating-system services or production accounts are installed by thes
 
 ## Remaining product expansion
 
-- Complete any remaining administrator-editable abstract routing profiles and
-  versioned policy/configuration editors, with tests for every external boundary.
+- Expand versioned configuration editors beyond the implemented routing profiles
+  and vendor restrictions: approval, runtime, tool and memory configurations still
+  need scoped owner editing and boundary tests.
 - Connect real MSP, agency and finance data sources before exposing their KPIs as
   business facts. Forecasts require measured inputs and traceable assumptions.
 - Extend business-pack write workflows only with concrete adapters, idempotency,

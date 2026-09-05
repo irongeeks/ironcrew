@@ -36,6 +36,8 @@ Im Mitarbeiterprofil sind fachliche Rolle, Ausführungsrahmen und Erscheinungsbi
 | Mitarbeiterlevel | Junior, Senior oder Lead im Abteilungsworkflow |
 | Figur | Erscheinungsbild, private Medien und Statusanimation |
 
+Unter **Provider-Freigaben** kann der Owner Modellfamilien und OpenRouter-Provider für die Firma einschränken. Änderungen benötigen eine Begründung und erscheinen versioniert im Audit. Die integrierte Prüfung bewertet den gespeicherten Stand ohne Modellaufruf. [Bedienung und Grenzen](VENDOR_POLICIES.md).
+
 Unter **Modell-Routing** lassen sich `fast`, `balanced`, `deep_reasoning`, `coding`, `research`, `legal_research`, `finance`, `vision` und `long_context` konkreten verfügbaren Runtimes und Modellen zuordnen. Ein Profilname bestätigt keine Fähigkeit und wählt ohne Einrichtung kein Modell. Die zentrale Vendor-Policy und Budgetgrenzen bleiben wirksam.
 
 ### Junior, Senior und Lead aktivieren

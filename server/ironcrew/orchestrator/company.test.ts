@@ -538,8 +538,8 @@ describe("goal ancestry in the run context", () => {
    * observe what executeNextTask() built, not just that it ran.
    */
   class PromptCapturingRuntime implements AgentRuntime {
-    readonly id = "capture";
-    readonly type = "capture";
+    readonly id = "mock";
+    readonly type = "mock";
     receivedPrompt: string | null = null;
 
     async capabilities() {
@@ -596,7 +596,7 @@ describe("goal ancestry in the run context", () => {
       assignedAgentId: cto.id,
     });
 
-    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+    await orc.executeNextTask(companyId, { runtimeType: "mock" });
 
     expect(capture.receivedPrompt).toContain("Strategischer Kontext");
     expect(capture.receivedPrompt).toContain("Pricing page");
@@ -621,7 +621,7 @@ describe("goal ancestry in the run context", () => {
       assignedAgentId: cto.id,
     });
 
-    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+    await orc.executeNextTask(companyId, { runtimeType: "mock" });
     expect(capture.receivedPrompt).not.toContain("Strategischer Kontext");
   });
 
@@ -632,7 +632,7 @@ describe("goal ancestry in the run context", () => {
     const cto = orc.getAgent(companyId, "cto")!;
     orc.tasks.create({ companyId, title: "Standalone task", status: "ready", assignedAgentId: cto.id });
 
-    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+    await orc.executeNextTask(companyId, { runtimeType: "mock" });
     expect(capture.receivedPrompt).not.toContain("Strategischer Kontext");
   });
 });
@@ -1014,8 +1014,8 @@ describe("meetings — moderator, bounded rounds, budget", () => {
 
     let lastPrompt = "";
     const capturingRuntime: AgentRuntime = {
-      id: "capture",
-      type: "capture",
+      id: "mock",
+      type: "mock",
       capabilities: async () => ({
         streaming: true,
         sessionResume: false,
@@ -1911,8 +1911,10 @@ describe("agent run lock — one agent never has two runs in flight", () => {
   });
 
   it("does not leave the lease held when a run fails", async () => {
+    let invoked = false;
     orc.registerRuntime({
-      type: "exploding",
+      id: "mock",
+      type: "mock",
       capabilities: async () => ({
         workspaceRequired: false,
         streaming: false,
@@ -1927,17 +1929,19 @@ describe("agent run lock — one agent never has two runs in flight", () => {
       authStatus: async () => ({ authenticated: true, method: "none", detail: "" }),
       // eslint-disable-next-line require-yield
       startRun: async function* () {
+        invoked = true;
         throw new Error("runtime exploded");
       },
       cancelRun: async () => {},
-    } as unknown as AgentRuntime);
+    } as AgentRuntime);
 
     const { agentId } = readyTask();
 
-    await orc.executeNextTask(companyId, { runtimeType: "exploding" }).catch(() => undefined);
+    await orc.executeNextTask(companyId, { runtimeType: "mock" }).catch(() => undefined);
 
     // A crashed run that kept its lease would park the agent until the lease
     // expired — half an hour of an agent doing nothing.
+    expect(invoked).toBe(true);
     expect(orc.agentLocks.isLocked(agentId)).toBe(false);
   });
 });

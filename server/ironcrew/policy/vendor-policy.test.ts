@@ -6,6 +6,7 @@ import {
   defaultVendorPolicyPath,
   evaluateEndpoint,
   evaluateModel,
+  evaluateRuntimeModel,
   filterModelCatalogue,
   getVendorPolicy,
   loadVendorPolicyFromFile,
@@ -208,5 +209,28 @@ describe("blocked endpoints", () => {
 
   it("permits an ordinary endpoint", () => {
     expect(evaluateEndpoint(policy, "https://api.openai.com/v1/models").allowed).toBe(true);
+  });
+});
+
+describe("official runtime model identity", () => {
+  it.each([
+    ["claude", "sonnet", "anthropic/*"],
+    ["claude-code", "opus", "anthropic/*"],
+    ["codex", "gpt-example", "openai/*"],
+    ["antigravity", "gemini-example", "google/*"],
+    ["agy", "", "google/*"],
+    ["gemini", "default", "google/*"],
+  ])("maps %s alias %s to its actual vendor", (runtime, model, family) => {
+    expect(evaluateRuntimeModel({ ...policy, allowed_families: [family] }, runtime, model).allowed).toBe(true);
+    expect(evaluateRuntimeModel({ ...policy, allowed_families: [] }, runtime, model).allowed).toBe(false);
+  });
+  it.each([
+    ["claude", "openai/gpt-example"],
+    ["codex", "anthropic/claude-example"],
+    ["claude", "qwen-code"],
+    ["antigravity", "kimi-example"],
+    ["unknown-runtime", "default"],
+  ])("rejects mismatched or blocked identity %s/%s", (runtime, model) => {
+    expect(evaluateRuntimeModel(policy, runtime, model).allowed).toBe(false);
   });
 });

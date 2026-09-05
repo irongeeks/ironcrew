@@ -2,6 +2,8 @@
 
 ## IronCrew
 
+- [v0.2.0](v0.2.0.md) — versionierte Firmenfreigaben und durchgängige Vendor-Durchsetzung.
+
 - [v0.1.0](v0.1.0.md) — eigene Produktversionierung, gezielter Übergang von 2.8.0 und aktuelle Dokumentation mit Screenshots.
 - [v2.8.0](v2.8.0.md) — historischer erster Release unter übernommener Versionsnummer.
 
