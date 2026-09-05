@@ -82,7 +82,11 @@ export interface RecordCostInput {
   projectId?: string | null;
   agentId?: string | null;
   runtimeType?: string;
+  /** Original agent runtime remains a budget boundary when routing selects another runtime. */
+  originRuntimeType?: string;
   provider?: string;
+  /** Model vendor is distinct from the transport provider (e.g. openai via openrouter). */
+  modelVendor?: string;
   model?: string | null;
   kind?: "usage" | "quota" | "adjustment";
   inputTokens?: number;
@@ -156,12 +160,12 @@ export class BudgetEngine {
         params.push(budget.scope_id);
         break;
       case "runtime":
-        clauses.push("runtime_type = ?");
-        params.push(budget.scope_id);
+        clauses.push("(runtime_type = ? OR origin_runtime_type = ?)");
+        params.push(budget.scope_id, budget.scope_id);
         break;
       case "provider":
-        clauses.push("provider = ?");
-        params.push(budget.scope_id);
+        clauses.push("(provider = ? OR model_vendor = ?)");
+        params.push(budget.scope_id, budget.scope_id);
         break;
     }
 
@@ -187,7 +191,9 @@ export class BudgetEngine {
       projectId?: string | null;
       taskId?: string | null;
       runtimeType?: string;
+      originRuntimeType?: string;
       provider?: string;
+      modelVendor?: string;
     },
   ): BudgetRow[] {
     const all = allRows<BudgetRow>(
@@ -206,9 +212,14 @@ export class BudgetEngine {
         case "task":
           return !!dims.taskId && b.scope_id === dims.taskId;
         case "runtime":
-          return !!dims.runtimeType && b.scope_id === dims.runtimeType;
+          return (
+            (!!dims.runtimeType && b.scope_id === dims.runtimeType) ||
+            (!!dims.originRuntimeType && b.scope_id === dims.originRuntimeType)
+          );
         case "provider":
-          return !!dims.provider && b.scope_id === dims.provider;
+          return (
+            (!!dims.provider && b.scope_id === dims.provider) || (!!dims.modelVendor && b.scope_id === dims.modelVendor)
+          );
         default:
           return false;
       }
@@ -277,8 +288,9 @@ export class BudgetEngine {
       .prepare(
         `INSERT INTO crew_cost_events
            (id, company_id, run_id, task_id, project_id, agent_id, runtime_type, provider,
-            model, kind, input_tokens, output_tokens, cost_micros, window_day, window_month, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            model, kind, input_tokens, output_tokens, cost_micros, window_day, window_month, created_at,
+            origin_runtime_type, model_vendor)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
         id,
@@ -297,6 +309,8 @@ export class BudgetEngine {
         dayKey(now),
         monthKey(now),
         now,
+        input.originRuntimeType ?? null,
+        input.modelVendor ?? null,
       );
 
     const breached = this.status(
@@ -306,7 +320,9 @@ export class BudgetEngine {
         projectId: input.projectId,
         taskId: input.taskId,
         runtimeType: input.runtimeType,
+        originRuntimeType: input.originRuntimeType,
         provider: input.provider,
+        modelVendor: input.modelVendor,
       },
       now,
     ).filter((s) => s.state !== "ok");

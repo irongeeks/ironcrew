@@ -1,0 +1,283 @@
+.routing-panel {
+  color: #d1e1e8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.routing-panel > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.routing-panel h2 {
+  margin: 0 0 7px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.routing-panel h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.routing-panel p {
+  color: #a2b9c6;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 6px 0;
+}
+.routing-panel .routing-note {
+  font-size: 12px;
+  color: #97aeba;
+}
+.routing-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.routing-revision {
+  color: #9cc7ce;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.routing-profile-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #314b58;
+}
+.routing-profile-navigation button {
+  padding: 8px 11px;
+  border: 1px solid #385460;
+  border-radius: 5px;
+  background: #152933;
+  color: #adc7d0;
+  font-size: 12px;
+  cursor: pointer;
+}
+.routing-profile-navigation button[aria-pressed="true"] {
+  background: #284750;
+  color: #d2ecee;
+  border-color: #6a959e;
+}
+.routing-profile-navigation button[data-unconfigured="true"]::after {
+  content: " · offen";
+  color: #bdb090;
+}
+.routing-profile-form {
+  border: 0;
+  padding: 18px 0;
+  margin: 0;
+  min-width: 0;
+}
+.routing-profile-form > legend {
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.routing-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #c7dbe2;
+  font-size: 12px;
+  min-width: 0;
+}
+.routing-panel input[type="text"],
+.routing-panel select {
+  width: 100%;
+  min-width: 0;
+  min-height: 37px;
+  background: #112832;
+  border: 1px solid #3a5866;
+  border-radius: 5px;
+  padding: 8px 10px;
+  color: #d5e6eb;
+  font: inherit;
+  font-size: 12px;
+}
+.routing-panel input::placeholder {
+  color: #809da9;
+}
+.routing-panel .routing-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding-block: 5px;
+}
+.routing-target {
+  margin: 16px 0;
+  border: 1px solid #34515e;
+  border-radius: 7px;
+  padding: 15px;
+  background: #132933;
+}
+.routing-target header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 13px;
+}
+.routing-target h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.routing-target-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 13px;
+}
+.routing-target-runtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #90b9c1;
+  font-size: 11px;
+}
+.routing-target-runtime strong {
+  font-weight: 500;
+  color: #c4dce2;
+}
+.routing-target-fields > label:first-child {
+  grid-column: 1/-1;
+}
+.routing-target-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.routing-policies {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-block: 18px;
+}
+.routing-policies fieldset {
+  border: 1px solid #304c59;
+  border-radius: 5px;
+  padding: 10px 13px;
+  min-width: 0;
+}
+.routing-policies legend {
+  font-size: 12px;
+  padding-inline: 4px;
+}
+.routing-fallback-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.routing-panel [role="alert"] {
+  color: #ecc0b0;
+  background: #3a302e;
+  border-left: 3px solid #be8b70;
+  padding: 11px 14px;
+  margin-block: 13px;
+}
+.routing-panel .routing-notice {
+  color: #bcd7d3;
+  background: #233e3e;
+  padding: 10px 13px;
+  border-left: 3px solid #6caba2;
+}
+.routing-empty {
+  padding: 22px 0;
+}
+.routing-actions {
+  padding-block: 16px;
+  border-top: 1px solid #34525f;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+}
+.routing-bindings {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #34525f;
+}
+.routing-binding-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.routing-binding-list li {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(170px, 2fr) auto;
+  gap: 13px;
+  align-items: end;
+  padding-block: 12px;
+  border-bottom: 1px solid #2a4653;
+}
+.routing-binding-list strong {
+  align-self: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+.routing-history {
+  margin-top: 22px;
+  color: #a7c4ce;
+  font-size: 13px;
+}
+.routing-history summary {
+  cursor: pointer;
+}
+.routing-history ul {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.routing-history li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block: 9px;
+  border-bottom: 1px solid #304955;
+  font-size: 12px;
+}
+.routing-panel button:focus-visible,
+.routing-panel input:focus-visible,
+.routing-panel select:focus-visible,
+.routing-panel summary:focus-visible {
+  outline: 2px solid #d6b875;
+  outline-offset: 3px;
+}
+.routing-panel button:disabled,
+.routing-panel fieldset:disabled {
+  opacity: 0.6;
+}
+.routing-panel fieldset:disabled input,
+.routing-panel fieldset:disabled select {
+  cursor: default;
+}
+@media (max-width: 650px) {
+  .routing-target-fields,
+  .routing-policies {
+    grid-template-columns: 1fr;
+  }
+  .routing-binding-list li {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 9px;
+  }
+  .routing-target header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .routing-binding-list button {
+    justify-self: start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .routing-panel * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

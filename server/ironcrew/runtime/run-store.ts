@@ -50,6 +50,10 @@ export interface CreateRunInput {
   sandboxGrantId?: string | null;
   correlationId?: string;
   workerId?: string | null;
+  routingVesselId?: string | null;
+  routingOriginVesselId?: string | null;
+  routingProfileKey?: string | null;
+  routingRevision?: number | null;
 }
 
 export class RunStore {
@@ -61,8 +65,9 @@ export class RunStore {
       .prepare(
         `INSERT INTO crew_runs
            (id, company_id, task_id, agent_id, project_id, runtime_type, model,
-            permission_mode, sandbox_grant_id, status, correlation_id, worker_id)
-         VALUES (?,?,?,?,?,?,?,?,?,'queued',?,?)`,
+            permission_mode, sandbox_grant_id, status, correlation_id, worker_id,
+            routing_vessel_id, routing_origin_vessel_id, routing_profile_key, routing_revision)
+         VALUES (?,?,?,?,?,?,?,?,?,'queued',?,?,?,?,?,?)`,
       )
       .run(
         id,
@@ -76,6 +81,10 @@ export class RunStore {
         input.sandboxGrantId ?? null,
         input.correlationId ?? "",
         input.workerId ?? null,
+        input.routingVesselId ?? null,
+        input.routingOriginVesselId ?? null,
+        input.routingProfileKey ?? null,
+        input.routingRevision ?? null,
       );
     return this.get(id)!;
   }

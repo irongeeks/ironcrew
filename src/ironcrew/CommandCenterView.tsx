@@ -1,3 +1,4 @@
+import { RoutingProfilesPanel } from "./RoutingProfilesPanel";
 import { CoachingPanel } from "./CoachingPanel.tsx";
 import { ProjectPlanningPanel } from "./ProjectPlanningPanel.tsx";
 import { SandboxAccessPanel } from "./SandboxAccessPanel.tsx";
@@ -311,7 +312,9 @@ export function CommandCenterView({
   const [memoryProviders, setMemoryProviders] = useState<MemoryProviderStatus[]>([]);
   const [memories, setMemories] = useState<MemoryRef[]>([]);
   const [showMemory, setShowMemory] = useState(false);
-  const [companyPanel, setCompanyPanel] = useState<"coaching" | "planning" | "sandbox" | "fleet" | null>(null);
+  const [companyPanel, setCompanyPanel] = useState<"coaching" | "planning" | "sandbox" | "fleet" | "routing" | null>(
+    null,
+  );
   const [myRole, setMyRole] = useState<string | null>(null);
   const [memoryQuery, setMemoryQuery] = useState("");
   const [semanticMemorySearch, setSemanticMemorySearch] = useState(false);
@@ -2274,6 +2277,14 @@ export function CommandCenterView({
           <button
             type="button"
             className="ic-btn"
+            data-testid="open-routing"
+            onClick={() => setCompanyPanel("routing")}
+          >
+            Modell-Routing
+          </button>
+          <button
+            type="button"
+            className="ic-btn"
             data-testid="open-coaching"
             onClick={() => setCompanyPanel("coaching")}
           >
@@ -3928,10 +3939,18 @@ export function CommandCenterView({
               planning: "Projektpläne",
               sandbox: "Sandbox-Freigaben",
               fleet: "Native Runner-Flotte",
+              routing: "Modell-Routing",
             }[companyPanel]
           }
           onClose={() => setCompanyPanel(null)}
         >
+          {companyPanel === "routing" && (
+            <RoutingProfilesPanel
+              agents={agents}
+              canManage={myRole === "owner" || myRole === null}
+              refreshKey={lastRefreshedAt ?? undefined}
+            />
+          )}
           {companyPanel === "coaching" && (
             <CoachingPanel
               agents={agents}

@@ -1,3 +1,5 @@
+import { RoutingStore, RoutingError } from "../domain/routing-store.ts";
+import { selectProfileRoute, type RouteSelection } from "../runtime/profile-router.ts";
 /**
  * IronCrew — company orchestrator.
  *
@@ -234,6 +236,7 @@ export class CompanyOrchestrator {
   readonly projects: ProjectStore;
   readonly projectPlans: ProjectPlanStore;
   readonly coaching: CoachingStore;
+  readonly routing: RoutingStore;
   readonly sandboxAccess: SandboxAccessService;
   private readonly activeRuns = new Map<
     string,
@@ -303,6 +306,7 @@ export class CompanyOrchestrator {
     this.projects = new ProjectStore(db);
     this.projectPlans = new ProjectPlanStore(db);
     this.coaching = new CoachingStore(db);
+    this.routing = new RoutingStore(db);
     this.sandboxAccess = new SandboxAccessService(db);
     this.notifications = new NotificationStore(db);
     this.decisions = new DecisionStore(db);
@@ -446,8 +450,31 @@ export class CompanyOrchestrator {
       | undefined;
     if (!agent) throw new MeetingMutationError(`Agent "${speakerAgentId}" does not exist.`);
 
-    const runtimeType = agent.runtime_provider;
-    const runtime = this.runtimes.get(runtimeType);
+    if (agent.company_id !== companyId) throw new MeetingMutationError("Meeting-Agent gehört zu einer anderen Firma.");
+    this.budgets.assertRunPermitted(companyId, {
+      agentId: speakerAgentId,
+      projectId: meeting.project_id,
+      runtimeType: agent.runtime_provider,
+    });
+    const binding = this.routing.binding(companyId, speakerAgentId);
+    const route = binding
+      ? await selectProfileRoute({
+          db: this.db,
+          store: this.routing,
+          budgets: this.budgets,
+          runtimes: this.runtimes,
+          companyId,
+          agentId: speakerAgentId,
+          taskId: null,
+          projectId: meeting.project_id,
+          correlationId: newCorrelationId(),
+          binding,
+          sensitive: true,
+          workspace: (r) => this.resolveWorkspace(companyId, meeting.project_id, r, opts.workspacePath),
+        })
+      : null;
+    const runtimeType = route?.target.runtimeType ?? agent.runtime_provider;
+    const runtime = route?.runtime ?? this.runtimes.get(runtimeType);
     if (!runtime) throw new Error(`No runtime registered for type "${runtimeType}".`);
 
     // A meeting's spend is real spend — same pre-dispatch gate task execution uses.
@@ -494,9 +521,42 @@ export class CompanyOrchestrator {
     let inputTokens = 0;
     let outputTokens = 0;
 
+    let meetingCompleted = false;
+    const meetingAbort = new AbortController();
+    const originVessel = agent.vessel_id ? this.vessels.get(agent.vessel_id) : null;
+    const routeLease = route ? this.routing.reserveMeeting(companyId, meetingId, route.vessel, originVessel) : null;
+    const meetingTimer = route
+      ? setTimeout(
+          () => meetingAbort.abort(new Error("Meeting-Timeout")),
+          Math.min(agent.vessel_timeout_ms, route.vessel.timeout_ms),
+        )
+      : null;
+    meetingTimer?.unref?.();
     try {
+      if (route) {
+        const latest = this.routing.binding(companyId, speakerAgentId);
+        if (latest?.revision !== route.revision || latest.profile.key !== route.profileKey)
+          throw new RoutingError("route_changed", "Routing wurde während der Meeting-Vorbereitung geändert.");
+        this.routing.target(companyId, route.target);
+        const currentWorkspace = await this.resolveWorkspace(
+          companyId,
+          meeting.project_id,
+          runtime,
+          opts.workspacePath,
+        );
+        if (currentWorkspace !== route.workspacePath)
+          throw new RoutingError("route_changed", "Meeting-Workspace wurde während der Vorbereitung geändert.");
+        this.budgets.assertRunPermitted(companyId, {
+          agentId: speakerAgentId,
+          projectId: meeting.project_id,
+          runtimeType,
+          provider: runtimeType,
+          originRuntimeType: agent.runtime_provider,
+          modelVendor: route.target.vendorModel.split("/")[0],
+        });
+      }
       for await (const ev of runtime.startRun(
-        { prompt },
+        { prompt, ...(route ? { model: route.target.model, modelProfile: route.profileKey } : {}) },
         {
           companyId,
           projectId: meeting.project_id,
@@ -508,9 +568,12 @@ export class CompanyOrchestrator {
           runId: newId("run"),
           agentId: speakerAgentId,
           correlationId: newCorrelationId(),
-          workspacePath: await this.resolveWorkspace(companyId, meeting.project_id, runtime, opts.workspacePath),
+          workspacePath:
+            route?.workspacePath ??
+            (await this.resolveWorkspace(companyId, meeting.project_id, runtime, opts.workspacePath)),
           sensitive: true,
           permissionMode: "restricted",
+          ...(route ? { signal: meetingAbort.signal } : {}),
         },
       )) {
         if (ev.type === "usage.updated") {
@@ -518,14 +581,56 @@ export class CompanyOrchestrator {
           inputTokens += p.inputTokens ?? 0;
           outputTokens += p.outputTokens ?? 0;
           costMicros += p.costMicros ?? 0;
+          if (route) {
+            this.budgets.recordCost({
+              companyId,
+              taskId: null,
+              projectId: meeting.project_id,
+              agentId: speakerAgentId,
+              runtimeType,
+              provider: runtimeType,
+              originRuntimeType: agent.runtime_provider,
+              modelVendor: route.target.vendorModel.split("/")[0],
+              kind: (p.costMicros ?? 0) > 0 ? "usage" : "quota",
+              inputTokens: p.inputTokens ?? 0,
+              outputTokens: p.outputTokens ?? 0,
+              costMicros: p.costMicros ?? 0,
+            });
+            this.budgets.assertRunPermitted(companyId, {
+              agentId: speakerAgentId,
+              projectId: meeting.project_id,
+              runtimeType,
+              provider: runtimeType,
+              originRuntimeType: agent.runtime_provider,
+              modelVendor: route.target.vendorModel.split("/")[0],
+            });
+            if (meeting.budget_micros > 0 && meeting.spent_micros + costMicros >= meeting.budget_micros)
+              throw new RoutingError("meeting_budget", "Meeting-Budget ausgeschöpft.", 402);
+          }
         }
+        if (
+          route &&
+          (meetingAbort.signal.aborted ||
+            ["run.failed", "run.cancelled", "run.waiting", "rate_limit.detected"].includes(ev.type))
+        )
+          throw new RoutingError(
+            "meeting_run_stopped",
+            "Meeting-Run wurde abgebrochen oder wartet; kein automatischer Fallback.",
+          );
+        if (ev.type === "run.completed") meetingCompleted = true;
         if (ev.type === "message.completed") contribution = String((ev.payload as { text?: string }).text ?? "");
       }
+      if (route && (meetingAbort.signal.aborted || !meetingCompleted))
+        throw new RoutingError("meeting_incomplete", "Meeting-Run wurde ohne bestätigten Abschluss beendet.");
     } catch (err) {
+      meetingAbort.abort(err);
       contribution = `[Fehler: ${err instanceof Error ? err.message : String(err)}]`;
+    } finally {
+      if (meetingTimer) clearTimeout(meetingTimer);
+      if (routeLease) this.routing.releaseMeeting(routeLease);
     }
 
-    if (costMicros > 0 || inputTokens > 0 || outputTokens > 0) {
+    if (!route && (costMicros > 0 || inputTokens > 0 || outputTokens > 0)) {
       this.budgets.recordCost({
         companyId,
         taskId: null,
@@ -2606,14 +2711,19 @@ export class CompanyOrchestrator {
         `SELECT COUNT(*) AS ahead
            FROM crew_runs r
            JOIN crew_agents a ON a.id = r.agent_id
-          WHERE a.vessel_id = ?
+          WHERE (COALESCE(r.routing_vessel_id,a.vessel_id) = ? OR COALESCE(r.routing_origin_vessel_id,a.vessel_id) = ?)
             AND r.status IN ('queued','running')
             AND COALESCE(r.heartbeat_at, r.created_at) > ?
             AND r.rowid < (SELECT rowid FROM crew_runs WHERE id = ?)`,
       )
-      .get(agent.vessel_id, now - VESSEL_RUN_STALE_MS, runId) as { ahead: number };
+      .get(agent.vessel_id, agent.vessel_id, now - VESSEL_RUN_STALE_MS, runId) as { ahead: number };
 
-    return rank.ahead < limit;
+    const meetings = this.db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM crew_routing_meeting_leases WHERE company_id=? AND (vessel_id=? OR origin_vessel_id=?) AND expires_at>?",
+      )
+      .get(agent.company_id, agent.vessel_id, agent.vessel_id, now) as { n: number };
+    return rank.ahead + meetings.n < limit;
   }
 
   /**
@@ -3341,6 +3451,11 @@ export class CompanyOrchestrator {
         // executeTask already catches those. Spending an attempt is right:
         // whatever broke will break again next tick, and the dead letter is
         // how it becomes visible instead of looping forever.
+        if (err instanceof RoutingError && err.status === 503) {
+          this.runRequests.defer(request.id, err.message, { leaseOwner });
+          result.deferred++;
+          continue;
+        }
         this.runRequests.fail(request.id, err instanceof Error ? err.message : String(err), { leaseOwner });
         result.failed++;
       }
@@ -3429,7 +3544,9 @@ export class CompanyOrchestrator {
       else this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.", { leaseOwner });
       return executed;
     } catch (error) {
-      this.runRequests.fail(request.id, error instanceof Error ? error.message : String(error), { leaseOwner });
+      if (error instanceof RoutingError && error.status === 503)
+        this.runRequests.defer(request.id, error.message, { leaseOwner });
+      else this.runRequests.fail(request.id, error instanceof Error ? error.message : String(error), { leaseOwner });
       throw error;
     }
   }
@@ -3484,12 +3601,91 @@ export class CompanyOrchestrator {
     const agentId = candidate.assigned_agent_id;
     if (!agentId) return null;
 
-    const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
-    if (!agent) return null;
+    let agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
+    if (!agent || agent.company_id !== companyId) return null;
 
     if (this.approvals.listPending(companyId).some((approval) => approval.task_id === candidate.id)) return null;
-    const runtimeType = opts.runtimeType ?? agent.runtime_provider;
-    const runtime = this.runtimes.get(runtimeType);
+    const originalAgent = agent;
+    this.budgets.assertRunPermitted(companyId, {
+      agentId,
+      taskId: candidate.id,
+      projectId: candidate.project_id,
+      runtimeType: originalAgent.runtime_provider,
+    });
+    const binding = this.routing.binding(companyId, agentId);
+    let route: RouteSelection | null = null;
+    let routedMemory: string | undefined;
+    if (binding) {
+      if (opts.runtimeType)
+        throw new RoutingError(
+          "override_denied",
+          "Ein gebundenes Profil kann nicht per Dispatch-Override umgangen werden.",
+          403,
+        );
+      if (
+        originalAgent.vessel_id &&
+        this.routing.activeCount(companyId, originalAgent.vessel_id) >= originalAgent.vessel_max_concurrency
+      )
+        return null;
+      routedMemory = await this.runMemoryContext(companyId, candidate, agentId);
+      // Once work has started, retries stay on the route actually used. A
+      // provider switch requires a new explicit owner configuration revision.
+      const previous = this.db
+        .prepare(
+          "SELECT routing_vessel_id,runtime_type,model FROM crew_runs WHERE company_id=? AND task_id=? AND routing_profile_key=? ORDER BY rowid DESC LIMIT 1",
+        )
+        .get(companyId, candidate.id, binding.profile.key) as
+        | { routing_vessel_id: string; runtime_type: string; model: string }
+        | undefined;
+      const targets = [binding.profile.primary!, ...binding.profile.fallbacks];
+      const pinnedIndex = previous
+        ? targets.findIndex(
+            (t) =>
+              t.vesselId === previous.routing_vessel_id &&
+              t.runtimeType === previous.runtime_type &&
+              t.model === previous.model,
+          )
+        : -1;
+      if (previous && (pinnedIndex < 0 || (pinnedIndex > 0 && !binding.profile.allowFallback)))
+        throw new RoutingError(
+          "route_changed",
+          "Bisherige Ausführungsroute passt nicht zur gespeicherten Profilversion.",
+        );
+      const selectedBinding =
+        pinnedIndex >= 0
+          ? {
+              ...binding,
+              profile: { ...binding.profile, primary: targets[pinnedIndex], fallbacks: [], allowFallback: false },
+            }
+          : binding;
+      route = await selectProfileRoute({
+        db: this.db,
+        store: this.routing,
+        budgets: this.budgets,
+        runtimes: this.runtimes,
+        companyId,
+        agentId,
+        taskId: candidate.id,
+        projectId: candidate.project_id,
+        correlationId: candidate.correlation_id,
+        binding: selectedBinding,
+        sensitive: candidate.sensitive !== 0 || routedMemory.length > 0,
+        workspace: (r) => this.resolveWorkspace(companyId, candidate.project_id, r, opts.workspacePath),
+      });
+      if (pinnedIndex >= 0) route.fallbackIndex = pinnedIndex;
+      const vessel = route.vessel;
+      agent = {
+        ...agent,
+        vessel_id: vessel.id,
+        vessel_key: vessel.key,
+        runtime_provider: route.target.runtimeType,
+        vessel_model: route.target.model,
+        vessel_timeout_ms: Math.min(originalAgent.vessel_timeout_ms, vessel.timeout_ms),
+        vessel_max_concurrency: vessel.max_concurrency,
+      };
+    }
+    const runtimeType = route?.target.runtimeType ?? opts.runtimeType ?? agent.runtime_provider;
+    const runtime = route?.runtime ?? this.runtimes.get(runtimeType);
     if (!runtime) throw new Error(`No runtime registered for type "${runtimeType}".`);
 
     // A provider cooldown applies to its other queued tasks too. The source
@@ -3535,6 +3731,10 @@ export class CompanyOrchestrator {
       permissionMode: permission.mode,
       sandboxGrantId: permission.grantId ?? null,
       correlationId: candidate.correlation_id,
+      routingVesselId: agent.vessel_id,
+      routingOriginVesselId: originalAgent.vessel_id,
+      routingProfileKey: route?.profileKey,
+      routingRevision: route?.revision,
     });
 
     const claimed = this.tasks.claim({
@@ -3578,7 +3778,7 @@ export class CompanyOrchestrator {
     //
     // Same fail-closed shape as above: the task returns to `ready` and is
     // picked up as soon as a seat frees.
-    if (!this.vesselAdmits(agent, run.id)) {
+    if (!this.vesselAdmits(agent, run.id) || !this.vesselAdmits(originalAgent, run.id)) {
       this.agentLocks.release(agentId, run.id);
       this.tasks.releaseLock(candidate.id, run.id);
       this.tasks.transition(claimed.id, "ready", {
@@ -3667,17 +3867,18 @@ export class CompanyOrchestrator {
       const workspacePath = await this.resolveWorkspace(companyId, candidate.project_id, runtime, opts.workspacePath);
       this.runs.setWorkspace(run.id, workspacePath);
       const planning = this.projectPlans.forTask(companyId, candidate.id);
-      const grant = planning
-        ? null
-        : this.sandboxAccess.consumeForRun({
-            companyId,
-            taskId: candidate.id,
-            agentId,
-            projectId: candidate.project_id,
-            provider: runtimeType,
-            workspacePath,
-            runId: run.id,
-          });
+      const grant =
+        planning || (route && route.fallbackIndex > 0)
+          ? null
+          : this.sandboxAccess.consumeForRun({
+              companyId,
+              taskId: candidate.id,
+              agentId,
+              projectId: candidate.project_id,
+              provider: runtimeType,
+              workspacePath,
+              runId: run.id,
+            });
       permission = resolvePermissionMode({
         provider: runtimeType,
         companyId,
@@ -3727,10 +3928,11 @@ export class CompanyOrchestrator {
             this.listAgents(companyId).map((a) => ({ key: a.key, role: a.professional_role })),
           )
         : "";
-      const memoryContext = await this.runMemoryContext(companyId, candidate, agentId);
+      const memoryContext = routedMemory ?? (await this.runMemoryContext(companyId, candidate, agentId));
       const input: RunInput = {
         prompt: `${seedAgentGuidance}${coachingContext}${strategicContext}${planningContext}\n\n# Aufgabe\n${candidate.description}${candidate.review_notes ? `\n\n# Revision des CEO\n${candidate.review_notes}` : ""}${memoryContext}`,
         model,
+        ...(route ? { modelProfile: route.profileKey } : {}),
       };
       const context: RunContext = {
         companyId,
@@ -3752,6 +3954,25 @@ export class CompanyOrchestrator {
               return decision.allowed && !decision.requiresApproval;
             }),
       };
+      if (route) {
+        const currentRoute = this.routing.binding(companyId, agentId);
+        if (
+          currentRoute?.revision !== route.revision ||
+          currentRoute.profile.key !== route.profileKey ||
+          workspacePath !== route.workspacePath
+        )
+          throw new RoutingError("route_changed", "Routing oder Workspace wurde während der Vorbereitung geändert.");
+        this.routing.target(companyId, route.target);
+        this.budgets.assertRunPermitted(companyId, {
+          agentId,
+          taskId: candidate.id,
+          projectId: candidate.project_id,
+          runtimeType,
+          provider: runtimeType,
+          originRuntimeType: originalAgent.runtime_provider,
+          modelVendor: route.target.vendorModel.split("/")[0],
+        });
+      }
       const sessionRef = this.runs.resumableSession(this.runs.get(run.id)!, workspacePath);
       const canResume = sessionRef && runtime.resumeRun && (await runtime.capabilities()).sessionResume;
       const stream = canResume
@@ -3801,6 +4022,13 @@ export class CompanyOrchestrator {
             projectId: candidate.project_id,
             agentId,
             runtimeType,
+            ...(route
+              ? {
+                  provider: runtimeType,
+                  originRuntimeType: originalAgent.runtime_provider,
+                  modelVendor: route.target.vendorModel.split("/")[0],
+                }
+              : {}),
             // A subscription runtime reports no price; record it as quota.
             kind: (p.costMicros ?? 0) > 0 ? "usage" : "quota",
             inputTokens: p.inputTokens ?? 0,
@@ -3816,6 +4044,13 @@ export class CompanyOrchestrator {
               projectId: candidate.project_id,
               taskId: candidate.id,
               runtimeType,
+              ...(route
+                ? {
+                    provider: runtimeType,
+                    originRuntimeType: originalAgent.runtime_provider,
+                    modelVendor: route.target.vendorModel.split("/")[0],
+                  }
+                : {}),
             });
           } catch (err) {
             abort.abort(err);

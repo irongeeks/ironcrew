@@ -1,0 +1,85 @@
+version: 1
+# Bootstrap only. Owner-reviewed revisions live in SQLite after first load.
+# No agent binding or runtime/model is silently selected by this file.
+profiles:
+  - {
+      key: fast,
+      label: Schnell,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [internal],
+      requiredCapabilities: [streaming],
+    }
+  - {
+      key: balanced,
+      label: Ausgewogen,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [internal],
+      requiredCapabilities: [streaming],
+    }
+  - {
+      key: deep_reasoning,
+      label: Tiefgehende Analyse,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [internal],
+      requiredCapabilities: [streaming],
+    }
+  - {
+      key: coding,
+      label: Softwareentwicklung,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [internal],
+      requiredCapabilities: [streaming],
+    }
+  - {
+      key: research,
+      label: Recherche,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [internal],
+      requiredCapabilities: [streaming],
+    }
+  - {
+      key: legal_research,
+      label: Juristische Recherche,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [confidential],
+      requiredCapabilities: [streaming],
+    }
+  - {
+      key: finance,
+      label: Finanzen,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [confidential],
+      requiredCapabilities: [streaming],
+    }
+  - {
+      key: vision,
+      label: Bildverständnis,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [internal],
+      requiredCapabilities: [streaming, vision],
+    }
+  - {
+      key: long_context,
+      label: Langer Kontext,
+      primary: null,
+      fallbacks: [],
+      allowFallback: false,
+      allowedSensitivity: [internal],
+      requiredCapabilities: [streaming, longContext],
+    }

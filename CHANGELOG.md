@@ -2,6 +2,12 @@
 
 ## Unreleased — 2026-09-05
 
+- Add nine owner-managed routing profiles with versioned UI/API configuration and agent binding.
+- Route actual task and meeting runs through explicit, policy-checked targets and pre-start fallbacks.
+- Persist original/selected vessels atomically; retain both budgets and capacity limits, charge costs once,
+  and prevent provider switching after partial work or use of a disabled fallback.
+- Treat incomplete or aborted routed meeting streams as visible failures.
+
 - Add runtime-generated EA project plans, owner review, atomic task trees and hard budget ceilings.
 - Prevent board/review/revision paths from bypassing pending action approvals.
 - Connect outbound TLS runner fleets with scoped enrollment, credential rotation, capacity leases and session affinity.
@@ -38,12 +44,16 @@
   durable write/delete retries and provenance-aware retrieval.
 - Resolve OpenRouter SecretRefs inside the native runner per run; support scoped
   workspace tools and explicit remote dispatch with mutual TLS and token authentication.
-  Automatic outbound enrollment and registry-driven fleet routing remain future work.
+  The outbound WSS fleet now adds enrollment and registry-driven worker selection.
 - Default local memory to `data/vault`; require an explicit development-only opt-in
   for embedded OpenRouter environment keys.
 
-Verification of this follow-up: **569 frontend and 26 script tests passed; TypeScript and production build passed. Current backend/browser evidence: [PR #18](https://github.com/irongeeks/ironcrew/pull/18)**. Authenticated provider
-and deployment acceptance remain separate manual checks.
+Verification at `ebfad74`: **5,085 backend tests passed (one skipped), 592 frontend,
+40 script and 76 browser tests passed (four skipped)**. Linux/macOS native checks,
+Docker startup/restart/persistence/isolated restore and supply-chain gates passed.
+Evidence: [CI](https://github.com/irongeeks/ironcrew/actions/runs/33947377635) and
+[platform CI](https://github.com/irongeeks/ironcrew/actions/runs/33947377630).
+Authenticated provider and target-host acceptance remain separate operator checks.
 
 All notable changes to IronCrew will be documented in this file.
 

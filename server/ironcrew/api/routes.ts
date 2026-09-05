@@ -1,3 +1,5 @@
+import { registerRoutingRoutes } from "./routing-routes.ts";
+import { RoutingError } from "../domain/routing-store.ts";
 /**
  * IronCrew — REST surface.
  *
@@ -446,6 +448,10 @@ function sendDomainError(res: Response, err: unknown): boolean {
     res.status(400).json({ error: "invalid_meeting_mutation", message: err.message });
     return true;
   }
+  if (err instanceof RoutingError) {
+    res.status(err.status).json({ error: err.code, message: err.message });
+    return true;
+  }
   if (err instanceof MemoryMutationError) {
     res.status(400).json({ error: "invalid_memory_mutation", message: err.message });
     return true;
@@ -652,6 +658,13 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
    */
   const ownerOnly = auth.requireRole("owner");
   registerCharacterRoutes(app, { db, companyId, auth, base });
+  registerRoutingRoutes(app, {
+    store: orchestrator.routing,
+    companyId,
+    auth,
+    base,
+    onChanged: () => broadcast("crew_agent_changed", { routing: true }),
+  });
   registerCoachingRoutes(app, { db, companyId, auth, base });
   registerSandboxRoutes(app, {
     db,
