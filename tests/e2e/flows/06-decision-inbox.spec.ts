@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { establishSession, deleteViaApi } from "../fixtures/test-helpers";
+import { establishSession, deleteViaApi, navigateTo } from "../fixtures/test-helpers";
 
-test.describe("Decision Inbox Flow", () => {
+test.describe("Legacy Decision Inbox Flow", () => {
   test.setTimeout(180_000);
 
   let deptId: string | null = null;
@@ -41,6 +41,8 @@ test.describe("Decision Inbox Flow", () => {
     agentId = agent.id;
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
+
+    await navigateTo(page, "projects");
 
     // The decision inbox button is labeled "Entscheidungen" in the header bar
     const inboxBtn = page.getByRole("button", { name: /Entscheidungen|decision/i }).first();

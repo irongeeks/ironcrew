@@ -487,7 +487,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("shell", () => {
   it("renders the command center, not a retro office", async () => {
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
     expect(await screen.findByTestId("command-center")).toBeInTheDocument();
     expect(screen.getByText("IRONCREW")).toBeInTheDocument();
     expect(screen.queryByText(/retro/i)).not.toBeInTheDocument();
@@ -497,12 +497,12 @@ describe("shell", () => {
     const client = makeClient({
       company: vi.fn().mockResolvedValue({ company: { name: "Irongeeks GmbH" }, departments: [] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     expect(await screen.findByText("Irongeeks GmbH")).toBeInTheDocument();
   });
 
   it("renders every board column with a German label", async () => {
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
     // Scoped to the board: some labels ("Läuft") legitimately also appear as
     // top-bar metric labels.
     const board = await screen.findByTestId("kanban");
@@ -513,7 +513,7 @@ describe("shell", () => {
 
   it("places a task in the column matching its backend status", async () => {
     const client = makeClient({ tasks: vi.fn().mockResolvedValue({ tasks: [task({ status: "review" })] }) });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const column = await screen.findByTestId("column-review");
     expect(within(column).getByText("Backup dokumentieren")).toBeInTheDocument();
     expect(within(await screen.findByTestId("column-ready")).queryByText("Backup dokumentieren")).toBeNull();
@@ -530,7 +530,7 @@ describe("Kanban drag & drop", () => {
         .mockResolvedValue({ tasks: [task({ status: "blocked" })] }),
       setTaskStatus,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = (await screen.findByText("Backup dokumentieren")).closest("button")!;
     const dt = fakeDataTransfer();
@@ -552,7 +552,7 @@ describe("Kanban drag & drop", () => {
       tasks: vi.fn().mockResolvedValue({ tasks: [task({ status: "ready" })] }),
       setTaskStatus,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = (await screen.findByText("Backup dokumentieren")).closest("button")!;
     const dt = fakeDataTransfer();
@@ -576,7 +576,7 @@ describe("Kanban drag & drop", () => {
       tasks: vi.fn().mockResolvedValue({ tasks: [task({ status: "ready" })] }),
       setTaskStatus,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = (await screen.findByText("Backup dokumentieren")).closest("button")!;
     const dt = fakeDataTransfer();
@@ -600,7 +600,7 @@ describe("dashboard figures come from the backend", () => {
         }),
       ),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const metrics = await screen.findByRole("group", { name: "Systemkennzahlen" });
 
     // Read each metric by its own label; several metrics can share a value.
@@ -619,7 +619,7 @@ describe("dashboard figures come from the backend", () => {
     const client = makeClient({
       dashboard: vi.fn().mockResolvedValue(dashboard({ auditChainValid: false })),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     expect(await screen.findByText("BRUCH")).toBeInTheDocument();
   });
 });
@@ -635,7 +635,7 @@ describe("agent status mirrors backend state", () => {
     const client = makeClient({
       agents: vi.fn().mockResolvedValue({ agents: [agent({ status: status as Agent["status"] })] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const dot = await screen.findByTestId("agent-status-cto");
     expect(dot).toHaveAttribute("data-status", status);
     // Status is available as text too, not only as colour.
@@ -646,7 +646,7 @@ describe("agent status mirrors backend state", () => {
     const client = makeClient({
       agents: vi.fn().mockResolvedValue({ agents: [agent({ key: "ea", isExecutiveAssistant: true })] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     expect(await screen.findByText("EA")).toBeInTheDocument();
   });
 });
@@ -655,7 +655,7 @@ describe("CEO chat", () => {
   it("sends a message and refreshes", async () => {
     const user = userEvent.setup();
     const client = makeClient();
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await screen.findByTestId("chat-input");
 
     await user.type(screen.getByTestId("chat-input"), "Bitte dokumentiere das Backup.");
@@ -665,7 +665,7 @@ describe("CEO chat", () => {
   });
 
   it("disables send for an empty draft", async () => {
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
     expect(await screen.findByTestId("chat-send")).toBeDisabled();
   });
 
@@ -686,13 +686,13 @@ describe("CEO chat", () => {
         ],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     expect(await screen.findByText(/simple_task/)).toBeInTheDocument();
     expect(screen.getByText(/75%/)).toBeInTheDocument();
   });
 
   it("explains the EA-first model when the channel is empty", async () => {
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
     expect(await screen.findByText(/zentraler Ansprechpartner/)).toBeInTheDocument();
   });
 });
@@ -711,7 +711,7 @@ describe("decisions belong to the CEO", () => {
       created_at: Date.now(),
     };
     const client = makeClient({ approvals: vi.fn().mockResolvedValue({ approvals: [approval] }) });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = await screen.findByTestId("approval-apr_1");
     expect(within(card).getByText("bank_transfer")).toBeInTheDocument();
@@ -724,14 +724,20 @@ describe("decisions belong to the CEO", () => {
   it("offers accept and revision for a task in review", async () => {
     const user = userEvent.setup();
     const client = makeClient({ tasks: vi.fn().mockResolvedValue({ tasks: [task({ status: "review" })] }) });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = await screen.findByTestId("review-task_1");
     await user.click(within(card).getByRole("button", { name: "Abnehmen" }));
     await waitFor(() => expect(client.accept).toHaveBeenCalledWith("task_1"));
 
-    await user.click(within(await screen.findByTestId("review-task_1")).getByRole("button", { name: "Revision" }));
-    await waitFor(() => expect(client.revise).toHaveBeenCalled());
+    const review = within(await screen.findByTestId("review-task_1"));
+    expect(review.getByRole("button", { name: "Revision" })).toBeDisabled();
+    await user.type(
+      review.getByRole("textbox", { name: "Revision für Backup dokumentieren" }),
+      "Bitte Restore-Schritte ergänzen.",
+    );
+    await user.click(review.getByRole("button", { name: "Revision" }));
+    await waitFor(() => expect(client.revise).toHaveBeenCalledWith("task_1", "Bitte Restore-Schritte ergänzen."));
   });
 });
 
@@ -764,7 +770,7 @@ describe("execution and events", () => {
         ],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("run-next"));
 
     const log = await screen.findByTestId("event-log");
@@ -790,7 +796,7 @@ describe("execution and events", () => {
         ],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("run-next"));
     expect(await screen.findByText("redigiert")).toBeInTheDocument();
   });
@@ -801,7 +807,7 @@ describe("errors are surfaced, never swallowed", () => {
     const client = makeClient({
       executeNext: vi.fn().mockRejectedValue(new Error("402: Budget hard stop for company")),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("run-next"));
     const banner = await screen.findByTestId("error-banner");
     expect(within(banner).getByText(/Budget hard stop/)).toBeInTheDocument();
@@ -809,7 +815,7 @@ describe("errors are surfaced, never swallowed", () => {
 
   it("shows a load failure rather than rendering an empty shell silently", async () => {
     const client = makeClient({ agents: vi.fn().mockRejectedValue(new Error("500: control plane down")) });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     expect(await screen.findByTestId("error-banner")).toHaveTextContent("control plane down");
   });
 });
@@ -825,7 +831,7 @@ describe("task detail — dependencies", () => {
         blocking: [task({ id: "task_3", title: "Launch" })],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByText("Backup dokumentieren"));
 
     const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
@@ -849,7 +855,7 @@ describe("task detail — dependencies", () => {
         }),
       addDependency,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByText("Backup dokumentieren"));
 
     const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
@@ -876,7 +882,7 @@ describe("task detail — dependencies", () => {
         .mockResolvedValue({ task: task(), runs: [], audit: [], blockers: [], blocking: [] }),
       removeDependency,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByText("Backup dokumentieren"));
 
     const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
@@ -889,7 +895,7 @@ describe("task detail — dependencies", () => {
 
 describe("agent detail", () => {
   it("shows policy separately from persona and states policy wins", async () => {
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
     // Scoped to the roster: the agent name also appears on its task card.
     const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
     await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
@@ -902,7 +908,7 @@ describe("agent detail", () => {
 
   it("closes on Escape", async () => {
     const user = userEvent.setup();
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
     const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
     await user.click(within(roster).getByRole("button", { name: /Forge/ }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
@@ -924,7 +930,7 @@ describe("runtime selection", () => {
         ],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
     await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
 
@@ -949,7 +955,7 @@ describe("runtime selection", () => {
         .mockResolvedValueOnce({ agents: [agent()] })
         .mockResolvedValue({ agents: [agent({ runtimeProvider: "claude" })] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
     await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
 
@@ -965,7 +971,7 @@ describe("runtime selection", () => {
       agents: vi.fn().mockResolvedValue({ agents: [agent({ runtimeProvider: "codex" })] }),
       runtimes: vi.fn().mockResolvedValue({ runtimes: [runtimeInfo({ type: "mock" })] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
     await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
 
@@ -985,7 +991,7 @@ describe("projects", () => {
         tasks: [task({ id: "task_2", title: "Redesign the pricing page" })],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const openButton = await screen.findByTestId("open-projects");
     expect(openButton).toHaveTextContent("Projekte (1)");
@@ -1040,7 +1046,7 @@ describe("projects", () => {
         children: [],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-projects"));
     await userEvent.setup().click(await screen.findByTestId("project-website-relaunch"));
@@ -1059,7 +1065,7 @@ describe("projects", () => {
         .mockResolvedValue({ project: project(), milestones: [milestone({ status: "done" })], tasks: [] }),
       setMilestoneStatus,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-projects"));
     await userEvent.setup().click(await screen.findByTestId("project-website-relaunch"));
@@ -1077,7 +1083,7 @@ describe("decision inbox", () => {
     const client = makeClient({
       notifications: vi.fn().mockResolvedValue({ notifications: [notification()], unreadCount: 1 }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     expect(await screen.findByTestId("open-inbox")).toHaveTextContent("Postfach (1)");
   });
 
@@ -1091,7 +1097,7 @@ describe("decision inbox", () => {
       decisions: vi.fn().mockResolvedValue({ decisions: [decisionRecord()] }),
       markNotificationRead,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-inbox"));
     const dialog = await screen.findByRole("dialog", { name: "Postfach" });
@@ -1113,7 +1119,7 @@ describe("org chart", () => {
       }),
       agents: vi.fn().mockResolvedValue({ agents: [agent()] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-org-chart"));
     const dialog = await screen.findByRole("dialog", { name: "Organigramm" });
@@ -1130,7 +1136,7 @@ describe("org chart", () => {
       company: vi.fn().mockResolvedValue({ company: { name: "IronCrew" }, departments: [department()] }),
       agents: vi.fn().mockResolvedValue({ agents: [agent()] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-org-chart"));
     await userEvent.setup().click(await screen.findByTestId("org-agent-cto"));
@@ -1150,7 +1156,7 @@ describe("secrets (password-manager integration)", () => {
       }),
       secrets: vi.fn().mockResolvedValue({ secrets: [secret()] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-secrets"));
     const dialog = await screen.findByRole("dialog", { name: "Zugangsdaten" });
@@ -1172,7 +1178,7 @@ describe("secrets (password-manager integration)", () => {
         .mockResolvedValue({ secrets: [secret()] }),
       createSecret,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-secrets"));
     const dialog = await screen.findByRole("dialog", { name: "Zugangsdaten" });
@@ -1195,7 +1201,7 @@ describe("secrets (password-manager integration)", () => {
   it("tests a secret ref and shows the result without ever showing a resolved value", async () => {
     const testSecret = vi.fn().mockResolvedValue({ ok: true, length: 12 });
     const client = makeClient({ secrets: vi.fn().mockResolvedValue({ secrets: [secret()] }), testSecret });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-secrets"));
     const dialog = await screen.findByRole("dialog", { name: "Zugangsdaten" });
@@ -1214,7 +1220,7 @@ describe("secrets (password-manager integration)", () => {
         .mockResolvedValue({ secrets: [] }),
       deleteSecret,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-secrets"));
     const dialog = await screen.findByRole("dialog", { name: "Zugangsdaten" });
@@ -1235,7 +1241,7 @@ describe("attachments (task/project-scoped + the general document store)", () =>
         .mockResolvedValue({ attachments: [attachment()] }),
       uploadAttachment,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-documents"));
     const dialog = await screen.findByRole("dialog", { name: "Dokumente" });
@@ -1264,7 +1270,7 @@ describe("attachments (task/project-scoped + the general document store)", () =>
         .mockResolvedValue({ attachments: [attachment({ id: "att_2", task_id: "task_1", filename: "spec.pdf" })] }),
       uploadAttachment,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByText("Backup dokumentieren"));
     const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
 
@@ -1285,7 +1291,7 @@ describe("attachments (task/project-scoped + the general document store)", () =>
         .mockResolvedValue({ attachments: [] }),
       deleteAttachment,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-documents"));
     const dialog = await screen.findByRole("dialog", { name: "Dokumente" });
@@ -1297,7 +1303,7 @@ describe("attachments (task/project-scoped + the general document store)", () =>
 
   it("links each attachment to its download URL", async () => {
     const client = makeClient({ attachmentsGeneral: vi.fn().mockResolvedValue({ attachments: [attachment()] }) });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-documents"));
     const dialog = await screen.findByRole("dialog", { name: "Dokumente" });
@@ -1324,7 +1330,7 @@ describe("network (Tailscale/Headscale status + remote workers)", () => {
         }),
       ),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-network"));
     const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
@@ -1336,7 +1342,7 @@ describe("network (Tailscale/Headscale status + remote workers)", () => {
 
   it("lists registered remote workers, without ever rendering a private key", async () => {
     const client = makeClient({ remoteWorkers: vi.fn().mockResolvedValue({ remoteWorkers: [remoteWorker()] }) });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-network"));
     const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
@@ -1355,7 +1361,7 @@ describe("network (Tailscale/Headscale status + remote workers)", () => {
         .mockResolvedValue({ remoteWorkers: [remoteWorker()] }),
       createRemoteWorker,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-network"));
     const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
@@ -1384,7 +1390,7 @@ describe("network (Tailscale/Headscale status + remote workers)", () => {
       remoteWorkers: vi.fn().mockResolvedValue({ remoteWorkers: [remoteWorker()] }),
       testRemoteWorker,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-network"));
     const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
@@ -1405,7 +1411,7 @@ describe("network (Tailscale/Headscale status + remote workers)", () => {
         .mockResolvedValue({ remoteWorkers: [] }),
       deleteRemoteWorker,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-network"));
     const dialog = await screen.findByRole("dialog", { name: "Netzwerk" });
@@ -1430,7 +1436,7 @@ describe("meetings (moderator, bounded rounds, budget)", () => {
     const client = twoAgentsClient({
       meetings: vi.fn().mockResolvedValue({ meetings: [meeting({ status: "in_progress", current_round: 2 })] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-meetings"));
     const dialog = await screen.findByRole("dialog", { name: "Meetings" });
@@ -1448,7 +1454,7 @@ describe("meetings (moderator, bounded rounds, budget)", () => {
         .mockResolvedValue({ meetings: [meeting()] }),
       createMeeting,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-meetings"));
     const dialog = await screen.findByRole("dialog", { name: "Meetings" });
@@ -1507,7 +1513,7 @@ describe("meetings (moderator, bounded rounds, budget)", () => {
       startMeeting,
       nextMeetingTurn,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-meetings"));
     const listDialog = await screen.findByRole("dialog", { name: "Meetings" });
@@ -1529,7 +1535,7 @@ describe("meetings (moderator, bounded rounds, budget)", () => {
       meeting: vi.fn().mockResolvedValue(meetingDetail({ meeting: { status: "in_progress" } })),
       endMeeting,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-meetings"));
     const listDialog = await screen.findByRole("dialog", { name: "Meetings" });
@@ -1550,7 +1556,7 @@ describe("meetings (moderator, bounded rounds, budget)", () => {
       meeting: vi.fn().mockResolvedValue(meetingDetail()),
       cancelMeeting,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-meetings"));
     const listDialog = await screen.findByRole("dialog", { name: "Meetings" });
@@ -1609,7 +1615,7 @@ describe("meetings (moderator, bounded rounds, budget)", () => {
       addMeetingActionItem,
       convertActionItemToTask,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-meetings"));
     const listDialog = await screen.findByRole("dialog", { name: "Meetings" });
@@ -1636,7 +1642,7 @@ describe("memory (Obsidian vault, the first MemoryProvider)", () => {
       memoryProviders: vi.fn().mockResolvedValue({ providers: [memoryProviderStatus()] }),
       memories: vi.fn().mockResolvedValue({ memories: [memoryRef()] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-memory"));
     const dialog = await screen.findByRole("dialog", { name: "Wissen" });
@@ -1655,7 +1661,7 @@ describe("memory (Obsidian vault, the first MemoryProvider)", () => {
         .mockResolvedValue({ memories: [memoryRef()] }),
       recordMemory,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-memory"));
     const dialog = await screen.findByRole("dialog", { name: "Wissen" });
@@ -1683,7 +1689,7 @@ describe("memory (Obsidian vault, the first MemoryProvider)", () => {
       memories: vi.fn().mockResolvedValue({ memories: [memoryRef()] }),
       memoryContent,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-memory"));
     const dialog = await screen.findByRole("dialog", { name: "Wissen" });
@@ -1707,7 +1713,7 @@ describe("memory (Obsidian vault, the first MemoryProvider)", () => {
         .mockResolvedValue({ memories: [] }),
       deleteMemory,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-memory"));
     const dialog = await screen.findByRole("dialog", { name: "Wissen" });
@@ -1727,7 +1733,7 @@ describe("memory (Obsidian vault, the first MemoryProvider)", () => {
       memoryProviders: vi.fn().mockResolvedValue({ providers: [memoryProviderStatus()] }),
       searchMemory,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-memory"));
     const dialog = await screen.findByRole("dialog", { name: "Wissen" });
@@ -1746,7 +1752,7 @@ describe("notification channels (Discord, Telegram, email fan-out)", () => {
     const client = makeClient({
       notificationChannels: vi.fn().mockResolvedValue({ channels: [notificationChannelStatus()] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-channels"));
     const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
@@ -1763,7 +1769,7 @@ describe("notification channels (Discord, Telegram, email fan-out)", () => {
       notificationChannels: vi.fn().mockResolvedValue({ channels: [notificationChannelStatus()] }),
       testNotificationChannel,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-channels"));
     const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
@@ -1781,7 +1787,7 @@ describe("notification channels (Discord, Telegram, email fan-out)", () => {
       notificationChannels: vi.fn().mockResolvedValue({ channels: [notificationChannelStatus({ kind: "telegram" })] }),
       sendTestNotification,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-channels"));
     const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
@@ -1795,7 +1801,7 @@ describe("notification channels (Discord, Telegram, email fan-out)", () => {
 
   it("shows an empty state when nothing is registered", async () => {
     const client = makeClient();
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-channels"));
     const dialog = await screen.findByRole("dialog", { name: "Kanäle" });
@@ -1848,7 +1854,7 @@ function mailMessage(over: Partial<MailMessage> = {}): MailMessage {
 describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
   it("lists mailboxes with their protocol and address", async () => {
     const client = makeClient({ mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox()] }) });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -1860,7 +1866,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
   });
 
   it("shows an empty state when no mailbox is connected", async () => {
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -1868,7 +1874,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
   });
 
   it("only asks for the fields the chosen protocol needs", async () => {
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
     const user = userEvent.setup();
 
     await user.click(await screen.findByTestId("open-mailboxes"));
@@ -1889,7 +1895,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
   it("connects a new IMAP mailbox with its credentials", async () => {
     const createMailbox = vi.fn().mockResolvedValue({ mailbox: mailbox() });
     const client = makeClient({ createMailbox });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const user = userEvent.setup();
 
     await user.click(await screen.findByTestId("open-mailboxes"));
@@ -1915,7 +1921,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
   });
 
   it("cannot arm auto-triage without polling", async () => {
-    render(<CommandCenterView client={makeClient()} />);
+    render(<CommandCenterView initialView="tasks" client={makeClient()} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -1932,7 +1938,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
       mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox({ poll_enabled: 1, auto_triage: 1 })] }),
       updateMailbox,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -1947,7 +1953,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
       mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox()] }),
       grantMailboxAgent,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const user = userEvent.setup();
 
     await user.click(await screen.findByTestId("open-mailboxes"));
@@ -1973,7 +1979,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
       }),
       revokeMailboxAgent,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -1992,7 +1998,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
       mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox()] }),
       mailboxMessages,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -2010,7 +2016,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
       mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox({ poll_enabled: 1 })] }),
       pollMailbox,
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -2024,7 +2030,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
     const client = makeClient({
       mailboxes: vi.fn().mockResolvedValue({ mailboxes: [mailbox({ last_error: "IMAP: LOGIN failed." })] }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -2040,7 +2046,7 @@ describe("mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants)", () => {
         ],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     await userEvent.setup().click(await screen.findByTestId("open-mailboxes"));
     const dialog = await screen.findByRole("dialog", { name: "E-Mail-Postfächer" });
@@ -2101,7 +2107,7 @@ function marketplaceInstall(over: Partial<MarketplaceInstall> = {}): Marketplace
 
 describe("marketplaces (skills and MCP servers from outside this machine)", () => {
   async function openDialog(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-marketplaces"));
     return await screen.findByRole("dialog", { name: "Marktplätze" });
   }
@@ -2340,7 +2346,7 @@ function pairing(over: Partial<MessengerPairing> = {}): MessengerPairing {
 
 describe("messenger (who may speak to the executive assistant, and as whom)", () => {
   async function openDialog(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-messenger"));
     return await screen.findByRole("dialog", { name: "Messenger" });
   }
@@ -2510,7 +2516,7 @@ function changeProposalFile(over: Partial<ChangeProposalFile> = {}): ChangePropo
 
 describe("change proposals (nothing is written until the CEO approves)", () => {
   async function openDialog(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-change-proposals"));
     return await screen.findByRole("dialog", { name: "Änderungsfreigaben" });
   }
@@ -2701,7 +2707,7 @@ function conflict(code: string, message: string): ApiRequestError {
 
 describe("vessels & talents (a vessel is how a run may go, a talent is what it may do)", () => {
   async function openDialog(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-vessels"));
     return await screen.findByRole("dialog", { name: "Vessels & Talente" });
   }
@@ -2876,7 +2882,7 @@ describe("vessels & talents (a vessel is how a run may go, a talent is what it m
 
 describe("agent pairing (vessel × talent, changed from the agent's own detail)", () => {
   async function openAgent(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
     await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
     return await screen.findByRole("dialog", { name: "Forge" });
@@ -2957,7 +2963,7 @@ function schedulerJob(over: Partial<SchedulerJob> = {}): SchedulerJob {
 
 describe("run queue (the durable intent to run a task) and its scheduler", () => {
   async function openDialog(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-run-queue"));
     return await screen.findByRole("dialog", { name: "Warteschlange" });
   }
@@ -3136,7 +3142,7 @@ function apiFailure(status: number, code: string, message: string): ApiRequestEr
 
 describe("tools (the register says what this server can do, the grants say who may)", () => {
   async function openDialog(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-tools"));
     return await screen.findByRole("dialog", { name: "Werkzeuge" });
   }
@@ -3366,7 +3372,7 @@ describe("tools (the register says what this server can do, the grants say who m
 
 describe("search (the same gate, and results a stranger wrote)", () => {
   async function openDialog(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-tools"));
     return await screen.findByRole("dialog", { name: "Werkzeuge" });
   }
@@ -3479,7 +3485,7 @@ describe("search (the same gate, and results a stranger wrote)", () => {
 
 describe("agent detail lists what this post may reach for", () => {
   async function openAgent(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
     await userEvent.setup().click(within(roster).getByRole("button", { name: /Forge/ }));
     return await screen.findByRole("dialog", { name: "Forge" });
@@ -3554,7 +3560,7 @@ describe("four eyes on a dangerous approval", () => {
         ],
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = await screen.findByTestId("approval-apr_1");
     // No vote counter, and the button still says what it always said.
@@ -3594,7 +3600,7 @@ describe("four eyes on a dangerous approval", () => {
       }),
       authStatus: signedInAs("usr_anna"),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const quorum = await screen.findByTestId("quorum-apr_1");
     expect(quorum).toHaveTextContent("1 von 2 Zustimmungen");
@@ -3643,7 +3649,7 @@ describe("four eyes on a dangerous approval", () => {
       }),
       authStatus: signedInAs("usr_anna"),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = await screen.findByTestId("approval-apr_1");
     // Gone rather than disabled: a second click is not a second reviewer, and
@@ -3685,7 +3691,7 @@ describe("four eyes on a dangerous approval", () => {
       }),
       authStatus: signedInAs("usr_anna"),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const quorum = await screen.findByTestId("quorum-apr_1");
     expect(quorum).toHaveTextContent("abgelehnt");
@@ -3702,7 +3708,7 @@ describe("four eyes on a dangerous approval", () => {
       approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
       authStatus: signedInAs("usr_anna"),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     const user = userEvent.setup();
 
     const card = await screen.findByTestId("approval-apr_1");
@@ -3723,7 +3729,7 @@ describe("four eyes on a dangerous approval", () => {
       approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
       authStatus: signedInAs("usr_anna"),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = await screen.findByTestId("approval-apr_1");
     expect((within(card).getByTestId("quorum-choice-apr_1") as HTMLSelectElement).value).toBe("2");
@@ -3736,7 +3742,7 @@ describe("four eyes on a dangerous approval", () => {
       approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
       authStatus: signedInAs("usr_anna"),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = await screen.findByTestId("approval-apr_1");
     const options = Array.from(
@@ -3753,7 +3759,7 @@ describe("four eyes on a dangerous approval", () => {
       approvals: vi.fn().mockResolvedValue({ approvals: [transfer()] }),
       authStatus: signedInAs("usr_anna"),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
 
     const card = await screen.findByTestId("approval-apr_1");
     await userEvent.setup().click(within(card).getByTestId("require-two-apr_1"));
@@ -3763,7 +3769,7 @@ describe("four eyes on a dangerous approval", () => {
 
 describe("audit shipping (the copy of the chain that leaves this machine)", () => {
   async function openDialog(client: Client) {
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
     return await screen.findByRole("dialog", { name: "Audit-Kopie" });
   }
@@ -3940,7 +3946,7 @@ describe("a gap is visible without pressing anything", () => {
         gapDetected: true,
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
 
     const gap = await screen.findByTestId("audit-shipping-gap-status");
@@ -3957,7 +3963,7 @@ describe("a gap is visible without pressing anything", () => {
         gapDetected: false,
       }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
 
     await screen.findByTestId("audit-shipping-run");
@@ -3968,7 +3974,7 @@ describe("a gap is visible without pressing anything", () => {
     const client = makeClient({
       auditShipping: vi.fn().mockResolvedValue({ configured: true, sink: "http", cursor: 3, pending: 1 }),
     });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
 
     await screen.findByTestId("audit-shipping-run");
@@ -3994,7 +4000,7 @@ describe("the audit copy says whether it is healthy, not just how far behind", (
 
   async function openPanel(status: Record<string, unknown>) {
     const client = makeClient({ auditShipping: vi.fn().mockResolvedValue(status) });
-    render(<CommandCenterView client={client} />);
+    render(<CommandCenterView initialView="tasks" client={client} />);
     await userEvent.setup().click(await screen.findByTestId("open-audit-shipping"));
     return screen.findByTestId("audit-shipping-health");
   }
@@ -4047,5 +4053,112 @@ describe("the audit copy says whether it is healthy, not just how far behind", (
   it("renders against an older server that reports no health at all", async () => {
     const health = await openPanel(configured());
     expect(health.textContent).toMatch(/Noch kein Übertragungslauf/);
+  });
+});
+
+// The office, board and run history are projections of the same crew IDs.
+describe("integrated company office", () => {
+  it("does not report Audit OK or invented zero metrics before the first response", () => {
+    const client = makeClient({ dashboard: vi.fn(() => new Promise(() => {})) });
+    render(<CommandCenterView client={client} />);
+    const metrics = screen.getByRole("group", { name: "Systemkennzahlen" });
+    expect(within(metrics).queryByText("OK")).not.toBeInTheDocument();
+    expect(within(metrics).getByText("Lädt")).toBeInTheDocument();
+    expect(within(metrics).getAllByText("—")).toHaveLength(5);
+  });
+
+  it("reports unknown audit when the dashboard cannot be read", async () => {
+    const client = makeClient({ dashboard: vi.fn().mockRejectedValue(new Error("dashboard unavailable")) });
+    render(<CommandCenterView client={client} />);
+    expect(await screen.findByText("Unbekannt")).toBeInTheDocument();
+    expect(screen.getByTestId("error-banner")).toHaveTextContent("dashboard unavailable");
+    expect(screen.queryByText("OK")).not.toBeInTheDocument();
+  });
+
+  it("opens the same task from its figure and from Kanban while preserving the CEO draft", async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    render(<CommandCenterView client={client} />);
+    const office = await screen.findByTestId("crew-office");
+    await user.type(screen.getByTestId("chat-input"), "Noch nicht senden");
+    await user.click(await within(office).findByRole("button", { name: "Aufgabe von Forge: Backup dokumentieren" }));
+    expect(await screen.findByRole("dialog", { name: "Backup dokumentieren" })).toBeInTheDocument();
+    expect(client.task).toHaveBeenCalledWith("task_1");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Kanban" }));
+    await user.click(within(screen.getByTestId("kanban")).getByRole("button", { name: /Backup dokumentieren/ }));
+    expect(await screen.findByRole("dialog", { name: "Backup dokumentieren" })).toBeInTheDocument();
+    expect(client.task).toHaveBeenLastCalledWith("task_1");
+    expect(screen.getByTestId("chat-input")).toHaveValue("Noch nicht senden");
+    expect(client.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("focuses the canonical composer for a new mission without sending prematurely", async () => {
+    const client = makeClient();
+    const { rerender } = render(<CommandCenterView client={client} newMissionRequest={0} />);
+    await screen.findByTestId("office-person-agt_1");
+    rerender(<CommandCenterView client={client} newMissionRequest={1} />);
+    expect(screen.getByTestId("chat-input")).toHaveFocus();
+    expect(client.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("opens persisted run events from a task reached through the office", async () => {
+    const user = userEvent.setup();
+    const client = makeClient({
+      task: vi.fn().mockResolvedValue({
+        task: task(),
+        runs: [{ id: "run_original", runtime_type: "codex", status: "completed", created_at: 100 }],
+        audit: [],
+        blockers: [],
+        blocking: [],
+      }),
+      runEvents: vi.fn().mockResolvedValue({
+        events: [
+          {
+            eventId: "ev_1",
+            type: "run.completed",
+            seq: 1,
+            timestamp: 101,
+            taskId: "task_1",
+            runId: "run_original",
+            payload: { summary: "Belegbarer Abschluss" },
+            redaction: { redacted: false, rules: [] },
+          },
+        ],
+      }),
+    });
+    render(<CommandCenterView client={client} />);
+    await user.click(await screen.findByRole("button", { name: "Aufgabe von Forge: Backup dokumentieren" }));
+    const dialog = await screen.findByRole("dialog", { name: "Backup dokumentieren" });
+    await user.click(await within(dialog).findByRole("button", { name: "Run run_original öffnen" }));
+    expect(await within(dialog).findByText("run.completed")).toBeInTheDocument();
+    expect(within(dialog).getByTestId("task-run-events")).toHaveTextContent("Belegbarer Abschluss");
+    expect(client.runEvents).toHaveBeenCalledWith("run_original");
+  });
+});
+
+describe("honest runtime authentication", () => {
+  it("distinguishes installed CLI from a verified login", async () => {
+    const client = makeClient({
+      runtimes: vi.fn().mockResolvedValue({
+        runtimes: [
+          runtimeInfo({
+            auth: {
+              authenticated: false,
+              verification: "unverified",
+              method: "subscription-cli",
+              detail: "CLI vorhanden; Anmeldung nicht geprüft.",
+            },
+          }),
+        ],
+      }),
+    });
+    render(<CommandCenterView initialView="tasks" client={client} />);
+    await userEvent
+      .setup()
+      .click(
+        await within(screen.getByRole("navigation", { name: "Mannschaft" })).findByRole("button", { name: /Forge/ }),
+      );
+    expect(await screen.findByTestId("agent-runtime-detail")).toHaveTextContent("Anmeldung nicht geprüft");
   });
 });

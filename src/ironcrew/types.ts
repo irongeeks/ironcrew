@@ -226,6 +226,32 @@ export const NOTIFICATION_SEVERITY_LABEL: Record<NotificationSeverity, string> =
   critical: "Kritisch",
 };
 
+/** Persisted run, identical to the control-plane RunRow wire shape. */
+export interface Run {
+  id: string;
+  company_id: string;
+  task_id: string;
+  agent_id: string | null;
+  project_id: string | null;
+  runtime_type: string;
+  model: string | null;
+  permission_mode: string;
+  sandbox_grant_id: string | null;
+  status: string;
+  correlation_id: string;
+  session_ref: string | null;
+  worker_id: string | null;
+  heartbeat_at: number | null;
+  error_message: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cost_micros: number;
+  next_event_seq: number;
+  started_at: number | null;
+  ended_at: number | null;
+  created_at: number;
+}
+
 export interface RunEvent {
   eventId: string;
   type: string;
@@ -290,6 +316,7 @@ export interface RuntimeInfo {
   health: { healthy: boolean; installed: boolean; detail: string; checkedAt: number };
   auth: {
     authenticated: boolean;
+    verification?: "verified" | "unverified";
     method: "subscription-cli" | "oauth-cli" | "api-key" | "none";
     accountHint?: string;
     detail: string;

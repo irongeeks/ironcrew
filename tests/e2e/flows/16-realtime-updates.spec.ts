@@ -276,42 +276,39 @@ test.describe("Real-time WebSocket Updates", () => {
     });
   });
 
-  test("UI receives WebSocket updates without page refresh", async ({ page, request }) => {
-    // Save the CSRF token now — after page.goto() the request context may become
-    // invalid (browser closed / context destroyed), so we cannot call request.get
-    // again later to fetch a fresh token.
+  test("canonical board receives external crew changes without navigation or refresh", async ({ page, request }) => {
     const csrfToken = await establishSession(request);
-
-    // Navigate to the app
+    const headers = { "x-csrf-token": csrfToken };
     await page.goto("/");
-    await page.waitForLoadState("domcontentloaded");
-
-    // Create a task via API (not via UI) to trigger a WS push
-    const taskTitle = `E2E Live Update ${Date.now()}`;
-
-    const createRes = await request.post("/api/tasks", {
-      headers: { "x-csrf-token": csrfToken },
-      data: {
-        title: taskTitle,
-        description: "Test real-time UI update",
-        status: "planned",
-      },
-    });
-    expect(createRes.ok()).toBeTruthy();
-    const createBody = await createRes.json();
-    const taskId = createBody.id;
-
-    // Navigate to tasks view to verify the task shows up
     await navigateTo(page, "tasks");
-    await expect(page.locator("main").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("kanban")).toBeVisible();
+    await expect(page.getByTestId("crew-sync-status")).toContainText("Live ·");
 
-    // The task title should appear on the board
-    const taskText = page.getByText(taskTitle).first();
-    await expect(taskText).toBeVisible({ timeout: 10_000 });
-
-    // Cleanup
-    await request.delete(`/api/tasks/${taskId}`, {
-      headers: { "x-csrf-token": csrfToken },
+    // Establish the live subscription BEFORE the external write. Navigating
+    // after mutation would only test a new GET and could hide broken push updates.
+    const createRes = await request.post("/api/crew/chat", {
+      headers,
+      data: { body: `Bitte dokumentiere den E2E Live Update ${Date.now()}.` },
     });
+    expect(createRes.status()).toBe(201);
+    const { task } = await createRes.json();
+    expect(task?.id).toBeTruthy();
+    try {
+      await expect(page.getByTestId("kanban").getByText(task.title, { exact: true })).toBeVisible();
+      const cancelled = await request.post(`/api/crew/tasks/${task.id}/status`, {
+        headers,
+        data: { status: "cancelled", reason: "E2E live update verified" },
+      });
+      expect(cancelled.ok()).toBeTruthy();
+      await expect(page.getByTestId("column-cancelled").getByText(task.title, { exact: true })).toBeVisible();
+    } finally {
+      const current = await (await request.get(`/api/crew/tasks/${task.id}`)).json();
+      if (current.task.status !== "cancelled") {
+        await request.post(`/api/crew/tasks/${task.id}/status`, {
+          headers,
+          data: { status: "cancelled", reason: "E2E cleanup" },
+        });
+      }
+    }
   });
 });

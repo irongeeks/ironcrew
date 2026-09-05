@@ -13,26 +13,26 @@ interface MobileBottomTabBarProps {
   onChangeOfficeWorkflowPack?: (key: WorkflowPackKey) => void;
 }
 
-const PRIMARY_TABS: Array<{ key: View | "chat" | "more"; label: string; icon: string }> = [
-  { key: "office", label: "Office", icon: "🏢" },
-  { key: "tasks", label: "Tasks", icon: "📋" },
-  { key: "chat", label: "Chat", icon: "💬" },
-  { key: "operations", label: "Ops", icon: "⚙️" },
-  { key: "more", label: "More", icon: "···" },
+const PRIMARY_TABS: Array<{ key: View | "more"; label: string; icon: string }> = [
+  { key: "office", label: "Office", icon: "office" },
+  { key: "tasks", label: "Tasks", icon: "tasks" },
+  { key: "command", label: "CEO Chat", icon: "message" },
+  { key: "operations", label: "Ops", icon: "settings" },
+  { key: "more", label: "More", icon: "more" },
 ];
 
 const MORE_ITEMS: Array<{ key: View; label: string; icon: string }> = [
-  { key: "agents", label: "Roster", icon: "👥" },
-  { key: "skills", label: "Library", icon: "📚" },
-  { key: "projects", label: "Projects", icon: "📁" },
-  { key: "schedules", label: "Schedules", icon: "📅" },
-  { key: "settings", label: "Settings", icon: "⚙️" },
+  { key: "agents", label: "Roster", icon: "agents" },
+  { key: "skills", label: "Library", icon: "skills" },
+  { key: "projects", label: "Projects", icon: "projects" },
+  { key: "schedules", label: "Schedules", icon: "schedules" },
+  { key: "settings", label: "Settings", icon: "settings" },
 ];
 
 export function MobileBottomTabBar({
   activeView,
   onChangeView,
-  onOpenChat,
+  onOpenChat: _onOpenChat,
   officePackKey,
   officePackLabel,
   officePackOptions,
@@ -48,8 +48,6 @@ export function MobileBottomTabBar({
   const handleTabPress = (key: string) => {
     if (key === "more") {
       setMoreOpen(true);
-    } else if (key === "chat") {
-      onOpenChat?.();
     } else {
       onChangeView(key as View);
     }
@@ -66,6 +64,7 @@ export function MobileBottomTabBar({
   return (
     <>
       <nav
+        aria-label="Hauptnavigation"
         className="fixed inset-x-0 bottom-0 z-30"
         style={{
           background: "var(--th-bg-primary)",
@@ -78,18 +77,19 @@ export function MobileBottomTabBar({
             <button
               key={tab.key}
               onClick={() => handleTabPress(tab.key)}
+              aria-current={isActive(tab.key) ? "page" : undefined}
               className={`min-h-[56px] flex flex-col items-center justify-center gap-1 ${
                 isActive(tab.key) ? "bg-retro-green/15 text-retro-green" : ""
               }`}
               style={{
                 ...(!isActive(tab.key) ? { color: "var(--th-text-secondary)" } : undefined),
-                fontFamily: "'Press Start 2P', monospace",
-                fontSize: 8,
+                fontFamily: "system-ui, sans-serif",
+                fontSize: 11,
                 letterSpacing: "0.06em",
               }}
             >
               <span className="text-base leading-none" style={{ fontFamily: "system-ui, sans-serif" }}>
-                {tab.icon}
+                <NavigationIcon name={tab.icon} />
               </span>
               <span>{tab.label}</span>
             </button>
@@ -113,7 +113,7 @@ export function MobileBottomTabBar({
                 className="block"
                 style={{
                   color: "var(--th-accent)",
-                  fontFamily: "'Press Start 2P', monospace",
+                  fontFamily: "system-ui, sans-serif",
                   fontSize: 9,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
@@ -161,7 +161,7 @@ export function MobileBottomTabBar({
               }}
             >
               <span className="text-lg" style={{ fontFamily: "system-ui, sans-serif" }}>
-                {item.icon}
+                <NavigationIcon name={item.icon} />
               </span>
               <span>{item.label}</span>
             </button>
@@ -169,5 +169,35 @@ export function MobileBottomTabBar({
         </div>
       </MobileBottomSheet>
     </>
+  );
+}
+
+const ICON_PATHS: Record<string, string> = {
+  office: "M4 21V3h16v18M8 7h2m4 0h2M8 11h2m4 0h2M9 21v-6h6v6",
+  tasks: "M9 5h12M9 12h12M9 19h12M3 5h1M3 12h1M3 19h1",
+  message: "M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  settings: "M3 7h18M3 17h18M8 4v6M16 14v6",
+  more: "M5 12h1m5 0h1m5 0h1",
+  agents: "M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M1 21v-3a7 7 0 0 1 14 0v3M17 4a4 4 0 0 1 0 8m1 3a5 5 0 0 1 5 5",
+  skills: "M3 3h6v18H3zM12 3h6v18h-6zM3 7h6m3 0h6",
+  projects: "M3 6h7l2 3h9v12H3z",
+  schedules: "M3 5h18v16H3zM7 2v6m10-6v6M3 11h18",
+};
+
+function NavigationIcon({ name }: { name: string }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={ICON_PATHS[name]} />
+    </svg>
   );
 }

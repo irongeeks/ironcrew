@@ -67,6 +67,7 @@ import type {
   Project,
   ProjectStatus,
   RemoteWorker,
+  Run,
   RunEvent,
   RunQueueDrainResult,
   RunRequest,
@@ -181,7 +182,7 @@ export const api = {
     send<{ reply: string; task: Task | null; assignedAgent: Agent | null }>("/chat", "POST", { body }),
   tasks: () => get<{ tasks: Task[] }>("/tasks"),
   task: (id: string) =>
-    get<{ task: Task; runs: unknown[]; audit: unknown[]; blockers: Task[]; blocking: Task[] }>(`/tasks/${id}`),
+    get<{ task: Task; runs: Run[]; audit: unknown[]; blockers: Task[]; blocking: Task[] }>(`/tasks/${id}`),
   executeNext: () => send<{ executed: boolean; task?: Task; runId?: string }>("/tasks/execute-next", "POST"),
   accept: (id: string, note?: string) => send<{ task: Task }>(`/tasks/${id}/accept`, "POST", { note }),
   revise: (id: string, reason: string) => send<{ task: Task }>(`/tasks/${id}/revise`, "POST", { reason }),

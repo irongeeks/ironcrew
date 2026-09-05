@@ -34,7 +34,7 @@ function parsePx(value: string | null | undefined): number {
 describe("IronCrewTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
   it("ghost icon buttons (announcement, decision inbox, more, theme) report width and height >= 36px", () => {
     const props = createBaseProps();
-    render(<IronCrewTopBar {...props} />);
+    render(<IronCrewTopBar {...props} view="projects" />);
 
     const labels = ["Announcement", "Decision Inbox", "More actions"];
     for (const label of labels) {
@@ -47,6 +47,14 @@ describe("IronCrewTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
     const themeBtn = screen.getByRole("button", { name: /switch to (light|dark) mode/i }) as HTMLButtonElement;
     expect(parsePx(themeBtn.style.width)).toBeGreaterThanOrEqual(36);
     expect(parsePx(themeBtn.style.height)).toBeGreaterThanOrEqual(36);
+  });
+
+  it("keeps legacy company actions out of the canonical Office", () => {
+    render(<IronCrewTopBar {...createBaseProps()} />);
+    for (const label of ["Announcement", "Decision Inbox", "More actions"]) {
+      expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+    }
+    expect(screen.getByRole("button", { name: /NEW MISSION/ })).toBeInTheDocument();
   });
 
   it("language cycle ghost button has height >= 36px (width may auto-fit text)", () => {
@@ -71,7 +79,17 @@ describe("IronCrewTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
     const props = createBaseProps();
     render(<IronCrewTopBar {...props} />);
 
-    const tabLabels = ["OFFICE", "TASKS", "WORKFLOWS", "OPS", "ROSTER", "LIBRARY", "PROJECTS", "SCHEDULES", "SETTINGS"];
+    const tabLabels = [
+      "OFFICE",
+      "TASKS",
+      "WORKFLOWS",
+      "OPS",
+      "LEGACY ROSTER",
+      "LIBRARY",
+      "LEGACY PROJECTS",
+      "LEGACY SCHEDULES",
+      "SETTINGS",
+    ];
     for (const label of tabLabels) {
       const btn = screen.getByRole("button", { name: new RegExp(`^${label}`) }) as HTMLButtonElement;
       expect(parsePx(btn.style.height)).toBeGreaterThanOrEqual(36);

@@ -14,11 +14,11 @@ describe("MobileBottomTabBar", () => {
     expect(buttons.length).toBe(5);
   });
 
-  it("renders Office, Tasks, Chat, Ops, More tabs", () => {
+  it("renders Office, Tasks, CEO Chat, Ops, More tabs", () => {
     render(<MobileBottomTabBar {...defaultProps} />);
     expect(screen.getByText("Office")).toBeInTheDocument();
     expect(screen.getByText("Tasks")).toBeInTheDocument();
-    expect(screen.getByText("Chat")).toBeInTheDocument();
+    expect(screen.getByText("CEO Chat")).toBeInTheDocument();
     expect(screen.getByText("Ops")).toBeInTheDocument();
     expect(screen.getByText("More")).toBeInTheDocument();
   });
@@ -34,6 +34,15 @@ describe("MobileBottomTabBar", () => {
     render(<MobileBottomTabBar {...defaultProps} onChangeView={onChangeView} />);
     fireEvent.click(screen.getByText("Tasks"));
     expect(onChangeView).toHaveBeenCalledWith("tasks");
+  });
+
+  it("opens and marks the canonical CEO chat on mobile", () => {
+    const onChangeView = vi.fn();
+    render(<MobileBottomTabBar {...defaultProps} activeView="command" onChangeView={onChangeView} />);
+    const chat = screen.getByRole("button", { name: "CEO Chat" });
+    expect(chat).toHaveAttribute("aria-current", "page");
+    fireEvent.click(chat);
+    expect(onChangeView).toHaveBeenCalledWith("command");
   });
 
   it("opens More sheet when More is tapped", () => {

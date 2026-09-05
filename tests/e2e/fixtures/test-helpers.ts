@@ -18,10 +18,10 @@ const VIEW_LABELS: Record<ViewName, string> = {
   tasks: "TASKS",
   workflows: "WORKFLOWS",
   operations: "OPS",
-  agents: "ROSTER",
+  agents: "LEGACY ROSTER",
   skills: "LIBRARY",
-  projects: "PROJECTS",
-  schedules: "SCHEDULES",
+  projects: "LEGACY PROJECTS",
+  schedules: "LEGACY SCHEDULES",
   settings: "SETTINGS",
 };
 
