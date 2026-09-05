@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased — 2026-09-05
+## 2.8.0 — 2026-09-05
+
+- Introduce versioned GitHub releases, checksummed source archives and pinned production images.
+- Replace branch-based in-app self-updates with explicit native/Docker release updates, backups and recovery records.
 
 - Handle coalesced native vault events and atomic file replacement without polling; close watcher handles on cleanup.
 - Add separate Junior/Senior/Lead levels, owner-approved changes and per-department leadership setup.

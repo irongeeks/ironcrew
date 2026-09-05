@@ -185,7 +185,7 @@ installed but not authenticated, step 4 was run as the wrong user.
 
 ### On every update
 
-The unit is a copy, so `git pull` does not refresh it. Add this to your update
+The unit is a copy, so installing a release does not refresh it. Add this to your update
 routine:
 
 ```bash
@@ -198,24 +198,16 @@ above. `docs/UPGRADE.md` covers version skew between the two in detail — they
 speak a protocol, and restarting one and forgetting the other is the failure it
 is written about.
 
-## Update after a `git pull`
+## Release updates
 
-The service runs with a read-only application directory, so the update itself
-is done by you, not by the service (leave `AUTO_UPDATE_ENABLED=0`).
+Use the [versioned release and update procedure](../docs/RELEASES.md).
+Updates target a published version and its exact commit, with a backup before
+changing the installation. The web service never replaces its own code.
 
-```bash
-cd /opt/ironcrew
-sudo -u ironcrew git pull
-sudo -u ironcrew pnpm install
-sudo -u ironcrew pnpm run migrate:v1.0.5   # the prestart migration `pnpm start` would run
-sudo -u ironcrew pnpm build
-sudo scripts/install-service.sh            # refresh the control-plane unit; your env file is kept
-sudo systemctl restart ironcrew
-```
-
-If you run the runner, refresh and restart it too — the installer will not, and
-the runner goes first. See
-[On every update](#on-every-update) in the runner section.
+Stop the control plane and any runner using the same checkout before updating.
+Refresh service definitions when the release notes require it; start the runner
+before the control plane. A database migrated by a newer release must not be
+opened by an older release without restoring the matching backup.
 
 ## Where things live
 

@@ -1,0 +1,7 @@
+# Release override: docker compose -f compose.yaml -f compose.release.yaml --profile prod up -d --no-build
+# Retains the existing Compose project, octooffice-data volume and database filename.
+# Use an exact ghcr.io/irongeeks/ironcrew:vX.Y.Z or @sha256:... reference; the updater validates it.
+services:
+  ironcrew:
+    image: "${IRONCREW_RELEASE_IMAGE:?Set IRONCREW_RELEASE_IMAGE to a verified version or digest}"
+    build: !reset null

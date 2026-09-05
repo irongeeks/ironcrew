@@ -13,6 +13,7 @@ if (!info.isFile() || info.isSymbolicLink() || (info.mode & 0o077) !== 0 || info
 }
 process.loadEnvFile(envFile);
 process.env.NODE_ENV = "production";
+process.env.IRONCREW_INSTALL_TYPE = "native";
 const requiredKey = role === "runner" ? "IRONCREW_RUNNER_TOKEN" : "OAUTH_ENCRYPTION_SECRET";
 const configured = process.env[requiredKey];
 if (!configured || configured.includes("__CHANGE_ME__") || configured.length < 32) {

@@ -1,11 +1,14 @@
 # Upgrading
 
+For stable installations, follow [Releases and updates](RELEASES.md).
+That procedure supersedes older branch-based update commands below.
+
 An upgrade is not one thing moving. It is three, and they move at different
 speeds:
 
 | Part                | Where it lives                     | Moves when                    |
 | ------------------- | ---------------------------------- | ----------------------------- |
-| The checkout        | `/opt/ironcrew`                    | you `git pull`                |
+| The checkout        | `/opt/ironcrew`                    | you install a release         |
 | The database schema | `DB_PATH`                          | the service next starts       |
 | The runner daemon   | the same checkout, its own process | you restart `ironcrew-runner` |
 
@@ -103,125 +106,22 @@ user, during the update.
 
 ## The upgrade procedure
 
-The order matters. Every step assumes the default layout from
-`deploy/README.md`: checkout at `/opt/ironcrew`, database at
-`/opt/ironcrew/data/ironcrew.sqlite`, service user `ironcrew`.
+Follow [Releases and updates](RELEASES.md) for the supported commands on Linux,
+macOS and Docker. That procedure selects a published version and commit, checks
+service state, saves a backup and prepares the new build before switching code.
+It replaces the old `git pull` procedure.
 
-### 1. Back up — before anything else
-
-```bash
-sudo -u ironcrew node /opt/ironcrew/scripts/ironcrew-backup.mjs \
-  --db /opt/ironcrew/data/ironcrew.sqlite \
-  --out /var/backups/ironcrew \
-  --keep 14
-```
-
-This runs `VACUUM INTO` and then `PRAGMA integrity_check` on the snapshot, so
-it is safe against a running service and fails rather than writing a corrupt
-archive. Note the archive path it prints; you will need it if step 6 goes
-wrong.
-
-Your nightly cron backup is not a substitute. It is up to 24 hours old, and the
-thing you may need to undo is the change you are about to make.
-
-The environment file is deliberately **not** in the archive. Copy
-`/etc/ironcrew/ironcrew.env` and, if you run the runner, `/etc/ironcrew/runner.env`
-somewhere safe yourself — see `BACKUP.md`.
-
-### 2. Stop both services
+Before restarting, inspect pending migrations with:
 
 ```bash
-sudo systemctl stop ironcrew
-sudo systemctl stop ironcrew-runner   # only if you installed the runner unit
+node scripts/ironcrew-migrate.mjs status --db /opt/ironcrew/data/ironcrew.sqlite
+node scripts/ironcrew-migrate.mjs check --db /opt/ironcrew/data/ironcrew.sqlite
 ```
 
-Stop the control plane first. It is the side that sends jobs; stopping the
-runner underneath a live control plane turns every in-flight run into a failure
-that has to be cleaned up afterwards.
-
-`TimeoutStopSec=30` in the unit gives SQLite a chance to close cleanly after
-SIGTERM. Wait for `systemctl status ironcrew` to report `inactive (dead)`
-before continuing.
-
-### 3. Pull and install
-
-```bash
-cd /opt/ironcrew
-git rev-parse --short HEAD          # note this: it is what a rollback checks out
-sudo -u ironcrew git pull
-sudo -u ironcrew pnpm install
-sudo -u ironcrew pnpm run migrate:v1.0.5   # config migration, see above
-sudo -u ironcrew pnpm build                # the web bundle; the server runs from source via tsx
-```
-
-`pnpm build` builds the front end. There is no compiled server bundle — the
-unit runs `node --import tsx server/index.ts` straight from the checkout.
-
-### 4. Look at the schema before it changes
-
-```bash
-sudo -u ironcrew node scripts/ironcrew-migrate.mjs status \
-  --db /opt/ironcrew/data/ironcrew.sqlite
-```
-
-Read the "offen" (pending) count and the list. This is the moment to notice
-that an upgrade you thought was cosmetic carries four schema changes.
-
-If you would rather apply them under your own eyes than have the first start do
-it, do that now, with the service stopped:
-
-```bash
-sudo -u ironcrew node scripts/ironcrew-migrate.mjs apply \
-  --db /opt/ironcrew/data/ironcrew.sqlite --force
-```
-
-Otherwise skip it: the next start applies them, in the same code path, one
-transaction per migration.
-
-### 5. Refresh the unit files
-
-```bash
-sudo scripts/install-service.sh
-```
-
-Idempotent, and it never overwrites `/etc/ironcrew/ironcrew.env`. It only
-re-templates the unit; if `deploy/ironcrew.service` did not change in this
-release it says so and does nothing.
-
-It installs the **control plane unit only**. The runner unit is not covered —
-see [Known gaps](#known-gaps) for what to do by hand.
-
-New releases sometimes add environment variables, and the installer will not
-add them to your env file — it never touches an existing one. Ask the release
-what it changed, rather than comparing your file against the example (which
-would list every optional variable you have deliberately left unset):
-
-```bash
-git diff <previous-ref>..HEAD -- deploy/ironcrew.env.example
-```
-
-Note the previous commit or tag in step 3, before pulling, so you have
-something to put on the left.
-
-### 6. Start, runner first
-
-```bash
-sudo systemctl start ironcrew-runner   # if installed
-sudo systemctl start ironcrew
-journalctl -u ironcrew -f
-```
-
-Runner first, so the control plane finds it already listening on its socket
-rather than probing an absent one on its first job.
-
-Watch the log until you see the migrations applied and `scheduler started`.
-Until the scheduler line appears, the company answers HTTP but does nothing on
-its own.
-
-### 7. Verify
-
-See [After the upgrade](#after-the-upgrade). Do not consider the upgrade
-finished because the process is running.
+Refresh service definitions only when the release notes require it; the current
+installer is `node scripts/deploy-service.mjs` with `--role control|runner` and
+`--platform linux|darwin`. Preserve operator configuration. Start any matching
+runner before the control plane, then complete [After the upgrade](#after-the-upgrade).
 
 ## Rollback
 
@@ -428,7 +328,7 @@ look for it.
 
 **Restart both units in the same maintenance window, from the same checkout.**
 Both units have `WorkingDirectory=/opt/ironcrew` and run the code in it, so a
-single `git pull` moves both; what does not happen automatically is the
+single release installation moves both; what does not happen automatically is the
 restart. That is the whole hazard: one `systemctl restart ironcrew` and a
 runner that has been running since last month.
 
@@ -439,7 +339,7 @@ checkout at the moment it started. After an upgrade:
 systemctl show ironcrew ironcrew-runner -p ActiveEnterTimestamp
 ```
 
-If the runner's timestamp predates the `git pull`, it is running the old code
+If the runner's timestamp predates the release installation, it is running the old code
 whatever the checkout says.
 
 Two related hazards worth naming:

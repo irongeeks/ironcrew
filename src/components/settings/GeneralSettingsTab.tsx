@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { ReleaseUpdateSection } from "./ReleaseUpdateSection";
 import type { CliProvider, MessengerChannelType, PackRegistryEntry, WorkflowPackKey } from "../../types";
 import { WORKFLOW_PACK_KEYS } from "../../types";
 import { fetchPackRegistry } from "../../api/workflow-packs";
@@ -441,25 +442,6 @@ export default function GeneralSettingsTab({ t, form, setForm, saved, onSave }: 
 
           <ToggleSettingCard
             label={t({
-              ko: "자동 업데이트 (전역)",
-              en: "Auto Update (Global)",
-              ja: "Auto Update（全体）",
-              zh: "Auto Update (Global)",
-              de: "Automatische Aktualisierung (Global)",
-            })}
-            checked={form.autoUpdateEnabled}
-            onToggle={() => setForm({ ...form, autoUpdateEnabled: !form.autoUpdateEnabled })}
-            title={t({
-              ko: "서버 전체 자동 업데이트 루프를 켜거나 끕니다.",
-              en: "Enable or disable auto-update loop for the whole server.",
-              ja: "サーバー全体の自動更新ループを有効/無効にします。",
-              zh: "Enable or disable auto-update loop for the whole server.",
-              de: "Automatische Aktualisierungsschleife für den gesamten Server aktivieren oder deaktivieren.",
-            })}
-          />
-
-          <ToggleSettingCard
-            label={t({
               ko: "OAuth 자동 스왑",
               en: "OAuth Auto Swap",
               ja: "OAuth 自動スワップ",
@@ -743,35 +725,6 @@ export default function GeneralSettingsTab({ t, form, setForm, saved, onSave }: 
           <div>
             <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
               {t({
-                ko: "자동 업데이트 점검 주기 (분)",
-                en: "Auto Update Check Interval (min)",
-                ja: "自動更新チェック間隔（分）",
-                zh: "Auto Update Check Interval (min)",
-                de: "Intervall für automatische Aktualisierungsprüfung (Min.)",
-              })}
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={form.autoUpdateCheckIntervalMin ?? 10}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  autoUpdateCheckIntervalMin: Math.max(1, Number(e.target.value || 1)),
-                })
-              }
-              className="min-h-[44px] w-full px-3 py-2 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
-              style={{
-                background: "var(--th-input-bg)",
-                borderColor: "var(--th-input-border)",
-                color: "var(--th-text-primary)",
-              }}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
                 ko: "API 요청 타임아웃 (ms)",
                 en: "API Request Timeout (ms)",
                 ja: "APIリクエストタイムアウト (ms)",
@@ -845,6 +798,7 @@ export default function GeneralSettingsTab({ t, form, setForm, saved, onSave }: 
         </button>
       </div>
 
+      <ReleaseUpdateSection />
       <RemoteAccessSection t={t} />
     </>
   );
