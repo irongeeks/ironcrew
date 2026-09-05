@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
 import { createTestDb, seedAgent, seedCompany } from "./test-db.ts";
 import { CharacterStore, MAX_CHARACTER_UPLOAD_BYTES } from "./character-store.ts";
+import { packGlb, triangleDocument } from "./character-glb.fixture.ts";
 import { RESOLVED_AGENT_SELECT } from "./agent-resolution.ts";
 import { verifyAuditChain } from "./audit.ts";
 import { CHARACTER_SKINS } from "../../../src/shared/character-skins.ts";
@@ -35,11 +36,161 @@ beforeEach(() => {
   store = new CharacterStore(db, path.join(directory, "assets"));
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   db.close();
   fs.rmSync(directory, { recursive: true, force: true });
 });
 
 describe("private character appearances", () => {
+  it("stores real GLB and sprite geometry, persists both appearances and preserves omitted new fields", async () => {
+    const model = await store.upload(
+      companyId,
+      {
+        kind: "model_3d",
+        contentType: "model/gltf-binary",
+        dataBase64: packGlb().toString("base64"),
+      },
+      actor,
+    );
+    const sprite = await store.upload(companyId, { ...(await input()), kind: "animation" }, actor);
+    const animation = {
+      url: sprite.url,
+      frameWidth: 24,
+      frameHeight: 32,
+      columns: 2,
+      states: { working: { row: 1, frames: 2, fps: 12, loop: true } },
+    };
+    store.assign(companyId, agentId, { ...appearance, model_3d: model.url, animation_config: animation }, actor);
+    expect(store.read(companyId, model.id).contentType).toBe("model/gltf-binary");
+    expect(store.read(companyId, model.id).buffer.includes(Buffer.from("discard-me"))).toBe(false);
+    expect(fs.existsSync(path.join(directory, "assets", `${model.id}.glb`))).toBe(true);
+    db.close();
+    db = new DatabaseSync(path.join(directory, "crew.sqlite"));
+    store = new CharacterStore(db, path.join(directory, "assets"));
+    const preserved = store.assign(companyId, agentId, { ...appearance, character_id: "navigator" }, actor);
+    expect(preserved).toMatchObject({ model_3d: model.url, animation_config: animation });
+    const resolved = db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id=?`).get(agentId) as { persona_json: string };
+    expect(JSON.parse(resolved.persona_json)).toMatchObject({ model_3d: model.url, animation_config: animation });
+    expect(store.list(companyId).every((asset) => asset.inUseBy.includes(agentId))).toBe(true);
+    expect(verifyAuditChain(db, companyId).valid).toBe(true);
+  });
+
+  it("rejects unsafe model uploads and sprite frames outside the decoded sheet", async () => {
+    await expect(
+      store.upload(
+        companyId,
+        {
+          kind: "model_3d",
+          contentType: "model/gltf-binary",
+          dataBase64: packGlb({
+            ...triangleDocument(),
+            buffers: [{ byteLength: 36, uri: "https://example.invalid/model" }],
+          }).toString("base64"),
+        },
+        actor,
+      ),
+    ).rejects.toThrow("Ungültiges GLB");
+    await expect(store.upload(companyId, { ...(await input()), kind: "model_3d" }, actor)).rejects.toThrow("GLB-Datei");
+    const sprite = await store.upload(companyId, { ...(await input()), kind: "animation" }, actor);
+    const valid = {
+      url: sprite.url,
+      frameWidth: 24,
+      frameHeight: 32,
+      columns: 2,
+      states: { idle: { row: 0, frames: 2, fps: 12, loop: true } },
+    };
+    for (const animation of [
+      { ...valid, frameWidth: 25 },
+      { ...valid, states: { idle: { row: 2, frames: 2, fps: 12, loop: true } } },
+      { ...valid, states: { idle: { row: 0, frames: 3, fps: 12, loop: true } } },
+      { ...valid, states: { unknown: { row: 0, frames: 1, fps: 12, loop: true } } },
+      { ...valid, states: {} },
+    ])
+      expect(() => store.assign(companyId, agentId, { ...appearance, animation_config: animation }, actor)).toThrow();
+    const otherCompany = seedCompany(db);
+    const otherAgent = seedAgent(db, otherCompany);
+    expect(() => store.assign(otherCompany, otherAgent, { ...appearance, animation_config: valid }, actor)).toThrow(
+      "gehört nicht",
+    );
+    expect(() => store.assign(companyId, agentId, { ...appearance, model_3d: sprite.url }, actor)).toThrow("Bildtyp");
+    expect(db.prepare("SELECT * FROM crew_agent_appearances").all()).toEqual([]);
+  });
+
+  it("requires explicit detach, deletes the real file and only clears references to that asset", async () => {
+    const body = await store.upload(companyId, await input(), actor);
+    const sprite = await store.upload(companyId, { ...(await input()), kind: "animation" }, actor);
+    const animation = {
+      url: sprite.url,
+      frameWidth: 24,
+      frameHeight: 32,
+      columns: 2,
+      states: { idle: { row: 0, frames: 2, fps: 12, loop: true } },
+    };
+    store.assign(companyId, agentId, { ...appearance, full_body: body.url, animation_config: animation }, actor);
+    const before = db.prepare("SELECT * FROM crew_talents").all();
+    expect(() => store.delete(companyId, sprite.id, false, actor)).toThrow("ausdrücklich");
+    expect(() => store.delete(seedCompany(db), sprite.id, true, actor)).toThrow("nicht gefunden");
+    expect(store.read(companyId, sprite.id).buffer.length).toBeGreaterThan(0);
+    expect(store.delete(companyId, sprite.id, true, actor)).toEqual({
+      deleted: true,
+      pending: false,
+      detachedAgentIds: [agentId],
+    });
+    expect(fs.existsSync(path.join(directory, "assets", `${sprite.id}.webp`))).toBe(false);
+    expect(() => store.read(companyId, sprite.id)).toThrow("nicht gefunden");
+    const resolved = db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id=?`).get(agentId) as { persona_json: string };
+    expect(JSON.parse(resolved.persona_json)).toMatchObject({
+      character_id: "android",
+      full_body: body.url,
+      animation_config: null,
+    });
+    expect(db.prepare("SELECT * FROM crew_talents").all()).toEqual(before);
+    expect(verifyAuditChain(db, companyId).valid).toBe(true);
+    const actions = db.prepare("SELECT action FROM crew_audit_events ORDER BY seq DESC LIMIT 3").all();
+    expect(actions).toEqual([
+      { action: "character_asset.deleted" },
+      { action: "character_asset.deletion_requested" },
+      { action: "agent.appearance_detached" },
+    ]);
+  });
+
+  it("recovers a durable deletion after unlink fails, without serving or reassigning pending files", async () => {
+    const asset = await store.upload(companyId, await input(), actor);
+    const file = path.join(directory, "assets", `${asset.id}.webp`);
+    const original = fs.unlinkSync;
+    vi.spyOn(fs, "unlinkSync").mockImplementation((target) => {
+      if (target === file) throw Object.assign(new Error("file busy"), { code: "EACCES" });
+      original(target);
+    });
+    expect(store.delete(companyId, asset.id, false, actor)).toMatchObject({ deleted: false, pending: true });
+    expect(fs.existsSync(file)).toBe(true);
+    expect(() => store.read(companyId, asset.id)).toThrow("nicht gefunden");
+    expect(() => store.assign(companyId, agentId, { ...appearance, full_body: asset.url }, actor)).toThrow("gelöscht");
+    expect(store.list(companyId)[0].status).toBe("deleting");
+    vi.restoreAllMocks();
+    db.close();
+    db = new DatabaseSync(path.join(directory, "crew.sqlite"));
+    store = new CharacterStore(db, path.join(directory, "assets"));
+    expect(store.recoverPending(companyId)).toEqual({ deleted: 1, pending: 0 });
+    expect(fs.existsSync(file)).toBe(false);
+    expect(store.list(companyId)).toEqual([]);
+    expect(verifyAuditChain(db, companyId).valid).toBe(true);
+  });
+
+  it("recovers when unlink succeeded but the final database/audit transaction failed", async () => {
+    const asset = await store.upload(companyId, await input(), actor);
+    db.exec(`CREATE TRIGGER reject_delete_audit BEFORE INSERT ON crew_audit_events
+      WHEN NEW.action = 'character_asset.deleted' BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END;`);
+    expect(store.delete(companyId, asset.id, false, actor).pending).toBe(true);
+    expect(fs.existsSync(path.join(directory, "assets", `${asset.id}.webp`))).toBe(false);
+    expect(db.prepare("SELECT status FROM crew_character_assets WHERE id=?").get(asset.id)).toEqual({
+      status: "deleting",
+    });
+    db.exec("DROP TRIGGER reject_delete_audit");
+    expect(store.recoverPending(companyId)).toEqual({ deleted: 1, pending: 0 });
+    expect(verifyAuditChain(db, companyId).valid).toBe(true);
+  });
+
   it("offers twenty unique original skin IDs and rejects unknown presets or role mutation", () => {
     expect(CHARACTER_SKINS).toHaveLength(20);
     expect(new Set(CHARACTER_SKINS.map((skin) => skin.id)).size).toBe(20);

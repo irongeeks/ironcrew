@@ -404,7 +404,7 @@ describe("permission resolution — elevation reachable only through a live gran
     void r;
   });
 
-  it("elevates a run once a live grant covers its exact task and runtime", async () => {
+  it("keeps legacy grants without bound scope and recorded owner reviews restricted", async () => {
     const r = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Verfahren.");
     const taskId = r.task!.id;
 
@@ -428,10 +428,11 @@ describe("permission resolution — elevation reachable only through a live gran
       },
     });
 
-    expect(seenMode).toBe("elevated");
+    expect(seenMode).toBe("restricted");
     const run = orc.runs.get(exec!.runId)!;
-    expect(run.permission_mode).toBe("elevated");
-    expect(run.sandbox_grant_id).toBe(grant.id);
+    expect(run.permission_mode).toBe("restricted");
+    expect(run.sandbox_grant_id).toBeNull();
+    expect(orc.sandboxGrants.get(grant.id)?.consumed_run_id).toBeNull();
   });
 
   it("does not elevate a run for a different task even with a live grant elsewhere", async () => {

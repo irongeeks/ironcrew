@@ -1,3 +1,6 @@
+import { FleetHub } from "./ironcrew/runner/fleet/hub.ts";
+import { startFleetListener } from "./ironcrew/runner/fleet/listener.ts";
+import { registerFleetRoutes } from "./ironcrew/api/fleet-routes.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -573,11 +576,29 @@ const ironCrewApi = registerIronCrewRoutes(app, {
   scheduler: () => ironCrewScheduler,
 });
 
+const fleetHub = new FleetHub({
+  db,
+  companyId: ironCrewApi.companyId,
+  broadcast: (type, payload) => ironCrewApi.broadcast(type, payload),
+});
+registerFleetRoutes(app, { hub: fleetHub, auth: ironCrewApi.auth });
+const fleetListener = await startFleetListener(fleetHub);
+if (process.env.IRONCREW_RUNNER_MODE === "fleet") {
+  if (!fleetListener) throw new Error("Fleet mode requires the configured TLS Fleet listener.");
+  for (const type of ["claude", "codex", "antigravity", "openrouter"])
+    ironCrewOrchestrator.registerRuntime(fleetHub.runtime(type));
+}
+runtimeContext.closeFleet = () => {
+  fleetHub.close();
+  void fleetListener?.close().catch((error) => logger.error({ error }, "Fleet shutdown failed"));
+};
+
 ironCrewOrchestrator.ensureRuntimeTools(ironCrewApi.companyId);
 // Environment keys are a deliberate embedded-development mode only. Production
 // OpenRouter resolves its SecretRef inside the native runner for each run.
 if (
   !runnerTransport &&
+  process.env.IRONCREW_RUNNER_MODE !== "fleet" &&
   process.env.NODE_ENV !== "production" &&
   process.env.IRONCREW_EMBEDDED_OPENROUTER === "1" &&
   process.env.OPENROUTER_API_KEY

@@ -10,7 +10,8 @@
 
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
 import { resolveDbPath, announceLegacyDbPath } from "./lib/db-path.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -24,8 +25,13 @@ if (!process.env.IRONCREW_BACKUP_TSX) {
   const { spawnSync } = await import("node:child_process");
   const result = spawnSync(
     process.execPath,
-    ["--import", "tsx", fileURLToPath(import.meta.url), ...process.argv.slice(2)],
-    { stdio: "inherit", env: { ...process.env, IRONCREW_BACKUP_TSX: "1" }, cwd: repoRoot },
+    [
+      "--import",
+      pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
+      fileURLToPath(import.meta.url),
+      ...process.argv.slice(2),
+    ],
+    { stdio: "inherit", env: { ...process.env, IRONCREW_BACKUP_TSX: "1" }, cwd: process.cwd() },
   );
   process.exit(result.status ?? 1);
 }
@@ -141,7 +147,11 @@ async function main() {
     console.log(`[ironcrew-backup] wiederhergestellt: Datenbank=${result.database} Anhänge=${result.attachments}`);
     // Said every time, because it is the step people skip: the service was
     // stopped for this, and a restored database is not in use until it starts.
-    console.log("[ironcrew-backup] Dienst wieder starten: sudo systemctl start ironcrew");
+    console.log(
+      process.platform === "darwin"
+        ? "[ironcrew-backup] Dienst wieder starten: sudo launchctl bootstrap system /Library/LaunchDaemons/eu.irongeeks.ironcrew.plist"
+        : "[ironcrew-backup] Dienst wieder starten: sudo systemctl start ironcrew",
+    );
     return;
   }
 

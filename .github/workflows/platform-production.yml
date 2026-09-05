@@ -1,0 +1,78 @@
+name: Platform and production verification
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Native (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Native runner, migration, persistence and recovery tests
+        run: pnpm exec vitest run --config server/vitest.config.ts server/ironcrew/runner server/ironcrew/backup server/ironcrew/memory server/ironcrew/domain/run-request-store.test.ts server/modules/bootstrap/migrations server/test/bootstrap/migrations
+        env:
+          LOG_LEVEL: error
+      - name: Portable installation and backup CLI tests
+        run: pnpm test:scripts
+      - name: Verify launchd property lists on macOS
+        if: runner.os == 'macOS'
+        run: |
+          plutil -lint deploy/launchd/eu.irongeeks.ironcrew.plist
+          plutil -lint deploy/launchd/eu.irongeeks.ironcrew-runner.plist
+  supply-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Inventory installed production licenses
+        run: pnpm licenses list --prod --json > /tmp/ironcrew-production-licenses.json
+      - name: Produce CycloneDX SBOM and gate new license findings
+        run: node scripts/supply-chain-report.mjs /tmp/ironcrew-production-licenses.json artifacts/supply-chain
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-sbom-and-licenses
+          path: artifacts/supply-chain
+          if-no-files-found: error
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          load: true
+          push: false
+          tags: ironcrew:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Production image restart and backup recovery without external networking
+        run: node scripts/ci/docker-smoke.mjs ironcrew:ci

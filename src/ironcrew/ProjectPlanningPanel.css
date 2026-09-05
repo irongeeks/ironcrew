@@ -1,0 +1,114 @@
+.project-planning {
+  display: grid;
+  gap: 1rem;
+  color: #d8e5ec;
+}
+.project-planning h2,
+.project-planning h3,
+.project-planning h4,
+.project-planning h5,
+.project-planning h6 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+.project-planning h2 {
+  font-size: 1.5rem;
+}
+.project-planning h3 {
+  font-size: 1.2rem;
+}
+.project-planning p,
+.project-planning li {
+  line-height: 1.6;
+}
+.project-plan {
+  border-top: 1px solid #3c515c;
+  padding-block: 1.25rem;
+  overflow-wrap: anywhere;
+}
+.project-plan-status {
+  color: #83d1ca;
+}
+.project-plan[data-status="review"] .project-plan-status {
+  color: #eac17b;
+}
+.project-plan[data-status="failed"] .project-plan-status {
+  color: #f19189;
+}
+.project-plan-source {
+  color: #b5c8d2;
+  padding-bottom: 0.5rem;
+}
+.project-plan-source summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+.project-plan-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.project-plan-section {
+  margin-block: 1rem;
+}
+.project-plan-section ul {
+  padding-left: 1.4rem;
+}
+.project-plan-tasks {
+  padding-left: 1.6rem;
+}
+.project-plan-tasks > li {
+  margin-block: 1rem;
+  padding: 0.9rem;
+  border-left: 2px solid #405c69;
+  background: #101b22;
+}
+.project-plan-tasks dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.project-plan-tasks dt {
+  color: #a9bfc9;
+  font-size: 0.85rem;
+}
+.project-plan-tasks dd {
+  margin: 0.3rem 0 0;
+}
+.project-plan-help {
+  color: #b5c8d2;
+  font-size: 0.9rem;
+}
+.project-plan-review {
+  border-left: 2px solid #d7af67;
+  padding: 1rem;
+}
+.project-plan-review > div {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.project-planning [role="alert"],
+.project-plan-error {
+  border-left: 2px solid #e48278;
+  padding: 0.75rem;
+}
+.project-planning [role="status"] {
+  border-left: 2px solid #5eb9b3;
+  padding: 0.75rem;
+}
+.project-planning .ic-btn {
+  min-height: 2.6rem;
+  max-width: 100%;
+  white-space: normal;
+  width: fit-content;
+}
+@media (max-width: 600px) {
+  .project-plan-columns,
+  .project-plan-tasks dl {
+    grid-template-columns: 1fr;
+  }
+  .project-plan-review .ic-btn {
+    width: 100%;
+  }
+}

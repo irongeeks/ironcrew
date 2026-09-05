@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { CHARACTER_SKINS, type CharacterSkinId } from "../shared/character-skins";
-import type { AgentStatus } from "./types";
+import type { AgentStatus, CharacterAnimationConfig } from "./types";
+import { CharacterSprite } from "./CharacterSprite";
 
 export interface CharacterAvatarProps {
   characterId?: string | null;
   seed?: string;
   fullBodyUrl?: string | null;
   portraitUrl?: string | null;
+  animation?: CharacterAnimationConfig | null;
   mode?: "full_body" | "portrait";
   status?: AgentStatus;
   className?: string;
@@ -524,16 +526,36 @@ export function CharacterAvatar({
   seed,
   fullBodyUrl,
   portraitUrl,
+  animation,
   mode = "full_body",
   status = "idle",
   className,
   label,
 }: CharacterAvatarProps): React.JSX.Element {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const [failedAnimation, setFailedAnimation] = useState<string | null>(null);
   const id = resolveCharacterId(characterId, seed);
   const url = mode === "portrait" ? portraitUrl || fullBodyUrl : fullBodyUrl;
   const showUpload = !!url && url !== failedUrl;
   const squarePortrait = mode === "portrait" && !!portraitUrl && showUpload;
+  const showAnimation =
+    mode === "full_body" &&
+    animation &&
+    animation.url !== failedAnimation &&
+    (animation.states[status] || animation.states.idle);
+  const fallbackBody = showUpload ? (
+    <image
+      href={url}
+      x="0"
+      y={squarePortrait ? 0 : -8}
+      width="72"
+      height={squarePortrait ? 72 : 98}
+      preserveAspectRatio={squarePortrait ? "xMidYMid meet" : "xMidYMax meet"}
+      onError={() => setFailedUrl(url)}
+    />
+  ) : (
+    <PresetBody id={id} />
+  );
   return (
     <svg
       className={className}
@@ -542,7 +564,7 @@ export function CharacterAvatar({
       aria-label={label}
       aria-hidden={label ? undefined : true}
       data-character-id={id}
-      data-character-source={showUpload ? "upload" : "preset"}
+      data-character-source={showAnimation ? "animation" : showUpload ? "upload" : "preset"}
     >
       {mode === "full_body" && (
         <>
@@ -560,18 +582,15 @@ export function CharacterAvatar({
         </>
       )}
       <g className="crew-office-person-body">
-        {showUpload ? (
-          <image
-            href={url}
-            x="0"
-            y={squarePortrait ? 0 : -8}
-            width="72"
-            height={squarePortrait ? 72 : 98}
-            preserveAspectRatio={squarePortrait ? "xMidYMid meet" : "xMidYMax meet"}
-            onError={() => setFailedUrl(url)}
+        {showAnimation ? (
+          <CharacterSprite
+            config={animation}
+            status={status}
+            fallback={fallbackBody}
+            onError={() => setFailedAnimation(animation.url)}
           />
         ) : (
-          <PresetBody id={id} />
+          fallbackBody
         )}
       </g>
       {status === "thinking" && (

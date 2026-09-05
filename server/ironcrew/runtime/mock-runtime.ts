@@ -46,9 +46,11 @@ export class MockRuntime implements AgentRuntime {
   private readonly options: Required<Omit<MockRuntimeOptions, "rateLimitResetAt">> & {
     rateLimitResetAt?: number;
   };
+  private readonly customResponse: boolean;
   private readonly cancelled = new Set<string>();
 
   constructor(options: MockRuntimeOptions = {}) {
+    this.customResponse = options.responseText !== undefined;
     this.options = {
       scenario: options.scenario ?? "success",
       responseText: options.responseText ?? "Aufgabe abgeschlossen.",
@@ -164,7 +166,43 @@ export class MockRuntime implements AgentRuntime {
     await pause();
     yield emit("tool.completed", { tool: "read_file", bytes: 2048 });
 
-    const words = this.options.responseText.split(" ");
+    let responseText = this.options.responseText;
+    if (!this.customResponse && input.prompt.includes("IRONCREW_PROJECT_PLAN_V1")) {
+      const match = input.prompt.match(/Verfügbare Agenten: (\[[^\n]+\])/);
+      const agents = match ? (JSON.parse(match[1]) as Array<{ key: string }>) : [];
+      responseText = JSON.stringify({
+        version: 1,
+        goal: "Mock-Projekt zur Prüfung des CEO-Ablaufs",
+        scope: ["Deterministischer Testablauf"],
+        nonGoals: ["Keine reale Projektarbeit"],
+        assumptions: ["MockRuntime: alle Inhalte sind Testdaten"],
+        risks: ["Reale Runtime separat nachweisen"],
+        deliverables: ["Prüfbares Mock-Ergebnis"],
+        approvalPoints: ["CEO prüft diesen Testplan"],
+        budgetMicros: 1000000,
+        tasks: [
+          {
+            key: "analyse",
+            title: "Mock-Analyse",
+            description: "Erstelle ein nachvollziehbares Testresultat ohne externe Aktion.",
+            agentKey: agents.find((a) => a.key === "cto")?.key ?? agents[0]?.key ?? "ea",
+            dependsOn: [],
+            acceptanceCriteria: ["Mock-Ergebnis liegt im Review"],
+            riskLevel: "low",
+          },
+          {
+            key: "review",
+            title: "Mock-Qualitätsprüfung",
+            description: "Prüfe das Testresultat.",
+            agentKey: agents.find((a) => a.key === "qa")?.key ?? agents[0]?.key ?? "ea",
+            dependsOn: ["analyse"],
+            acceptanceCriteria: ["Prüfbericht liegt vor"],
+            riskLevel: "low",
+          },
+        ],
+      });
+    }
+    const words = responseText.split(" ");
     for (const word of words) {
       if (isCancelled()) {
         yield emit("run.cancelled", { reason: "cancelled during generation" });
@@ -174,7 +212,7 @@ export class MockRuntime implements AgentRuntime {
       yield emit("message.delta", { text: `${word} ` });
     }
 
-    yield emit("message.completed", { text: this.options.responseText });
+    yield emit("message.completed", { text: responseText });
     yield emit("usage.updated", {
       inputTokens: this.options.inputTokens,
       outputTokens: this.options.outputTokens,
@@ -190,9 +228,9 @@ export class MockRuntime implements AgentRuntime {
     yield emit("artifact.created", {
       kind: "work_product",
       title: "Ergebnisbericht",
-      body: this.options.responseText,
+      body: responseText,
     });
-    yield emit("run.completed", { summary: this.options.responseText });
+    yield emit("run.completed", { summary: responseText });
   }
 
   async *resumeRun(sessionRef: string, input: RunInput, context: RunContext): AsyncIterable<RunEvent> {

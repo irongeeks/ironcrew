@@ -346,6 +346,7 @@ export function CrewOffice({
                         characterId={agent.persona.character_id}
                         seed={agent.key}
                         fullBodyUrl={agent.persona.full_body}
+                        animation={agent.persona.animation_config}
                         status={agent.status}
                         className="crew-office-person"
                       />

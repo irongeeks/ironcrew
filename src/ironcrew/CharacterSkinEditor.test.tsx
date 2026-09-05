@@ -40,6 +40,34 @@ const agent: Agent = {
 };
 
 describe("character appearance editor", () => {
+  it("labels the preview state independently of option text and changes it without changing the agent", async () => {
+    render(
+      <CharacterSkinEditor
+        agent={{
+          ...agent,
+          persona: {
+            ...agent.persona,
+            animation_config: {
+              url: "/api/crew/character-assets/sprite",
+              frameWidth: 48,
+              frameHeight: 64,
+              columns: 2,
+              states: { idle: { row: 0, frames: 2, fps: 6, loop: false } },
+            },
+          },
+        }}
+        onSave={vi.fn()}
+        onUpload={vi.fn()}
+      />,
+    );
+    const state = screen.getByRole<HTMLSelectElement>("combobox", { name: "Vorschauzustand" });
+    expect(state.labels?.[0].textContent).toBe("Vorschauzustand");
+    expect(screen.getByLabelText("Vorschauzustand", { exact: true })).toBe(state);
+    await userEvent.selectOptions(state, "idle");
+    expect(state).toHaveValue("idle");
+    expect(agent.status).toBe("working");
+  });
+
   it("offers20 distinct presets, previews selection, and saves only cosmetic fields", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<CharacterSkinEditor agent={agent} onSave={onSave} onUpload={vi.fn()} />);
@@ -53,7 +81,13 @@ describe("character appearance editor", () => {
     );
     expect(onSave).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Figur speichern" }));
-    expect(onSave).toHaveBeenCalledWith({ character_id: "crystalline", portrait: null, full_body: null });
+    expect(onSave).toHaveBeenCalledWith({
+      character_id: "crystalline",
+      portrait: null,
+      full_body: null,
+      animation_config: null,
+      model_3d: null,
+    });
     expect(agent.policy.allowed_tools).toEqual(["file_read"]);
     expect(screen.getByRole("status")).toHaveTextContent("Figur gespeichert");
   });
@@ -83,6 +117,8 @@ describe("character appearance editor", () => {
       character_id: "engineer",
       portrait: "/api/crew/character-assets/portrait-1",
       full_body: "/api/crew/character-assets/private-1",
+      animation_config: null,
+      model_3d: null,
     });
   });
 
@@ -115,7 +151,7 @@ describe("character appearance editor", () => {
       expect(prompt).toContain("Pamela Anderson, Captain America und ein eigenes Alien");
       expect(prompt).toContain("transparent background (alpha channel)");
       expect(prompt).toContain("92%");
-      expect(prompt).toContain("currently displays the uploaded base image");
+      expect(prompt).toContain("Static base images remain supported");
       expect(buildCharacterPrompt("Captain America", "natural proportions")).toContain("natural proportions");
     } finally {
       if (original) Object.defineProperty(navigator, "clipboard", original);

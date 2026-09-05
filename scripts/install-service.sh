@@ -127,10 +127,11 @@ done
 
 [[ "${PREFIX}" == /* ]] || die "--prefix must be an absolute path (got: ${PREFIX})"
 [[ "${ENV_FILE}" == /* ]] || die "--env-file must be an absolute path (got: ${ENV_FILE})"
-# The unit is templated with sed using '|' as the delimiter.
-case "${PREFIX}${ENV_FILE}${NODE_BIN}" in
-  *"|"*) die "paths must not contain the '|' character" ;;
-esac
+# Legacy sed renderer accepts only simple absolute paths. The modern installer
+# scripts/deploy-service.mjs supports escaped spaces and special characters.
+for service_path in "${PREFIX}" "${ENV_FILE}"; do
+  [[ "${service_path}" =~ ^/[A-Za-z0-9_./-]+$ ]] || die "legacy installer requires simple absolute paths; use scripts/deploy-service.mjs for other paths"
+done
 [[ "${SERVICE_USER}" =~ ^[a-z_][a-z0-9_-]*$ ]] || die "invalid user name: ${SERVICE_USER}"
 
 command -v systemctl >/dev/null 2>&1 || die "systemctl not found — this machine does not use systemd"
@@ -202,6 +203,7 @@ if [[ -z "${NODE_BIN}" ]]; then
   done
 fi
 [[ -n "${NODE_BIN}" ]] || die "node not found. Install Node 22+ or pass --node /path/to/node"
+[[ "${NODE_BIN}" =~ ^/[A-Za-z0-9_./-]+$ ]] || die "node must be a simple absolute path; use scripts/deploy-service.mjs for other paths"
 [[ -x "${NODE_BIN}" ]] || die "not executable: ${NODE_BIN}"
 
 node_major="$("${NODE_BIN}" -e 'process.stdout.write(String(process.versions.node.split(".")[0]))' 2>/dev/null || echo 0)"

@@ -436,3 +436,17 @@ transaction and is fatal on failure. A startup auto-scan throws if a
 `NNNN-*.ts` file exists on disk but was never registered in `registry.ts`,
 which catches the common "forgot to register it" bug before it reaches
 production.
+
+## Connected company workflows — migrations 0028–0032
+
+| Migration | Persistent entities                                                                     | Invariant                                                                                                  |
+| --------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 0028      | `crew_fleet_workers`, `crew_fleet_enrollments`, `crew_fleet_leases`; run worker linkage | Company/project/runtime/workspace scopes, hashed credentials, generation fencing and session affinity      |
+| 0029      | Sandbox consumption columns                                                             | An approved exception binds exactly one run; same-run retry is idempotent                                  |
+| 0030      | Rebuilt `crew_character_assets` and `crew_agent_appearances`                            | Company-composite foreign keys, media metadata, deletion recovery and separate sprite/GLB references       |
+| 0031      | Coaching proposals/evaluations, guidance versions and notes                             | Only reviewed immutable versions enter runtime context; evidence remains attributable                      |
+| 0032      | `crew_project_plans`                                                                    | One plan per planning task, validated JSON, run evidence and atomic owner review before task-tree creation |
+
+Existing rows are migrated in order through the production registry. Company-wide
+planning does not introduce shadow tasks: its child rows are the same `crew_tasks`
+used by Office, CEO chat, Kanban, dependencies, budgets and the persistent run queue.

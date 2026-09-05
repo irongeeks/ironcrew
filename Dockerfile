@@ -18,13 +18,7 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 # Enable pnpm via corepack (pinned version from package.json)
 RUN corepack enable && corepack prepare pnpm@10.30.1 --activate
 
-# Install all CLI providers globally
-RUN npm i -g \
-    @anthropic-ai/claude-code \
-    @openai/codex \
-    @google/gemini-cli \
-    opencode-ai \
-    openclaw
+# CLI subscriptions belong to the native host runner; this image is the control plane.
 
 WORKDIR /app
 
@@ -73,13 +67,12 @@ COPY . .
 # Build frontend (tsc type-check + vite build)
 RUN pnpm build
 
-# Pre-download Remotion Chromium runtime
-RUN pnpm exec remotion browser ensure
 
 # ---- production: final runtime image ----
 FROM base AS production
 
 ENV NODE_ENV=production
+ENV REMOTION_RUNTIME_BOOTSTRAP=0
 ENV HOST=0.0.0.0
 
 # gosu for dropping privileges in the entrypoint
@@ -106,8 +99,6 @@ COPY --from=builder /app/src/shared ./src/shared
 # Copy package.json (needed for pnpm start script)
 COPY --from=builder /app/package.json ./
 
-# Copy Remotion browser cache (lives inside node_modules/.remotion/ after `remotion browser ensure`)
-COPY --from=builder /app/node_modules/.remotion ./node_modules/.remotion
 
 # Ship validated crew/vendor/memory defaults; private operator config is excluded
 # from the build context and can be mounted from the host.
@@ -135,4 +126,4 @@ EXPOSE 8790
 
 # Entrypoint runs as root to fix /workspaces + /data ownership, then drops to node
 ENTRYPOINT ["docker-prod-entrypoint.sh"]
-CMD ["pnpm", "start"]
+CMD ["node", "--import", "tsx", "server/index.ts"]

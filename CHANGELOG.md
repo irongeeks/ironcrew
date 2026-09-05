@@ -2,6 +2,15 @@
 
 ## Unreleased — 2026-09-05
 
+- Add runtime-generated EA project plans, owner review, atomic task trees and hard budget ceilings.
+- Prevent board/review/revision paths from bypassing pending action approvals.
+- Connect outbound TLS runner fleets with scoped enrollment, credential rotation, capacity leases and session affinity.
+- Bind sandbox exceptions to one owner-approved runtime/task/workspace and enforce expiry in the native runner.
+- Add versioned coaching, objective run-evidence checks and approved guidance in task/meeting context.
+- Manage private character assets with audited deletion/recovery, status spritesheets and optional GLB previews.
+- Add Linux/macOS service tooling, Docker persistence/restore tests and SBOM/license gates.
+- Preserve caller-relative paths in the backup CLI and bound its test process groups.
+
 - Update the production image decoder to patched sharp 0.35.4 after the CI audit
   identified inherited libvips vulnerabilities in the earlier development version.
 

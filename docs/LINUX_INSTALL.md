@@ -176,29 +176,26 @@ The unit logs to journald, restarts on failure, and gives up after 5 starts in
 5 minutes instead of crash-looping forever. The application directory is
 read-only to the service; only `data/` and `/var/lib/ironcrew` are writable.
 
-> **Note on CLI runtimes.** `ProtectHome=true` means the service cannot read a
-> human user's `~/.claude` or `~/.codex` logins — which is deliberate. The unit
-> therefore gives the service account a home _outside_ `/home`
-> (`HOME=/var/lib/ironcrew`, writable), so a CLI runtime authenticated **as the
-> service user** keeps working while every human home directory stays
-> invisible. Sharing a human user's logins with the service instead would
-> require the native runner daemon described in `docs/RUNNER_PROTOCOL.md`,
-> which is not implemented yet. Until then, run interactively (`pnpm dev`) as
-> the user who owns those logins, or authenticate the service account itself.
+For production, use the dedicated native runner and separate service accounts.
+The runner daemon is implemented: CLI credentials stay with `ironcrew-runner` and
+the control plane receives normalized events over an authenticated socket or TLS.
+Do not authenticate the control-plane account with your personal CLI subscription.
+The current installer, service definitions and explicit start/stop commands are in
+[SECURITY_OPERATIONS.md](SECURITY_OPERATIONS.md).
 
 ## Docker Compose
 
 A `compose.yaml` is inherited from upstream and runs the control plane. Note
 that a containerised control plane **cannot** use your host CLI logins, and
 mounting your home directory to give it them would expose every credential in
-it. Use MockRuntime or API-key providers in a container; see
+it. Connect the authenticated native runner or use MockRuntime; see
 `docs/THREAT_MODEL.md` T-05.
 
 ## Backups
 
-Everything lives in one SQLite file plus the logs directory. Stop the service,
-copy `data/`, restart. WAL mode means a live copy can be inconsistent — stop
-first, or use `sqlite3 … ".backup"`.
+Use [BACKUP_RESTORE.md](BACKUP_RESTORE.md). Protect the SQLite snapshot, uploaded
+characters, attachments, vault, configuration and encryption secret. A live plain
+copy of a WAL-mode SQLite file is not a safe backup.
 
 ## Troubleshooting
 

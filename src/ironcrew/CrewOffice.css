@@ -188,6 +188,9 @@
 .crew-office-person-ring {
   opacity: 0.5;
 }
+.crew-office-person[data-character-source="animation"] .crew-office-person-body {
+  animation: none !important;
+}
 .crew-office-name {
   max-width: 114px;
   overflow: hidden;

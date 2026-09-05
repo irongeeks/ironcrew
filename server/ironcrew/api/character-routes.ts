@@ -45,7 +45,7 @@ export function registerCharacterRoutes(app: Express, options: CharacterRoutesOp
   });
   app.get(
     `${base}/character-assets`,
-    auth.requireUser,
+    ownerOnly,
     handle((_req, res) => {
       res.json({ assets: store.list(companyId) });
     }),
@@ -56,6 +56,25 @@ export function registerCharacterRoutes(app: Express, options: CharacterRoutesOp
     handle(async (req, res) => {
       const asset = await store.upload(companyId, req.body, auth.actorOf(req));
       res.status(201).json({ asset });
+    }),
+  );
+  app.delete(
+    `${base}/character-assets/:id`,
+    ownerOnly,
+    handle((req, res) => {
+      const body = z
+        .object({ detach: z.boolean().default(false) })
+        .strict()
+        .parse(req.body ?? {});
+      const result = store.delete(companyId, id(req), body.detach, auth.actorOf(req));
+      res.status(result.pending ? 202 : 200).json(result);
+    }),
+  );
+  app.post(
+    `${base}/character-assets/recover`,
+    ownerOnly,
+    handle((_req, res) => {
+      res.json(store.recoverPending(companyId));
     }),
   );
   app.get(

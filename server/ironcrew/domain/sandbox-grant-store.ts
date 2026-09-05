@@ -31,6 +31,8 @@ export interface SandboxGrantRow {
   issued_at: number;
   expires_at: number;
   revoked_at: number | null;
+  consumed_run_id: string | null;
+  consumed_at: number | null;
 }
 
 function toDomain(row: SandboxGrantRow): SandboxGrant {
@@ -81,8 +83,12 @@ export class SandboxGrantStore {
     workspacePath?: string | null;
     now?: number;
   }): SandboxGrantRow {
-    const { approval } = input;
+    // Reload the persisted decision: callers cannot forge an approved object.
+    const approval = this.db
+      .prepare("SELECT * FROM crew_approvals WHERE id=? AND company_id=?")
+      .get(input.approval.id, input.approval.company_id) as ApprovalRow | undefined;
     const now = input.now ?? Date.now();
+    if (!approval) throw new SandboxGrantMintError("Approval does not exist in this company.");
 
     if (approval.approval_type !== "sandbox_elevation") {
       throw new SandboxGrantMintError(
@@ -95,13 +101,20 @@ export class SandboxGrantStore {
         `Approval ${approval.id} is "${approval.status}", not "approved"; no grant can be minted from it.`,
       );
     }
+    if (approval.expires_at !== null && approval.expires_at <= now)
+      throw new SandboxGrantMintError("Approval has expired; no grant can be minted from it.");
+    if (!Number.isFinite(input.requestedDurationMs) || input.requestedDurationMs <= 0)
+      throw new SandboxGrantMintError("A grant needs a positive finite duration.");
     if (input.providers.length === 0) {
       throw new SandboxGrantMintError("A grant must cover at least one runtime provider.");
     }
 
     const id = newId("grant");
     const issuedAt = now;
-    const expiresAt = clampGrantExpiry(issuedAt, issuedAt + input.requestedDurationMs);
+    const expiresAt = Math.min(
+      clampGrantExpiry(issuedAt, issuedAt + input.requestedDurationMs),
+      approval.expires_at ?? Infinity,
+    );
 
     this.db
       .prepare(
@@ -158,6 +171,7 @@ export class SandboxGrantStore {
         `SELECT * FROM crew_sandbox_grants
           WHERE company_id = ?
             AND revoked_at IS NULL
+            AND consumed_run_id IS NULL
             AND expires_at > ?
             AND (task_id IS NULL OR task_id = ?)
           ORDER BY issued_at DESC`,

@@ -90,6 +90,10 @@ export class RunStore {
       .all(taskId) as unknown as RunRow[];
   }
 
+  setPermission(runId: string, mode: string, grantId: string | null): void {
+    this.db.prepare("UPDATE crew_runs SET permission_mode=?, sandbox_grant_id=? WHERE id=?").run(mode, grantId, runId);
+  }
+
   setWorkspace(runId: string, workspacePath: string): void {
     this.db.prepare("UPDATE crew_runs SET workspace_path = ? WHERE id = ?").run(workspacePath, runId);
   }

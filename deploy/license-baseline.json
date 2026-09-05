@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "notice": "Existing upstream dependencies with custom or incomplete license metadata. This baseline prevents unnoticed additions/changes; it is not permission for commercial use. Review Remotion terms before deploying its features.",
+  "components": [
+    {
+      "name": "@remotion/bundler",
+      "version": "4.0.478",
+      "license": "SEE LICENSE IN LICENSE.md"
+    },
+    {
+      "name": "@remotion/canvas-capture",
+      "version": "4.0.478",
+      "license": "Remotion License"
+    },
+    {
+      "name": "@remotion/cli",
+      "version": "4.0.478",
+      "license": "SEE LICENSE IN LICENSE.md"
+    },
+    {
+      "name": "@remotion/compositor-linux-x64-gnu",
+      "version": "4.0.478",
+      "license": "Unknown"
+    },
+    {
+      "name": "@remotion/media-parser",
+      "version": "4.0.478",
+      "license": "Remotion License https://remotion.dev/license"
+    },
+    {
+      "name": "@remotion/player",
+      "version": "4.0.478",
+      "license": "SEE LICENSE IN LICENSE.md"
+    },
+    {
+      "name": "@remotion/renderer",
+      "version": "4.0.478",
+      "license": "SEE LICENSE IN LICENSE.md"
+    },
+    {
+      "name": "@remotion/web-renderer",
+      "version": "4.0.478",
+      "license": "UNLICENSED"
+    },
+    {
+      "name": "remotion",
+      "version": "4.0.478",
+      "license": "SEE LICENSE IN LICENSE.md"
+    }
+  ]
+}
