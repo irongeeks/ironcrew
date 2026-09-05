@@ -39,7 +39,43 @@ that every phase of the original master prompt is finished.
   directly instead of npx/CLI IPC. Process-kill tests wait for readiness and exit
   events instead of assuming startup has finished after a sleep.
 
-## Verification
+## Follow-up: employee figures and runtime integration
+
+- Twenty original vector characters can be previewed and assigned per employee.
+  Private portrait/full-body uploads are normalized to WebP behind authenticated
+  company-scoped routes. Appearance overrides never modify professional roles,
+  capabilities or permissions. The prompt builder accepts free character references
+  and supplies transparent-background, size and foot-baseline instructions.
+  See [Characters](CHARACTERS.md).
+- Official CLI help/version/auth probes and normalized native streaming now drive
+  capability detection. Persisted session IDs resume only for matching task, agent,
+  runtime, model, permission mode and workspace; CEO revision notes reach the run.
+- OpenRouter streams text and bounded tool rounds, validates tool arguments, enforces
+  grants and provider policy per round, and persists tool audit events. Hard budgets
+  are checked after usage as well as before dispatch.
+- Native runners resolve OpenRouter SecretRefs just in time. Scoped read/list tools,
+  start/resume/cancel and optional mutually authenticated TLS dispatch are implemented.
+  Control Plane and runner must be upgraded together to protocol v2.
+- Obsidian is the local knowledge source. Optional Honcho uses a persistent retry
+  outbox, redacted provenance, explicit sensitivity rules and deletion reconciliation.
+  A Honcho outage preserves the local workflow. Run summaries remain labelled as
+  AI-derived, unreviewed memory; they are not inferred owner preferences.
+
+## Follow-up verification
+
+- Local frontend: **569 tests passed**. Scripts: **26 passed**, including Docker
+  packaging checks. Frozen lockfile validation passed with pinned pnpm 10.30.1.
+- TypeScript, production build and ESLint passed; 447 inherited lint warnings remain.
+- Backend regression suites include session continuity, real local TLS, native
+  usage acknowledgement, streamed hard stops, tool approval binding and memory privacy.
+- The updated CI results and browser screenshots are attached to
+  [PR #18](https://github.com/irongeeks/ironcrew/pull/18). Local Unix listener and browser
+  restrictions are unchanged; Docker is not installed, so packaging checks are not
+  represented as a successful container build or deployment.
+- Docker now includes the shared runtime catalog and configuration. Private assets
+  and the vault use the existing persistent data volume and are excluded from images.
+
+## Previous milestone verification
 
 - GitHub CI on `12f4c5b`: **4,849 backend**, **562 frontend**, and **22 script
   tests passed** (one existing backend skip). The CI run also verifies the six
@@ -67,12 +103,17 @@ on the target Linux/macOS host: CEO message, configured project workspace,
 streaming, cancellation, restart/recovery, review, revision and acceptance.
 No provider login or external customer action was performed in this session.
 
-OpenRouter streaming/tool calling, dynamic CLI flag/capability discovery and
-session resume, Honcho/Hybrid memory, actual remote-worker task dispatch and
-3D assets remain separate work. The current office intentionally delivers the
-requested modern 2D spatial view. CLI auth status is honest but unverified.
-OpenRouter's production key is still configured through the existing environment
-integration; full runner-only SecretRef resolution is not completed here.
+The follow-up implements the previous streaming, session, hybrid-memory,
+runner-only secrets and explicit remote-dispatch gaps. Authenticated production
+acceptance is still open: none of Claude, Codex, agy or Gemini is installed in this
+execution environment, and no real OpenRouter/Honcho account was used. Tests use
+injected transports, fixture CLIs and genuine local TLS connections.
+
+Outbound enrollment and dynamic runner-fleet scheduling, 3D/GLB character uploads
+and animation-frame imports remain future work. Custom images currently move with
+the office figure and receive live state overlays; they are not automatically
+rigged or animated by an image model. The generator produces a copyable prompt;
+image creation happens in the user's selected image model.
 
 ## Start and verify
 
@@ -93,6 +134,6 @@ corepack pnpm build
 corepack pnpm test:e2e
 ```
 
-The next acceptance step is the full browser suite and one authenticated native
-CLI workflow on the intended host. Do not equate MockRuntime success with a
+For the target-host acceptance, follow [CLI runtime acceptance](CLI_RUNTIME_ACCEPTANCE.md)
+and [runner setup](RUNNER_PROTOCOL.md). Do not equate MockRuntime success with a
 validated subscription login or production deployment.

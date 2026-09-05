@@ -143,6 +143,8 @@ export interface RunContext {
   correlationId: string;
   workspacePath: string;
   permissionMode: "restricted" | "workspace_write" | "elevated";
+  /** Granted low-risk tools, scoped to this agent/project by the control plane. */
+  allowedTools?: string[];
   /** Persisted task sensitivity. Unclassified requests use sensitive defaults. */
   sensitive?: boolean;
   /** Literal secret values to redact from this run's output, if any. */

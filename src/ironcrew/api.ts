@@ -11,6 +11,8 @@
 import { isApiRequestError, request } from "../api/core";
 import type {
   Agent,
+  CharacterAppearance,
+  CharacterAsset,
   AgentTool,
   Approval,
   ApprovalTally,
@@ -132,6 +134,11 @@ export function serverErrorCode(err: unknown): string | null {
 }
 
 export const api = {
+  characterSkins: () => get<{ skins: Array<{ id: string; name: string; description: string }> }>("/character-skins"),
+  setAgentAppearance: (id: string, appearance: CharacterAppearance) =>
+    send<{ appearance: CharacterAppearance }>(`/agents/${encodeURIComponent(id)}/appearance`, "PATCH", appearance),
+  uploadCharacterAsset: (input: { kind: "portrait" | "full_body"; contentType: string; dataBase64: string }) =>
+    send<{ asset: CharacterAsset }>("/character-assets", "POST", input),
   // --- identity ---
   //
   // `authStatus` is the only call the UI may make before anyone is signed in.
@@ -313,9 +320,10 @@ export const api = {
   }) => send<{ memory: MemoryRef }>("/memory", "POST", input),
   memoryContent: (id: string) => get<{ memory: MemoryRef; content: string }>(`/memory/${id}`),
   deleteMemory: (id: string) => send<{ ok: boolean }>(`/memory/${id}`, "DELETE"),
-  searchMemory: (provider: string, query: string) =>
+  syncMemory: () => send<{ ok: boolean }>("/memory/sync", "POST"),
+  searchMemory: (provider: string, query: string, semantic = false) =>
     get<{ hits: MemorySearchHit[] }>(
-      `/memory/search?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(query)}`,
+      `/memory/search?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(query)}${semantic ? "&semantic=1" : ""}`,
     ),
 
   mailProviders: () => get<{ providers: MailProviderStatus[] }>("/mail-providers"),

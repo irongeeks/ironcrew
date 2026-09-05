@@ -12,6 +12,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./command-center.css";
 import { CrewOffice } from "./CrewOffice.tsx";
+import { CharacterSkinEditor } from "./CharacterSkinEditor.tsx";
+import { CharacterAvatar } from "./CharacterAvatar.tsx";
 import { useCrewLiveUpdates } from "./useCrewLiveUpdates.ts";
 import { api, serverErrorCode, serverMessage } from "./api.ts";
 import {
@@ -306,6 +308,8 @@ export function CommandCenterView({
   const [memories, setMemories] = useState<MemoryRef[]>([]);
   const [showMemory, setShowMemory] = useState(false);
   const [memoryQuery, setMemoryQuery] = useState("");
+  const [semanticMemorySearch, setSemanticMemorySearch] = useState(false);
+  const [newMemorySensitivity, setNewMemorySensitivity] = useState("internal");
   const [memorySearchHits, setMemorySearchHits] = useState<MemorySearchHit[] | null>(null);
   const [memoryDetail, setMemoryDetail] = useState<{ memory: MemoryRef; content: string } | null>(null);
   const [newMemoryKind, setNewMemoryKind] = useState<MemoryKind>("note");
@@ -462,6 +466,7 @@ export function CommandCenterView({
   const [taskDetailError, setTaskDetailError] = useState<string | null>(null);
   const taskDetailSequence = useRef(0);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [editingCharacter, setEditingCharacter] = useState(false);
   const [showProjectList, setShowProjectList] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const [projectDetail, setProjectDetail] = useState<{
@@ -683,6 +688,7 @@ export function CommandCenterView({
   const openAgentDetail = useCallback(
     (agent: Agent) => {
       setSelectedAgent(agent);
+      setEditingCharacter(false);
       setPairingVesselId(null);
       setPairingTalentId(null);
       setAgentTools(null);
@@ -1109,14 +1115,23 @@ export function CommandCenterView({
     const provider = memoryProviders[0]?.kind;
     if (!title || !content || !provider) return;
     void actWith(
-      () => client.recordMemory({ provider, kind: newMemoryKind, title, content }),
+      () => client.recordMemory({ provider, kind: newMemoryKind, title, content, sensitivity: newMemorySensitivity }),
       async () => {
         setNewMemoryTitle("");
         setNewMemoryContent("");
         await refreshMemory();
       },
     );
-  }, [actWith, client, newMemoryKind, newMemoryTitle, newMemoryContent, memoryProviders, refreshMemory]);
+  }, [
+    actWith,
+    client,
+    newMemoryKind,
+    newMemoryTitle,
+    newMemoryContent,
+    newMemorySensitivity,
+    memoryProviders,
+    refreshMemory,
+  ]);
 
   const openMemoryDetail = useCallback(
     (id: string) => {
@@ -1150,12 +1165,12 @@ export function CommandCenterView({
     if (!query || !provider) return;
     void actWith(
       async () => {
-        const { hits } = await client.searchMemory(provider, query);
+        const { hits } = await client.searchMemory(provider, query, semanticMemorySearch);
         setMemorySearchHits(hits);
       },
       async () => {},
     );
-  }, [actWith, client, memoryQuery, memoryProviders]);
+  }, [actWith, client, memoryQuery, memoryProviders, semanticMemorySearch]);
 
   // --- mailboxes (IMAP/JMAP/M365/Gmail, n:n against agents) ---------------
 
@@ -2860,6 +2875,44 @@ export function CommandCenterView({
 
       {currentAgent && (
         <DetailDialog title={currentAgent.displayName} onClose={() => setSelectedAgent(null)}>
+          <div style={{ width: 80, height: 80 }}>
+            <CharacterAvatar
+              characterId={currentAgent.persona.character_id}
+              seed={currentAgent.key}
+              fullBodyUrl={currentAgent.persona.full_body}
+              portraitUrl={currentAgent.persona.portrait}
+              mode="portrait"
+              label={`${currentAgent.displayName} Portrait`}
+            />
+          </div>
+          <button
+            type="button"
+            className="ic-btn"
+            data-testid="edit-agent-character"
+            onClick={() => setEditingCharacter((value) => !value)}
+          >
+            Figur gestalten
+          </button>
+          {editingCharacter && (
+            <CharacterSkinEditor
+              key={currentAgent.id}
+              agent={currentAgent}
+              onClose={() => setEditingCharacter(false)}
+              onSave={async (appearance) => {
+                await client.setAgentAppearance(currentAgent.id, appearance);
+                await refresh();
+                setEditingCharacter(false);
+              }}
+              onUpload={async (file, kind) => {
+                const { asset } = await client.uploadCharacterAsset({
+                  kind,
+                  contentType: file.type,
+                  dataBase64: await readFileAsBase64(file),
+                });
+                return asset.url;
+              }}
+            />
+          )}
           <dl>
             <dt>Rolle</dt>
             <dd>{currentAgent.professionalRole}</dd>
@@ -3827,6 +3880,12 @@ export function CommandCenterView({
                   {p.ok ? "verbunden" : "nicht erreichbar"}
                 </span>
                 <span className="ic-note">{p.message}</span>
+                {p.sync && (
+                  <span className="ic-note" data-testid="memory-sync-status">
+                    Synchronisiert: {p.sync.synced} · Wartend: {p.sync.pending} · Fehler: {p.sync.failed} · Löschungen:{" "}
+                    {p.sync.pendingDeletion}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -3834,6 +3893,26 @@ export function CommandCenterView({
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
             Suche
           </h3>
+          {memoryProviders.some((p) => p.semanticAvailable) && (
+            <>
+              <label className="ic-note">
+                <input
+                  type="checkbox"
+                  checked={semanticMemorySearch}
+                  onChange={(event) => setSemanticMemorySearch(event.target.checked)}
+                />{" "}
+                Honcho-Suche: Diese Suchanfrage ist öffentlich und darf übertragen werden
+              </label>
+              <button
+                type="button"
+                className="ic-btn"
+                disabled={busy}
+                onClick={() => void actWith(() => client.syncMemory(), refreshMemory)}
+              >
+                Synchronisierung starten
+              </button>
+            </>
+          )}
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-memory-search">
               Suche
@@ -3927,6 +4006,17 @@ export function CommandCenterView({
                   {MEMORY_KIND_LABEL[k]}
                 </option>
               ))}
+            </select>
+            <label htmlFor="ic-new-memory-sensitivity">Vertraulichkeit</label>
+            <select
+              id="ic-new-memory-sensitivity"
+              className="ic-select"
+              value={newMemorySensitivity}
+              onChange={(event) => setNewMemorySensitivity(event.target.value)}
+            >
+              <option value="internal">Intern</option>
+              <option value="public">Öffentlich</option>
+              <option value="confidential">Vertraulich</option>
             </select>
             <label className="ic-sr-only" htmlFor="ic-new-memory-title">
               Titel

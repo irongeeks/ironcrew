@@ -27,6 +27,9 @@ import { migration as m0021CrewRoutines } from "./0021-crew-routines.ts";
 import { migration as m0022CrewPacks } from "./0022-crew-packs.ts";
 import { migration as m0023CrewApprovalReviews } from "./0023-crew-approval-reviews.ts";
 import { migration as m0024CrewOidcIdentities } from "./0024-crew-oidc-identities.ts";
+import { migration as m0025CrewCharacterAppearance } from "./0025-crew-character-appearance.ts";
+import { migration as m0026CrewMemorySync } from "./0026-crew-memory-sync.ts";
+import { migration as m0027CrewRuntimeSession } from "./0027-crew-runtime-session.ts";
 
 // Import future migrations here:
 // import { migration as m0022 } from "./0022-example.ts";
@@ -67,6 +70,9 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0022-crew-packs.ts", migration: m0022CrewPacks },
   { filename: "0023-crew-approval-reviews.ts", migration: m0023CrewApprovalReviews },
   { filename: "0024-crew-oidc-identities.ts", migration: m0024CrewOidcIdentities },
+  { filename: "0025-crew-character-appearance.ts", migration: m0025CrewCharacterAppearance },
+  { filename: "0026-crew-memory-sync.ts", migration: m0026CrewMemorySync },
+  { filename: "0027-crew-runtime-session.ts", migration: m0027CrewRuntimeSession },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

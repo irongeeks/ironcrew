@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { claudeAdapter } from "../../adapters/claude.ts";
 import { codexAdapter } from "../../adapters/codex.ts";
 import { geminiAdapter } from "../../adapters/gemini.ts";
+import { antigravityAdapter } from "../../adapters/antigravity.ts";
 import type { CliAdapter } from "../../adapters/adapter-interface.ts";
 import { CliAdapterRuntime, type CliAdapterRuntimeOptions } from "./cli-adapter-runtime.ts";
 import { PermissionPolicyError } from "../policy/runtime-permissions.ts";
@@ -74,89 +75,68 @@ function withStubEnv<T>(scenario: string, protocol: string, fn: () => Promise<T>
 
 const FAST: CliAdapterRuntimeOptions = { idleTimeoutMs: 0, hardTimeoutMs: 0, killGraceMs: 100 };
 
-describe("capabilities / healthCheck / authStatus (no process spawned)", () => {
-  it("reports real capabilities per adapter, honestly", async () => {
-    const claude = new CliAdapterRuntime(claudeAdapter);
-    const caps = await claude.capabilities();
-    expect(caps.usageReporting).toBe(true); // claudeAdapter.supportsTokenTracking
-    expect(caps.subagents).toBe(true); // claudeAdapter.detectSubtask exists
-    expect(caps.costReporting).toBe(false); // subscription CLI, no invented price
-    expect(caps.sessionResume).toBe(false); // honestly not implemented
-    expect(caps.defaultConcurrency).toBe(1);
+const PROBE = path.join(__dirname, "__fixtures__", "probe-cli.mjs");
+function probed(adapter: CliAdapter): CliAdapterRuntime {
+  const prefix: [string, ...string[]] = [process.execPath, PROBE, adapter.providerType];
+  return new CliAdapterRuntime(
+    {
+      ...adapter,
+      buildArgs: (input) => [...prefix, ...adapter.buildArgs(input).slice(1)],
+    },
+    { probeCommand: prefix, probeTimeoutMs: 2_000, killGraceMs: 20 },
+  );
+}
+afterEach(() => vi.unstubAllEnvs());
 
-    const codex = new CliAdapterRuntime(codexAdapter);
-    expect((await codex.capabilities()).usageReporting).toBe(false); // codexAdapter.supportsTokenTracking
-    expect((await codex.capabilities()).defaultConcurrency).toBe(2);
-  });
-
-  it("id/type match the wrapped adapter's providerType", () => {
-    expect(new CliAdapterRuntime(claudeAdapter).type).toBe("claude");
-    expect(new CliAdapterRuntime(codexAdapter).type).toBe("codex");
-    expect(new CliAdapterRuntime(geminiAdapter).type).toBe("gemini");
-  });
-
-  it("healthCheck reports not installed without throwing, for a CLI genuinely absent", async () => {
-    const absent: CliAdapter = { ...claudeAdapter, buildArgs: claudeAdapter.buildArgs };
-    const runtime = new CliAdapterRuntime({
-      ...absent,
-      testEnvironment: async () => ({ ok: false, message: "claude CLI not found in PATH" }),
+describe("capability and local auth probes", () => {
+  it("confirms version, streaming and resume from the installed help protocol", async () => {
+    const runtime = probed(claudeAdapter);
+    expect(await runtime.capabilities()).toMatchObject({
+      version: "9.1.0",
+      streaming: true,
+      sessionResume: true,
+      defaultConcurrency: 1,
     });
-    const health = await runtime.healthCheck();
-    expect(health.installed).toBe(false);
-    expect(health.healthy).toBe(false);
-    expect(health.detail).toBeTruthy();
+    expect(await runtime.healthCheck()).toMatchObject({ installed: true, healthy: true });
   });
-
-  it("authStatus never carries a secret and offers a setup hint when not authenticated", async () => {
-    const runtime = new CliAdapterRuntime({
-      ...claudeAdapter,
-      testEnvironment: async () => ({ ok: false, message: "claude CLI not found in PATH" }),
+  it("does not equate an installed executable with a usable runtime", async () => {
+    vi.stubEnv("IRONCREW_CLI_FIXTURE_MODE", "missing-stream");
+    const runtime = probed(claudeAdapter);
+    expect(await runtime.healthCheck()).toMatchObject({ installed: true, healthy: false });
+    await expect(collect(runtime, context())).rejects.toThrow("Streaming");
+  });
+  it("leaves auth unverified when the installed CLI has no status contract", async () => {
+    vi.stubEnv("IRONCREW_CLI_FIXTURE_MODE", "missing-auth");
+    expect(await probed(claudeAdapter).authStatus()).toMatchObject({
+      authenticated: false,
+      verification: "unverified",
     });
-    const auth = await runtime.authStatus();
-    expect(auth.authenticated).toBe(false);
-    expect(auth.setupHint).toBeTruthy();
-    expect(JSON.stringify(auth)).not.toMatch(/sk-|Bearer /);
   });
-
-  it("genuinely detects whatever real Claude Code CLI state this environment actually has", async () => {
-    // Talks to the real `claude` binary through the real (unstubbed)
-    // adapter — no fake testEnvironment() here. Whether that binary is
-    // actually present is a fact about the machine running the test, not
-    // about this code: this session happens to run on Claude Code itself,
-    // so `claude` is installed here, but a bare CI runner typically has no
-    // such CLI. The assertions must hold either way — what they prove is
-    // that healthCheck()/authStatus() genuinely reflect the real state
-    // rather than a canned answer, and never leak a secret regardless. This
-    // does NOT run a live task (see IMPLEMENTATION_STATUS.md — that needs
-    // an authenticated context and stays an open manual step).
-    const runtime = new CliAdapterRuntime(claudeAdapter);
-    const health = await runtime.healthCheck();
-    expect(health.installed).toBe(health.healthy); // self-consistent either way
-    expect(health.detail).toBeTruthy();
-
-    const auth = await runtime.authStatus();
-    expect(JSON.stringify(auth)).not.toMatch(/sk-|Bearer /);
-    if (health.installed) {
-      expect(auth.authenticated).toBe(false);
-      expect(auth.verification).toBe("unverified");
-      expect(auth.accountHint).toBeUndefined();
-    } else {
-      expect(auth.authenticated).toBe(false);
-      expect(auth.setupHint).toBeTruthy();
-    }
+  it.each([claudeAdapter, codexAdapter])("whitelists only safe auth fields for $providerType", async (adapter) => {
+    const auth = await probed(adapter).authStatus();
+    expect(auth).toMatchObject({ authenticated: true, verification: "verified" });
+    expect(JSON.stringify(auth)).not.toMatch(/sensitive-profile|never-expose|accessToken/);
   });
-
-  it("never treats an installed CLI's version as proof of authentication", async () => {
-    const fakeOk: CliAdapter = {
-      ...claudeAdapter,
-      testEnvironment: async () => ({ ok: true, version: "claude/9.9.9", message: "found" }),
-    };
-    const auth = await new CliAdapterRuntime(fakeOk).authStatus();
-    expect(auth.authenticated).toBe(false);
-    expect(auth.verification).toBe("unverified");
-    expect(auth.accountHint).toBeUndefined();
-    expect(auth.detail).toContain("Anmeldung nicht geprüft");
-    expect(auth.setupHint).toContain("Runner-Benutzer");
+  it.each([claudeAdapter, codexAdapter])(
+    "recognizes the official logged-out result for $providerType",
+    async (adapter) => {
+      vi.stubEnv("IRONCREW_CLI_FIXTURE_MODE", "logged-out");
+      expect(await probed(adapter).authStatus()).toMatchObject({ authenticated: false, verification: "verified" });
+    },
+  );
+  it("does not interpret an unknown auth error as a successful login", async () => {
+    vi.stubEnv("IRONCREW_CLI_FIXTURE_MODE", "auth-unknown");
+    expect(await probed(codexAdapter).authStatus()).toMatchObject({ authenticated: false, verification: "unverified" });
+  });
+  it("does not invent an Antigravity login status", async () => {
+    expect(await probed(antigravityAdapter).authStatus()).toMatchObject({
+      authenticated: false,
+      verification: "unverified",
+    });
+  });
+  it("reports absent CLI without trying a login", async () => {
+    const runtime = new CliAdapterRuntime(claudeAdapter, { probeCommand: ["ironcrew-deliberately-missing-cli"] });
+    expect(await runtime.healthCheck()).toMatchObject({ installed: false, healthy: false });
   });
 });
 
@@ -385,16 +365,53 @@ describe("permission guard is wired in", () => {
 });
 
 describe("resumeRun", () => {
-  it("delegates to startRun (no wrapped adapter supports real resume)", async () => {
-    const runtime = new CliAdapterRuntime(stubbed(claudeAdapter, "success", "claude"), FAST);
-    const events: RunEvent[] = [];
-    await withStubEnv("success", "claude", async () => {
-      for await (const ev of runtime.resumeRun("prior-session", { prompt: "x" }, context())) {
-        events.push(ev);
+  it.each([claudeAdapter, codexAdapter, antigravityAdapter])(
+    "continues the explicit $providerType session through the real subprocess argv",
+    async (adapter) => {
+      const runtime = probed(adapter);
+      const events: RunEvent[] = [];
+      for await (const event of runtime.resumeRun("session-fixture-001", { prompt: "Fortsetzen" }, context()))
+        events.push(event);
+      expect(events.at(-1)).toMatchObject({ type: "run.completed", payload: { sessionRef: "session-fixture-001" } });
+      const message = events.find((event) => event.type === "message.completed")!;
+      const observed = JSON.parse(String(message.payload.text)) as { args: string[]; stdin: string };
+      expect(observed.args).toContain(
+        adapter.providerType === "claude" ? "--resume" : adapter.providerType === "codex" ? "resume" : "--conversation",
+      );
+      expect(observed.args).toContain("session-fixture-001");
+      if (adapter.promptDelivery === "stdin") expect(observed.stdin).toBe("Fortsetzen");
+      else expect(observed.args).toContain("Fortsetzen");
+      expect(observed.args).not.toContain("multi_agent");
+    },
+  );
+  it("refuses unsupported resume instead of silently starting over", async () => {
+    vi.stubEnv("IRONCREW_CLI_FIXTURE_MODE", "missing-resume");
+    const runtime = probed(claudeAdapter);
+    await expect(collect(runtime, context())).resolves.toBeTruthy();
+    await expect(async () => {
+      for await (const _event of runtime.resumeRun("prior-session", { prompt: "x" }, context())) {
+        /* consume */
       }
-    });
-    expect(events[0].type).toBe("run.started");
-    expect(events.at(-1)!.type).toBe("run.completed");
+    }).rejects.toThrow("Kein neuer Lauf");
+  });
+  it("rejects a session reference that could be interpreted as an option", async () => {
+    const runtime = probed(codexAdapter);
+    await expect(async () => {
+      for await (const _event of runtime.resumeRun("--last", { prompt: "x" }, context())) {
+        /* consume */
+      }
+    }).rejects.toThrow("ungültig");
+  });
+  it("records the session before completion and retains split UTF-8/NDJSON", async () => {
+    const events = await collect(probed(claudeAdapter), context());
+    expect(events.find((event) => event.type === "run.started" && event.payload.sessionRef)).toBeTruthy();
+    expect(String(events.find((event) => event.type === "message.completed")?.payload.text)).toContain("Grüße");
+    expect(events.find((event) => event.type === "usage.updated")?.payload.inputTokens).toBe(17);
+  });
+  it("treats a structured provider failure as failed even with process exit zero", async () => {
+    vi.stubEnv("IRONCREW_CLI_FIXTURE_MODE", "structured-error");
+    const events = await collect(probed(codexAdapter), context());
+    expect(events.at(-1)).toMatchObject({ type: "run.failed", payload: { sessionRef: "session-fixture-001" } });
   });
 });
 

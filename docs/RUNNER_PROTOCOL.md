@@ -4,8 +4,9 @@ How the control plane talks to the thing that actually executes agent work.
 
 > **Status.** `embedded` and `native-daemon` are implemented and tested
 > (`server/ironcrew/runner/`, including a round trip over a real Unix
-> socket). `remote-daemon` — the outbound-only connection for a VPS or a
-> customer network — is still design.
+> socket). Explicit remote mTLS dispatch is implemented and tested over local
+> TLS handshakes. Outbound-only enrollment and automatic fleet routing remain
+> separate future work.
 
 ## Why a runner abstraction at all
 
@@ -32,13 +33,15 @@ never receives an OAuth token
 | --------------- | ----------- | ---------------------------------------------------------------------------- |
 | `embedded`      | implemented | local development; runtime in the control plane process                      |
 | `native-daemon` | implemented | Linux/macOS; a dedicated OS user owns the CLI logins and the MCP credentials |
-| `remote-daemon` | design      | VPS, server tank, isolated customer networks                                 |
+| `remote-mtls`   | implemented | one explicitly configured remote endpoint, mutual certificates + token      |
+| `remote-daemon` | design      | outbound-only enrollment and dynamic fleet routing                           |
 
 ### Switching between them
 
-One variable. With `IRONCREW_RUNNER_SOCKET` set, every CLI runtime the
-control plane registers is a `RunnerRuntime` that forwards to the daemon;
-without it they run inline. The orchestrator sees the same `AgentRuntime`
+With `IRONCREW_RUNNER_SOCKET` set, CLI runtimes and OpenRouter are
+`RunnerRuntime` adapters that forward to the daemon. Embedded runtimes are
+for explicitly enabled development; production configuration must use the
+native runner. The orchestrator sees the same `AgentRuntime`
 either way and cannot tell the difference — which is what makes the security
 property cost nothing.
 
@@ -49,7 +52,9 @@ credentials. With one, that stops being necessary: the credentials live with
 
 ### The wire
 
-NDJSON over a Unix socket — one message per line, `{ v, kind, … }`. Not a
+NDJSON over a Unix socket or mTLS — one message per line, `{ v, kind, … }`.
+This build uses protocol **v2** (typed grants and resume). Upgrade control
+plane and runner together; v1 peers fail explicitly during the handshake. Not a
 binary framing and not an RPC library: a protocol an operator can read with
 `nc` at three in the morning is worth more than the saved bytes, and the
 message rate is events from a handful of runs.
@@ -61,6 +66,51 @@ on the machine — including anything an agent itself starts, which would make
 the isolation decorative. The shared token on top is defence in depth, not the
 primary control, and is compared in constant time.
 
+### Explicit remote mTLS transport
+
+A remote runner can listen on a deliberately configured TLS endpoint. The
+control plane uses the same task/start/resume/cancel protocol as Unix sockets;
+the CA and hostname are verified and a trusted client certificate is required
+before the application token is accepted. TLS 1.3 is the minimum version.
+There is no plaintext fallback, `rejectUnauthorized=false` option or auto-discovery.
+
+Control plane (choose URL **or** Unix socket, never both):
+
+```sh
+IRONCREW_RUNNER_URL=tls://runner.internal.example:7443
+IRONCREW_RUNNER_TOKEN=<shared-application-token>
+IRONCREW_RUNNER_CA_FILE=/etc/ironcrew/tls/runner-ca.pem
+IRONCREW_RUNNER_CERT_FILE=/etc/ironcrew/tls/control-plane.pem
+IRONCREW_RUNNER_KEY_FILE=/etc/ironcrew/tls/control-plane.key
+```
+
+Runner (omit `IRONCREW_RUNNER_SOCKET` when enabling TLS):
+
+```sh
+IRONCREW_RUNNER_TLS_HOST=127.0.0.1
+IRONCREW_RUNNER_TLS_PORT=7443
+IRONCREW_RUNNER_TLS_CERT_FILE=/etc/ironcrew/tls/runner.pem
+IRONCREW_RUNNER_TLS_KEY_FILE=/etc/ironcrew/tls/runner.key
+IRONCREW_RUNNER_TLS_CLIENT_CA_FILE=/etc/ironcrew/tls/control-plane-ca.pem
+IRONCREW_RUNNER_TOKEN=<same-shared-application-token>
+```
+
+The default bind address is loopback. For another machine, explicitly bind the
+runner to its private/VPN interface and allow only the intended control-plane
+source through the firewall. Issue a server certificate with the endpoint DNS
+name or IP in its SAN and a client certificate with client-auth usage. Keep
+private keys readable only by their service account. No certificates are
+obtained or enrolled automatically. Client certificate files are read per
+connection, so rotation takes effect on the next job; restart the runner to
+rotate its listener certificate. Workspaces must exist under the runner's
+configured root and the control plane must send the assigned runner path.
+
+This is a concrete remote execution path for one explicit endpoint, including
+MCP connections and runner-only SecretRef resolution. It is **inbound mTLS**,
+not an outbound customer-network agent, short-lived enrollment flow, dynamic
+worker selection or a multi-runner fleet. Remote-worker inventory alone never
+activates an execution endpoint. Those separate capabilities remain feature-gated.
+
 ### What the runner refuses
 
 - **A workspace outside its root.** `IRONCREW_RUNNER_WORKSPACE_ROOT` is
@@ -71,7 +121,62 @@ primary control, and is compared in constant time.
 - **A job for a runtime it does not have.** Reported at the handshake, so it
   reads as "this runner cannot do that" rather than as a mysterious failure
   inside a run.
-- **A wrong token**, without revealing its length.
+- **A wrong or missing token.**
+- **Malformed run inputs**, unknown fields, unrecognized message kinds and
+  runtime events attributed to another company, project, agent, task or run.
+- **Duplicate concurrent work for a company/task**, even when two authenticated
+  connections try to start different run IDs for that task.
+- **A resume request the installed runtime cannot actually support.**
+
+`start` and `resume` carry the normalized input and a typed context. Context
+includes the assigned workspace, sensitivity and `allowedTools`; a reference
+to an official CLI conversation is a session identifier, never an OAuth token.
+`resume` calls the runtime's actual `resumeRun` after capability detection.
+
+### OpenRouter secrets and native workspace tools
+
+The control plane never needs `OPENROUTER_API_KEY` in native mode. Configure a
+reference only in the runner's environment (see
+`deploy/ironcrew-runner.env.example`):
+
+```sh
+IRONCREW_OPENROUTER_SECRET_REF='{"provider":"keychain","itemRef":"ironcrew/openrouter"}'
+IRONCREW_RUNNER_TOOL_AUDIT=/var/lib/ironcrew-runner/tool-audit.ndjson
+```
+
+Supported reference providers are `keychain`, `protonpass` and `vaultwarden`.
+A Proton Pass reference uses the provider's `shareId:itemId` format. The
+runner resolves the reference just before each run, constructs a fresh runtime,
+and releases the runtime and its key reference when the run ends. Rotation
+therefore takes effect on the next run. JavaScript strings cannot be securely
+zeroized; no persistent runtime field stores the resolved credential.
+
+Health and authentication probes do not resolve keys. They report vault
+availability and an **unverified** API login until an actual request can be
+made. A vault being reachable does not establish that its API key is valid.
+Provider exceptions are not passed through because they can contain raw CLI
+output. Runtime output is redacted again before leaving the runner.
+
+OpenRouter can use two native tools: `workspace_read` and `workspace_list`.
+They require a project workspace and explicit `workspace.read` /
+`workspace.list` entries in the control-plane-derived `allowedTools` grant
+list. Missing grants mean no tools; a filesystem path alone is not permission.
+No shell, network, write, send or deployment tools are registered here.
+Reads are limited to 256 KiB of text; listings to 500 entries. Absolute paths,
+parent traversal, symlinks, `.env*`, `.ssh`, `.git` and credential paths are
+rejected. The tools recheck scope at execution and use no-follow file opens.
+They rely on the dedicated runner account and assigned workspace permissions;
+these path checks do not replace OS isolation against a hostile concurrent
+process running as that same account.
+
+Every tool stage is appended to a runner-owned NDJSON audit file and fsynced;
+an audit-write failure prevents execution. Audit entries include actor,
+company/project/task/run, correlation ID, tool call ID, stage and redacted
+arguments. Full file contents are not duplicated into this local audit. The
+normal `tool.*` events carry results back to the control plane for persistent
+run history and audit linkage. Preserve this runner audit alongside normal
+backups; it must be outside agent workspaces. The default location is
+`~/.local/state/ironcrew/tool-audit.ndjson` for the runner OS user.
 
 ### MCP servers on the runner
 
@@ -120,6 +225,9 @@ runner that ends a job without a terminal event — produces `run.failed` or
 stopped would leave the orchestrator's `for await` waiting, the task
 `running` and the agent locked until its lease expired minutes later.
 
+A clean `run.waiting` also ends the current attempt: the queue retains the
+continuation. The client must not append a synthetic failure to that state.
+
 Locally minted events carry `seq: -1`: the runner owns the sequence for a run,
 and inventing a number in its space could collide with one it already used.
 
@@ -137,7 +245,7 @@ The native runner:
 - returns normalised events,
 - **never transmits an OAuth token to the control plane.**
 
-For remote runners the connection is outbound-only, with mTLS or short-lived
+For the future enrolled customer-network runner the connection will be outbound-only, with mTLS or short-lived
 enrolment tokens, so a customer network never needs an inbound hole.
 
 ## The interface
@@ -237,12 +345,31 @@ A run writes `heartbeat_at` as events flow. A task's claim carries
 Recovery is idempotent and audited. A recovered task is claimable again
 immediately.
 
+## Budget acknowledgment before native continuation
+
+Protocol v2 carries a scoped `usage-ack` message. After sending each
+`usage.updated`, the runner pauses the runtime iterator until the control
+plane acknowledges that exact request/company/task/run/event ID and sequence.
+The client sends the ACK only when its consumer requests the next event,
+after usage has been persisted and the budget policy has been evaluated.
+If the control plane aborts, throws or closes the iterator at its hard stop,
+no ACK is sent and the next native OpenRouter tool/model round cannot start.
+
+An unacknowledged usage event expires after 30 seconds. Timeout, connection
+loss and cancellation all release the waiter and stop the run. Incorrect or
+stale ACKs cannot release another run's barrier. This controls application-
+managed model rounds; it does not retroactively cap a response already charged
+by a provider or replace process cancellation for a CLI's internal activity.
+
 ## Cancellation
 
-`cancelRun(runId)` marks the run cancelled; the generator checks between
-events and emits `run.cancelled` rather than stopping abruptly, so the event
-stream always has a terminal event. An `AbortSignal` on `RunContext` does the
-same thing from the caller's side. Both paths are tested.
+`cancelRun(runId)` sends a cancel message immediately on the active job's
+connection, even when no token events are arriving. The runner verifies both
+request ID and run ID, aborts the job signal and invokes the runtime's cancel
+method. An `AbortSignal` on `RunContext` uses the same path. Daemon shutdown
+closes active connections before waiting for the listener, cancelling their
+processes instead of hanging indefinitely. Cancellation before dispatch never
+starts the runtime or resolves an API credential.
 
 ## Bridging the upstream adapters
 

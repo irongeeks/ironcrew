@@ -34,7 +34,12 @@ SELECT
   COALESCE(t.role_summary, '')      AS role_summary,
   COALESCE(t.seniority, 'senior')   AS seniority,
   COALESCE(t.policy_json, '{}')     AS policy_json,
-  COALESCE(t.persona_json, '{}')    AS persona_json,
+  CASE WHEN appearance.agent_id IS NULL THEN COALESCE(t.persona_json, '{}')
+  ELSE json_set(COALESCE(t.persona_json, '{}'),
+    '$.character_id', appearance.character_id,
+    '$.portrait', CASE WHEN appearance.portrait_asset_id IS NULL THEN NULL ELSE '/api/crew/character-assets/' || appearance.portrait_asset_id END,
+    '$.full_body', CASE WHEN appearance.full_body_asset_id IS NULL THEN NULL ELSE '/api/crew/character-assets/' || appearance.full_body_asset_id END
+  ) END AS persona_json,
   COALESCE(t.skills_json, '[]')     AS skills_json,
 
   COALESCE(v.key, '')               AS vessel_key,
@@ -46,6 +51,7 @@ SELECT
 FROM crew_agents a
 LEFT JOIN crew_talents t ON t.id = a.talent_id
 LEFT JOIN crew_vessels v ON v.id = a.vessel_id
+LEFT JOIN crew_agent_appearances appearance ON appearance.agent_id = a.id AND appearance.company_id = a.company_id
 `;
 
 /** An agent with its pairing followed. */

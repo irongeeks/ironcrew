@@ -10,3 +10,9 @@ logs/
 .ironcrew-worktrees/
 .octooffice-worktrees/
 tools/playwright-mcp/
+
+# Runtime company data and private character packs must never be baked into an image.
+data/
+vault/
+config/private/*
+!config/private/*.example.yaml

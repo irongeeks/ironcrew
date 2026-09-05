@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AGENT_STATUS_LABEL, TASK_STATUS_LABEL, type Agent, type Department, type Meeting, type Task } from "./types";
+import { CharacterAvatar } from "./CharacterAvatar";
 import "./CrewOffice.css";
 
 export interface CrewOfficeProps {
@@ -36,10 +37,6 @@ export function currentOfficeTask(agentId: string, tasks: Task[]): Task | undefi
     )[0];
 }
 
-function appearance(key: string): number {
-  return Array.from(key).reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % 4;
-}
-
 /** Desktop fits the whole room between the controls and timeline. Mobile keeps
  * the document's natural scroll path, with width-only fitting. */
 export function officeFitScale(width: number, floorHeight: number, availableHeight: number | null): number {
@@ -47,66 +44,6 @@ export function officeFitScale(width: number, floorHeight: number, availableHeig
     1,
     Math.max(1, width) / 1120,
     availableHeight === null ? 1 : Math.max(1, availableHeight) / floorHeight,
-  );
-}
-
-/** Original vector characters. No external images, pixel sprites, or runtime assumptions. */
-function CrewFigure({ agent }: { agent: Agent }): React.JSX.Element {
-  const variant = appearance(agent.key);
-  const skin = ["#c69b79", "#927058", "#dcb99d", "#b1856c"][variant];
-  return (
-    <svg className="crew-office-person" viewBox="0 0 72 90" aria-hidden="true">
-      <ellipse cx="36" cy="83" rx="23" ry="5" fill="#091016" opacity=".65" />
-      <ellipse className="crew-office-person-ring" cx="36" cy="82" rx="27" ry="7" fill="none" stroke="currentColor" />
-      <g className="crew-office-person-body">
-        <path d="M25 55h10l-2 24H22zm12 0h10l4 24H40z" fill="#17242e" stroke="#53616d" strokeWidth="1" />
-        <path d="M22 76h11v6H18q-1-4 4-6m18 0h11q6 2 5 6H40z" fill="#101a22" stroke="#62707b" />
-        <path
-          d={variant === 1 ? "M24 28l12-5 13 5 6 33H18z" : "M24 28l12-5 13 5 3 30H21z"}
-          fill={agent.isExecutiveAssistant ? "#63523e" : ["#354d5b", "#394956", "#45565e", "#394650"][variant]}
-          stroke="#82909a"
-        />
-        <path d="M24 29l-7 6-5 23 6 2 9-22m21-9 7 7 4 23-6 1-8-21" fill="#3d535f" stroke="#81929d" />
-        <path d="m12 57 6 2-1 5-5-1m41-5 6-1 1 6-6 1" fill={skin} />
-        <path
-          d="m29 25 7 11 8-11m-8 11v22"
-          fill="none"
-          stroke={agent.isExecutiveAssistant ? "#dfb974" : "#7cc7c7"}
-          strokeWidth="2"
-        />
-        <path d="M31 19h10v9l-5 4-5-4z" fill={skin} />
-        <path d="M26 10q1-10 11-9 11 1 10 13l-2 7q-9 9-17 0z" fill={skin} />
-        <path
-          d={
-            variant === 2
-              ? "M25 16Q19-2 36 0q17-1 13 22l-4 5V10q-12 6-17 2v13l-4-3z"
-              : "M25 13Q22 0 36 0q15 0 12 15l-5-7q-9 5-15 2z"
-          }
-          fill={variant === 3 ? "#96958e" : "#242b31"}
-        />
-        <path d="M30 16h3m7 0h3" stroke="#394047" strokeWidth="1.5" strokeLinecap="round" />
-        {variant === 1 && <path d="M28 14h8v5h-8zm9 0h8v5h-8z" fill="none" stroke="#323c45" />}
-        <path d="M42 39h5v4h-5z" fill="currentColor" />
-      </g>
-      {agent.status === "thinking" && (
-        <g className="crew-office-thought">
-          <path d="M5 21h15v10H9l-4 4z" fill="#173139" stroke="currentColor" />
-          <path d="M9 25h7m-7 3h4" stroke="currentColor" />
-        </g>
-      )}
-      {(agent.status === "rate_limited" || agent.status === "paused") && (
-        <g>
-          <circle cx="57" cy="17" r="10" fill="#272a2b" stroke="currentColor" />
-          <path d="M54 12v10m6-10v10" stroke="currentColor" strokeWidth="2" />
-        </g>
-      )}
-      {agent.status === "error" && (
-        <g>
-          <path d="m56 6 12 21H44z" fill="#37232b" stroke="currentColor" />
-          <path d="M56 12v7m0 3v1" stroke="currentColor" strokeWidth="2" />
-        </g>
-      )}
-    </svg>
   );
 }
 
@@ -405,7 +342,13 @@ export function CrewOffice({
                       aria-label={`${agent.displayName} – ${AGENT_STATUS_LABEL[agent.status]} – ${taskLabel(agent)}`}
                       title={`${agent.displayName} · ${AGENT_STATUS_LABEL[agent.status]}\n${taskLabel(agent)}`}
                     >
-                      <CrewFigure agent={agent} />
+                      <CharacterAvatar
+                        characterId={agent.persona.character_id}
+                        seed={agent.key}
+                        fullBodyUrl={agent.persona.full_body}
+                        status={agent.status}
+                        className="crew-office-person"
+                      />
                       <span className="crew-office-name">{agent.displayName}</span>
                       <span className="crew-office-state">{AGENT_STATUS_LABEL[agent.status]}</span>
                     </button>

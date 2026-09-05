@@ -21,8 +21,15 @@
 
 import path from "node:path";
 import process from "node:process";
+import os from "node:os";
+import { OpenRouterRuntime } from "./ironcrew/runtime/openrouter-runtime.ts";
+import type { AgentRuntime } from "./ironcrew/runtime/run-events.ts";
+import { RunnerSecretRuntime, parseRunnerSecretRef } from "./ironcrew/runner/secret-runtime.ts";
+import { RunnerWorkspaceTools } from "./ironcrew/runner/workspace-tools.ts";
 import { createAdapterRegistry, isCliAdapter } from "./adapters/index.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
+import { TlsRunnerDaemon } from "./ironcrew/runner/tls-runner-daemon.ts";
+import { runnerTlsListenerFromEnv } from "./ironcrew/runner/transport.ts";
 import { RunnerDaemon } from "./ironcrew/runner/runner-daemon.ts";
 import { LocalMcpHost } from "./ironcrew/runner/mcp-host.ts";
 import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
@@ -46,12 +53,14 @@ function required(name: string): string {
 }
 
 async function main(): Promise<void> {
+  const tlsOptions = runnerTlsListenerFromEnv();
   const socketPath = process.env.IRONCREW_RUNNER_SOCKET ?? "/run/ironcrew/runner.sock";
+  if (tlsOptions && process.env.IRONCREW_RUNNER_SOCKET) throw new Error("Choose Unix or TLS listener, not both.");
   const token = required("IRONCREW_RUNNER_TOKEN");
   const workspaceRoot = path.resolve(required("IRONCREW_RUNNER_WORKSPACE_ROOT"));
 
   const adapters = createAdapterRegistry();
-  const runtimes = adapters
+  const runtimes: AgentRuntime[] = adapters
     .list()
     .filter(isCliAdapter)
     .map((adapter) => new CliAdapterRuntime(adapter));
@@ -75,6 +84,27 @@ async function main(): Promise<void> {
     providers.set(provider.kind, provider);
   }
 
+  const secretRef = parseRunnerSecretRef(process.env.IRONCREW_OPENROUTER_SECRET_REF);
+  const toolExecutor = new RunnerWorkspaceTools(
+    process.env.IRONCREW_RUNNER_TOOL_AUDIT ??
+      path.join(os.homedir(), ".local", "state", "ironcrew", "tool-audit.ndjson"),
+  );
+  const createOpenRouter = (apiKey: string) =>
+    new OpenRouterRuntime({
+      apiKey,
+      defaultModel: process.env.OPENROUTER_DEFAULT_MODEL,
+      toolExecutor,
+    });
+  runtimes.push(
+    new RunnerSecretRuntime({
+      runtimeType: "openrouter",
+      secretRef,
+      providers,
+      createRuntime: createOpenRouter,
+      capabilities: await createOpenRouter("").capabilities(),
+    }),
+  );
+
   const mcp = new LocalMcpHost({
     resolveSecret: async (ref) => {
       const provider = providers.get(ref.provider);
@@ -83,7 +113,9 @@ async function main(): Promise<void> {
     },
   });
 
-  const daemon = new RunnerDaemon({ socketPath, token, workspaceRoot, runtimes, mcp });
+  const daemon = tlsOptions
+    ? new TlsRunnerDaemon({ tls: tlsOptions, token, workspaceRoot, runtimes, mcp })
+    : new RunnerDaemon({ socketPath, token, workspaceRoot, runtimes, mcp });
   await daemon.listen();
 
   let stopping = false;

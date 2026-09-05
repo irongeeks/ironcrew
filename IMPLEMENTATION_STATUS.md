@@ -4,24 +4,29 @@ Honest state of IronCrew. Nothing is listed as done unless it is
 implemented **and** covered by a passing test. Anything verified only by design
 review, or not verifiable in this environment, is said so explicitly.
 
-## Current review corrections — 2026-09-05
+## Current implementation follow-up — 2026-09-05
 
-The primary interface now includes a modern spatial 2D office backed by the
-same company state as Kanban and CEO chat. Retry, rate-limit continuation,
-project workspaces, live updates, mobile navigation and original task/run
-inspection are implemented. Additional fixes enforce OpenRouter provider policy,
-report CLI authentication honestly, and fence obsolete workers after recovery.
+Office, Kanban and CEO chat use one persisted company domain and authenticated live
+updates. Retry, cooldown, workspace propagation and stale-worker fencing are implemented.
+The following additions now have implementation and focused regression coverage:
 
-Measured results and environment limits are in
-[the implementation report](docs/REVIEW_FIXES_2026-09-05.md). The full master-prompt
-MVP is **not yet verified**: authenticated native CLI acceptance remains open.
-GitHub CI passed 4,849 backend, 562 frontend and 22 script tests, plus all
-quality gates; browser captures and final follow-up checks are attached to
-[PR #18](https://github.com/irongeeks/ironcrew/pull/18). OpenRouter streaming/tool
-calling, CLI resume, Honcho and remote task dispatch are still unfinished.
+| Area                 | Implemented scope                                                                                                                   | Details                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Characters           | 20 original full-body skins; profile selection; private portrait/full-body uploads and previews; copyable external-generator prompt | [Characters](docs/CHARACTERS.md)                 |
+| CLI runtimes         | Bounded version/help/auth probes; capability-gated real resume; initial session persistence; safe restart/revision matching         | [CLI acceptance](docs/CLI_RUNTIME_ACCEPTANCE.md) |
+| OpenRouter           | Incremental SSE, usage/rate-limit events, scoped tool calls, schema validation, approvals, audit and per-request vendor policy      | [OpenRouter](docs/OPENROUTER_RUNTIME.md)         |
+| Memory               | Obsidian default plus optional Honcho hybrid, local fallback, classified sync, persistent retry/deletion and source metadata        | [Memory](docs/MEMORY.md)                         |
+| Native/remote runner | Per-run OpenRouter SecretRef resolution; scoped workspace tools; explicit mTLS endpoint supporting start/resume/cancel              | [Runner protocol](docs/RUNNER_PROTOCOL.md)       |
 
-The phase tables below are historical implementation notes; their earlier
-"done" labels must not be read as proof of these missing end-to-end capabilities.
+**Current consolidated verification: 569 frontend and 26 script tests passed; TypeScript and production build passed. Current backend/browser evidence: [PR #18](https://github.com/irongeeks/ironcrew/pull/18).** No real CLI login,
+provider billing, managed Honcho account or remote production deployment is claimed
+as exercised by the fixture suites. Use the manual acceptance procedures below.
+The complete master-prompt MVP is **not yet verified**.
+
+The phase tables and counts below are historical milestone records. Their earlier
+“done” labels describe that milestone's implementation scope, not current consolidated
+checks or proof that every master-prompt requirement is complete. The current scope
+and remaining limits in this document take precedence over those historical notes.
 
 Previous milestone: **Phase 5 — production hardening.** Approval quorums
 (`crew_approval_reviews`, four eyes on a dangerous gate), Authentik OIDC beside
@@ -333,245 +338,76 @@ That is why shipping is a separate mechanism rather than a stronger hash.
 
 ---
 
-## Known gaps — not implemented
+## Current limits and remaining acceptance
 
-Listed plainly so nothing here is mistaken for working software.
+- **Real provider acceptance:** execute the documented [CLI procedure](docs/CLI_RUNTIME_ACCEPTANCE.md)
+  as the dedicated runner user with an official CLI login. Confirm start, streaming,
+  cancellation, revision/resume and persisted review history. The automated process
+  fixtures do not prove compatibility with every installed CLI version or account.
+  `agy` is usable only when the installed official executable exposes the required
+  capabilities; its existence, login and supported flags are not assumed.
+- **OpenRouter:** provider-side usage/billing, actual tool behavior and credentials
+  need an operator run. Tool executors expose only their explicitly granted scoped
+  operations; arbitrary shell or business writes are not enabled by tool calling.
+  Native provider session resume is not available for OpenRouter.
+- **Honcho:** optional v3 transport and hybrid behavior are implemented and tested
+  with controlled servers. Real managed/self-hosted deployment acceptance is open.
+  Unclassified, confidential and restricted memory is not automatically exported;
+  ordinary search stays local unless semantic retrieval is explicitly classified.
+- **Remote runners:** one explicitly configured inbound mTLS endpoint dispatches
+  tasks. Outbound-only enrollment, automatic certificate issuance and selection
+  from the remote-worker registry are not implemented. Local TLS fixtures do not
+  establish a production VPN/firewall/certificate deployment.
+- **Character assets:** built-ins are original SVG figures. Uploaded images are
+  static portraits/full-body images with live status overlays. No built-in image
+  generation, GLB/GLTF rendering, spritesheet animation player or physical asset-delete
+  UI is implemented. Changing the selection detaches an image but does not erase it.
+- **Sandbox elevation:** the resolver and grant store validate scoped, expiring
+  grants, but the product does not yet join approval creation/decision to grant
+  minting. Restricted execution remains the default; an end-to-end elevation UI
+  must not be presented as complete.
+- **Business integrations:** existing mail, Sevdesk and business-pack code is
+  preserved. The read-only business adapters do not prove live tenant behavior or
+  add payments, filings, external promises or production changes.
+- **Other master-prompt work:** human-reviewed coaching/evaluation workflows,
+  automatic fleet orchestration, a launchd service template and a consolidated
+  `docs/SECURITY_OPERATIONS.md` remain open. Multi-company, PostgreSQL and HA are
+  future architectural work, not current product guarantees.
+- **Audit:** offline verification detects changed rows and sequence holes. Tail
+  truncation requires an independent backup or shipped copy for comparison.
 
-### Runtime
+## MVP acceptance overview
 
-Three entries that stood here for two phases have been **removed because they
-were no longer true**, and are named so nobody wonders where they went: "no
-`agy` CLI adapter", "OpenRouter transport is not wired", and "no native runner
-daemon". All three shipped in Phase 3 — see that table. Leaving them in place
-was understating the build, which is the same failure as overstating it.
+This table distinguishes implemented behavior from installation/account acceptance.
+Current aggregate test and browser evidence: **569 frontend and 26 script tests passed; TypeScript and production build passed. Current backend/browser evidence: [PR #18](https://github.com/irongeeks/ironcrew/pull/18)**.
 
-- **`CliAdapterRuntime` bridges the normalised `AgentRuntime` contract onto the
-  upstream CLI adapters** (`server/ironcrew/runtime/cli-adapter-runtime.ts`).
-  `server-main.ts` registers it for every CLI-transport adapter this install
-  builds (claude, codex, gemini and agy) alongside MockRuntime, so the
-  orchestrator can drive a real CLI session, not only MockRuntime. With
-  `IRONCREW_RUNNER_SOCKET` set, those same runtimes become `RunnerRuntime`
-  instances that forward to the runner daemon instead — same contract, same
-  call sites.
-  Argv-array spawning, separate stdout/stderr capture, redaction before
-  emission, idle/hard timeouts, process-group cancellation and rate-limit
-  detection are implemented and tested against a real spawned child process
-  (a purpose-built protocol-accurate fixture, not a mock of the runtime
-  itself) — see `cli-adapter-runtime.test.ts`.
-- **Sandbox elevation is half-built, and the half that exists is the reading
-  one. Elevation is not reachable in production.** This entry previously
-  claimed the path worked end to end. It does not, and the difference matters
-  enough to spell out which half is which:
-
-  **What is there.** `CompanyOrchestrator.executeNextTask()` looks up a live
-  grant with `SandboxGrantStore.findLive()` and resolves the run's permission
-  mode through `resolvePermissionMode()`, then writes a `permission.resolved`
-  audit entry with the mode, the reason code and the grant id. The resolver
-  itself is complete and is the sole authority: it re-validates company,
-  provider, task scope and expiry, hard-caps any grant at four hours, and fails
-  **closed** to `restricted` on every mismatch rather than raising an error a
-  caller might swallow (23 tests). `SandboxGrantStore.mintFromApproval()` is
-  written, refuses anything that is not a genuinely approved
-  `sandbox_elevation` approval, and is covered by 22 tests.
-
-  **What is missing is every caller on the writing side.**
-  `mintFromApproval()` has **no callers outside its own tests**. Nothing in the
-  product ever creates an approval of type `sandbox_elevation` — the type is
-  declared in `ALWAYS_APPROVAL_REQUIRED`, but `approvalTypeFor()` never returns
-  it and no other call site passes it. There is no `POST /approvals` route by
-  which an owner could raise one; approvals are raised by the system when an
-  agent attempts something risky, and no code path attempts elevation.
-
-  **The consequence.** `findLive()` therefore always finds nothing, and every
-  task dispatch in this build resolves `restricted`. **It fails safe** — that
-  is the mode the system would want anyway, and the audit entry is written
-  honestly — but "restricted" here is the absence of a feature, not the
-  outcome of a decision. An owner cannot grant elevation, and no agent can run
-  with the dangerous flags. Anyone reading `docs/THREAT_MODEL.md` T-01's
-  mitigation should read its residual-risk note with it.
-
-  What it would take: a route or UI action that raises a `sandbox_elevation`
-  approval, and a call to `mintFromApproval()` on the approved branch of
-  `decideApproval()`. Both sides of the contract already exist; nothing joins
-  them.
-
-- **A live task run against an authenticated real CLI is unverified in this
-  environment.** No Claude Code, Codex or Gemini _login_ exists in this
-  sandbox (`healthCheck()`/`authStatus()` against the actually-installed
-  `claude` binary here correctly report it unauthenticated). What **is**
-  verified here: `CliAdapterRuntime` genuinely detects the real `claude` CLI
-  installed in this environment (version, installed state) — see
-  `"genuinely detects the real Claude Code CLI installed in this
-environment"` in `cli-adapter-runtime.test.ts` — and drives a real child
-  process end-to-end against the protocol fixture. Running an actual task
-  through a logged-in CLI is the user's own manual verification step.
-
-### Company OS
-
-Goals, projects/milestones, Kanban, task dependencies, the decision inbox,
-org chart, meetings and meeting action items are all **done** — see the
-Phase 2 table above. Routines and the scheduler shipped in Phase 3. What's
-still genuinely not started:
-
-- **Coaching and performance evaluations: not started**, and this one is a
-  decision rather than a backlog item — promotion or assessment driven by an
-  LLM's opinion of an agent is on the "deliberately not planned" list in
-  `docs/ROADMAP.md`.
-- **Routing actual agent task _execution_ to a remote worker over the
-  tailnet.** The registry and the SSH reachability check exist
-  (`testRemoteWorker()`); dispatch does not. Registering a worker and testing
-  it is all this does today.
-
-### Memory
-
-`MemoryProvider` is implemented, with Obsidian as its first real backend
-(`server/ironcrew/memory/`) — see the Phase 2 table above. Not built: a
-second provider (Honcho was deliberately not built alongside it — see
-`docs/UPSTREAM_ANALYSIS.md`), and `docs/MEMORY.md` is still unwritten.
-
-### Tools and secrets
-
-Both shipped in Phase 3 — the tool registry with risk classes and grants, MCP
-servers inside that same registry, web search behind a `SearchProvider`, the
-Playwright browser tool, and the OS-keychain `SecretProvider` alongside
-Vaultwarden and Proton Pass. See the Phase 3 table. What remains:
-
-- **`SecretRef` in MCP config is resolved by the runner, not by the control
-  plane** — which is the point (T-18), but it means an install without the
-  runner resolves nothing and an MCP server carrying a vault reference will
-  not start.
-- **The marketplace registry adapter still skips streamable-HTTP-only
-  servers**, although the connector now speaks that transport. See the note at
-  the end of the mailboxes-and-marketplaces section.
-
-### Business packs
-
-Shipped in Phase 4 — see that table. What is not there, deliberately: **no
-write path in any adapter**, and no live verification against a real vendor
-tenant from this repository.
-
-### Docs still to write
-
-`docs/MEMORY.md` and `docs/SECURITY_OPERATIONS.md` are still unwritten. The
-planned `docs/MCP_AND_TOOLS.md` was not written under that name — `docs/TOOLS.md`
-covers the registry, the risk classes and the grants, MCP servers included,
-since they live in the same registry behind the same grants rather than in a
-second permission system. There is no separate MCP document and there does not
-need to be.
-
-No longer true and removed from this list: `docs/BACKUP_RESTORE.md` was written
-as `docs/BACKUP.md`, and the systemd templates exist —
-`deploy/ironcrew.service` for the control plane and
-`deploy/ironcrew-runner.service` for the runner, with `deploy/README.md`
-covering both and `docs/SERVICE.md` covering the scheduler. **A launchd
-template is still not written**; `docs/MACOS_INSTALL.md` describes running it
-by hand on macOS.
-
-Tools, MCP, the run queue, routines, packs, identity, audit shipping, backups
-and upgrades all have their own documents now: `docs/TOOLS.md`,
-`docs/RUN_QUEUE.md`, `docs/BUSINESS_PACKS.md`, `docs/IDENTITY.md`,
-`docs/AUDIT_SHIPPING.md`, `docs/BACKUP.md`, `docs/UPGRADE.md` and
-`docs/RUNNER_PROTOCOL.md`.
-
----
-
-## MVP acceptance criteria
-
-Measured against section 29 of the master prompt.
-
-| Criterion                                                          | Status                                                                                                                                                                                                                                                                                                |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install` / `dev` / `test` / `build`                          | **met**                                                                                                                                                                                                                                                                                               |
-| Docker Compose for the control plane                               | inherited from upstream (`compose.yaml`), not re-verified                                                                                                                                                                                                                                             |
-| Linux and macOS install guides                                     | **met** — `docs/LINUX_INSTALL.md`, `docs/MACOS_INSTALL.md`                                                                                                                                                                                                                                            |
-| No pixel style, modern command center                              | **met**                                                                                                                                                                                                                                                                                               |
-| Responsive, 2D fallback                                            | **met** (DOM-only; no WebGL scene exists to fall back from)                                                                                                                                                                                                                                           |
-| Figure status matches backend state                                | **met** — derived server-side                                                                                                                                                                                                                                                                         |
-| Kanban, agent detail, CEO chat reachable                           | **met**; projects, org chart, meetings, memory, secrets, attachments and network status are too — each behind its own topbar dialog                                                                                                                                                                   |
-| Provider health UI                                                 | **met** — `GET /api/crew/runtimes` + Command Center agent-detail dropdown with a health marker per registered runtime                                                                                                                                                                                 |
-| MockRuntime plus one real CLI runtime                              | **met** (implementation) — `CliAdapterRuntime` registered for claude/codex/gemini/agy, plus the non-CLI `OpenRouterRuntime`, driven end-to-end against a real child process; a live task run through an authenticated CLI is the user's own manual verification (no login exists in this environment) |
-| Start, streaming, cancel, error state                              | **met** for MockRuntime and `CliAdapterRuntime` alike (same `AgentRuntime` contract, same test coverage pattern)                                                                                                                                                                                      |
-| Persistent run history                                             | **met**                                                                                                                                                                                                                                                                                               |
-| Rate limit detected, not swallowed                                 | **met**                                                                                                                                                                                                                                                                                               |
-| No tokens in logs                                                  | **met** — 35 redaction tests                                                                                                                                                                                                                                                                          |
-| CEO → EA → delegation → agent → review → CEO                       | **met**                                                                                                                                                                                                                                                                                               |
-| Revision works                                                     | **met**                                                                                                                                                                                                                                                                                               |
-| Blocker and approval work                                          | **met**                                                                                                                                                                                                                                                                                               |
-| Restart loses no task                                              | **met**                                                                                                                                                                                                                                                                                               |
-| Obsidian vault read/written                                        | **met** — real markdown files with YAML frontmatter, written/read through `ObsidianProvider`                                                                                                                                                                                                          |
-| Memory search                                                      | **met** — full-text search over what `ObsidianProvider` itself wrote, with snippet extraction                                                                                                                                                                                                         |
-| Honcho optional, failure non-blocking                              | **not met** — deliberately not built alongside Obsidian; `MemoryProvider` is registry-based (like `SecretProvider`), so a second provider is additive whenever it's wanted (see `docs/UPSTREAM_ANALYSIS.md`)                                                                                          |
-| High-risk action blocked until approved                            | **met**                                                                                                                                                                                                                                                                                               |
-| Budgets stop runs reliably                                         | **met**                                                                                                                                                                                                                                                                                               |
-| Atomic assignment prevents double work                             | **met**                                                                                                                                                                                                                                                                                               |
-| Audit shows the full flow                                          | **met**                                                                                                                                                                                                                                                                                               |
-| Blocked model families unusable via UI _and_ API                   | **met**                                                                                                                                                                                                                                                                                               |
-| No OpenRouter fallback outside the allowlist                       | **met** — and now in the transport too. `OpenRouterRuntime` shipped in Phase 3 and enforces the vendor policy _inside_ itself, because one key reaches hundreds of models from dozens of vendors, blocked ones included (20 tests)                                                                    |
-| No Talent Market / WeChat traffic                                  | **met** — endpoint blocklist                                                                                                                                                                                                                                                                          |
-| No telemetry                                                       | **met**                                                                                                                                                                                                                                                                                               |
-| Unit tests: state machines, policies, routing, event normalisation | **met**                                                                                                                                                                                                                                                                                               |
-| Integration tests: task / run / approval / memory                  | **met**                                                                                                                                                                                                                                                                                               |
-| Playwright E2E for the CEO workflow                                | **met** — 10/10                                                                                                                                                                                                                                                                                       |
-| Secret redaction tests                                             | **met**                                                                                                                                                                                                                                                                                               |
-| Recovery-after-crash tests                                         | **met** — orphan recovery and restart persistence                                                                                                                                                                                                                                                     |
+| Criterion                                                      | Current evidence and limit                                                                                                                |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Install/dev/test/build, Linux/macOS guides                     | Commands and guides exist; final gates pending. Docker Compose and native deployment need environment-specific acceptance.                |
+| Modern responsive office, no pixel style                       | Original 2D figures, accessible DOM controls, keyboard navigation and reduced-motion support; no WebGL requirement.                       |
+| One company state across office, Kanban, profiles and CEO chat | Canonical domain IDs, persisted updates and authenticated SSE; focused integration/UI coverage.                                           |
+| Character choice and private assets                            | 20 originals, separate portrait/full-body previews and owner-controlled assignment; upload validation and company isolation covered.      |
+| MockRuntime plus real CLI adapters                             | Mock flow and spawned protocol fixtures covered; installed official CLI capability detection implemented; authenticated real run pending. |
+| Streaming, cancel, errors and rate limits                      | CLI and OpenRouter event parsing, timeouts, cancellation and durable cooldown coverage; actual provider behavior still needs acceptance.  |
+| Session and restart recovery                                   | Initial session IDs persisted with workspace; matching sessions resume after restart/revision; mismatches cannot reuse a session.         |
+| CEO → EA → delegation → review → accept/revise                 | Implemented with regression and browser specs; final current browser results pending.                                                     |
+| Task ownership, dependencies and approvals                     | Atomic claims, lease renewal, stale-worker fencing and structured approval gates implemented and covered.                                 |
+| Budgets and audit                                              | Existing hard-stop and audit paths retained; scoped tool execution records authorization/results.                                         |
+| Obsidian read/write/search and provenance                      | Default local vault, bounded context and metadata implemented.                                                                            |
+| Optional Honcho with non-blocking failure                      | Implemented hybrid fallback, persisted outbox, classified retrieval and deletion; live account acceptance pending.                        |
+| Native SecretRefs and remote transport                         | Runner resolves OpenRouter keys per run; TLS/client-certificate/token boundaries covered in controlled tests; real deployment pending.    |
+| Vendor restrictions and permitted fallback                     | Backend policy applied per request and continuation; no unapproved model/provider fallback.                                               |
+| Full master-prompt MVP                                         | **Not yet verified**; remaining acceptance and implementation limits above are explicit.                                                  |
 
 ## Next technically sensible step
 
-Phases 0 through 5 are complete against the acceptance criteria above. The CEO
-slice runs on real, registered, permission-aware runtimes; the Company OS is
-built and reachable; tools, MCP, search, the browser, the run queue, routines
-and the runner daemon all shipped in Phase 3; five business packs in Phase 4;
-quorums, OIDC, off-box audit shipping, backups and the upgrade runbook in Phase 5. What is still open, in the order it is worth doing:
-
-1. **Close the sandbox-elevation loop, or say in the product that it is
-   open.** Today `resolvePermissionMode()` is complete, `mintFromApproval()` is
-   complete, and nothing connects them — so no owner can grant elevation and
-   every run is `restricted`. It fails safe, which is why this is first on
-   grounds of honesty rather than risk: the docs claimed for two phases that it
-   worked. Either raise a `sandbox_elevation` approval from the code path that
-   wants elevation and mint on approval, or remove the reachable-looking
-   surface so nobody assumes it is there.
-
-2. **The user's own manual live-CLI verification.** No Claude Code, Codex,
-   Gemini or Antigravity login exists in this environment. Install the runner
-   (`deploy/README.md`), log a CLI in **as the runner user**, select that
-   runtime for an agent (Command Center → agent detail → Runtime), send the EA
-   a message, and confirm a real run streams events, appears in
-   `GET /api/crew/runtimes` as authenticated, and reaches `done`. Nothing in
-   this repository can perform this check for you, and it is the one that
-   proves the runner boundary works in practice rather than in tests.
-
-3. **Make `install-service.sh` install the runner.** It hardcodes
-   `SERVICE_NAME="ironcrew"` and has no flag for the second unit, so the
-   credential separation that Phase 3 built has to be assembled by hand from
-   `deploy/README.md`. An install that follows the happy path silently ends up
-   with the CLI logins in the control plane — the exact arrangement T-17 exists
-   to prevent. This is a shell script, not a design problem.
-
-4. **Routing actual task execution to a remote worker** over the tailnet — the
-   registry and the reachability check exist (`testRemoteWorker()`), dispatch
-   does not.
-
-5. **An offline verifier for the `crew_audit_events` chain.**
-   **Closed.** `pnpm run audit:verify:db`
-   (`scripts/ironcrew-verify-audit.mjs`) verifies `crew_audit_events` from a
-   database file without starting the server, opening it strictly read-only —
-   a tool you run because you suspect tampering must not be able to write to
-   the evidence. It checks every company, reports the broken `seq` with the
-   entry's action, actor and timestamp, and separately reports holes in the
-   sequence. Exit 2 on a break or a hole, so it works in cron.
-
-   `pnpm run audit:verify` still checks a different chain — the NDJSON log
-   under `$LOGS_DIR` — and both are real; they simply answer different
-   questions.
-
-   What remains: truncation at the _tail_ is invisible. Deleting the last
-   entry leaves neither a broken link nor a hole, so the verifier proves the
-   rows present are unedited, not that none were removed after the last one.
-   Only comparing against a backup or the off-box copy closes that.
-
-Beyond that, the two largest surfaces are both deliberate noes with the
-reasoning written down: **multi-company**, which needs the company predicate to
-become structural rather than a convention in the callers, and **PostgreSQL**,
-which is a rewrite of the persistence layer wearing the word "adapter". Both
-are argued in the Phase 5 section above and in `docs/ROADMAP.md`.
+1. Finish the consolidated lint, format, type/build, unit/integration and Playwright
+   checks, then replace the pending verification markers with measured results.
+2. Perform an authenticated CLI acceptance run through the dedicated native runner,
+   including revision/resume after a control-plane restart. Keep account credentials
+   in the official CLI store and record only redacted events and result evidence.
+3. Validate one configured OpenRouter SecretRef, optional Honcho endpoint and explicit
+   mTLS runner deployment with bounded tasks and controlled test data.
+4. Choose the next feature from the remaining product gaps using that evidence;
+   automatic outbound fleet enrollment and the elevation approval UI are separate
+   implementation work, not implied by the transport or grant-store foundations.

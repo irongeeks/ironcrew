@@ -11,16 +11,17 @@ atomic task claiming, an approval engine that technically blocks high-risk
 actions, budget enforcement, a hash-chained audit log, and a vendor policy that
 is enforced in the backend rather than hidden in the UI.
 
-> **Status: integrated company office and review fixes.** Office, Kanban and
-> CEO chat now use the canonical company domain, with authenticated live events
-> and persisted task/run history. Retry, provider cooldown and project workspace
-> handling have been corrected. Existing mail and business-pack integrations remain.
+> **Status: integrated company office, selectable characters and runtime integration.**
+> Office, Kanban and CEO chat share persisted company state and live events.
+> The office offers 20 original figures and private portrait/full-body uploads.
+> Capability-gated CLI session resume, OpenRouter streaming and scoped tools,
+> optional Honcho hybrid memory, native SecretRef resolution and explicitly
+> configured mTLS runner dispatch are implemented.
 >
-> The complete master-prompt MVP is **not yet verified**: an authenticated real
-> CLI end-to-end run, full browser acceptance, OpenRouter streaming/tool calling,
-> CLI session resume, Honcho and remote-worker dispatch remain open. See
-> [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for measured checks and
-> [`docs/REVIEW_FIXES_2026-09-05.md`](docs/REVIEW_FIXES_2026-09-05.md) for this change.
+> Consolidated checks: **569 frontend and 26 script tests passed; TypeScript and production build passed. Current backend/browser evidence: [PR #18](https://github.com/irongeeks/ironcrew/pull/18)**. The complete master-prompt
+> MVP is **not yet verified**: authenticated provider runs and deployment acceptance
+> remain operator checks. Automatic outbound runner enrollment and fleet routing
+> are not implemented. See [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
 
 ## Quick start
 
@@ -57,8 +58,7 @@ CEO ◄── summary ◄── review ◄────────────�
   says plainly that she has _not_ acted. Only you decide.
 - **Everything is on the record.** One correlation id spans your message, the
   task, every run, every event and every audit entry — and the record is
-  hash-chained, verifiable offline, and copied somewhere this machine's owner
-  cannot reach.
+  hash-chained, verifiable offline, and can be shipped to a separately controlled sink when configured.
 - **The dangerous decisions can need two people.** Any approval can be raised
   to a quorum: N approvals to proceed, **one rejection to stop**. A quorum can
   never be lowered again, because a control the compromised account can undo
@@ -71,7 +71,12 @@ CEO ◄── summary ◄── review ◄────────────�
 ## Office and screenshots
 
 The modern office uses original vector figures, real agent states, desks,
-meeting and approval areas. It works without WebGL and includes zoom, a keyboard
+meeting and approval areas. Choose from **20 original full-body figures** in the
+agent profile, or upload a private portrait and full-body image. A copyable
+generator prompt keeps your chosen character reference and style; image creation
+happens in the image model you choose. [Character setup and limits](docs/CHARACTERS.md).
+
+The office works without WebGL and includes zoom, a keyboard
 accessible list and reduced-motion support. This illustration is rendered from
 the component with explicit test states; it is **not a browser screenshot**:
 
@@ -112,24 +117,19 @@ nor `pass-cli` is installed on this particular machine:
 
 These are enforced in code and covered by tests, not just documented.
 
-| Commitment                     | How                                                                                                                                                                                                                                                                                         |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Policy beats persona**       | Persona, professional role and policy are three separate columns. A character pack may change display name and portrait — nothing else. Attempts to reach policy through a skin are rejected loudly.                                                                                        |
-| **No agent approves anything** | `may_approve` is typed as the literal `false`. Approval is the human owner's alone.                                                                                                                                                                                                         |
-| **No double work**             | Task claiming is a compare-and-set on `status_version`; exactly one of N concurrent workers wins. Verified with a 25-way concurrency test.                                                                                                                                                  |
-| **No unbounded agents**        | CLI permission bypass flags are never default, with a guard immediately before `spawn()`. `elevated` requires an owner-approved, ≤4h sandbox grant — and since nothing can currently raise that approval, every run resolves `restricted`. Stated plainly rather than described as working. |
-| **No secrets in logs**         | Redaction sits in the logger itself, not at the call site: every log object and message string is scrubbed before it reaches stdout, the `logs` table or the WebSocket stream. Also across stdout chunk boundaries.                                                                         |
-| **Deny by default**            | Vendor policy and per-agent tool access both refuse anything not explicitly allowed. The blocklist always beats the allowlist.                                                                                                                                                              |
-| **No invented numbers**        | Every dashboard figure names its source and read time. Subscription runtimes record quota events, not a fabricated price.                                                                                                                                                                   |
-| **No silent failure**          | A rate limit is its own event, not a generic error. A budget stop is HTTP 402; an approval block is 403. The UI shows both.                                                                                                                                                                 |
-| **Tamper-evident record**      | The audit log is append-only and hash-chained; `verifyAuditChain()` locates the first broken link, and `pnpm run audit:verify:db # verify the audit chain offline, read-only, no server                                                                                                     |
+| Commitment                     | How                                                                                                                                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Policy beats persona**       | Persona, professional role and policy are three separate columns. A character pack may change display name and portrait — nothing else. Attempts to reach policy through a skin are rejected loudly.                |
+| **No agent approves anything** | `may_approve` is typed as the literal `false`. Approval is the human owner's alone.                                                                                                                                 |
+| **No double work**             | Task claiming is a compare-and-set on `status_version`; exactly one of N concurrent workers wins. Verified with a 25-way concurrency test.                                                                          |
+| **No unbounded agents**        | CLI permission bypass flags are never default. Each start and resume checks policy; elevation requires a scoped, unexpired owner-approved sandbox grant. The elevation approval UI remains incomplete.              |
+| **No secrets in logs**         | Redaction sits in the logger itself, not at the call site: every log object and message string is scrubbed before it reaches stdout, the `logs` table or the WebSocket stream. Also across stdout chunk boundaries. |
+| **Deny by default**            | Vendor policy and per-agent tool access both refuse anything not explicitly allowed. The blocklist always beats the allowlist.                                                                                      |
+| **No invented numbers**        | Every dashboard figure names its source and read time. Subscription runtimes record quota events, not a fabricated price.                                                                                           |
+| **No silent failure**          | A rate limit is its own event, not a generic error. A budget stop is HTTP 402; an approval block is 403. The UI shows both.                                                                                         |
+| **Tamper-evident record**      | The audit log is append-only and hash-chained. `pnpm run audit:verify:db` verifies the database offline, read-only. Tail truncation requires comparison with an independent copy.                                   |
 
-node scripts/ironcrew-migrate.mjs status # which migrations are applied, which are pending
-node scripts/ironcrew-migrate.mjs check # refuse an older build on a newer schema (own exit code)
-node scripts/ironcrew-backup.mjs --out backups --keep 7 # snapshot a running database, with a manifest
-node scripts/ironcrew-backup.mjs --inspect <archive> # read the manifest, touch nothing
-node scripts/ironcrew-backup.mjs --restore <archive> # restore, refusing to overwrite without --force
-node scripts/ironcrew-load-test.mjs # "does this box hold my company?", below the routes
+## Development and operations
 
 ```bash
 pnpm dev            # development server with hot reload
@@ -167,6 +167,10 @@ internally consistent because entries were removed is not an intact chain.
 | [`docs/UPSTREAM_ANALYSIS.md`](docs/UPSTREAM_ANALYSIS.md)                                            | what was taken from OctoOffice, OneManCompany and Paperclip, and what was deliberately not |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)                                                      | trust boundaries, findings, mitigations, residual risk                                     |
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)                                                          | schema and why it is shaped that way                                                       |
+| [`docs/CHARACTERS.md`](docs/CHARACTERS.md)                                                          | 20 original figures, private uploads and generator prompts                                 |
+| [`docs/CLI_RUNTIME_ACCEPTANCE.md`](docs/CLI_RUNTIME_ACCEPTANCE.md)                                  | version/capability/auth checks and manual start/resume acceptance                          |
+| [`docs/OPENROUTER_RUNTIME.md`](docs/OPENROUTER_RUNTIME.md)                                          | streaming, tool grants, limits and provider policy                                         |
+| [`docs/MEMORY.md`](docs/MEMORY.md)                                                                  | Obsidian, optional Honcho, sensitivity and durable sync                                    |
 | [`docs/PROVIDER_AUTH.md`](docs/PROVIDER_AUTH.md)                                                    | runtime authentication and permission modes                                                |
 | [`docs/IDENTITY.md`](docs/IDENTITY.md)                                                              | accounts, roles, sessions — and whose name the audit log carries                           |
 | [`docs/VESSELS_TALENTS.md`](docs/VESSELS_TALENTS.md)                                                | an agent is a Vessel × Talent — and what a vessel deliberately cannot grant                |

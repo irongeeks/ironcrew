@@ -47,6 +47,7 @@ import { MeetingMutationError } from "../domain/meeting-store.ts";
 import { InvalidMeetingTransitionError, MEETING_STATUSES } from "../domain/meeting-state.ts";
 import { MemoryMutationError } from "../domain/memory-store.ts";
 import { MEMORY_KINDS } from "../memory/memory-provider.ts";
+import { registerCharacterRoutes } from "./character-routes.ts";
 import {
   MailboxAccessError,
   MailboxMutationError,
@@ -645,6 +646,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
    * decides what the company is allowed to do.
    */
   const ownerOnly = auth.requireRole("owner");
+  registerCharacterRoutes(app, { db, companyId, auth, base });
 
   // --- company / org ------------------------------------------------------
 
@@ -1723,11 +1725,26 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     wrap(async (req, res) => {
       const provider = typeof req.query.provider === "string" ? req.query.provider : "";
       const query = typeof req.query.q === "string" ? req.query.q : "";
-      if (!provider || !query) {
+      if (!provider || !query || query.length > 2000) {
         res.status(400).json({ error: "invalid_request", message: "provider and q query params are required." });
         return;
       }
-      res.json({ hits: await orchestrator.searchMemory(provider, query) });
+      res.json({
+        hits:
+          req.query.semantic === "1"
+            ? await orchestrator.searchSemanticMemory(provider, query)
+            : await orchestrator.searchMemory(provider, query),
+      });
+    }),
+  );
+
+  app.post(
+    `${base}/memory/sync`,
+    ownerOnly,
+    wrap(async (_req, res) => {
+      await orchestrator.syncMemoryProviders();
+      broadcast("crew_memory_changed", {});
+      res.json({ ok: true });
     }),
   );
 

@@ -141,24 +141,29 @@ export async function openSession(opts: OpenSessionOptions): Promise<Session> {
     },
   };
 
-  connection.write(encodeMessage({ v: RUNNER_PROTOCOL_VERSION, kind: "hello", token: opts.token }));
+  try {
+    connection.write(encodeMessage({ v: RUNNER_PROTOCOL_VERSION, kind: "hello", token: opts.token }));
 
-  const greeting = await nextMessage(session, opts.requestTimeoutMs);
-  if (!greeting || greeting.kind !== "hello-ok") {
-    session.close();
-    throw new RunnerUnavailableError(
-      greeting?.kind === "error" ? `Runner lehnte die Verbindung ab: ${greeting.message}` : "Runner grüßte nicht.",
-    );
-  }
-  session.runtimes = greeting.runtimes;
+    const greeting = await nextMessage(session, opts.requestTimeoutMs);
+    if (!greeting || greeting.kind !== "hello-ok") {
+      session.close();
+      throw new RunnerUnavailableError(
+        greeting?.kind === "error" ? `Runner lehnte die Verbindung ab: ${greeting.message}` : "Runner grüßte nicht.",
+      );
+    }
+    session.runtimes = greeting.runtimes;
 
-  if (opts.requireRuntime && !greeting.runtimes.includes(opts.requireRuntime)) {
+    if (opts.requireRuntime && !greeting.runtimes.includes(opts.requireRuntime)) {
+      session.close();
+      // Better here than as a confusing failure inside a run: the runner is
+      // reachable, it simply cannot do this job.
+      throw new RunnerUnavailableError(
+        `Der Runner kennt die Laufzeit "${opts.requireRuntime}" nicht (verfügbar: ${greeting.runtimes.join(", ") || "keine"}).`,
+      );
+    }
+  } catch (err) {
     session.close();
-    // Better here than as a confusing failure inside a run: the runner is
-    // reachable, it simply cannot do this job.
-    throw new RunnerUnavailableError(
-      `Der Runner kennt die Laufzeit "${opts.requireRuntime}" nicht (verfügbar: ${greeting.runtimes.join(", ") || "keine"}).`,
-    );
+    throw err;
   }
   return session;
 }

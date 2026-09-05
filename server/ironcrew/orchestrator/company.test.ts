@@ -1163,6 +1163,15 @@ describe("memory (Obsidian and other MemoryProviders)", () => {
       title: "Backup policy",
       content: "Nightly at 02:00.",
       tags: undefined,
+      provenance: {
+        companyId,
+        taskId: undefined,
+        projectId: undefined,
+        agentId: undefined,
+        source: undefined,
+        confidence: undefined,
+        sensitivity: "internal",
+      },
     });
     expect(ref.external_id).toBe("note/mem_fake");
     expect(ref.path).toBe("IronCrew/note/mem_fake.md");

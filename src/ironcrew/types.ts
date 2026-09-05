@@ -37,6 +37,7 @@ export interface AgentPolicy {
 }
 
 export interface PersonaSkin {
+  character_id?: string | null;
   display_name: string;
   accent: string;
   traits: string[];
@@ -44,6 +45,22 @@ export interface PersonaSkin {
   portrait: string | null;
   full_body: string | null;
   model_3d: string | null;
+}
+
+export interface CharacterAppearance {
+  character_id: string | null;
+  portrait: string | null;
+  full_body: string | null;
+}
+
+export interface CharacterAsset {
+  id: string;
+  url: string;
+  kind: "portrait" | "full_body";
+  contentType: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
 }
 
 export interface Agent {
@@ -521,6 +538,8 @@ export const MEMORY_KIND_LABEL: Record<MemoryKind, string> = {
 };
 
 export interface MemoryProviderStatus {
+  semanticAvailable?: boolean;
+  sync?: { pending: number; failed: number; synced: number; pendingDeletion: number };
   kind: string;
   registered: boolean;
   ok: boolean;

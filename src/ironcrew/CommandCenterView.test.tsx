@@ -1676,6 +1676,7 @@ describe("memory (Obsidian vault, the first MemoryProvider)", () => {
       kind: "note",
       title: "Backup policy",
       content: "Nightly backups run at 02:00 UTC.",
+      sensitivity: "internal",
     });
     expect(await within(dialog).findByText("Backup policy")).toBeInTheDocument();
   });
@@ -1742,8 +1743,35 @@ describe("memory (Obsidian vault, the first MemoryProvider)", () => {
     await user.type(within(dialog).getByTestId("memory-search-input"), "nightly");
     await user.click(within(dialog).getByTestId("memory-search-submit"));
 
-    expect(searchMemory).toHaveBeenCalledWith("obsidian", "nightly");
+    expect(searchMemory).toHaveBeenCalledWith("obsidian", "nightly", false);
     expect(await within(dialog).findByTestId("memory-search-results")).toHaveTextContent("Backup policy");
+  });
+
+  it("sends a public semantic query only after explicit opt-in and shows pending sync", async () => {
+    const searchMemory = vi.fn().mockResolvedValue({ hits: [] });
+    const client = makeClient({
+      memoryProviders: vi.fn().mockResolvedValue({
+        providers: [
+          {
+            ...memoryProviderStatus(),
+            semanticAvailable: true,
+            sync: { pending: 2, failed: 1, synced: 3, pendingDeletion: 1 },
+          },
+        ],
+      }),
+      searchMemory,
+    });
+    render(<CommandCenterView initialView="tasks" client={client} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("open-memory"));
+    const dialog = await screen.findByRole("dialog", { name: "Wissen" });
+    await within(dialog).findByTestId("memory-sync-status");
+    const optIn = within(dialog).getByRole("checkbox");
+    expect(optIn).not.toBeChecked();
+    await user.type(within(dialog).getByTestId("memory-search-input"), "public guidelines");
+    await user.click(optIn);
+    await user.click(within(dialog).getByTestId("memory-search-submit"));
+    expect(searchMemory).toHaveBeenCalledWith("obsidian", "public guidelines", true);
   });
 });
 

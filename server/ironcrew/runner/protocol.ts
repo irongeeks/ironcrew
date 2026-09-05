@@ -28,11 +28,13 @@
  * as a field that is mysteriously undefined.
  */
 
+import { z } from "zod";
+import { McpServerConfigSchema } from "../../connectors/built-in/mcp/mcp-config.ts";
 import type { RunEvent, RunInput, RuntimeCapabilities, RuntimeHealth, AuthStatus } from "../runtime/run-events.ts";
 import type { McpServerConfig } from "../../connectors/built-in/mcp/mcp-config.ts";
 import type { ConnectorCapability, ConnectorExecuteResult } from "../../connectors/connector-interface.ts";
 
-export const RUNNER_PROTOCOL_VERSION = 1;
+export const RUNNER_PROTOCOL_VERSION = 2;
 
 /** A guard against a peer that streams without newlines until memory runs out. */
 export const MAX_LINE_BYTES = 4 * 1024 * 1024;
@@ -54,6 +56,8 @@ export interface WireRunContext {
   correlationId: string;
   workspacePath: string;
   permissionMode: "restricted" | "workspace_write" | "elevated";
+  allowedTools?: string[];
+  sensitive?: boolean;
   redactValues?: readonly string[];
 }
 
@@ -74,7 +78,26 @@ export type ClientMessage =
   | { v: number; kind: "health"; id: string; runtimeType: string }
   | { v: number; kind: "auth"; id: string; runtimeType: string }
   | { v: number; kind: "start"; id: string; runtimeType: string; input: RunInput; context: WireRunContext }
+  | {
+      v: number;
+      kind: "resume";
+      id: string;
+      runtimeType: string;
+      sessionRef: string;
+      input: RunInput;
+      context: WireRunContext;
+    }
   | { v: number; kind: "cancel"; id: string; runId: string }
+  | {
+      v: number;
+      kind: "usage-ack";
+      id: string;
+      companyId: string;
+      taskId: string;
+      runId: string;
+      eventId: string;
+      seq: number;
+    }
   // MCP servers whose credentials are SecretRefs run on the runner, because
   // that is where a vault session exists (mcp-secrets.ts). The config crosses
   // the wire with its references intact — a reference is not a secret.
@@ -153,6 +176,92 @@ export function decodeMessage(line: string): ClientMessage | ServerMessage {
  * of a long agent message, which is exactly the case a naive split would
  * corrupt.
  */
+const idSchema = z.string().min(1).max(512);
+const runInputSchema = z
+  .object({
+    prompt: z.string().max(2 * 1024 * 1024),
+    model: z.string().max(256).optional(),
+    modelProfile: z.string().max(128).optional(),
+    maxTurns: z.number().int().positive().max(1000).optional(),
+    sessionRef: idSchema.optional(),
+  })
+  .strict();
+const wireContextSchema = z
+  .object({
+    companyId: idSchema,
+    projectId: idSchema.nullable(),
+    taskId: idSchema,
+    runId: idSchema,
+    agentId: idSchema.nullable(),
+    correlationId: z.string().max(512),
+    workspacePath: z
+      .string()
+      .max(4096)
+      .refine((value) => !value.includes("\0")),
+    permissionMode: z.enum(["restricted", "workspace_write", "elevated"]),
+    allowedTools: z.array(z.string().min(1).max(256)).max(128).optional(),
+    sensitive: z.boolean().optional(),
+    redactValues: z.array(z.string().max(65536)).max(128).optional(),
+  })
+  .strict();
+const version = z.literal(RUNNER_PROTOCOL_VERSION);
+const request = { v: version, id: idSchema };
+const clientMessageSchema = z.discriminatedUnion("kind", [
+  z.object({ v: version, kind: z.literal("hello"), token: z.string().min(1).max(4096) }).strict(),
+  ...(["capabilities", "health", "auth"] as const).map((kind) =>
+    z.object({ ...request, kind: z.literal(kind), runtimeType: idSchema }).strict(),
+  ),
+  z
+    .object({
+      ...request,
+      kind: z.literal("start"),
+      runtimeType: idSchema,
+      input: runInputSchema,
+      context: wireContextSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...request,
+      kind: z.literal("resume"),
+      runtimeType: idSchema,
+      sessionRef: idSchema,
+      input: runInputSchema,
+      context: wireContextSchema,
+    })
+    .strict(),
+  z.object({ ...request, kind: z.literal("cancel"), runId: idSchema }).strict(),
+  z
+    .object({
+      ...request,
+      kind: z.literal("usage-ack"),
+      companyId: idSchema,
+      taskId: idSchema,
+      runId: idSchema,
+      eventId: idSchema,
+      seq: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z.object({ ...request, kind: z.literal("mcp-connect"), config: McpServerConfigSchema }).strict(),
+  z
+    .object({
+      ...request,
+      kind: z.literal("mcp-call"),
+      server: idSchema,
+      tool: idSchema,
+      input: z.record(z.string(), z.unknown()),
+    })
+    .strict(),
+  z.object({ ...request, kind: z.literal("mcp-disconnect"), server: idSchema }).strict(),
+]);
+
+/** Validate the untrusted runner ingress without echoing tokens or payloads. */
+export function decodeClientMessage(line: string): ClientMessage {
+  const parsed = clientMessageSchema.safeParse(decodeMessage(line));
+  if (!parsed.success) throw new RunnerProtocolError("Invalid runner request shape.");
+  return parsed.data;
+}
+
 export class LineDecoder {
   private buffer = "";
 
@@ -196,6 +305,8 @@ export function toWireContext(context: WireRunContext & { signal?: unknown }): W
     correlationId: context.correlationId,
     workspacePath: context.workspacePath,
     permissionMode: context.permissionMode,
+    ...(context.allowedTools ? { allowedTools: context.allowedTools } : {}),
+    ...(context.sensitive !== undefined ? { sensitive: context.sensitive } : {}),
     ...(context.redactValues ? { redactValues: context.redactValues } : {}),
   };
 }

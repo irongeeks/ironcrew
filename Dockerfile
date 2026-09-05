@@ -86,7 +86,7 @@ ENV HOST=0.0.0.0
 RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
 
 # Create data + workspaces directories
-RUN mkdir -p /data /workspaces && chown node:node /data /workspaces
+RUN mkdir -p /data /app/data /workspaces && chown node:node /data /app/data /workspaces
 
 # Mark /workspaces as safe for git (host-mounted repos may have different UID)
 RUN git config --system --add safe.directory '*'
@@ -100,11 +100,18 @@ COPY --from=builder /app/dist ./dist
 # Copy server source (tsx runs TypeScript directly)
 COPY --from=builder /app/server ./server
 
+# Server TypeScript imports the shared character catalog at runtime.
+COPY --from=builder /app/src/shared ./src/shared
+
 # Copy package.json (needed for pnpm start script)
 COPY --from=builder /app/package.json ./
 
 # Copy Remotion browser cache (lives inside node_modules/.remotion/ after `remotion browser ensure`)
 COPY --from=builder /app/node_modules/.remotion ./node_modules/.remotion
+
+# Ship validated crew/vendor/memory defaults; private operator config is excluded
+# from the build context and can be mounted from the host.
+COPY --from=builder /app/config ./config
 
 # Copy remaining config files needed at runtime
 COPY --from=builder /app/tsconfig.json /app/tsconfig.node.json ./

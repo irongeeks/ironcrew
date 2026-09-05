@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   decodeMessage,
+  decodeClientMessage,
   encodeMessage,
   LineDecoder,
   RunnerProtocolError,
@@ -33,6 +34,25 @@ describe("encoding", () => {
 });
 
 describe("decoding", () => {
+  it("validates authenticated run ingress and never echoes rejected secret fields", () => {
+    const malformed = JSON.stringify({
+      v: RUNNER_PROTOCOL_VERSION,
+      kind: "start",
+      id: "request",
+      runtimeType: "claude",
+      input: { prompt: "x", apiKey: "private-value" },
+      context: {},
+    });
+    expect(() => decodeClientMessage(malformed)).toThrow("Invalid runner request shape.");
+    try {
+      decodeClientMessage(malformed);
+    } catch (err) {
+      expect(String(err)).not.toContain("private-value");
+    }
+    expect(() =>
+      decodeClientMessage(JSON.stringify({ v: RUNNER_PROTOCOL_VERSION, kind: "not-real", id: "a" })),
+    ).toThrow();
+  });
   it("rejects what is not JSON", () => {
     expect(() => decodeMessage("nicht json")).toThrow(RunnerProtocolError);
     expect(() => decodeMessage("")).toThrow(RunnerProtocolError);

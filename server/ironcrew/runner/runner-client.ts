@@ -38,6 +38,7 @@ import {
   type RunnerConnection,
   type Session,
 } from "./runner-session.ts";
+import { runEventSchema } from "../runtime/run-events.ts";
 import type {
   AgentRuntime,
   AuthStatus,
@@ -74,6 +75,7 @@ export class RunnerRuntime implements AgentRuntime {
   private readonly requestTimeoutMs: number;
   private readonly idleTimeoutMs: number;
   private readonly cancelled = new Set<string>();
+  private readonly activeCancels = new Map<string, () => void>();
 
   constructor(opts: RunnerRuntimeOptions) {
     this.id = `runner:${opts.runtimeType}`;
@@ -148,6 +150,7 @@ export class RunnerRuntime implements AgentRuntime {
 
   async cancelRun(runId: string): Promise<void> {
     this.cancelled.add(runId);
+    this.activeCancels.get(runId)?.();
   }
 
   /**
@@ -158,7 +161,15 @@ export class RunnerRuntime implements AgentRuntime {
    * that merely stops leaves the task running and the agent locked until a
    * lease expires.
    */
-  async *startRun(input: RunInput, context: RunContext): AsyncIterable<RunEvent> {
+  resumeRun(sessionRef: string, input: RunInput, context: RunContext): AsyncIterable<RunEvent> {
+    return this.execute(input, context, sessionRef);
+  }
+
+  startRun(input: RunInput, context: RunContext): AsyncIterable<RunEvent> {
+    return this.execute(input, context, input.sessionRef);
+  }
+
+  private async *execute(input: RunInput, context: RunContext, sessionRef?: string): AsyncIterable<RunEvent> {
     const id = newId("evt");
     let session: Session;
 
@@ -173,6 +184,7 @@ export class RunnerRuntime implements AgentRuntime {
       session.connection.write(encodeMessage({ v: RUNNER_PROTOCOL_VERSION, kind: "cancel", id, runId: context.runId }));
     };
     context.signal?.addEventListener("abort", onAbort, { once: true });
+    this.activeCancels.set(context.runId, onAbort);
 
     try {
       if (this.cancelled.has(context.runId) || context.signal?.aborted) {
@@ -184,7 +196,7 @@ export class RunnerRuntime implements AgentRuntime {
       session.connection.write(
         encodeMessage({
           v: RUNNER_PROTOCOL_VERSION,
-          kind: "start",
+          ...(sessionRef ? { kind: "resume" as const, sessionRef } : { kind: "start" as const }),
           id,
           runtimeType: this.type,
           input,
@@ -214,9 +226,46 @@ export class RunnerRuntime implements AgentRuntime {
           return;
         }
 
+        if (!("id" in message) || message.id !== id) {
+          yield synthetic(context, "run.failed", { message: "Runner-Antwort gehört nicht zu diesem Auftrag." });
+          return;
+        }
         if (message.kind === "event") {
-          if (isTerminal(message.event.type)) sawTerminal = true;
-          yield message.event;
+          const parsed = runEventSchema.safeParse(message.event);
+          if (
+            !parsed.success ||
+            parsed.data.companyId !== context.companyId ||
+            parsed.data.taskId !== context.taskId ||
+            parsed.data.runId !== context.runId ||
+            parsed.data.projectId !== context.projectId ||
+            parsed.data.agentId !== context.agentId ||
+            parsed.data.correlationId !== context.correlationId
+          ) {
+            yield synthetic(context, "run.failed", { message: "Runner-Event gehört nicht zum zugewiesenen Task." });
+            return;
+          }
+          if (isTerminal(parsed.data.type)) sawTerminal = true;
+          yield parsed.data;
+          if (parsed.data.type === "usage.updated") {
+            // Resuming this generator means the consumer has persisted usage
+            // and completed its budget decision. An abort/return never ACKs.
+            if (context.signal?.aborted || this.cancelled.has(context.runId)) {
+              onAbort();
+            } else {
+              session.connection.write(
+                encodeMessage({
+                  v: RUNNER_PROTOCOL_VERSION,
+                  kind: "usage-ack",
+                  id,
+                  companyId: context.companyId,
+                  taskId: context.taskId,
+                  runId: context.runId,
+                  eventId: parsed.data.eventId,
+                  seq: parsed.data.seq,
+                }),
+              );
+            }
+          }
           continue;
         }
         if (message.kind === "end") {
@@ -238,13 +287,15 @@ export class RunnerRuntime implements AgentRuntime {
       }
     } finally {
       context.signal?.removeEventListener("abort", onAbort);
+      this.activeCancels.delete(context.runId);
+      this.cancelled.delete(context.runId);
       session.close();
     }
   }
 }
 
 function isTerminal(type: string): boolean {
-  return type === "run.completed" || type === "run.failed" || type === "run.cancelled";
+  return type === "run.completed" || type === "run.failed" || type === "run.cancelled" || type === "run.waiting";
 }
 
 /**

@@ -47,8 +47,16 @@ import {
 import { createSshConnector, type SshConnectorInterface } from "../../modules/workflow/ssh/ssh-connector.ts";
 import type { SshConfig } from "../../modules/workflow/ssh/types.ts";
 import { MeetingStore, MeetingMutationError, type MeetingRow, type MeetingTurnRow } from "../domain/meeting-store.ts";
-import { MemoryStore, type MemoryRefRow } from "../domain/memory-store.ts";
+import { MemoryStore, MemoryMutationError, type MemoryRefRow } from "../domain/memory-store.ts";
 import type { MemoryKind, MemoryProvider, MemorySearchHit } from "../memory/memory-provider.ts";
+import { HybridMemoryProvider } from "../memory/hybrid-provider.ts";
+import { createCompanyToolExecutor, COMPANY_RUNTIME_TOOLS } from "../runtime/company-tool-executor.ts";
+import {
+  canonicalToolArguments,
+  isToolApprovalBinding,
+  toolApprovalBinding,
+} from "../runtime/tool-approval-binding.ts";
+import { redactText } from "../security/redaction.ts";
 import type { ChannelSeverity, NotificationChannel } from "../notify/notification-channel.ts";
 import {
   MailboxStore,
@@ -112,7 +120,7 @@ import {
   type DepartmentConfig,
   type SeedAgent,
 } from "../domain/crew-config.ts";
-import type { AgentRuntime, RunEvent } from "../runtime/run-events.ts";
+import type { AgentRuntime, RunEvent, RunInput, RunContext } from "../runtime/run-events.ts";
 
 /**
  * An agent as every consumer here needs it: the row plus its talent and vessel
@@ -1527,9 +1535,9 @@ export class CompanyOrchestrator {
    * real) was the one path that could never complete.
    *
    * Deliberately narrow: it acts only on a task currently sitting in
-   * `approval_required`. An approval raised *during* a run leaves its task in
-   * `running` or `waiting`, and that run is still in progress — resuming it
-   * from here would start a second one. A `file_change` approval has no
+   * `approval_required`. Bound runtime-tool approvals finish their run and
+   * park here too. Other mid-run approvals leave tasks `running` or `waiting`;
+   * resuming those here could start a second run. A `file_change` approval has no
    * parked task at all; that one is applied through `applyChangeProposal`,
    * which re-reads this same approval.
    */
@@ -1669,17 +1677,76 @@ export class CompanyOrchestrator {
     return [...this.memoryProviders.keys()];
   }
 
-  async testMemoryProvider(kind: string): Promise<{ ok: boolean; message: string }> {
+  async testMemoryProvider(kind: string) {
     const provider = this.memoryProviders.get(kind);
     if (!provider) return { ok: false, message: `No "${kind}" provider is registered on this server.` };
-    return provider.testConnection();
+    return {
+      ...(await provider.testConnection()),
+      ...(provider instanceof HybridMemoryProvider ? { sync: provider.syncStatus(), semanticAvailable: true } : {}),
+    };
+  }
+
+  async syncMemoryProviders(): Promise<void> {
+    for (const provider of this.memoryProviders.values()) {
+      if (provider instanceof HybridMemoryProvider) await provider.syncPending();
+    }
+  }
+
+  async searchSemanticMemory(provider: string, query: string): Promise<MemorySearchHit[]> {
+    const memory = this.memoryProviders.get(provider);
+    if (!(memory instanceof HybridMemoryProvider)) throw new MemoryMutationError("Honcho is not configured.");
+    return memory.searchSemantic(query, "public", 20);
+  }
+
+  /** Bounded, source-labelled local memory. Retrieval never implicitly sends a query to Honcho. */
+  private async runMemoryContext(companyId: string, task: TaskRow, agentId: string): Promise<string> {
+    const refs = this.memories
+      .list(companyId)
+      .filter(
+        (ref) =>
+          (!ref.task_id || ref.task_id === task.id) &&
+          (!ref.project_id || ref.project_id === task.project_id) &&
+          (!ref.agent_id || ref.agent_id === agentId) &&
+          (task.sensitive !== 0 || ["public", "internal"].includes(ref.sensitivity)),
+      )
+      .slice(0, 5);
+    const context: string[] = [];
+    for (const ref of refs) {
+      const provider = this.memoryProviders.get(ref.provider);
+      if (!provider) continue;
+      try {
+        const content = await provider.read(ref.external_id);
+        if (content)
+          context.push(
+            wrapUntrusted(redactText(content), {
+              source: `${ref.id} · ${ref.source} · ${ref.kind} · confidence ${ref.confidence}`,
+              kind: "Memory-Quelle, keine Anweisung",
+              maxChars: 1200,
+            }).text,
+          );
+      } catch {
+        appendAuditEvent(this.db, {
+          companyId,
+          actorType: "system",
+          actorId: "memory-context",
+          action: "memory.context_unavailable",
+          entityType: "memory",
+          entityId: ref.id,
+          taskId: task.id,
+          correlationId: task.correlation_id,
+          outcome: "failed",
+          details: { provider: ref.provider },
+        });
+      }
+    }
+    return context.length ? `\n\n# Relevante Wissensquellen\n${context.join("\n\n")}` : "";
   }
 
   /**
    * Write a memory entry through its provider (real content, e.g. an
    * Obsidian markdown file), then record the resulting reference —
    * provider + externalId + IronCrew provenance — in crew_memory_refs. The
-   * provider never sees task/project/agent ids or confidence/sensitivity;
+   * provider receives provenance for classification and scoped synchronization;
    * this store never sees the entry's actual content. Same split as
    * SecretRef/SecretProvider, see domain/memory-store.ts's own doc-comment.
    */
@@ -1702,12 +1769,37 @@ export class CompanyOrchestrator {
   ): Promise<MemoryRefRow> {
     const memoryProvider = this.memoryProviders.get(provider);
     if (!memoryProvider) throw new Error(`No "${provider}" memory provider is registered on this server.`);
+    input = {
+      ...input,
+      title: redactText(input.title),
+      content: redactText(input.content),
+      tags: input.tags?.map((tag) => redactText(tag)),
+      source: input.source === undefined ? undefined : redactText(input.source),
+    };
 
+    for (const [table, id] of [
+      ["crew_tasks", input.taskId],
+      ["crew_projects", input.projectId],
+      ["crew_agents", input.agentId],
+    ] as const) {
+      if (id && !this.db.prepare(`SELECT id FROM ${table} WHERE id = ? AND company_id = ?`).get(id, companyId)) {
+        throw new MemoryMutationError("Memory provenance must reference an entity in the same company.");
+      }
+    }
     const written = await memoryProvider.write({
       kind: input.kind,
       title: input.title,
       content: input.content,
       tags: input.tags,
+      provenance: {
+        companyId,
+        taskId: input.taskId,
+        projectId: input.projectId,
+        agentId: input.agentId,
+        source: input.source,
+        confidence: input.confidence,
+        sensitivity: input.sensitivity ?? "internal",
+      },
     });
 
     return this.memories.create({
@@ -2716,6 +2808,137 @@ export class CompanyOrchestrator {
     }
   }
 
+  /** Tool presence never grants access; the existing owner UI manages grants. */
+  ensureRuntimeTools(companyId: string): void {
+    for (const key of [...Object.values(COMPANY_RUNTIME_TOOLS), "workspace.read", "workspace.list"]) {
+      this.tools.ensure(
+        { companyId, key, label: key, riskClass: "read", origin: "builtin" },
+        { actorType: "system", actorId: "boot" },
+      );
+    }
+  }
+
+  runtimeToolExecutor(companyId: string) {
+    this.ensureRuntimeTools(companyId);
+    return createCompanyToolExecutor({
+      companyId,
+      permitted: async (key, ctx) =>
+        this.tools.resolve(companyId, ctx.agentId!, key, { projectId: ctx.projectId }).allowed,
+      authorize: async (key, ctx, call) => {
+        const task = this.tasks.get(ctx.taskId);
+        if (
+          !task ||
+          task.company_id !== companyId ||
+          task.assigned_agent_id !== ctx.agentId ||
+          task.project_id !== ctx.projectId
+        ) {
+          return { status: "denied", reason: "Aufgabe gehört nicht zu diesem Agenten-/Projekt-Scope." };
+        }
+        const grant = this.tools.resolve(companyId, ctx.agentId!, key, { projectId: ctx.projectId });
+        if (!grant.allowed) return { status: "denied", reason: "Werkzeug nicht freigegeben." };
+        if (!grant.requiresApproval && key !== "approval.request") return { status: "allowed" };
+        const proposedAction = toolApprovalBinding(ctx, key, call.arguments);
+        const previous = this.db
+          .prepare(
+            `
+          SELECT id, status, expires_at FROM crew_approvals
+          WHERE company_id = ? AND task_id = ? AND requested_by = ? AND proposed_action = ?
+          ORDER BY created_at DESC, rowid DESC LIMIT 1
+        `,
+          )
+          .get(companyId, ctx.taskId, ctx.agentId, proposedAction) as
+          | { id: string; status: string; expires_at: number | null }
+          | undefined;
+        if (previous?.status === "approved" && (previous.expires_at === null || previous.expires_at > Date.now())) {
+          return { status: "allowed", approvalId: previous.id };
+        }
+        if (previous?.status === "rejected" || previous?.status === "cancelled") {
+          return { status: "denied", reason: "Diese konkrete Werkzeugaktion wurde abgelehnt oder widerrufen." };
+        }
+        return {
+          status: "approval_required",
+          approvalType: key === "approval.request" ? String(call.arguments.approvalType) : "runtime_tool_use",
+          summary:
+            key === "approval.request"
+              ? String(call.arguments.summary)
+              : `Werkzeug ${key} verwenden. Parameter: ${redactText(canonicalToolArguments(call.arguments))}`,
+          riskLevel: key === "approval.request" ? String(call.arguments.riskLevel ?? "high") : "medium",
+          proposedAction,
+        };
+      },
+      listTasks: async (ctx, limit) =>
+        this.tasks
+          .list(companyId)
+          .filter((t) => !ctx.projectId || t.project_id === ctx.projectId)
+          .slice(0, limit),
+      readTask: async (ctx, id) => {
+        const task = this.tasks.get(id);
+        return task?.company_id === companyId && (!ctx.projectId || task.project_id === ctx.projectId) ? task : null;
+      },
+      searchMemory: async (ctx, query, limit) => {
+        const task = this.tasks.get(ctx.taskId);
+        if (
+          !task ||
+          task.company_id !== companyId ||
+          task.assigned_agent_id !== ctx.agentId ||
+          task.project_id !== ctx.projectId
+        ) {
+          throw new Error("Ungültiger Aufgaben-Scope für Memory Search.");
+        }
+        const refs = this.memories
+          .list(companyId)
+          .filter(
+            (r) =>
+              (!r.project_id || r.project_id === ctx.projectId) &&
+              (!r.task_id || r.task_id === ctx.taskId) &&
+              (!r.agent_id || r.agent_id === ctx.agentId) &&
+              (["public", "internal"].includes(r.sensitivity) ||
+                (r.sensitivity === "confidential" && task.sensitive !== 0)),
+          );
+        const found: MemorySearchHit[] = [];
+        for (const provider of this.memoryProviders.values()) {
+          const allowed = new Set(refs.filter((r) => r.provider === provider.kind).map((r) => r.external_id));
+          found.push(
+            ...(await provider.search(query, limit))
+              .filter((hit) => {
+                const provenance = hit.provenance;
+                return (
+                  allowed.has(hit.externalId) &&
+                  provenance?.companyId === companyId &&
+                  (!provenance.projectId || provenance.projectId === ctx.projectId) &&
+                  (!provenance.taskId || provenance.taskId === ctx.taskId) &&
+                  (!provenance.agentId || provenance.agentId === ctx.agentId) &&
+                  (["public", "internal"].includes(provenance.sensitivity ?? "") ||
+                    (provenance.sensitivity === "confidential" && task.sensitive !== 0))
+                );
+              })
+              .map((hit) => ({
+                externalId: redactText(hit.externalId, ctx.redactValues),
+                title: redactText(hit.title, ctx.redactValues),
+                snippet: redactText(hit.snippet, ctx.redactValues),
+                path: hit.path === null ? null : redactText(hit.path, ctx.redactValues),
+              })),
+          );
+        }
+        return found.slice(0, limit);
+      },
+      audit: async (stage, call, ctx, result) => {
+        appendAuditEvent(this.db, {
+          companyId,
+          actorType: "agent",
+          actorId: ctx.agentId!,
+          action: `runtime.tool.${stage}`,
+          entityType: "tool",
+          entityId: call.name,
+          taskId: ctx.taskId,
+          runId: ctx.runId,
+          correlationId: ctx.correlationId,
+          details: { callId: call.id, arguments: call.arguments, result },
+        });
+      },
+    });
+  }
+
   /**
    * Mirrors the configured MCP servers into the tool registry.
    *
@@ -3287,6 +3510,7 @@ export class CompanyOrchestrator {
     let failed = false;
     let waiting = false;
     let rateLimited = false;
+    let runtimeToolApproval = false;
     let summary = "";
 
     // The vessel's timeout, as an abort signal. Both runtimes already honour
@@ -3338,24 +3562,48 @@ export class CompanyOrchestrator {
     };
 
     try {
-      for await (const ev of runtime.startRun(
-        {
-          prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}`,
-          model,
-        },
-        {
+      const workspacePath = await this.resolveWorkspace(companyId, candidate.project_id, runtime, opts.workspacePath);
+      this.runs.setWorkspace(run.id, workspacePath);
+      const memoryContext = await this.runMemoryContext(companyId, candidate, agentId);
+      const input: RunInput = {
+        prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}${candidate.review_notes ? `\n\n# Revision des CEO\n${candidate.review_notes}` : ""}${memoryContext}`,
+        model,
+      };
+      const context: RunContext = {
+        companyId,
+        projectId: candidate.project_id,
+        taskId: candidate.id,
+        runId: run.id,
+        agentId,
+        correlationId: candidate.correlation_id,
+        workspacePath,
+        sensitive: candidate.sensitive !== 0 || memoryContext.length > 0,
+        permissionMode: permission.mode,
+        signal: abort.signal,
+        allowedTools: ["workspace.read", "workspace.list"].filter((key) => {
+          const decision = this.tools.resolve(companyId, agentId, key, { projectId: candidate.project_id });
+          return decision.allowed && !decision.requiresApproval;
+        }),
+      };
+      const sessionRef = this.runs.resumableSession(run, workspacePath);
+      const canResume = sessionRef && runtime.resumeRun && (await runtime.capabilities()).sessionResume;
+      const stream = canResume
+        ? runtime.resumeRun!(sessionRef, { ...input, sessionRef }, context)
+        : runtime.startRun(input, context);
+      if (canResume) {
+        appendAuditEvent(this.db, {
           companyId,
-          projectId: candidate.project_id,
+          actorType: "system",
+          actorId: "orchestrator",
+          action: "run.resumed",
+          entityType: "run",
+          entityId: run.id,
           taskId: candidate.id,
-          runId: run.id,
-          agentId,
           correlationId: candidate.correlation_id,
-          workspacePath: await this.resolveWorkspace(companyId, candidate.project_id, runtime, opts.workspacePath),
-          sensitive: candidate.sensitive !== 0,
-          permissionMode: permission.mode,
-          signal: abort.signal,
-        },
-      )) {
+          details: { runtimeType, sessionRef },
+        });
+      }
+      for await (const ev of stream) {
         const currentTask = this.tasks.get(candidate.id);
         if (currentTask?.execution_run_id !== run.id || currentTask.status !== "running") {
           abort.abort();
@@ -3392,9 +3640,23 @@ export class CompanyOrchestrator {
             outputTokens: p.outputTokens ?? 0,
             costMicros: p.costMicros ?? 0,
           });
+          // Usage can arrive between paid model/tool rounds. Stop the
+          // iterator before requesting its next event once any applicable
+          // monetary hard stop is reached; quota-only events retain cost 0.
+          try {
+            this.budgets.assertRunPermitted(companyId, {
+              agentId,
+              projectId: candidate.project_id,
+              taskId: candidate.id,
+              runtimeType,
+            });
+          } catch (err) {
+            abort.abort(err);
+            throw err;
+          }
         }
 
-        if (ev.type === "message.completed") summary = String((ev.payload as { text?: string }).text ?? "");
+        if (ev.type === "message.completed") summary = String((persisted.payload as { text?: string }).text ?? "");
         if (ev.type === "run.failed") failed = true;
         if (ev.type === "run.cancelled") failed = true;
         if (ev.type === "rate_limit.detected") {
@@ -3403,18 +3665,39 @@ export class CompanyOrchestrator {
         }
         if (ev.type === "run.waiting") waiting = true;
         if (ev.type === "approval.required") {
-          const p = ev.payload as { approvalType?: string; summary?: string; riskLevel?: string };
-          const approval = this.approvals.request(
-            companyId,
-            {
-              approvalType: p.approvalType ?? "irreversible_data_change",
-              requestedBy: agentId,
-              summary: p.summary ?? "Agent requested approval",
-              riskLevel: (p.riskLevel as "high") ?? "high",
-            },
-            { taskId: candidate.id, runId: run.id, correlationId: candidate.correlation_id },
-          );
-          this.notifyApprovalRequested(companyId, approval);
+          const p = ev.payload as {
+            approvalType?: string;
+            summary?: string;
+            riskLevel?: string;
+            proposedAction?: string;
+          };
+          const boundAction = isToolApprovalBinding(p.proposedAction) ? p.proposedAction : undefined;
+          if (boundAction) runtimeToolApproval = true;
+          const pending = boundAction
+            ? (this.db
+                .prepare(
+                  `
+            SELECT id FROM crew_approvals WHERE company_id = ? AND task_id = ? AND requested_by = ?
+              AND proposed_action = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)
+            LIMIT 1
+          `,
+                )
+                .get(companyId, candidate.id, agentId, boundAction, Date.now()) as { id: string } | undefined)
+            : undefined;
+          if (!pending) {
+            const approval = this.approvals.request(
+              companyId,
+              {
+                approvalType: p.approvalType ?? "irreversible_data_change",
+                requestedBy: agentId,
+                summary: p.summary ?? "Agent requested approval",
+                riskLevel: (p.riskLevel as "high") ?? "high",
+                proposedAction: boundAction,
+              },
+              { taskId: candidate.id, runId: run.id, correlationId: candidate.correlation_id },
+            );
+            this.notifyApprovalRequested(companyId, approval);
+          }
         }
       }
     } catch (err) {
@@ -3453,7 +3736,13 @@ export class CompanyOrchestrator {
     this.agentLocks.release(agentId, run.id);
 
     const current = this.tasks.get(candidate.id)!;
-    const target: TaskStatus = failed ? "failed" : waiting ? "waiting" : "review";
+    const target: TaskStatus = failed
+      ? "failed"
+      : runtimeToolApproval
+        ? "approval_required"
+        : waiting
+          ? "waiting"
+          : "review";
     this.tasks.transition(candidate.id, target, {
       expectedVersion: current.status_version,
       reason: `run ${run.id} finished`,
@@ -3462,6 +3751,40 @@ export class CompanyOrchestrator {
       resultSummary: summary || null,
       correlationId: candidate.correlation_id,
     });
+
+    if (target === "review" && summary && this.memoryProviders.has("obsidian")) {
+      try {
+        await this.recordMemory(
+          companyId,
+          "obsidian",
+          {
+            kind: "summary",
+            title: `Run-Ergebnis: ${candidate.title}`,
+            content: summary.slice(0, 16000),
+            taskId: candidate.id,
+            projectId: candidate.project_id,
+            agentId,
+            source: `run:${run.id} (noch nicht vom CEO abgenommen)`,
+            confidence: 0.5,
+            sensitivity: candidate.sensitive ? "confidential" : "internal",
+          },
+          { actorType: "agent", actorId: agentId },
+        );
+      } catch {
+        appendAuditEvent(this.db, {
+          companyId,
+          actorType: "system",
+          actorId: "memory",
+          action: "memory.run_result_failed",
+          entityType: "run",
+          entityId: run.id,
+          taskId: candidate.id,
+          correlationId: candidate.correlation_id,
+          outcome: "failed",
+          details: { provider: "obsidian" },
+        });
+      }
+    }
 
     this.syncAgentStatuses(companyId);
     return { task: this.tasks.get(candidate.id)!, runId: run.id, events };
