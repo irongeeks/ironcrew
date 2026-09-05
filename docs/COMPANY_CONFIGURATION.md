@@ -66,3 +66,9 @@ Die Einstellungen wirken auf folgende Admission-/Tool-/Memory-Prüfungen. Sie
 widerrufen keinen bereits an einen externen Provider gesendeten Request und löschen
 kein gespeichertes Wissen. Die Änderung der Konfiguration ist kein Nachweis einer
 erfolgreichen Live-Anbindung des gewählten Providers.
+
+## Geprüfte Browseransicht
+
+![Firmenkonfiguration mit tatsächlichen Standardwerten](screenshots/ironcrew-configuration.png)
+
+Version 0.3.0, isolierte Testfirma aus [CI 33974382581](https://github.com/irongeeks/ironcrew/actions/runs/33974382581). Keine persönlichen Konten oder produktiven Geschäftsdaten.

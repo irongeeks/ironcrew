@@ -20,6 +20,45 @@ beforeEach(() => {
   mocked.mockImplementation(async () => structuredClone(state));
 });
 describe("objective evaluations panel", () => {
+  it("keeps exact accessible select names independent of persisted run and rubric option text", async () => {
+    state.rubrics = [
+      {
+        id: "rubric-real",
+        key: "quality",
+        version: 1,
+        title: "Gespeicherte Rubrik",
+        reason: "Nachweise vorab prüfen.",
+        cases: [],
+        hash: "hash",
+        createdAt: 1,
+        createdBy: "ceo",
+      },
+    ];
+    state.runs = [
+      {
+        id: "run-real",
+        taskId: "task-real",
+        taskTitle: "Interner Bericht",
+        agentId: "agent-real",
+        agentName: "Forge",
+        runtimeType: "mock",
+        model: null,
+        status: "completed",
+        inputTokens: 12,
+        outputTokens: 8,
+        costMicros: 0,
+      },
+    ];
+    render(<ObjectiveEvaluationsPanel />);
+    const runSelect = await screen.findByRole("combobox", { name: "Abgeschlossener Run" });
+    const rubricSelect = screen.getByRole("combobox", { name: "Rubrikversion" });
+    expect((runSelect as HTMLSelectElement).labels?.[0].textContent).toBe("Abgeschlossener Run");
+    expect((rubricSelect as HTMLSelectElement).labels?.[0].textContent).toBe("Rubrikversion");
+    fireEvent.change(runSelect, { target: { value: "run-real" } });
+    fireEvent.change(rubricSelect, { target: { value: "rubric-real" } });
+    expect(runSelect).toHaveValue("run-real");
+    expect(screen.getByRole("button", { name: "Run auswerten" })).toBeEnabled();
+  });
   it("shows genuine empty states without fabricated scores", async () => {
     render(<ObjectiveEvaluationsPanel />);
     await screen.findByText(/Noch keine gemessenen Ergebnisse/);

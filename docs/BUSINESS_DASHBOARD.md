@@ -81,3 +81,9 @@ Antwortgrößen, Streamabbruch und Redirectverbot. Komponenten- und Browsertests
 expliziten Abruf, fehlende Daten, Datengrundlage und Zugriffsfehler.
 Es wurden keine privaten Live-Instanzen oder Buchhaltungskonten angesprochen.
 Die manuelle Abnahme mit den tatsächlichen Anbieteraccounts bleibt beim Betreiber.
+
+## Geprüfte Browseransicht
+
+![Geschäftsdaten ohne konfigurierte Gewerke: fehlende Quellen werden ausdrücklich angezeigt](screenshots/ironcrew-business.png)
+
+Version 0.3.0, isolierte Testfirma aus [CI 33974382581](https://github.com/irongeeks/ironcrew/actions/runs/33974382581). Keine persönlichen Konten oder produktiven Geschäftsdaten.

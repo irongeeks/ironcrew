@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   ObjectiveCase,
   ObjectiveRubric,
@@ -9,6 +9,7 @@ import { requestJson } from "./panel-api";
 import "./ObjectiveEvaluationsPanel.css";
 const emptyCase = (id: number): ObjectiveCase => ({ id: `case-${id}`, label: "", kind: "contains", expected: "" });
 export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number }): React.JSX.Element {
+  const formId = useId();
   const [data, setData] = useState<ObjectiveSnapshot | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -104,29 +105,24 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                 Es startet kein Modellaufruf. Jede Rubrikversion bewertet einen Run einmal; Wiederholung nutzt denselben
                 Nachweis.
               </p>
-              <label>
-                Rubrikversion
-                <select value={rubricId} onChange={(e) => setRubricId(e.target.value)}>
-                  <option value="">Rubrik auswählen</option>
-                  {data.rubrics.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.title} · v{r.version}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Abgeschlossener Run
-                <select value={runId} onChange={(e) => setRunId(e.target.value)}>
-                  <option value="">Run auswählen</option>
-                  {data.runs.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.agentName} · {r.taskTitle} · {r.runtimeType}/{r.model ?? "Standardmodell nicht erfasst"} ·{" "}
-                      {r.id}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <label htmlFor={`${formId}-rubric`}>Rubrikversion</label>
+              <select id={`${formId}-rubric`} value={rubricId} onChange={(e) => setRubricId(e.target.value)}>
+                <option value="">Rubrik auswählen</option>
+                {data.rubrics.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.title} · v{r.version}
+                  </option>
+                ))}
+              </select>
+              <label htmlFor={`${formId}-run`}>Abgeschlossener Run</label>
+              <select id={`${formId}-run`} value={runId} onChange={(e) => setRunId(e.target.value)}>
+                <option value="">Run auswählen</option>
+                {data.runs.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.agentName} · {r.taskTitle} · {r.runtimeType}/{r.model ?? "Standardmodell nicht erfasst"} · {r.id}
+                  </option>
+                ))}
+              </select>
               {!data.runs.length && (
                 <p>
                   Noch kein abgeschlossener Run vorhanden. Führe zuerst eine Aufgabe mit einer eingerichteten Runtime

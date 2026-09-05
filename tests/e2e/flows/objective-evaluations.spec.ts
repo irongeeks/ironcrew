@@ -43,7 +43,9 @@ test("creates an immutable rubric, measures a persisted mock run and reproduces 
     "Save objective rubric",
   );
   await expect(panel.getByRole("status")).toContainText("Rubrikversion gespeichert");
-  await panel.getByLabel("Abgeschlossener Run", { exact: true }).selectOption(run!.id);
+  const runSelect = panel.getByRole("combobox", { name: "Abgeschlossener Run", exact: true });
+  await expect(runSelect.locator(`option[value="${run!.id}"]`)).toBeAttached();
+  await runSelect.selectOption(run!.id);
   const measuredResponse = page.waitForResponse(
     (response) => response.url().endsWith(`${endpoint}/measure`) && response.request().method() === "POST",
   );

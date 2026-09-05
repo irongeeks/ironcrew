@@ -32,8 +32,8 @@ Implemented in this milestone:
 
 Module tests and browser cases accompany each change; the release PR records the
 consolidated CI/platform/browser outcome for its exact revision. No pending overall
-run is counted as passed here. Existing README screenshots retain their declared
-0.1.0 provenance until replaced with a newly verified capture.
+run is counted as passed here. README screenshots were recaptured on the 0.3.0 PR merge tree and visually checked;
+`docs/screenshots/screenshots.json` preserves capture commit and test-data provenance.
 
 The application and fixture-based acceptance paths are implemented. The complete
 master-prompt MVP is still subject to at least one official authenticated CLI run on

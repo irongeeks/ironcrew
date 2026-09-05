@@ -13,7 +13,7 @@ Freigaben und Kosten bleiben nachvollziehbar.
 
 ![IronCrew: modernes Firmengebäude mit Abteilungsbüros, Crew und CEO-Chat](docs/screenshots/ironcrew-office.png)
 
-*Browseraufnahme aus Version 0.1.0 in der isolierten Testinstallation: originale Seed-Crew und ein
+*Browseraufnahme aus Version 0.3.0 in der isolierten Testinstallation: originale Seed-Crew und ein
 gekennzeichneter Dokumentationsauftrag. Die Bilder zeigen keine produktive Firma
 und belegen keine Ausführung mit einem echten Providerkonto.*
 
@@ -96,7 +96,7 @@ Auf kleinen Bildschirmen steht dieselbe Crew als bedienbare Liste bereit.
 Die Einstellungen zeigen Version und Updateweg. Die externe Release-Prüfung
 ist in dieser isolierten Aufnahme bewusst deaktiviert.
 
-![Version 0.1.0 und Hinweise zum Update auf dem Host](docs/screenshots/ironcrew-updates.png)
+![Version 0.3.0 und Hinweise zum Update auf dem Host](docs/screenshots/ironcrew-updates.png)
 
 </details>
 

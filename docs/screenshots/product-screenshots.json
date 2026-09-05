@@ -1,0 +1,11 @@
+{
+  "version": "0.3.0",
+  "head": "2053762140454cd09d2e0c6aff714ce3e4ab3007",
+  "workflowRun": 33974382581,
+  "artifact": 9971944158,
+  "data": "Isolated E2E database, MockRuntime and original seed crew; no private integrations.",
+  "files": {
+    "ironcrew-configuration.png": "tests/e2e/flows/configuration.spec.ts",
+    "ironcrew-business.png": "tests/e2e/flows/business-dashboard.spec.ts"
+  }
+}
