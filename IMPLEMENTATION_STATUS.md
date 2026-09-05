@@ -6,27 +6,37 @@ review, or not verifiable in this environment, is said so explicitly.
 
 ## Current Company OS completion branch — 2026-09-05
 
-The merged PR #18 is the baseline, not proof of the additional unmerged work.
-Current implementation and remaining master-prompt requirements are mapped in
-[MASTER_PROMPT_COVERAGE.md](docs/MASTER_PROMPT_COVERAGE.md). The latest branch is
-`feature/company-os-completion`; final consolidated CI and browser acceptance are
-pending while its components are integrated.
+PR #18 is merged at `1e441e4`; PR #19 is merged on `main` at
+`e365cfb9bdd887d1a77570749edd84b3374229a4`. The merged tree is unchanged from
+verified revision `ebfad74`. [PR #20](https://github.com/irongeeks/ironcrew/pull/20)
+adds owner-managed routing profiles and carries the subsequent CI evidence.
+[MASTER_PROMPT_COVERAGE.md](docs/MASTER_PROMPT_COVERAGE.md) maps the exact scope.
 
-New implementation areas include the outbound runner fleet, explicit sandbox access
-and approval consumption, original character/3D media support, coaching/evaluation,
-project planning, native launchd/systemd deployment tooling and production packaging.
-Their exact capabilities and current limitations are tracked in the matrix and their
-module documents; no blanket “all master-prompt phases complete” claim is made.
+Implemented additions include the outbound runner fleet, scoped sandbox approvals
+and one-run grants, private character lifecycle and animation, optional GLB profile
+previews, owner-reviewed coaching, project planning, and native deployment tooling.
+These additions do not establish completion of every master-prompt requirement.
 
-Verified deployment/recovery evidence in this working tree:
+Consolidated evidence for `ebfad74`:
 
-- **39 script tests passed**, including service renderer escaping, private env files,
-  placeholder rejection, real backup/restore CLI relative paths and license gates.
-- **63 backup/bootstrap-migration backend tests passed.**
-- Production SBOM/license inventory generated for **399 installed components**;
-  inherited Remotion license questions are visible, not silently approved.
-- New Linux/macOS, Docker restart/recovery and SBOM CI jobs are defined. Local Docker
-  and `plutil` are unavailable, so those new execution results remain **CI pending**.
+- [CI 33947377635](https://github.com/irongeeks/ironcrew/actions/runs/33947377635)
+  passed quality/build gates, **5,085 backend tests (1 skipped), 592 frontend tests,
+  40 script tests and 76 browser tests (4 existing skips)**. Browser coverage includes
+  the private spritesheet lifecycle, GLB preview and project planning.
+- [Platform CI 33947377630](https://github.com/irongeeks/ironcrew/actions/runs/33947377630)
+  passed native Linux/macOS checks and actual Docker startup, restart, persistent
+  data and backup/restore checks, plus SBOM/license gates. These are controlled CI
+  installations, not a deployment to the operator's production host.
+- The license gate tracks inherited exceptions; an inventory baseline does not
+  grant commercial permission for inherited Remotion components.
+
+Routing profiles are implemented separately: nine versioned profiles, owner UI/API,
+agent bindings, actual task/meeting dispatch, explicit fallback, persistent route
+selection and original/selected budget and concurrency enforcement. Focused checks
+passed **73 backend and 199 frontend tests**, both typechecks, ESLint, formatting and
+production build. These are overlapping module suites, not additional aggregate counts.
+The full current CI/browser/platform result is linked from PR #20; the `ebfad74`
+counts above identify the earlier tested baseline. See [RUNTIME_ROUTING.md](docs/RUNTIME_ROUTING.md).
 
 Actual CLI subscriptions, mTLS customer networks, OIDC, Honcho, mail and business
 providers require separately documented operator tests. Services were not installed,
@@ -34,7 +44,7 @@ accounts were not modified, and no production system was deployed in this sessio
 See [SECURITY_OPERATIONS.md](docs/SECURITY_OPERATIONS.md) and
 [BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) for concrete start/recovery steps.
 
-## Current implementation follow-up — 2026-09-05
+## Shared foundation and PR #18 baseline — 2026-09-05
 
 Office, Kanban and CEO chat use one persisted company domain and authenticated live
 updates. Retry, cooldown, workspace propagation and stale-worker fencing are implemented.
@@ -48,10 +58,10 @@ The following additions now have implementation and focused regression coverage:
 | Memory               | Obsidian default plus optional Honcho hybrid, local fallback, classified sync, persistent retry/deletion and source metadata        | [Memory](docs/MEMORY.md)                         |
 | Native/remote runner | Per-run OpenRouter SecretRef resolution; scoped workspace tools; explicit mTLS endpoint supporting start/resume/cancel              | [Runner protocol](docs/RUNNER_PROTOCOL.md)       |
 
-**Current consolidated verification: 569 frontend and 26 script tests passed; TypeScript and production build passed. Current backend/browser evidence: [PR #18](https://github.com/irongeeks/ironcrew/pull/18).** No real CLI login,
-provider billing, managed Honcho account or remote production deployment is claimed
-as exercised by the fixture suites. Use the manual acceptance procedures below.
-The complete master-prompt MVP is **not yet verified**.
+These foundation features were already present in [PR #18](https://github.com/irongeeks/ironcrew/pull/18).
+The consolidated evidence above supersedes its earlier test totals. Real CLI login,
+provider billing, managed Honcho and remote production deployment remain operator
+acceptance tasks. The complete master-prompt MVP is **not yet verified**.
 
 The phase tables and counts below are historical milestone records. Their earlier
 “done” labels describe that milestone's implementation scope, not current consolidated
@@ -384,60 +394,75 @@ That is why shipping is a separate mechanism rather than a stronger hash.
   with controlled servers. Real managed/self-hosted deployment acceptance is open.
   Unclassified, confidential and restricted memory is not automatically exported;
   ordinary search stays local unless semantic retrieval is explicitly classified.
-- **Remote runners:** one explicitly configured inbound mTLS endpoint dispatches
-  tasks. Outbound-only enrollment, automatic certificate issuance and selection
-  from the remote-worker registry are not implemented. Local TLS fixtures do not
-  establish a production VPN/firewall/certificate deployment.
-- **Character assets:** built-ins are original SVG figures. Uploaded images are
-  static portraits/full-body images with live status overlays. No built-in image
-  generation, GLB/GLTF rendering, spritesheet animation player or physical asset-delete
-  UI is implemented. Changing the selection detaches an image but does not erase it.
-- **Sandbox elevation:** the resolver and grant store validate scoped, expiring
-  grants, but the product does not yet join approval creation/decision to grant
-  minting. Restricted execution remains the default; an end-to-end elevation UI
-  must not be presented as complete.
+- **Remote runners:** the direct mTLS endpoint and outbound WSS fleet support
+  authenticated dispatch, scoped enrollment, capacity selection, persisted leases,
+  revocation and recovery. Fleet sessions stay pinned to their original worker.
+  Fleet mTLS enrollment, automatic certificate issuance, file synchronization,
+  fleet MCP and HA are not implemented. Controlled TLS tests do not establish a
+  production customer-network or certificate deployment. See [RUNNER_FLEET.md](docs/RUNNER_FLEET.md).
+- **Character assets:** 20 original SVG figures, private images, live status
+  spritesheets, assignment/reuse and owner-controlled physical deletion are
+  implemented. Referenced files require explicit detachment; failed deletion has
+  persisted recovery markers. Optional GLB profile previews support bounded,
+  self-contained, untextured/uncompressed geometry and animations; the office stays
+  2D. Browser CI covers these flows. Image/animation generation remains an external
+  user action, not an integrated generation service. See [CHARACTERS.md](docs/CHARACTERS.md).
+- **Sandbox elevation:** owner/quorum approval now mints an expiring, scoped,
+  single-run grant with atomic consumption, revocation and runner-side expiry
+  cancellation. Restricted execution remains the default. OS isolation and egress
+  must also be configured on the target runner; an approval is not an OS sandbox.
+  See [SANDBOX_ACCESS.md](docs/SANDBOX_ACCESS.md).
 - **Business integrations:** existing mail, Sevdesk and business-pack code is
   preserved. The read-only business adapters do not prove live tenant behavior or
   add payments, filings, external promises or production changes.
-- **Other master-prompt work:** human-reviewed coaching/evaluation workflows,
-  automatic fleet orchestration, a launchd service template and a consolidated
-  `docs/SECURITY_OPERATIONS.md` remain open. Multi-company, PostgreSQL and HA are
-  future architectural work, not current product guarantees.
+- **Coaching:** owner-reviewed, versioned guidance, sourced notes and deterministic
+  evaluation of stored evidence are implemented. They do not prove that proposed
+  guidance improves future model performance or authorize automatic promotion.
+- **Deployment:** systemd/launchd rendering and install tooling, security operations
+  and backup/restore instructions are implemented and platform CI passed. Dedicated
+  users, keychains, egress, certificates and actual service installation remain
+  target-host responsibilities.
+- **Routing:** nine owner-editable profiles and actual dispatch are implemented.
+  Real model capabilities, login and usage need account acceptance.
+- **Remaining product work:** complete live business KPIs need connected sources;
+  multi-company product acceptance, PostgreSQL and HA remain future work.
 - **Audit:** offline verification detects changed rows and sequence holes. Tail
   truncation requires an independent backup or shipped copy for comparison.
 
 ## MVP acceptance overview
 
 This table distinguishes implemented behavior from installation/account acceptance.
-Current aggregate test and browser evidence: **569 frontend and 26 script tests passed; TypeScript and production build passed. Current backend/browser evidence: [PR #18](https://github.com/irongeeks/ironcrew/pull/18)**.
+The consolidated `ebfad74` counts and linked CI runs above are the current evidence;
+routing changes after that revision are not covered by those results.
 
-| Criterion                                                      | Current evidence and limit                                                                                                                |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Install/dev/test/build, Linux/macOS guides                     | Commands and guides exist; final gates pending. Docker Compose and native deployment need environment-specific acceptance.                |
-| Modern responsive office, no pixel style                       | Original 2D figures, accessible DOM controls, keyboard navigation and reduced-motion support; no WebGL requirement.                       |
-| One company state across office, Kanban, profiles and CEO chat | Canonical domain IDs, persisted updates and authenticated SSE; focused integration/UI coverage.                                           |
-| Character choice and private assets                            | 20 originals, separate portrait/full-body previews and owner-controlled assignment; upload validation and company isolation covered.      |
-| MockRuntime plus real CLI adapters                             | Mock flow and spawned protocol fixtures covered; installed official CLI capability detection implemented; authenticated real run pending. |
-| Streaming, cancel, errors and rate limits                      | CLI and OpenRouter event parsing, timeouts, cancellation and durable cooldown coverage; actual provider behavior still needs acceptance.  |
-| Session and restart recovery                                   | Initial session IDs persisted with workspace; matching sessions resume after restart/revision; mismatches cannot reuse a session.         |
-| CEO → EA → delegation → review → accept/revise                 | Implemented with regression and browser specs; final current browser results pending.                                                     |
-| Task ownership, dependencies and approvals                     | Atomic claims, lease renewal, stale-worker fencing and structured approval gates implemented and covered.                                 |
-| Budgets and audit                                              | Existing hard-stop and audit paths retained; scoped tool execution records authorization/results.                                         |
-| Obsidian read/write/search and provenance                      | Default local vault, bounded context and metadata implemented.                                                                            |
-| Optional Honcho with non-blocking failure                      | Implemented hybrid fallback, persisted outbox, classified retrieval and deletion; live account acceptance pending.                        |
-| Native SecretRefs and remote transport                         | Runner resolves OpenRouter keys per run; TLS/client-certificate/token boundaries covered in controlled tests; real deployment pending.    |
-| Vendor restrictions and permitted fallback                     | Backend policy applied per request and continuation; no unapproved model/provider fallback.                                               |
-| Full master-prompt MVP                                         | **Not yet verified**; remaining acceptance and implementation limits above are explicit.                                                  |
+| Criterion                                                      | Current evidence and limit                                                                                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Install/dev/test/build, Linux/macOS guides                     | Linux/macOS and actual Docker startup/restart/persistence/restore passed platform CI; target-host installation remains operator acceptance.       |
+| Modern responsive office, no pixel style                       | Original 2D figures, accessible DOM controls, keyboard navigation and reduced-motion support; no WebGL requirement.                               |
+| One company state across office, Kanban, profiles and CEO chat | Canonical domain IDs, persisted updates and authenticated SSE; focused integration/UI coverage.                                                   |
+| Character choice and private assets                            | 20 originals, private asset lifecycle, spritesheets and bounded GLB profile previews; backend and browser flows passed.                           |
+| MockRuntime plus real CLI adapters                             | Mock flow and spawned protocol fixtures covered; installed official CLI capability detection implemented; authenticated real run pending.         |
+| Streaming, cancel, errors and rate limits                      | CLI and OpenRouter event parsing, timeouts, cancellation and durable cooldown coverage; actual provider behavior still needs acceptance.          |
+| Session and restart recovery                                   | Initial session IDs persisted with workspace; matching sessions resume after restart/revision; mismatches cannot reuse a session.                 |
+| CEO → EA → delegation → review → accept/revise                 | Implemented with integration and passing browser coverage, including structured project planning; actual model quality needs operator acceptance. |
+| Task ownership, dependencies and approvals                     | Atomic claims, lease renewal, stale-worker fencing and structured approval gates implemented and covered.                                         |
+| Budgets and audit                                              | Existing hard-stop and audit paths retained; scoped tool execution records authorization/results.                                                 |
+| Obsidian read/write/search and provenance                      | Default local vault, bounded context and metadata implemented.                                                                                    |
+| Optional Honcho with non-blocking failure                      | Implemented hybrid fallback, persisted outbox, classified retrieval and deletion; live account acceptance pending.                                |
+| Native SecretRefs and remote transport                         | Runner resolves OpenRouter keys per run; TLS/client-certificate/token boundaries covered in controlled tests; real deployment pending.            |
+| Vendor restrictions and permitted fallback                     | Backend policy applied per request and continuation; no unapproved model/provider fallback.                                                       |
+| Full master-prompt MVP                                         | **Not yet verified**; remaining acceptance and implementation limits above are explicit.                                                          |
 
 ## Next technically sensible step
 
-1. Finish the consolidated lint, format, type/build, unit/integration and Playwright
-   checks, then replace the pending verification markers with measured results.
+1. Use the exact-revision checks on PR #20 for routing acceptance; the earlier
+   `ebfad74` results identify its baseline and do not cover later changes.
 2. Perform an authenticated CLI acceptance run through the dedicated native runner,
    including revision/resume after a control-plane restart. Keep account credentials
    in the official CLI store and record only redacted events and result evidence.
-3. Validate one configured OpenRouter SecretRef, optional Honcho endpoint and explicit
-   mTLS runner deployment with bounded tasks and controlled test data.
-4. Choose the next feature from the remaining product gaps using that evidence;
-   automatic outbound fleet enrollment and the elevation approval UI are separate
-   implementation work, not implied by the transport or grant-store foundations.
+3. Validate one configured OpenRouter SecretRef, optional Honcho endpoint and the
+   chosen remote transport on the target host with bounded tasks and controlled data.
+4. Rehearse backup/restore with the operator's actual configuration and encryption
+   secret on an isolated target; CI has already exercised the packaged fixture flow.
+5. Prioritize remaining product scope from the coverage matrix and those acceptance
+   results, including live business sources and optional future infrastructure.

@@ -1,3 +1,4 @@
+import { migration as crewRoutingProfiles } from "../../modules/bootstrap/migrations/0033-crew-routing-profiles.ts";
 /**
  * In-memory database helper for IronCrew domain tests.
  * Applies the same migration the server runs, so tests exercise the real schema.
@@ -79,6 +80,7 @@ export function createTestDb(filePath?: string): DatabaseSync {
   crewCharacterMedia.up(db);
   crewCoaching.up(db);
   crewProjectPlans.up(db);
+  crewRoutingProfiles.up(db);
 
   return db;
 }

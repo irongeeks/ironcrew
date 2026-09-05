@@ -86,6 +86,9 @@ export function runStatusForEvent(type: RunEventType): string | null {
 // --- Runtime interface -----------------------------------------------------
 
 export interface RuntimeCapabilities {
+  /** Confirmed runtime support; omitted means unknown and cannot satisfy a routing requirement. */
+  vision?: boolean;
+  longContext?: boolean;
   /** False only for runtimes without filesystem access. Defaults to required. */
   workspaceRequired?: boolean;
   /** Streaming incremental message deltas. */

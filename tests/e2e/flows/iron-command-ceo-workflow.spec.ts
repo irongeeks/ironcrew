@@ -222,8 +222,13 @@ test.describe("Command Center UI", () => {
     }
 
     // The seed crew is present and each figure carries a backend-derived status.
+    const crewResponse = await request.get(`${CREW}/agents`);
+    expect(crewResponse.ok()).toBe(true);
+    const { agents } = (await crewResponse.json()) as { agents: Array<{ id: string }> };
+    expect(agents.length).toBeGreaterThan(10);
     const dots = page.locator('[data-testid^="agent-status-"]');
-    expect(await dots.count()).toBeGreaterThan(10);
+    // The shell can render before the asynchronous crew request has completed.
+    await expect(dots).toHaveCount(agents.length);
 
     // Explicitly NOT a retro/pixel office. Scoped to the brand mark, since the
     // company name in the sub-label also reads "IronCrew".
