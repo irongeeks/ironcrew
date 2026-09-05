@@ -47,6 +47,8 @@ import { MeetingMutationError } from "../domain/meeting-store.ts";
 import { InvalidMeetingTransitionError, MEETING_STATUSES } from "../domain/meeting-state.ts";
 import { MemoryMutationError } from "../domain/memory-store.ts";
 import { MEMORY_KINDS } from "../memory/memory-provider.ts";
+import { registerSandboxRoutes } from "./sandbox-routes.ts";
+import { registerCoachingRoutes } from "./coaching-routes.ts";
 import { registerCharacterRoutes } from "./character-routes.ts";
 import {
   MailboxAccessError,
@@ -71,7 +73,10 @@ import type { RunEvent } from "../runtime/run-events.ts";
 
 export type Broadcast = (type: string, payload: unknown) => void;
 
-const ceoMessageSchema = z.object({ body: z.string().min(1).max(20000) });
+const ceoMessageSchema = z.object({
+  projectId: z.string().min(1).optional(),
+  body: z.string().min(1).max(20000),
+});
 const reviewSchema = z.object({ note: z.string().max(5000).optional() });
 const revisionSchema = z.object({ reason: z.string().min(1).max(5000) });
 const taskStatusSchema = z.object({ status: z.enum(TASK_STATUSES), reason: z.string().max(2000).optional() });
@@ -647,6 +652,35 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
    */
   const ownerOnly = auth.requireRole("owner");
   registerCharacterRoutes(app, { db, companyId, auth, base });
+  registerCoachingRoutes(app, { db, companyId, auth, base });
+  registerSandboxRoutes(app, {
+    db,
+    companyId,
+    auth,
+    base,
+    service: orchestrator.sandboxAccess,
+    onRevoke: (grant) =>
+      grant.consumed_run_id
+        ? orchestrator.abortRun(companyId, grant.consumed_run_id, "Sandbox-Freigabe widerrufen")
+        : undefined,
+  });
+  app.get(
+    `${base}/project-plans`,
+    wrap((_req, res) => {
+      res.json({ plans: orchestrator.projectPlans.list(companyId) });
+    }),
+  );
+  app.post(
+    `${base}/project-plans/:taskId/review`,
+    ownerOnly,
+    wrap((req, res) => {
+      const { decision } = z
+        .object({ decision: z.enum(["approved", "rejected"]) })
+        .strict()
+        .parse(req.body);
+      res.json({ tasks: orchestrator.reviewProjectPlan(companyId, param(req, "taskId"), decision, actorOf(req)) });
+    }),
+  );
 
   // --- company / org ------------------------------------------------------
 
@@ -756,8 +790,8 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   app.post(
     `${base}/chat`,
     wrap((req, res) => {
-      const { body } = ceoMessageSchema.parse(req.body);
-      const result = orchestrator.handleCeoMessage(companyId, body, actorOf(req));
+      const { body, projectId } = ceoMessageSchema.parse(req.body);
+      const result = orchestrator.handleCeoMessage(companyId, body, { ...actorOf(req), projectId });
       broadcast("crew_chat_message", { conversationId: result.conversationId, reply: result.reply });
       if (result.task) broadcast("crew_task_changed", { taskId: result.task.id, status: result.task.status });
       res.status(201).json({
@@ -855,18 +889,20 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
    */
   app.post(
     `${base}/tasks/:id/status`,
-    wrap((req, res) => {
+    wrap(async (req, res) => {
       const { status, reason } = taskStatusSchema.parse(req.body ?? {});
       const existing = orchestrator.tasks.get(param(req, "id"));
       if (!existing || existing.company_id !== companyId) {
         res.status(404).json({ error: "not_found" });
         return;
       }
-      const task = orchestrator.tasks.transition(existing.id, status, {
-        reason: reason ?? "moved on the board",
-        ...actorOf(req),
-        correlationId: existing.correlation_id,
-      });
+      const task = await orchestrator.changeTaskStatus(
+        companyId,
+        existing.id,
+        status,
+        reason ?? "moved on the board",
+        actorOf(req),
+      );
       if (!task) {
         res.status(409).json({ error: "cannot_transition", message: "Task status changed concurrently." });
         return;

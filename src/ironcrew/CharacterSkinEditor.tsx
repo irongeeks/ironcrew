@@ -1,31 +1,60 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { CHARACTER_SKINS } from "../shared/character-skins";
 import { CharacterAvatar, resolveCharacterId } from "./CharacterAvatar";
 import { buildCharacterPrompt } from "./CharacterPrompt";
-import type { Agent } from "./types";
+import {
+  AGENT_STATUS_LABEL,
+  type Agent,
+  type AgentStatus,
+  type CharacterAsset,
+  type CharacterAppearance,
+  type CharacterAnimationConfig,
+} from "./types";
+import { CharacterAssetManager, type CharacterAssetDeletion } from "./CharacterAssetManager";
+import { CharacterAnimationEditor } from "./CharacterAnimationEditor";
 import "./CharacterSkinEditor.css";
 
-export interface CharacterAppearance {
-  character_id: string | null;
-  portrait: string | null;
-  full_body: string | null;
-}
+export type { CharacterAppearance } from "./types";
+const CharacterModelPreview = lazy(() => import("./CharacterModelPreview"));
 
 export interface CharacterSkinEditorProps {
   agent: Agent;
   onSave: (appearance: CharacterAppearance) => Promise<void>;
-  onUpload: (file: File, kind: "portrait" | "full_body") => Promise<string>;
+  onUpload: (file: File, kind: CharacterAsset["kind"]) => Promise<string>;
+  onListAssets?: () => Promise<CharacterAsset[]>;
+  onDeleteAsset?: (id: string, detach: boolean) => Promise<CharacterAssetDeletion>;
   onClose?: () => void;
 }
 
 const UPLOAD_TYPES = new Set(["image/png", "image/webp", "image/jpeg"]);
 
-export function CharacterSkinEditor({ agent, onSave, onUpload, onClose }: CharacterSkinEditorProps): React.JSX.Element {
-  const [draft, setDraft] = useState<CharacterAppearance>(() => ({
-    character_id: agent.persona.character_id ?? null,
-    portrait: agent.persona.portrait,
-    full_body: agent.persona.full_body,
-  }));
+const initialAppearance = (agent: Agent): CharacterAppearance => ({
+  character_id: agent.persona.character_id ?? null,
+  portrait: agent.persona.portrait,
+  full_body: agent.persona.full_body,
+  animation_config: agent.persona.animation_config ?? null,
+  model_3d: agent.persona.model_3d ?? null,
+});
+const animationFor = (url: string, asset?: CharacterAsset): CharacterAnimationConfig => ({
+  url,
+  frameWidth: asset?.width || 128,
+  frameHeight: asset?.height || 128,
+  columns: 1,
+  states: { idle: { row: 0, frames: 1, fps: 6, loop: false } },
+});
+
+export function CharacterSkinEditor({
+  agent,
+  onSave,
+  onUpload,
+  onClose,
+  onListAssets,
+  onDeleteAsset,
+}: CharacterSkinEditorProps): React.JSX.Element {
+  const [draft, setDraft] = useState<CharacterAppearance>(() => initialAppearance(agent));
+  const [previewStatus, setPreviewStatus] = useState<AgentStatus>(agent.status);
+  const [showModel, setShowModel] = useState(false);
+  const [assetsRevision, setAssetsRevision] = useState(0);
   const [identity, setIdentity] = useState("");
   const [style, setStyle] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,12 +64,25 @@ export function CharacterSkinEditor({ agent, onSave, onUpload, onClose }: Charac
   const prompt = buildCharacterPrompt(identity, style);
   const selectedId = resolveCharacterId(draft.character_id, agent.key);
 
-  const upload = async (file: File | undefined, kind: "portrait" | "full_body") => {
+  const useAsset = (asset: CharacterAsset) => {
+    setDraft((current) =>
+      asset.kind === "animation"
+        ? { ...current, animation_config: animationFor(asset.url, asset) }
+        : { ...current, [asset.kind]: asset.url },
+    );
+    if (asset.kind === "model_3d") setShowModel(true);
+    setNotice("Datei ausgewählt. Vorschau prüfen und die Figur speichern.");
+  };
+  const upload = async (file: File | undefined, kind: CharacterAsset["kind"]) => {
     if (!file) return;
     setError(null);
     setNotice("");
-    if (!UPLOAD_TYPES.has(file.type)) {
-      setError("Bitte eine PNG-, WebP- oder JPEG-Datei auswählen.");
+    if (kind === "model_3d" ? !file.name.toLowerCase().endsWith(".glb") : !UPLOAD_TYPES.has(file.type)) {
+      setError(
+        kind === "model_3d"
+          ? "Bitte eine eigenständige GLB-Datei ohne Texturen auswählen."
+          : "Bitte eine PNG-, WebP- oder JPEG-Datei auswählen.",
+      );
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -49,9 +91,16 @@ export function CharacterSkinEditor({ agent, onSave, onUpload, onClose }: Charac
     }
     setBusy(true);
     try {
-      const url = await onUpload(file, kind);
-      setDraft((current) => ({ ...current, [kind]: url }));
-      setNotice("Bild hochgeladen. Vorschau prüfen und anschließend die Figur speichern.");
+      const normalized = kind === "model_3d" ? new File([file], file.name, { type: "model/gltf-binary" }) : file;
+      const url = await onUpload(normalized, kind);
+      const asset =
+        kind === "animation" && onListAssets ? (await onListAssets()).find((item) => item.url === url) : undefined;
+      setDraft((current) =>
+        kind === "animation" ? { ...current, animation_config: animationFor(url, asset) } : { ...current, [kind]: url },
+      );
+      if (kind === "model_3d") setShowModel(true);
+      setAssetsRevision((value) => value + 1);
+      setNotice("Datei hochgeladen. Vorschau prüfen und anschließend die Figur speichern.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Das Bild konnte nicht hochgeladen werden.");
     } finally {
@@ -104,6 +153,8 @@ export function CharacterSkinEditor({ agent, onSave, onUpload, onClose }: Charac
           <CharacterAvatar
             characterId={selectedId}
             fullBodyUrl={draft.full_body}
+            animation={draft.animation_config}
+            status={previewStatus}
             className="character-editor-preview-figure"
             label="Vorschau der Bürofigur"
           />
@@ -131,6 +182,18 @@ export function CharacterSkinEditor({ agent, onSave, onUpload, onClose }: Charac
           <p className="character-editor-hint">Die Auswahl ist eine Vorschau, bis du speicherst.</p>
         </div>
       </div>
+      {(draft.animation_config || draft.model_3d) && (
+        <label className="character-preview-status">
+          Vorschauzustand
+          <select value={previewStatus} onChange={(event) => setPreviewStatus(event.target.value as AgentStatus)}>
+            {(Object.entries(AGENT_STATUS_LABEL) as [AgentStatus, string][]).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {error && (
         <p className="character-editor-error" role="alert">
           {error}
@@ -153,7 +216,14 @@ export function CharacterSkinEditor({ agent, onSave, onUpload, onClose }: Charac
               title={skin.description}
               className="character-editor-choice"
               onClick={() => {
-                setDraft({ character_id: skin.id, portrait: null, full_body: null });
+                setDraft({
+                  character_id: skin.id,
+                  portrait: null,
+                  full_body: null,
+                  animation_config: null,
+                  model_3d: null,
+                });
+                setShowModel(false);
                 setNotice("");
                 setError(null);
               }}
@@ -164,6 +234,107 @@ export function CharacterSkinEditor({ agent, onSave, onUpload, onClose }: Charac
           ))}
         </div>
       </fieldset>
+      <fieldset disabled={busy} className="character-editor-fieldset">
+        <legend>Eigene Animation oder optionales 3D-Modell</legend>
+        <p className="character-editor-hint">
+          Animation: ein Bildraster als PNG, WebP oder JPEG. 3D: eigenständige GLB-2-Datei ohne Texturen, externe
+          Dateien oder Erweiterungen. Maximal 5 MiB. 2D bleibt die Büroansicht.
+        </p>
+        <div className="character-editor-upload-grid">
+          <label>
+            Animationsraster hochladen
+            <input
+              type="file"
+              accept="image/png,image/webp,image/jpeg"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                void upload(file, "animation");
+              }}
+            />
+          </label>
+          <label>
+            GLB-Modell hochladen
+            <input
+              type="file"
+              accept=".glb,model/gltf-binary"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                void upload(file, "model_3d");
+              }}
+            />
+          </label>
+        </div>
+      </fieldset>
+      {draft.animation_config && (
+        <>
+          <CharacterAnimationEditor
+            config={draft.animation_config}
+            disabled={busy}
+            onChange={(animation_config) => setDraft((current) => ({ ...current, animation_config }))}
+          />
+          <button
+            className="ic-btn"
+            type="button"
+            disabled={busy}
+            onClick={() => setDraft((current) => ({ ...current, animation_config: null }))}
+          >
+            Animationszuordnung entfernen
+          </button>
+        </>
+      )}
+      {draft.model_3d && (
+        <div className="character-editor-model">
+          <button className="ic-btn" type="button" onClick={() => setShowModel((value) => !value)}>
+            {showModel ? "3D-Vorschau schließen" : "3D-Modell ansehen"}
+          </button>
+          <button
+            className="ic-btn"
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setDraft((current) => ({ ...current, model_3d: null }));
+              setShowModel(false);
+            }}
+          >
+            3D-Zuordnung entfernen
+          </button>
+          {showModel && (
+            <Suspense fallback={<p role="status">3D-Ansicht wird vorbereitet …</p>}>
+              <CharacterModelPreview
+                url={draft.model_3d}
+                status={previewStatus}
+                fallback={
+                  <CharacterAvatar
+                    characterId={selectedId}
+                    fullBodyUrl={draft.full_body}
+                    className="character-editor-preview-figure"
+                    label="2D-Ersatzfigur"
+                  />
+                }
+              />
+            </Suspense>
+          )}
+        </div>
+      )}
+      {onListAssets && onDeleteAsset && (
+        <CharacterAssetManager
+          onList={onListAssets}
+          onDelete={onDeleteAsset}
+          onUse={useAsset}
+          refreshKey={assetsRevision}
+          onRemoved={(asset) =>
+            setDraft((current) => ({
+              ...current,
+              portrait: current.portrait === asset.url ? null : current.portrait,
+              full_body: current.full_body === asset.url ? null : current.full_body,
+              model_3d: current.model_3d === asset.url ? null : current.model_3d,
+              animation_config: current.animation_config?.url === asset.url ? null : current.animation_config,
+            }))
+          }
+        />
+      )}
       <fieldset disabled={busy} className="character-editor-fieldset">
         <legend>Eigene Bilder verwenden</legend>
         <p className="character-editor-hint">
@@ -253,11 +424,7 @@ export function CharacterSkinEditor({ agent, onSave, onUpload, onClose }: Charac
           className="ic-btn"
           disabled={busy}
           onClick={() => {
-            setDraft({
-              character_id: agent.persona.character_id ?? null,
-              portrait: agent.persona.portrait,
-              full_body: agent.persona.full_body,
-            });
+            setDraft(initialAppearance(agent));
             setError(null);
             setNotice("Auswahl zurückgesetzt.");
           }}

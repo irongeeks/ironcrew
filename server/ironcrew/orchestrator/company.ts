@@ -29,6 +29,10 @@ import {
 import { BudgetEngine } from "../policy/budget-engine.ts";
 import { SandboxGrantStore } from "../domain/sandbox-grant-store.ts";
 import { GoalStore } from "../domain/goal-store.ts";
+import { ProjectPlanStore } from "../domain/project-plan-store.ts";
+import { projectPlanningInstructions } from "../../../src/shared/project-planning.ts";
+import { CoachingStore } from "../domain/coaching-store.ts";
+import { SandboxAccessService } from "../domain/sandbox-access-service.ts";
 import { ProjectStore } from "../domain/project-store.ts";
 import { NotificationStore } from "../domain/notification-store.ts";
 import { DecisionStore } from "../domain/decision-store.ts";
@@ -228,6 +232,13 @@ export class CompanyOrchestrator {
   readonly sandboxGrants: SandboxGrantStore;
   readonly goals: GoalStore;
   readonly projects: ProjectStore;
+  readonly projectPlans: ProjectPlanStore;
+  readonly coaching: CoachingStore;
+  readonly sandboxAccess: SandboxAccessService;
+  private readonly activeRuns = new Map<
+    string,
+    { companyId: string; taskId: string; abort: AbortController; runtime: AgentRuntime }
+  >();
   readonly notifications: NotificationStore;
   readonly decisions: DecisionStore;
   readonly secrets: SecretStore;
@@ -290,6 +301,9 @@ export class CompanyOrchestrator {
     this.budgets = new BudgetEngine(db);
     this.goals = new GoalStore(db);
     this.projects = new ProjectStore(db);
+    this.projectPlans = new ProjectPlanStore(db);
+    this.coaching = new CoachingStore(db);
+    this.sandboxAccess = new SandboxAccessService(db);
     this.notifications = new NotificationStore(db);
     this.decisions = new DecisionStore(db);
     this.secrets = new SecretStore(db);
@@ -450,6 +464,21 @@ export class CompanyOrchestrator {
       policy: JSON.parse(agent.policy_json),
     });
 
+    const approvedCoaching = this.coaching.current(companyId, speakerAgentId);
+    const coachingContext = approvedCoaching
+      ? `\n\n# Vom Owner freigegebenes Coaching (Version ${approvedCoaching.version}; untergeordnet zu Policy und Fachgrenzen)\n${wrapUntrusted(approvedCoaching.guidance, { source: "owner-approved coaching", kind: "guidance" }).text}\nSkill-Referenzen: ${JSON.stringify(approvedCoaching.skills)}`
+      : "";
+    if (approvedCoaching)
+      appendAuditEvent(this.db, {
+        companyId,
+        actorType: "system",
+        actorId: "context-builder",
+        action: "coaching.meeting_context_used",
+        entityType: "meeting",
+        entityId: meeting.id,
+        details: { agentId: speakerAgentId, version: approvedCoaching.version, round: meeting.current_round + 1 },
+      });
+
     const participantNames = new Map(participants.map((p) => [p.agent_id, p.display_name]));
     const recent = this.meetings.recentTurns(meetingId, CompanyOrchestrator.MEETING_TURN_CONTEXT_WINDOW);
     const transcript =
@@ -457,7 +486,7 @@ export class CompanyOrchestrator {
         ? "(Noch keine Wortmeldungen.)"
         : recent.map((t) => `${participantNames.get(t.agent_id) ?? t.agent_id}: ${t.contribution}`).join("\n");
 
-    const prompt = `${guidance}\n\n# Meeting\nThema: ${meeting.topic}\n\nBisherige Wortmeldungen (letzte ${recent.length}):\n${transcript}\n\nGib deine Wortmeldung kurz und konkret (2-4 Sätze).`;
+    const prompt = `${guidance}${coachingContext}\n\n# Meeting\nThema: ${meeting.topic}\n\nBisherige Wortmeldungen (letzte ${recent.length}):\n${transcript}\n\nGib deine Wortmeldung kurz und konkret (2-4 Sätze).`;
 
     const round = meeting.current_round + 1;
     let contribution = "";
@@ -1520,6 +1549,8 @@ export class CompanyOrchestrator {
     });
     this.notifications.markReadByApproval(companyId, approval.id);
 
+    if (decision === "approved" && approval.approval_type === "sandbox_elevation")
+      this.sandboxAccess.settleApproval(companyId, approval.id);
     this.settleApprovedTask(companyId, approval, decision, reason, opts);
 
     return approval;
@@ -2228,12 +2259,14 @@ export class CompanyOrchestrator {
    * The EA never approves anything and never executes a sensitive action
    * itself — it raises an approval request and reports back.
    */
-  handleCeoMessage(companyId: string, body: string, opts: HumanActor = {}): CeoMessageResult {
+  handleCeoMessage(companyId: string, body: string, opts: HumanActor & { projectId?: string } = {}): CeoMessageResult {
     const actorId = humanActor(opts);
     const correlationId = newCorrelationId();
     const conversationId = this.ensureCeoConversation(companyId);
     const ea = this.executiveAssistant(companyId);
 
+    if (opts.projectId && this.projects.get(opts.projectId)?.company_id !== companyId)
+      throw new Error("Projekt gehört nicht zu dieser Firma.");
     const result = triage(body);
     const messageId = this.addMessage({
       companyId,
@@ -2287,11 +2320,52 @@ export class CompanyOrchestrator {
       return { conversationId, messageId, triage: result, task: null, assignedAgent: null, reply, correlationId };
     }
 
+    // A project starts with a real EA planning run, never with implicit execution.
+    if (result.category === "project") {
+      const project = opts.projectId
+        ? this.projects.get(opts.projectId)!
+        : this.projects.create({
+            companyId,
+            title: body.split("\n")[0].slice(0, 120),
+            summary: body,
+            ownerAgentId: ea.id,
+            actorType: "owner",
+            actorId,
+          });
+      const task = this.tasks.create({
+        companyId,
+        projectId: project.id,
+        title: `Projektplan: ${project.title}`.slice(0, 160),
+        description: body,
+        status: "ready",
+        assignedAgentId: ea.id,
+        createdBy: actorId,
+        correlationId,
+        riskLevel: "low",
+        sensitive: result.sensitive,
+      });
+      this.projectPlans.create(companyId, project.id, task.id, actorId);
+      this.enqueueRun(companyId, task.id, { requestedBy: actorId });
+      const reply = `Ich erstelle einen Projektplan für „${project.title}“ mit Aufgaben, Abhängigkeiten, Budget und Abnahmekriterien. Die Projektarbeit beginnt erst nach Ihrer Planfreigabe.`;
+      this.addMessage({
+        companyId,
+        conversationId,
+        role: "agent",
+        authorAgentId: ea.id,
+        body: reply,
+        taskId: task.id,
+        triage: result,
+        correlationId,
+      });
+      return { conversationId, messageId, triage: result, task, assignedAgent: ea, reply, correlationId };
+    }
+
     // Create the task.
     const task = this.tasks.create({
       companyId,
       title: body.split("\n")[0].slice(0, 120),
       description: body,
+      projectId: opts.projectId,
       status: "ready",
       priority: result.category === "incident" ? "urgent" : "normal",
       riskLevel: result.riskLevel,
@@ -2347,7 +2421,7 @@ export class CompanyOrchestrator {
     }
 
     // Delegate.
-    const agent = this.pickAgent(companyId, result);
+    const agent = result.category === "question" ? ea : this.pickAgent(companyId, result);
     let assigned: AgentRow | null = null;
     let reply: string;
 
@@ -2387,7 +2461,28 @@ export class CompanyOrchestrator {
       // "queued for execution" used to be a hope. Now it is a row: the run
       // request outlives this process, so work delegated at three in the
       // morning is still waiting to be picked up at eight.
-      this.enqueueRun(companyId, task.id, { requestedBy: actorId });
+      if (mayDelegateAutonomously(result)) this.enqueueRun(companyId, task.id, { requestedBy: actorId });
+      else {
+        const approval = this.approvals.request(
+          companyId,
+          {
+            approvalType: "production_change",
+            requestedBy: ea.id,
+            summary: `Vorgehen freigeben: ${task.title}`,
+            riskLevel: result.riskLevel,
+            proposedAction: task.description,
+            impact: "Nicht autonome Aufgabe; Umfang und Ausführung prüfen.",
+          },
+          { taskId: task.id, correlationId },
+        );
+        this.notifyApprovalRequested(companyId, approval);
+        this.tasks.transition(task.id, "approval_required", {
+          reason: "awaiting owner scope approval",
+          actorType: "agent",
+          actorId: ea.id,
+          correlationId,
+        });
+      }
     }
 
     this.addMessage({
@@ -3208,7 +3303,12 @@ export class CompanyOrchestrator {
         }
         const previousRun = request.run_id ? this.runs.get(request.run_id) : null;
         const retryDue = task.status === "failed" && request.attempts > 1;
-        const cooldownOver = task.status === "waiting" && previousRun?.status === "rate_limited";
+        const runnerWaiting =
+          previousRun?.status === "waiting" &&
+          this.runs
+            .listEvents(previousRun.id)
+            .some((event) => event.type === "run.waiting" && event.payload.reason === "runner_unavailable");
+        const cooldownOver = task.status === "waiting" && (previousRun?.status === "rate_limited" || runnerWaiting);
         // Only the due queue lease may revive these states. An approval or a
         // human blocker must never be interpreted as a retry opportunity.
         const unresolvedApproval = this.db
@@ -3277,6 +3377,21 @@ export class CompanyOrchestrator {
         },
       );
       return "failed";
+    } else if (
+      executed.task.status === "waiting" &&
+      executed.events.some((event) => event.type === "run.waiting" && event.payload.reason === "runner_unavailable")
+    ) {
+      const event = [...executed.events]
+        .reverse()
+        .find((event) => event.type === "run.waiting" && event.payload.reason === "runner_unavailable");
+      const retryAt = event?.payload.retryAt;
+      this.runRequests.defer(request.id, "Runner nicht verfügbar: Fortsetzung nach freier Kapazität.", {
+        delayMs:
+          typeof retryAt === "number" && Number.isFinite(retryAt) ? Math.max(30_000, retryAt - Date.now()) : 30_000,
+        runId: executed.runId,
+        leaseOwner: request.lease_owner!,
+      });
+      return "deferred";
     } else if (executed.task.status === "waiting" && this.runs.get(executed.runId)?.status === "rate_limited") {
       const rateLimit = [...executed.events].reverse().find((event) => event.type === "rate_limit.detected");
       const resetAt = rateLimit?.payload.resetAt;
@@ -3372,6 +3487,7 @@ export class CompanyOrchestrator {
     const agent = this.db.prepare(`${RESOLVED_AGENT_SELECT} WHERE a.id = ?`).get(agentId) as AgentRow | undefined;
     if (!agent) return null;
 
+    if (this.approvals.listPending(companyId).some((approval) => approval.task_id === candidate.id)) return null;
     const runtimeType = opts.runtimeType ?? agent.runtime_provider;
     const runtime = this.runtimes.get(runtimeType);
     if (!runtime) throw new Error(`No runtime registered for type "${runtimeType}".`);
@@ -3398,35 +3514,10 @@ export class CompanyOrchestrator {
       runtimeType,
     });
 
-    // Elevation is reachable only through a live grant minted from an
-    // approved sandbox_elevation approval (SandboxGrantStore). Its mere
-    // presence is what the orchestrator "asks" resolvePermissionMode() for —
-    // the resolver re-validates company/runtime/task scope and expiry itself
-    // and fails closed to "restricted" on any mismatch, so this lookup is a
-    // narrowing convenience, never the authority.
-    const grant = this.sandboxGrants.findLive({
-      companyId,
-      provider: runtimeType,
-      taskId: candidate.id,
-    });
-    const permission = resolvePermissionMode({
-      provider: runtimeType,
-      companyId,
-      taskId: candidate.id,
-      requested: grant ? "elevated" : "restricted",
-      grant,
-    });
-    appendAuditEvent(this.db, {
-      companyId,
-      actorType: "system",
-      actorId: "permission-resolver",
-      action: "permission.resolved",
-      entityType: "task",
-      entityId: candidate.id,
-      taskId: candidate.id,
-      correlationId: candidate.correlation_id,
-      details: { mode: permission.mode, code: permission.code, grantId: permission.grantId ?? null },
-    });
+    // Consume a grant only after the run owns its task and workspace.
+    let permission = resolvePermissionMode({ provider: runtimeType, companyId, taskId: candidate.id });
+    let sandboxExpiresAt: number | undefined;
+    let sandboxTimer: ReturnType<typeof setTimeout> | undefined;
 
     // The vessel's model, if it names one. Empty means "whatever the runtime
     // defaults to", which is why it is normalised to undefined rather than
@@ -3529,6 +3620,7 @@ export class CompanyOrchestrator {
     // the work rather than by a watchdog that can only notice afterwards.
     const timeoutMs = agent.vessel_timeout_ms > 0 ? agent.vessel_timeout_ms : DEFAULT_RUN_TIMEOUT_MS;
     const abort = new AbortController();
+    this.activeRuns.set(run.id, { companyId, taskId: candidate.id, abort, runtime });
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
@@ -3574,9 +3666,70 @@ export class CompanyOrchestrator {
     try {
       const workspacePath = await this.resolveWorkspace(companyId, candidate.project_id, runtime, opts.workspacePath);
       this.runs.setWorkspace(run.id, workspacePath);
+      const planning = this.projectPlans.forTask(companyId, candidate.id);
+      const grant = planning
+        ? null
+        : this.sandboxAccess.consumeForRun({
+            companyId,
+            taskId: candidate.id,
+            agentId,
+            projectId: candidate.project_id,
+            provider: runtimeType,
+            workspacePath,
+            runId: run.id,
+          });
+      permission = resolvePermissionMode({
+        provider: runtimeType,
+        companyId,
+        taskId: candidate.id,
+        workspacePath,
+        requested: grant ? "elevated" : "restricted",
+        grant,
+      });
+      this.runs.setPermission(run.id, permission.mode, permission.grantId ?? null);
+      if (grant && permission.mode === "elevated") {
+        sandboxExpiresAt = grant.expiresAt;
+        sandboxTimer = setTimeout(
+          () => abort.abort(new Error("Sandbox-Freigabe abgelaufen")),
+          Math.max(0, grant.expiresAt - Date.now()),
+        );
+        sandboxTimer.unref?.();
+      }
+      appendAuditEvent(this.db, {
+        companyId,
+        actorType: "system",
+        actorId: "permission-resolver",
+        action: "permission.resolved",
+        entityType: "run",
+        entityId: run.id,
+        taskId: candidate.id,
+        correlationId: candidate.correlation_id,
+        details: { mode: permission.mode, code: permission.code, grantId: permission.grantId ?? null },
+      });
+      const approvedGuidance = this.coaching.current(companyId, agentId);
+      const coachingContext = approvedGuidance
+        ? `\n\n# Vom Owner freigegebenes Coaching (Version ${approvedGuidance.version}; untergeordnet zu Policy und Fachgrenzen)\n${wrapUntrusted(approvedGuidance.guidance, { source: "owner-approved coaching", kind: "guidance" }).text}\nSkill-Referenzen: ${JSON.stringify(approvedGuidance.skills)}`
+        : "";
+      if (approvedGuidance)
+        appendAuditEvent(this.db, {
+          companyId,
+          actorType: "system",
+          actorId: "context-builder",
+          action: "coaching.context_used",
+          entityType: "run",
+          entityId: run.id,
+          taskId: candidate.id,
+          details: { agentId, version: approvedGuidance.version },
+        });
+      const planningContext = planning
+        ? "\n\n" +
+          projectPlanningInstructions(
+            this.listAgents(companyId).map((a) => ({ key: a.key, role: a.professional_role })),
+          )
+        : "";
       const memoryContext = await this.runMemoryContext(companyId, candidate, agentId);
       const input: RunInput = {
-        prompt: `${seedAgentGuidance}${strategicContext}\n\n# Aufgabe\n${candidate.description}${candidate.review_notes ? `\n\n# Revision des CEO\n${candidate.review_notes}` : ""}${memoryContext}`,
+        prompt: `${seedAgentGuidance}${coachingContext}${strategicContext}${planningContext}\n\n# Aufgabe\n${candidate.description}${candidate.review_notes ? `\n\n# Revision des CEO\n${candidate.review_notes}` : ""}${memoryContext}`,
         model,
       };
       const context: RunContext = {
@@ -3589,13 +3742,17 @@ export class CompanyOrchestrator {
         workspacePath,
         sensitive: candidate.sensitive !== 0 || memoryContext.length > 0,
         permissionMode: permission.mode,
+        sandboxGrantId: permission.grantId,
+        sandboxExpiresAt,
         signal: abort.signal,
-        allowedTools: ["workspace.read", "workspace.list"].filter((key) => {
-          const decision = this.tools.resolve(companyId, agentId, key, { projectId: candidate.project_id });
-          return decision.allowed && !decision.requiresApproval;
-        }),
+        allowedTools: planning
+          ? []
+          : ["workspace.read", "workspace.list"].filter((key) => {
+              const decision = this.tools.resolve(companyId, agentId, key, { projectId: candidate.project_id });
+              return decision.allowed && !decision.requiresApproval;
+            }),
       };
-      const sessionRef = this.runs.resumableSession(run, workspacePath);
+      const sessionRef = this.runs.resumableSession(this.runs.get(run.id)!, workspacePath);
       const canResume = sessionRef && runtime.resumeRun && (await runtime.capabilities()).sessionResume;
       const stream = canResume
         ? runtime.resumeRun!(sessionRef, { ...input, sessionRef }, context)
@@ -3722,7 +3879,12 @@ export class CompanyOrchestrator {
     } finally {
       clearTimeout(timer);
       clearInterval(lockHeartbeat);
+      clearTimeout(sandboxTimer);
+      this.activeRuns.delete(run.id);
     }
+
+    if (abort.signal.aborted && !failed && !timedOut && this.tasks.get(candidate.id)?.status === "running")
+      recordFailure({ message: String(abort.signal.reason ?? "Run abgebrochen") });
 
     // A runtime that ends its stream quietly on abort would otherwise leave a
     // timed-out run looking like a clean finish waiting for review.
@@ -3745,6 +3907,10 @@ export class CompanyOrchestrator {
     // over cannot free the new owner's lock on its way out.
     this.agentLocks.release(agentId, run.id);
 
+    if (!failed && !waiting && this.projectPlans.forTask(companyId, candidate.id)) {
+      const plan = this.projectPlans.capture(companyId, candidate.id, run.id, summary);
+      if (plan.status === "failed") recordFailure({ message: `Projektplan ungültig: ${plan.error}` });
+    }
     const current = this.tasks.get(candidate.id)!;
     const target: TaskStatus = failed
       ? "failed"
@@ -3762,6 +3928,20 @@ export class CompanyOrchestrator {
       correlationId: candidate.correlation_id,
     });
 
+    if (target === "review" && summary) {
+      const plan = this.projectPlans.forTask(companyId, candidate.id);
+      this.addMessage({
+        companyId,
+        conversationId: this.ensureCeoConversation(companyId),
+        role: "agent",
+        authorAgentId: this.executiveAssistant(companyId).id,
+        taskId: candidate.id,
+        correlationId: candidate.correlation_id,
+        body: plan
+          ? `Projektplan bereit: ${plan.plan?.goal}. Bitte Aufgaben, Risiken und Budget im Projektplan prüfen und freigeben. Quelle: Run ${run.id}.`
+          : `Ergebnis zur Abnahme: ${candidate.title}\n\n${summary.slice(0, 16000)}\n\nQuelle: ${agent.display_name}, Run ${run.id}.`,
+      });
+    }
     if (target === "review" && summary && this.memoryProviders.has("obsidian")) {
       try {
         await this.recordMemory(
@@ -3800,6 +3980,191 @@ export class CompanyOrchestrator {
     return { task: this.tasks.get(candidate.id)!, runId: run.id, events };
   }
 
+  /** Atomic plan review: no task tree or budget escapes a failed approval. */
+  reviewProjectPlan(
+    companyId: string,
+    taskId: string,
+    decision: "approved" | "rejected",
+    opts: HumanActor = {},
+  ): TaskRow[] {
+    const actorId = humanActor(opts);
+    const plan = this.projectPlans.forTask(companyId, taskId);
+    const parent = this.tasks.get(taskId);
+    if (
+      !plan ||
+      !parent ||
+      parent.company_id !== companyId ||
+      parent.status !== "review" ||
+      plan.status !== "review" ||
+      !plan.plan
+    )
+      throw new Error("Projektplan ist nicht zur Freigabe bereit.");
+    const pendingNotifications: ApprovalRow[] = [];
+    this.db.exec("SAVEPOINT approve_project_plan");
+    try {
+      this.projectPlans.markReviewed(companyId, taskId, decision, actorId);
+      const children: TaskRow[] = [];
+      if (decision === "approved") {
+        const existingBudget = this.db
+          .prepare(
+            "SELECT limit_micros FROM crew_budgets WHERE company_id=? AND scope_type='project' AND scope_id=? AND active=1 AND hard_stop=1 AND limit_micros>0",
+          )
+          .get(companyId, plan.project_id);
+        if (plan.plan.budgetMicros === 0 && !existingBudget)
+          throw new Error("Vor der Planfreigabe ist ein positives Projektbudget mit Hard Stop erforderlich.");
+        const ids = new Map<string, string>();
+        for (const step of plan.plan.tasks) {
+          const agent = this.getAgent(companyId, step.agentKey);
+          if (!agent) throw new Error(`Agent nicht verfügbar: ${step.agentKey}`);
+          // Model risk labels cannot remove a risk independently recognized by policy.
+          const classified = triage(`${step.title} ${step.description}`);
+          const sensitive = classified.sensitive || ["high", "critical"].includes(step.riskLevel);
+          const child = this.tasks.create({
+            companyId,
+            projectId: plan.project_id,
+            parentTaskId: parent.id,
+            title: step.title,
+            description: step.description,
+            acceptanceCriteria: step.acceptanceCriteria,
+            status: "planned",
+            assignedAgentId: agent.id,
+            createdBy: actorId,
+            riskLevel: sensitive ? "high" : step.riskLevel,
+            sensitive,
+            correlationId: parent.correlation_id,
+          });
+          ids.set(step.key, child.id);
+          children.push(child);
+        }
+        for (const step of plan.plan.tasks)
+          for (const dependency of step.dependsOn)
+            this.tasks.addDependency(companyId, ids.get(step.key)!, ids.get(dependency)!, {
+              actorType: "owner",
+              actorId,
+            });
+        // A plan adds a hard ceiling, while every existing lower ceiling remains binding.
+        const budget = this.db
+          .prepare(
+            "SELECT limit_micros FROM crew_budgets WHERE company_id=? AND scope_type='project' AND scope_id=? AND active=1 AND window_kind='calendar_month_utc'",
+          )
+          .get(companyId, plan.project_id) as { limit_micros: number } | undefined;
+        const approvedLimit = plan.plan.budgetMicros;
+        if (approvedLimit > 0)
+          this.budgets.setBudget({
+            companyId,
+            scopeType: "project",
+            scopeId: plan.project_id,
+            limitMicros:
+              budget && budget.limit_micros > 0 ? Math.min(budget.limit_micros, approvedLimit) : approvedLimit,
+            hardStop: true,
+          });
+        for (const child of children) {
+          this.tasks.transition(child.id, "ready", {
+            actorType: "owner",
+            actorId,
+            reason: "Projektplan vom CEO freigegeben",
+          });
+          if (child.sensitive) {
+            const approval = this.approvals.request(
+              companyId,
+              {
+                approvalType: this.approvalTypeFor(child.description),
+                requestedBy: child.assigned_agent_id!,
+                summary: `Aktion freigeben: ${child.title}`,
+                riskLevel: "high",
+                proposedAction: child.description,
+                impact: "Projektplanfreigabe ersetzt keine Freigabe einer konkreten risikoreichen Aktion.",
+              },
+              { taskId: child.id, correlationId: parent.correlation_id },
+            );
+            pendingNotifications.push(approval);
+            this.tasks.transition(child.id, "approval_required", {
+              actorType: "owner",
+              actorId,
+              reason: "Separate Aktionsfreigabe erforderlich",
+            });
+          } else this.enqueueRun(companyId, child.id, { requestedBy: actorId });
+        }
+      }
+      this.tasks.transition(taskId, decision === "approved" ? "done" : "cancelled", {
+        actorType: "owner",
+        actorId,
+        reason: `Projektplan ${decision === "approved" ? "freigegeben" : "abgelehnt"}`,
+      });
+      this.addMessage({
+        companyId,
+        conversationId: this.ensureCeoConversation(companyId),
+        role: "agent",
+        authorAgentId: this.executiveAssistant(companyId).id,
+        taskId,
+        correlationId: parent.correlation_id,
+        body:
+          decision === "approved"
+            ? `Projektplan freigegeben. ${children.length} Teilaufgaben mit Abhängigkeiten angelegt; sensible Aktionen warten auf separate Freigaben.`
+            : "Projektplan abgelehnt. Es wurden keine Teilaufgaben gestartet.",
+      });
+      this.db.exec("RELEASE approve_project_plan");
+      for (const approval of pendingNotifications) {
+        try {
+          this.notifyApprovalRequested(companyId, approval);
+        } catch (error) {
+          appendAuditEvent(this.db, {
+            companyId,
+            actorType: "system",
+            actorId: "notification",
+            action: "project.plan_notification_failed",
+            entityType: "approval",
+            entityId: approval.id,
+            outcome: "failed",
+            details: { message: error instanceof Error ? error.message : String(error) },
+          });
+        }
+      }
+      return children.map((child) => this.tasks.get(child.id)!);
+    } catch (error) {
+      this.db.exec("ROLLBACK TO approve_project_plan");
+      this.db.exec("RELEASE approve_project_plan");
+      throw error;
+    }
+  }
+
+  async abortRun(companyId: string, runId: string, reason: string): Promise<void> {
+    const active = this.activeRuns.get(runId);
+    if (!active || active.companyId !== companyId) return;
+    active.abort.abort(new Error(reason));
+    await active.runtime.cancelRun(runId);
+  }
+
+  async changeTaskStatus(
+    companyId: string,
+    taskId: string,
+    status: TaskStatus,
+    reason: string,
+    opts: HumanActor = {},
+  ): Promise<TaskRow | null> {
+    const existing = this.tasks.get(taskId);
+    if (!existing || existing.company_id !== companyId) return null;
+    if (
+      status !== "cancelled" &&
+      (existing.status === "approval_required" ||
+        this.approvals.listPending(companyId).some((approval) => approval.task_id === taskId))
+    )
+      throw new Error("Offene Freigabe muss zuerst im Freigabeprozess entschieden werden.");
+    if (this.projectPlans.forTask(companyId, taskId)?.status === "review" && status === "done")
+      throw new Error("Projektplan über Planfreigabe abschließen.");
+    const task = this.tasks.transition(taskId, status, {
+      reason,
+      actorType: "owner",
+      actorId: humanActor(opts),
+      correlationId: existing.correlation_id,
+    });
+    if (task && existing.execution_run_id && status !== "running") {
+      await this.abortRun(companyId, existing.execution_run_id, reason);
+      this.runs.setStatus(existing.execution_run_id, "cancelled", { errorMessage: reason });
+    }
+    return task;
+  }
+
   /**
    * CEO accepts a result in review. The EA records the outcome and the task
    * is done.
@@ -3807,10 +4172,16 @@ export class CompanyOrchestrator {
   acceptReview(companyId: string, taskId: string, note = "", opts: HumanActor = {}): TaskRow | null {
     const ea = this.executiveAssistant(companyId);
     const task = this.tasks.get(taskId);
-    if (!task) return null;
+    if (!task || task.company_id !== companyId) return null;
+    if (this.projectPlans.forTask(companyId, taskId)?.status === "review")
+      throw new Error("Projektplan über die Planfreigabe akzeptieren.");
     // A CEO action that does not apply right now is a "no", not a crash:
     // return null so the API answers 409 rather than surfacing a store error.
-    if (!canTransition(task.status, "done")) return null;
+    if (
+      task.status !== "review" ||
+      this.approvals.listPending(companyId).some((approval) => approval.task_id === taskId)
+    )
+      return null;
 
     const done = this.tasks.transition(taskId, "done", {
       reason: "accepted by CEO",
@@ -3838,7 +4209,12 @@ export class CompanyOrchestrator {
   requestRevision(companyId: string, taskId: string, reason: string, opts: HumanActor = {}): TaskRow | null {
     const ea = this.executiveAssistant(companyId);
     const task = this.tasks.get(taskId);
-    if (!task) return null;
+    if (!task || task.company_id !== companyId) return null;
+    if (
+      task.status === "approval_required" ||
+      this.approvals.listPending(companyId).some((approval) => approval.task_id === taskId)
+    )
+      return null;
     if (!canTransition(task.status, "ready")) return null;
 
     const revised = this.tasks.transition(taskId, "ready", {

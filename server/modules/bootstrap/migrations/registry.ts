@@ -31,6 +31,13 @@ import { migration as m0025CrewCharacterAppearance } from "./0025-crew-character
 import { migration as m0026CrewMemorySync } from "./0026-crew-memory-sync.ts";
 import { migration as m0027CrewRuntimeSession } from "./0027-crew-runtime-session.ts";
 
+import { migration as crewRunnerFleet } from "./0028-crew-runner-fleet.ts";
+import { migration as crewSandboxConsumption } from "./0029-crew-sandbox-consumption.ts";
+import { migration as crewCharacterMedia } from "./0030-crew-character-media.ts";
+import { migration as crewCoaching } from "./0031-crew-coaching.ts";
+
+import { migration as crewProjectPlans } from "./0032-crew-project-plans.ts";
+
 // Import future migrations here:
 // import { migration as m0022 } from "./0022-example.ts";
 
@@ -73,6 +80,11 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0025-crew-character-appearance.ts", migration: m0025CrewCharacterAppearance },
   { filename: "0026-crew-memory-sync.ts", migration: m0026CrewMemorySync },
   { filename: "0027-crew-runtime-session.ts", migration: m0027CrewRuntimeSession },
+  { filename: "0028-crew-runner-fleet.ts", migration: crewRunnerFleet },
+  { filename: "0029-crew-sandbox-consumption.ts", migration: crewSandboxConsumption },
+  { filename: "0030-crew-character-media.ts", migration: crewCharacterMedia },
+  { filename: "0031-crew-coaching.ts", migration: crewCoaching },
+  { filename: "0032-crew-project-plans.ts", migration: crewProjectPlans },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

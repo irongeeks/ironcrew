@@ -15,6 +15,9 @@ Use a 1024 × 1280 PNG with a genuinely transparent background (alpha channel), 
 OPTIONAL PORTRAIT
 As a separate file, produce a square 1024 × 1024 head-and-shoulders portrait of the exact same character, face centred, with the same lighting and transparent background.
 
-OPTIONAL FUTURE ANIMATION VARIANTS
-If additional images are requested, keep identity, proportions, camera, canvas size and feet baseline identical for idle, thinking, working, meeting, waiting for approval, rate limited and error. Export each as a separate transparent image. IronCrew currently displays the uploaded base image; live system-state indicators are added by the application. Do not combine frames into a sprite sheet.`;
+OPTIONAL ANIMATION
+If an animation is requested, keep identity, proportions, camera, frame size and feet baseline identical. Export a transparent sprite sheet: one status per row, consecutive frames from left to right, all cells the same size, no gutters. Use these exact status names in a separate mapping: idle, thinking, working, in_meeting, waiting_for_input, waiting_for_approval, rate_limited, paused, error, offline. State the cell width, cell height, column count, row index (starting at zero), frame count, FPS and whether to loop. Maximum 64 frames per status, 256 in total, 30 FPS, 4096 pixels per image edge and 5 MiB per file. Error animation must finish, not loop. Static base images remain supported; live system-state indicators are added by the application.
+
+OPTIONAL 3D EXPORT
+If a 3D version is requested, export a single untextured GLB 2 file below 5 MiB with embedded geometry, normals, material colours and optional named skeletal animation clips using the same status names. No external files, textures, extensions or decoder dependencies. The model is an optional interactive preview; IronCrew's office remains 2D.`;
 }

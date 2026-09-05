@@ -1,0 +1,113 @@
+.coaching-panel {
+  display: grid;
+  gap: 1rem;
+  color: var(--ic-text, #d8e1e6);
+  max-width: 72rem;
+  margin-inline: auto;
+}
+.coaching-panel h2,
+.coaching-panel h3,
+.coaching-panel h4 {
+  margin: 0 0 0.5rem;
+}
+.coaching-panel p {
+  line-height: 1.6;
+}
+.coaching-panel label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+.coaching-panel input,
+.coaching-panel select,
+.coaching-panel textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: #101b22;
+  color: #e1edf2;
+  border: 1px solid #49616c;
+  border-radius: 0.4rem;
+  padding: 0.65rem;
+  font: inherit;
+}
+.coaching-panel input:focus-visible,
+.coaching-panel select:focus-visible,
+.coaching-panel textarea:focus-visible,
+.coaching-panel summary:focus-visible {
+  outline: 2px solid #74d6d0;
+  outline-offset: 3px;
+}
+.coaching-panel pre {
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #10191e;
+  padding: 0.85rem;
+  border-left: 2px solid #5dbab4;
+}
+.coaching-panel code {
+  overflow-wrap: anywhere;
+}
+.coaching-panel form,
+.coaching-panel fieldset,
+.coaching-case,
+.coaching-review {
+  display: grid;
+  gap: 0.9rem;
+}
+.coaching-panel fieldset {
+  min-width: 0;
+  border: 1px solid #394d58;
+  padding: 1rem;
+}
+.coaching-section {
+  border-top: 1px solid #394d58;
+  padding-top: 1.15rem;
+}
+.coaching-panel summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+.coaching-entry {
+  padding-block: 1rem;
+  border-bottom: 1px solid #2b3b44;
+}
+.coaching-help {
+  color: #b4c6d0;
+  font-size: 0.9rem;
+}
+.coaching-case {
+  padding-block: 0.8rem;
+  border-bottom: 1px solid #394d58;
+}
+.coaching-panel .coaching-check {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.coaching-panel .coaching-check input {
+  width: auto;
+}
+.coaching-panel [role="alert"] {
+  border-left: 3px solid #df766c;
+  padding: 0.75rem;
+}
+.coaching-panel [role="status"] {
+  border-left: 3px solid #5dbab4;
+  padding: 0.75rem;
+}
+.coaching-panel .ic-btn {
+  width: fit-content;
+  max-width: 100%;
+  white-space: normal;
+  min-height: 2.6rem;
+}
+@media (max-width: 600px) {
+  .coaching-panel .ic-btn {
+    width: 100%;
+  }
+  .coaching-panel fieldset {
+    padding: 0.65rem;
+  }
+}

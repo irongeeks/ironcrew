@@ -1,3 +1,4 @@
+import type { SandboxAccessData, SandboxAccessInput } from "./SandboxAccessPanel.tsx";
 /**
  * Typed client for the IronCrew REST surface.
  *
@@ -134,11 +135,25 @@ export function serverErrorCode(err: unknown): string | null {
 }
 
 export const api = {
+  sandboxAccess: () => get<SandboxAccessData>("/sandbox-access"),
+  requestSandboxAccess: (input: SandboxAccessInput) => send<unknown>("/sandbox-access/request", "POST", input),
+  revokeSandboxAccess: (id: string, reason: string) =>
+    send<unknown>(`/sandbox-access/${encodeURIComponent(id)}/revoke`, "POST", { reason }),
   characterSkins: () => get<{ skins: Array<{ id: string; name: string; description: string }> }>("/character-skins"),
   setAgentAppearance: (id: string, appearance: CharacterAppearance) =>
     send<{ appearance: CharacterAppearance }>(`/agents/${encodeURIComponent(id)}/appearance`, "PATCH", appearance),
-  uploadCharacterAsset: (input: { kind: "portrait" | "full_body"; contentType: string; dataBase64: string }) =>
-    send<{ asset: CharacterAsset }>("/character-assets", "POST", input),
+  uploadCharacterAsset: (input: {
+    kind: "portrait" | "full_body" | "animation" | "model_3d";
+    contentType: string;
+    dataBase64: string;
+  }) => send<{ asset: CharacterAsset }>("/character-assets", "POST", input),
+  characterAssets: () => get<{ assets: CharacterAsset[] }>("/character-assets"),
+  deleteCharacterAsset: (id: string, detach = false) =>
+    send<{ deleted: boolean; pending: boolean; detachedAgentIds: string[] }>(
+      `/character-assets/${encodeURIComponent(id)}`,
+      "DELETE",
+      { detach },
+    ),
   // --- identity ---
   //
   // `authStatus` is the only call the UI may make before anyone is signed in.
@@ -185,8 +200,11 @@ export const api = {
   company: () => get<{ company: { name: string }; departments: Department[] }>("/company"),
   agents: () => get<{ agents: Agent[] }>("/agents"),
   chat: () => get<{ conversationId: string; messages: Message[] }>("/chat"),
-  sendMessage: (body: string) =>
-    send<{ reply: string; task: Task | null; assignedAgent: Agent | null }>("/chat", "POST", { body }),
+  sendMessage: (body: string, projectId?: string) =>
+    send<{ reply: string; task: Task | null; assignedAgent: Agent | null }>("/chat", "POST", {
+      body,
+      ...(projectId ? { projectId } : {}),
+    }),
   tasks: () => get<{ tasks: Task[] }>("/tasks"),
   task: (id: string) =>
     get<{ task: Task; runs: Run[]; audit: unknown[]; blockers: Task[]; blocking: Task[] }>(`/tasks/${id}`),

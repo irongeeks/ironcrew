@@ -67,6 +67,16 @@ describe("private character routes", () => {
     const operator = await login("operator");
     const viewer = await login("viewer");
     for (const session of [operator, viewer]) {
+      await request(app).get("/api/crew/character-assets").set("x-ironcrew-session", session.token).expect(403);
+      await request(app)
+        .delete("/api/crew/character-assets/char_00000000000000000000000000000000")
+        .set("x-ironcrew-session", session.token)
+        .send({ detach: true })
+        .expect(403);
+      await request(app)
+        .post("/api/crew/character-assets/recover")
+        .set("x-ironcrew-session", session.token)
+        .expect(403);
       await request(app)
         .post("/api/crew/character-assets")
         .set("x-ironcrew-session", session.token)
@@ -100,6 +110,21 @@ describe("private character routes", () => {
       .prepare("SELECT actor_id FROM crew_audit_events WHERE action = 'agent.appearance_updated'")
       .get() as { actor_id: string };
     expect(audit.actor_id).toBe(owner.user.id);
+    const listed = await request(app)
+      .get("/api/crew/character-assets")
+      .set("x-ironcrew-session", owner.token)
+      .expect(200);
+    expect(listed.body.assets[0].inUseBy).toEqual([agentId]);
+    await request(app).delete(asset.url).set("x-ironcrew-session", owner.token).send({}).expect(409);
+    await request(app).delete(asset.url).set("x-ironcrew-session", owner.token).send({ detach: "true" }).expect(400);
+    const removed = await request(app)
+      .delete(asset.url)
+      .set("x-ironcrew-session", owner.token)
+      .send({ detach: true })
+      .expect(200);
+    expect(removed.body).toEqual({ deleted: true, pending: false, detachedAgentIds: [agentId] });
+    await request(app).get(asset.url).set("x-ironcrew-session", viewer.token).expect(404);
+    expect(fs.readdirSync(path.join(directory, "assets"))).toEqual([]);
   });
 
   it("rejects invalid uploads and arbitrary appearance fields without changing the agent", async () => {

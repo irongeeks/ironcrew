@@ -22,6 +22,7 @@
  */
 
 import { z } from "zod";
+import path from "node:path";
 
 export const PERMISSION_MODES = ["restricted", "workspace_write", "elevated"] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
@@ -60,6 +61,7 @@ export interface PermissionResolution {
     | "grant_provider_mismatch"
     | "grant_task_mismatch"
     | "grant_company_mismatch"
+    | "grant_workspace_mismatch"
     | "grant_invalid";
   reason: string;
   /** Populated only when mode === "elevated". */
@@ -70,6 +72,7 @@ export interface ResolveInput {
   provider: string;
   companyId: string;
   taskId?: string;
+  workspacePath?: string;
   /** What the caller would like. Never sufficient on its own for elevation. */
   requested?: PermissionMode;
   grant?: SandboxGrant | null;
@@ -118,7 +121,7 @@ export function resolvePermissionMode(input: ResolveInput): PermissionResolution
   }
 
   const hardExpiry = Math.min(grant.expiresAt, grant.issuedAt + MAX_SANDBOX_GRANT_MS);
-  if (now >= hardExpiry) {
+  if (now < grant.issuedAt || now >= hardExpiry) {
     return {
       mode: "restricted",
       code: "grant_expired",
@@ -140,6 +143,19 @@ export function resolvePermissionMode(input: ResolveInput): PermissionResolution
       mode: "restricted",
       code: "grant_task_mismatch",
       reason: "Sandbox grant is scoped to a different task; denied.",
+    };
+  }
+
+  if (
+    grant.workspacePath &&
+    (!input.workspacePath ||
+      !path.isAbsolute(input.workspacePath) ||
+      path.normalize(grant.workspacePath) !== path.normalize(input.workspacePath))
+  ) {
+    return {
+      mode: "restricted",
+      code: "grant_workspace_mismatch",
+      reason: "Sandbox grant is scoped to another workspace; denied.",
     };
   }
 

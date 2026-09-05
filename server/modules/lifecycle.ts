@@ -710,6 +710,8 @@ export function startLifecycle(ctx: RuntimeContext): void {
     wss,
     server,
     onBeforeClose: () => {
+      const closeFleet = (ctx as unknown as { closeFleet?: () => void }).closeFleet;
+      closeFleet?.();
       cancelPendingReRuns();
       telegramReceiver.stop();
       discordReceiver.stop();

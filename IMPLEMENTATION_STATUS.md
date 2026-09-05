@@ -4,6 +4,36 @@ Honest state of IronCrew. Nothing is listed as done unless it is
 implemented **and** covered by a passing test. Anything verified only by design
 review, or not verifiable in this environment, is said so explicitly.
 
+## Current Company OS completion branch — 2026-09-05
+
+The merged PR #18 is the baseline, not proof of the additional unmerged work.
+Current implementation and remaining master-prompt requirements are mapped in
+[MASTER_PROMPT_COVERAGE.md](docs/MASTER_PROMPT_COVERAGE.md). The latest branch is
+`feature/company-os-completion`; final consolidated CI and browser acceptance are
+pending while its components are integrated.
+
+New implementation areas include the outbound runner fleet, explicit sandbox access
+and approval consumption, original character/3D media support, coaching/evaluation,
+project planning, native launchd/systemd deployment tooling and production packaging.
+Their exact capabilities and current limitations are tracked in the matrix and their
+module documents; no blanket “all master-prompt phases complete” claim is made.
+
+Verified deployment/recovery evidence in this working tree:
+
+- **39 script tests passed**, including service renderer escaping, private env files,
+  placeholder rejection, real backup/restore CLI relative paths and license gates.
+- **63 backup/bootstrap-migration backend tests passed.**
+- Production SBOM/license inventory generated for **399 installed components**;
+  inherited Remotion license questions are visible, not silently approved.
+- New Linux/macOS, Docker restart/recovery and SBOM CI jobs are defined. Local Docker
+  and `plutil` are unavailable, so those new execution results remain **CI pending**.
+
+Actual CLI subscriptions, mTLS customer networks, OIDC, Honcho, mail and business
+providers require separately documented operator tests. Services were not installed,
+accounts were not modified, and no production system was deployed in this session.
+See [SECURITY_OPERATIONS.md](docs/SECURITY_OPERATIONS.md) and
+[BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) for concrete start/recovery steps.
+
 ## Current implementation follow-up — 2026-09-05
 
 Office, Kanban and CEO chat use one persisted company domain and authenticated live

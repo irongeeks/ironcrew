@@ -143,6 +143,9 @@ export interface RunContext {
   correlationId: string;
   workspacePath: string;
   permissionMode: "restricted" | "workspace_write" | "elevated";
+  /** Required for elevated jobs; the runner enforces this absolute deadline locally. */
+  sandboxGrantId?: string;
+  sandboxExpiresAt?: number;
   /** Granted low-risk tools, scoped to this agent/project by the control plane. */
   allowedTools?: string[];
   /** Persisted task sensitivity. Unclassified requests use sensitive defaults. */

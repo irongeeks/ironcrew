@@ -1,7 +1,7 @@
 # Installation — macOS
 
-IronCrew is self-hosted and local-first. Tested against macOS 13
-(Ventura) and newer, on both Apple Silicon and Intel.
+IronCrew is self-hosted and local-first. The platform CI verifies the current
+GitHub-hosted macOS runner; use Node22+ on a supported macOS release.
 
 ## Requirements
 
@@ -98,62 +98,18 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 # expect: 403
 ```
 
-## Run at login (launchd)
+## Native services (launchd)
 
-Run it as **your own user**, not a system daemon: the CLI runtimes use logins
-stored in your home directory, and a `LaunchDaemon` running as another user
-cannot reach them.
+Use the supplied LaunchDaemon templates in `deploy/launchd/` and the portable
+`node scripts/deploy-service.mjs` renderer/installer. It supports both Intel and
+Apple Silicon Node paths, keeps configuration in mode-0600 files rather than the
+plist, and runs the control plane and runner as separate dedicated accounts.
 
-`~/Library/LaunchAgents/com.irongeeks.ironcrew.plist`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.irongeeks.ironcrew</string>
-
-  <key>ProgramArguments</key>
-  <array>
-    <string>/opt/homebrew/opt/node@22/bin/node</string>
-    <string>--experimental-strip-types</string>
-    <string>server/index.ts</string>
-  </array>
-
-  <key>WorkingDirectory</key>
-  <string>/Users/YOURNAME/ironcrew</string>
-
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>NODE_ENV</key><string>production</string>
-    <key>HOST</key><string>127.0.0.1</string>
-    <key>PORT</key><string>8800</string>
-    <key>DB_PATH</key><string>/Users/YOURNAME/ironcrew/data/ironcrew.sqlite</string>
-    <key>LOGS_DIR</key><string>/Users/YOURNAME/ironcrew/data/logs</string>
-    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-  </dict>
-
-  <key>RunAtLoad</key>          <true/>
-  <key>KeepAlive</key>          <true/>
-  <key>StandardOutPath</key>    <string>/Users/YOURNAME/ironcrew/data/logs/stdout.log</string>
-  <key>StandardErrorPath</key>  <string>/Users/YOURNAME/ironcrew/data/logs/stderr.log</string>
-</dict>
-</plist>
-```
-
-Replace `YOURNAME`, then:
-
-```bash
-launchctl load  ~/Library/LaunchAgents/com.irongeeks.ironcrew.plist
-launchctl list | grep ironcrew
-launchctl unload ~/Library/LaunchAgents/com.irongeeks.ironcrew.plist   # to stop
-```
-
-`API_AUTH_TOKEN` is deliberately absent from the plist — plists are
-world-readable. Keep it in `.env`, which the process loads from its working
-directory, and `chmod 600 .env`.
+See [SECURITY_OPERATIONS.md](SECURITY_OPERATIONS.md) for account provisioning,
+render/install/uninstall and explicit `launchctl bootstrap`/`bootout` commands.
+The installer never starts a service or performs a CLI login automatically.
+The macOS CI job validates the generated plists with `plutil` and runs native
+runner/persistence/backup tests. Test your actual official CLI login separately.
 
 ## macOS specifics
 
@@ -165,20 +121,16 @@ should only ever touch their assigned workspace. Do **not** grant Full Disk
 Access to your terminal to "make things work" — that removes a boundary the
 product relies on.
 
-**Apple Silicon.** No native modules are involved (SQLite is a Node builtin),
-so there is nothing to compile and no Rosetta requirement.
+**Apple Silicon.** Use a native Node build. SQLite is built in, but optional native
+dependencies such as node-pty may need Xcode Command Line Tools during installation.
 
 **`PATH` under launchd** is minimal and will not include your shell profile, so
-CLI runtimes must be on the explicit `PATH` in the plist.
+CLI runtimes must be on the explicit `PATH` in the runner environment file.
 
 ## Backups
 
-Everything is `data/` — one SQLite file plus logs. Stop the service before
-copying; WAL mode means a live copy can be inconsistent. Alternatively:
-
-```bash
-sqlite3 data/ironcrew.sqlite ".backup 'data/backup-$(date +%F).sqlite'"
-```
+Follow [BACKUP_RESTORE.md](BACKUP_RESTORE.md) to protect SQLite, uploaded characters,
+attachments, the vault and configuration. Verify recovery to an isolated directory.
 
 ## Troubleshooting
 
@@ -191,4 +143,5 @@ unset, a random token is generated at boot and changes on every restart.
 **Port 8800 already in use** — `lsof -nP -iTCP:8800 -sTCP:LISTEN`.
 
 **launchd starts then immediately stops** — check
-`data/logs/stderr.log`; the usual cause is a `PATH` that does not include Node.
+`/var/lib/ironcrew/service-error.log` and the runner equivalent; verify Node path,
+environment permissions and configured secrets.

@@ -16,3 +16,11 @@ data/
 vault/
 config/private/*
 !config/private/*.example.yaml
+
+# Reference clones and verification artifacts are not runtime inputs.
+.references/
+artifacts/
+coverage/
+playwright-report/
+test-results/
+service-preview/

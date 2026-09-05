@@ -30,6 +30,8 @@ import { createAdapterRegistry, isCliAdapter } from "./adapters/index.ts";
 import { CliAdapterRuntime } from "./ironcrew/runtime/cli-adapter-runtime.ts";
 import { TlsRunnerDaemon } from "./ironcrew/runner/tls-runner-daemon.ts";
 import { runnerTlsListenerFromEnv } from "./ironcrew/runner/transport.ts";
+import { OutboundRunner } from "./ironcrew/runner/fleet/outbound.ts";
+import { readFile } from "node:fs/promises";
 import { RunnerDaemon } from "./ironcrew/runner/runner-daemon.ts";
 import { LocalMcpHost } from "./ironcrew/runner/mcp-host.ts";
 import { VaultwardenSecretProvider } from "./ironcrew/secrets/vaultwarden-provider.ts";
@@ -56,7 +58,10 @@ async function main(): Promise<void> {
   const tlsOptions = runnerTlsListenerFromEnv();
   const socketPath = process.env.IRONCREW_RUNNER_SOCKET ?? "/run/ironcrew/runner.sock";
   if (tlsOptions && process.env.IRONCREW_RUNNER_SOCKET) throw new Error("Choose Unix or TLS listener, not both.");
-  const token = required("IRONCREW_RUNNER_TOKEN");
+  const outboundUrl = process.env.IRONCREW_FLEET_URL;
+  if (outboundUrl && (tlsOptions || process.env.IRONCREW_RUNNER_SOCKET))
+    throw new Error("Choose outbound fleet or a runner listener.");
+  const token = outboundUrl ? "" : required("IRONCREW_RUNNER_TOKEN");
   const workspaceRoot = path.resolve(required("IRONCREW_RUNNER_WORKSPACE_ROOT"));
 
   const adapters = createAdapterRegistry();
@@ -113,10 +118,22 @@ async function main(): Promise<void> {
     },
   });
 
-  const daemon = tlsOptions
-    ? new TlsRunnerDaemon({ tls: tlsOptions, token, workspaceRoot, runtimes, mcp })
-    : new RunnerDaemon({ socketPath, token, workspaceRoot, runtimes, mcp });
-  await daemon.listen();
+  const daemon = outboundUrl
+    ? new OutboundRunner({
+        url: outboundUrl,
+        credentialFile: required("IRONCREW_FLEET_CREDENTIAL_FILE"),
+        enrollmentToken: process.env.IRONCREW_FLEET_ENROLLMENT_TOKEN,
+        workspaceRoot,
+        runtimes,
+        ca: process.env.IRONCREW_FLEET_CA_FILE ? await readFile(process.env.IRONCREW_FLEET_CA_FILE) : undefined,
+        onStatus: (status) => log.info({ status }, "fleet connection"),
+      })
+    : tlsOptions
+      ? new TlsRunnerDaemon({ tls: tlsOptions, token, workspaceRoot, runtimes, mcp })
+      : new RunnerDaemon({ socketPath, token, workspaceRoot, runtimes, mcp });
+  if (daemon instanceof OutboundRunner) await daemon.start();
+  else await daemon.listen();
+  delete process.env.IRONCREW_FLEET_ENROLLMENT_TOKEN;
 
   let stopping = false;
   for (const signal of ["SIGTERM", "SIGINT"] as const) {

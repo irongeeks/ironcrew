@@ -41,6 +41,8 @@ import {
   type ServerMessage,
 } from "./protocol.ts";
 import { runEventSchema } from "../runtime/run-events.ts";
+import { MAX_SANDBOX_GRANT_MS } from "../policy/runtime-permissions.ts";
+import { SANDBOX_PROVIDERS } from "../policy/sandbox-access.ts";
 import { redact, redactValue } from "../security/redaction.ts";
 import type { AgentRuntime, RunContext } from "../runtime/run-events.ts";
 import type { McpHost } from "./mcp-host.ts";
@@ -373,6 +375,19 @@ export class RunnerServer {
           return;
         }
 
+        const elevationWindow =
+          message.context.permissionMode === "elevated" ? (message.context.sandboxExpiresAt ?? 0) - Date.now() : null;
+        if (
+          elevationWindow !== null &&
+          (!message.context.sandboxGrantId ||
+            elevationWindow <= 0 ||
+            elevationWindow > MAX_SANDBOX_GRANT_MS ||
+            !(SANDBOX_PROVIDERS as readonly string[]).includes(runtime.type))
+        ) {
+          fail(message.id, "Sandbox-Freigabe fehlt, ist abgelaufen oder gilt nicht für diese Laufzeit.");
+          return;
+        }
+
         const taskKey = JSON.stringify([message.context.companyId, message.context.taskId]);
         if (running.has(message.id) || this.activeTasks.has(taskKey)) {
           fail(message.id, "Diese Aufgabe wird bereits auf diesem Runner ausgeführt.");
@@ -388,6 +403,15 @@ export class RunnerServer {
         };
         running.set(message.id, job);
         this.activeTasks.add(taskKey);
+        // This deadline is local to the native runner, independent of the
+        // control plane's timers or a delayed cancellation frame.
+        const sandboxTimer =
+          elevationWindow === null
+            ? undefined
+            : setTimeout(() => {
+                controller.abort(new Error("Sandbox-Zeitfenster abgelaufen."));
+                void runtime.cancelRun(message.context.runId).catch(() => log.warn("runtime cancellation failed"));
+              }, elevationWindow);
         try {
           const context: RunContext = { ...message.context, signal: controller.signal };
           const sessionRef = message.kind === "resume" ? message.sessionRef : message.input.sessionRef;
@@ -448,7 +472,12 @@ export class RunnerServer {
                     eventId: newId("evt"),
                     seq: event.seq + 1,
                     type: "run.cancelled",
-                    payload: { reason: "Control plane cancelled before permitting the next round." },
+                    payload: {
+                      reason:
+                        controller.signal.reason instanceof Error
+                          ? controller.signal.reason.message
+                          : "Control plane cancelled before permitting the next round.",
+                    },
                   },
                 });
                 send({ v: RUNNER_PROTOCOL_VERSION, kind: "end", id: message.id });
@@ -460,6 +489,7 @@ export class RunnerServer {
         } catch (err) {
           fail(message.id, redact(err instanceof Error ? err.message : String(err), message.context.redactValues).text);
         } finally {
+          if (sandboxTimer) clearTimeout(sandboxTimer);
           this.activeTasks.delete(taskKey);
           running.delete(message.id);
         }

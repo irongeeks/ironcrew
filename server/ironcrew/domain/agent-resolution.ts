@@ -38,7 +38,9 @@ SELECT
   ELSE json_set(COALESCE(t.persona_json, '{}'),
     '$.character_id', appearance.character_id,
     '$.portrait', CASE WHEN appearance.portrait_asset_id IS NULL THEN NULL ELSE '/api/crew/character-assets/' || appearance.portrait_asset_id END,
-    '$.full_body', CASE WHEN appearance.full_body_asset_id IS NULL THEN NULL ELSE '/api/crew/character-assets/' || appearance.full_body_asset_id END
+    '$.full_body', CASE WHEN appearance.full_body_asset_id IS NULL THEN NULL ELSE '/api/crew/character-assets/' || appearance.full_body_asset_id END,
+    '$.model_3d', CASE WHEN appearance.model_asset_id IS NULL THEN NULL ELSE '/api/crew/character-assets/' || appearance.model_asset_id END,
+    '$.animation_config', json(appearance.animation_config_json)
   ) END AS persona_json,
   COALESCE(t.skills_json, '[]')     AS skills_json,
 

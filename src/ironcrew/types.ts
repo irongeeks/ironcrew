@@ -45,22 +45,36 @@ export interface PersonaSkin {
   portrait: string | null;
   full_body: string | null;
   model_3d: string | null;
+  animation_config?: CharacterAnimationConfig | null;
+}
+
+export interface CharacterAnimationConfig {
+  url: string;
+  frameWidth: number;
+  frameHeight: number;
+  columns: number;
+  states: Partial<Record<AgentStatus, { row: number; frames: number; fps: number; loop: boolean }>>;
 }
 
 export interface CharacterAppearance {
   character_id: string | null;
   portrait: string | null;
   full_body: string | null;
+  model_3d?: string | null;
+  animation_config?: CharacterAnimationConfig | null;
 }
 
 export interface CharacterAsset {
   id: string;
   url: string;
-  kind: "portrait" | "full_body";
+  kind: "portrait" | "full_body" | "animation" | "model_3d";
   contentType: string;
   width: number;
   height: number;
   sizeBytes: number;
+  inUseBy?: string[];
+  status?: "active" | "deleting";
+  metadata?: { clips?: string[]; [key: string]: unknown };
 }
 
 export interface Agent {
@@ -81,6 +95,7 @@ export interface Agent {
 
 export interface Task {
   id: string;
+  project_id?: string | null;
   title: string;
   description: string;
   status: TaskStatus;

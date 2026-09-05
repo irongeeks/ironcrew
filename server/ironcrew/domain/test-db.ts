@@ -29,6 +29,11 @@ import { migration as crewOidcIdentities } from "../../modules/bootstrap/migrati
 import { migration as crewCharacterAppearance } from "../../modules/bootstrap/migrations/0025-crew-character-appearance.ts";
 import { migration as crewMemorySync } from "../../modules/bootstrap/migrations/0026-crew-memory-sync.ts";
 import { migration as crewRuntimeSession } from "../../modules/bootstrap/migrations/0027-crew-runtime-session.ts";
+import { migration as crewRunnerFleet } from "../../modules/bootstrap/migrations/0028-crew-runner-fleet.ts";
+import { migration as crewSandboxConsumption } from "../../modules/bootstrap/migrations/0029-crew-sandbox-consumption.ts";
+import { migration as crewCharacterMedia } from "../../modules/bootstrap/migrations/0030-crew-character-media.ts";
+import { migration as crewCoaching } from "../../modules/bootstrap/migrations/0031-crew-coaching.ts";
+import { migration as crewProjectPlans } from "../../modules/bootstrap/migrations/0032-crew-project-plans.ts";
 import { newId } from "./ids.ts";
 
 /**
@@ -69,6 +74,12 @@ export function createTestDb(filePath?: string): DatabaseSync {
   crewCharacterAppearance.up(db);
   crewMemorySync.up(db);
   crewRuntimeSession.up(db);
+  crewRunnerFleet.up(db);
+  crewSandboxConsumption.up(db);
+  crewCharacterMedia.up(db);
+  crewCoaching.up(db);
+  crewProjectPlans.up(db);
+
   return db;
 }
 

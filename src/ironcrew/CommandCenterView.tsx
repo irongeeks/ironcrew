@@ -1,3 +1,7 @@
+import { CoachingPanel } from "./CoachingPanel.tsx";
+import { ProjectPlanningPanel } from "./ProjectPlanningPanel.tsx";
+import { SandboxAccessPanel } from "./SandboxAccessPanel.tsx";
+import { FleetPanel } from "./FleetPanel.tsx";
 /**
  * IronCrew — Command Center.
  *
@@ -307,6 +311,8 @@ export function CommandCenterView({
   const [memoryProviders, setMemoryProviders] = useState<MemoryProviderStatus[]>([]);
   const [memories, setMemories] = useState<MemoryRef[]>([]);
   const [showMemory, setShowMemory] = useState(false);
+  const [companyPanel, setCompanyPanel] = useState<"coaching" | "planning" | "sandbox" | "fleet" | null>(null);
+  const [myRole, setMyRole] = useState<string | null>(null);
   const [memoryQuery, setMemoryQuery] = useState("");
   const [semanticMemorySearch, setSemanticMemorySearch] = useState(false);
   const [newMemorySensitivity, setNewMemorySensitivity] = useState("internal");
@@ -456,6 +462,7 @@ export function CommandCenterView({
   const [channelTestResults, setChannelTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
 
   const [draft, setDraft] = useState("");
+  const [chatProjectId, setChatProjectId] = useState("");
   const [revisionNotes, setRevisionNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -508,6 +515,7 @@ export function CommandCenterView({
       setUnreadCount(n.unreadCount);
       setDecisions(dec.decisions);
       setMyUserId(who?.user?.id ?? null);
+      setMyRole(who?.user?.role ?? null);
       setCompanyName(co.company.name);
       setDepartments(co.departments);
       setMeetings(mt.meetings);
@@ -728,7 +736,8 @@ export function CommandCenterView({
     setBusy(true);
     setError(null);
     try {
-      await client.sendMessage(body);
+      if (chatProjectId) await client.sendMessage(body, chatProjectId);
+      else await client.sendMessage(body);
       setDraft("");
       await refresh();
     } catch (err) {
@@ -736,7 +745,7 @@ export function CommandCenterView({
     } finally {
       setBusy(false);
     }
-  }, [draft, busy, client, refresh]);
+  }, [draft, busy, client, refresh, chatProjectId]);
 
   const runNext = useCallback(async () => {
     setBusy(true);
@@ -2254,6 +2263,35 @@ export function CommandCenterView({
             Meetings
           </button>
 
+          <button
+            type="button"
+            className="ic-btn"
+            data-testid="open-project-plans"
+            onClick={() => setCompanyPanel("planning")}
+          >
+            Projektpläne
+          </button>
+          <button
+            type="button"
+            className="ic-btn"
+            data-testid="open-coaching"
+            onClick={() => setCompanyPanel("coaching")}
+          >
+            Coaching
+          </button>
+          <button type="button" className="ic-btn" data-testid="open-fleet" onClick={() => setCompanyPanel("fleet")}>
+            Runner-Flotte
+          </button>
+          {myRole === "owner" && (
+            <button
+              type="button"
+              className="ic-btn"
+              data-testid="open-sandbox"
+              onClick={() => setCompanyPanel("sandbox")}
+            >
+              Sandbox-Freigaben
+            </button>
+          )}
           <button type="button" className="ic-btn" data-testid="open-memory" onClick={openMemory}>
             Wissen
           </button>
@@ -2677,6 +2715,21 @@ export function CommandCenterView({
             })}
           </div>
 
+          <label className="ic-note" style={{ padding: "0 16px" }}>
+            Projektkontext
+            <select
+              aria-label="Projektkontext im CEO-Chat"
+              value={chatProjectId}
+              onChange={(e) => setChatProjectId(e.target.value)}
+            >
+              <option value="">Allgemein / neues Projekt</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.title}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="ic-composer">
             <label className="ic-sr-only" htmlFor="ic-composer-input">
               Nachricht an die Executive Assistant
@@ -2902,6 +2955,12 @@ export function CommandCenterView({
                 await client.setAgentAppearance(currentAgent.id, appearance);
                 await refresh();
                 setEditingCharacter(false);
+              }}
+              onListAssets={async () => (await client.characterAssets()).assets}
+              onDeleteAsset={async (id, detach) => {
+                const result = await client.deleteCharacterAsset(id, detach);
+                await refresh();
+                return result;
               }}
               onUpload={async (file, kind) => {
                 const { asset } = await client.uploadCharacterAsset({
@@ -3861,6 +3920,55 @@ export function CommandCenterView({
         </DetailDialog>
       )}
 
+      {companyPanel && (
+        <DetailDialog
+          title={
+            {
+              coaching: "Coaching & Qualität",
+              planning: "Projektpläne",
+              sandbox: "Sandbox-Freigaben",
+              fleet: "Native Runner-Flotte",
+            }[companyPanel]
+          }
+          onClose={() => setCompanyPanel(null)}
+        >
+          {companyPanel === "coaching" && (
+            <CoachingPanel
+              agents={agents}
+              canReview={myRole === "owner" || myRole === null}
+              canEdit={myRole !== "viewer"}
+              refreshKey={lastRefreshedAt ?? undefined}
+            />
+          )}
+          {companyPanel === "planning" && (
+            <ProjectPlanningPanel
+              canReview={myRole === "owner" || myRole === null}
+              onChanged={async () => {
+                await refresh();
+              }}
+              refreshKey={lastRefreshedAt ?? undefined}
+            />
+          )}
+          {companyPanel === "fleet" && (
+            <FleetPanel
+              projects={projects}
+              canManage={myRole === "owner" || myRole === null}
+              refreshKey={lastRefreshedAt ?? undefined}
+            />
+          )}
+          {companyPanel === "sandbox" && (
+            <SandboxAccessPanel
+              tasks={tasks.map((task) => ({ ...task, project_id: task.project_id ?? null }))}
+              load={client.sandboxAccess}
+              request={client.requestSandboxAccess}
+              revoke={client.revokeSandboxAccess}
+              onChanged={() => {
+                void refresh();
+              }}
+            />
+          )}
+        </DetailDialog>
+      )}
       {showMemory && (
         <DetailDialog title="Wissen" onClose={() => setShowMemory(false)}>
           <p className="ic-note">

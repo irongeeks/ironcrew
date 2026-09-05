@@ -56,6 +56,9 @@ export interface WireRunContext {
   correlationId: string;
   workspacePath: string;
   permissionMode: "restricted" | "workspace_write" | "elevated";
+  /** Required for elevated jobs; the runner enforces this absolute deadline locally. */
+  sandboxGrantId?: string;
+  sandboxExpiresAt?: number;
   allowedTools?: string[];
   sensitive?: boolean;
   redactValues?: readonly string[];
@@ -199,11 +202,17 @@ const wireContextSchema = z
       .max(4096)
       .refine((value) => !value.includes("\0")),
     permissionMode: z.enum(["restricted", "workspace_write", "elevated"]),
+    sandboxGrantId: idSchema.optional(),
+    sandboxExpiresAt: z.number().int().positive().optional(),
     allowedTools: z.array(z.string().min(1).max(256)).max(128).optional(),
     sensitive: z.boolean().optional(),
     redactValues: z.array(z.string().max(65536)).max(128).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (context) => context.permissionMode !== "elevated" || Boolean(context.sandboxGrantId && context.sandboxExpiresAt),
+    "Elevated jobs require a sandbox grant and expiry.",
+  );
 const version = z.literal(RUNNER_PROTOCOL_VERSION);
 const request = { v: version, id: idSchema };
 const clientMessageSchema = z.discriminatedUnion("kind", [
@@ -305,6 +314,8 @@ export function toWireContext(context: WireRunContext & { signal?: unknown }): W
     correlationId: context.correlationId,
     workspacePath: context.workspacePath,
     permissionMode: context.permissionMode,
+    ...(context.sandboxGrantId ? { sandboxGrantId: context.sandboxGrantId } : {}),
+    ...(context.sandboxExpiresAt !== undefined ? { sandboxExpiresAt: context.sandboxExpiresAt } : {}),
     ...(context.allowedTools ? { allowedTools: context.allowedTools } : {}),
     ...(context.sensitive !== undefined ? { sensitive: context.sensitive } : {}),
     ...(context.redactValues ? { redactValues: context.redactValues } : {}),
