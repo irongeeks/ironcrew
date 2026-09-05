@@ -1,5 +1,6 @@
 # Installation — macOS
 
+For a guided first start, follow [Erste Schritte](GETTING_STARTED.md).
 For stable installations, follow [Releases and updates](RELEASES.md).
 That procedure supersedes older branch-based update commands below.
 
@@ -12,7 +13,7 @@ GitHub-hosted macOS runner; use Node22+ on a supported macOS release.
 | ------------------------ | ----------------------------------------------------------------------- |
 | macOS                    | 13 or newer                                                             |
 | Node.js                  | 22 or newer (SQLite is a Node 22 builtin — no native module to compile) |
-| pnpm                     | 10 or newer                                                             |
+| pnpm                     | 10.30.1 (pinned in package.json)                                                             |
 | Xcode Command Line Tools | for `git`                                                               |
 
 ```bash
@@ -51,7 +52,7 @@ API_AUTH_TOKEN=$(openssl rand -hex 32)   # paste the value into .env
 DB_PATH=./data/ironcrew.sqlite
 LOGS_DIR=./data/logs
 HOST=127.0.0.1
-PORT=8800
+PORT=8790
 ```
 
 **Provider API keys do not belong in `.env` outside development.** Use the
@@ -71,7 +72,7 @@ roles cannot be altered through it.
 ## Run
 
 ```bash
-pnpm dev                        # http://127.0.0.1:8800
+pnpm dev:local                        # http://127.0.0.1:8800
 ```
 
 or production-style:

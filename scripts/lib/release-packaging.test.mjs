@@ -20,7 +20,7 @@ function repository() {
   git(["init", "-q"]);
   git(["config", "user.email", "release@example.invalid"]);
   git(["config", "user.name", "Release Test"]);
-  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ version: "2.8.0" }));
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ version: "0.1.0" }));
   fs.writeFileSync(path.join(dir, "README.md"), "Source");
   git(["add", "."]);
   git(["commit", "-qm", "fixture"]);
@@ -58,7 +58,7 @@ function gateApi({
         ],
       };
     if (route.includes("/contents/package.json"))
-      return { content: Buffer.from('{"version":"2.8.0"}').toString("base64") };
+      return { content: Buffer.from('{"version":"0.1.0"}').toString("base64") };
     if (route.includes("/releases?")) return release ? [release] : [];
     if (route.includes("/git/ref/tags/")) return ref;
     throw Error(`Unexpected test API route ${route}`);
@@ -125,14 +125,14 @@ describe("release gates", () => {
   });
   it("skips already-published versions and only resumes drafts/tags bound to the same commit", async () => {
     expect(
-      (await releaseGate({ api: gateApi({ release: { tag_name: "v2.8.0", draft: false } }), repository: repo, commit }))
+      (await releaseGate({ api: gateApi({ release: { tag_name: "v0.1.0", draft: false } }), repository: repo, commit }))
         .ready,
     ).toBe(false);
     expect(
       (
         await releaseGate({
           api: gateApi({
-            release: { tag_name: "v2.8.0", draft: true, target_commitish: commit, id: 8 },
+            release: { tag_name: "v0.1.0", draft: true, target_commitish: commit, id: 8 },
             ref: { object: { type: "commit", sha: commit } },
           }),
           repository: repo,
@@ -142,7 +142,7 @@ describe("release gates", () => {
     ).toBe(8);
     await expect(
       releaseGate({
-        api: gateApi({ release: { tag_name: "v2.8.0", draft: true, target_commitish: "wrong" } }),
+        api: gateApi({ release: { tag_name: "v0.1.0", draft: true, target_commitish: "wrong" } }),
         repository: repo,
         commit,
       }),
@@ -157,7 +157,7 @@ describe("release gates", () => {
   });
   it("fails API authentication errors instead of treating them as absent tags", async () => {
     const client = githubClient({ token: "test-only", fetchImpl: async () => ({ ok: false, status: 403 }) });
-    await expect(client("/repos/irongeeks/ironcrew/git/ref/tags/v2.8.0", { allow404: true })).rejects.toThrow(/403/);
+    await expect(client("/repos/irongeeks/ironcrew/git/ref/tags/v0.1.0", { allow404: true })).rejects.toThrow(/403/);
     await expect(client("https://external.invalid/token")).rejects.toThrow(/non-GitHub/);
   });
 });
@@ -173,7 +173,7 @@ describe("source packages", () => {
     const archive = fs.readFileSync(path.join(out, a.source.file));
     expect(sha256(archive)).toBe(a.source.sha256);
     expect(gunzipSync(archive).includes(Buffer.from("untracked-secret"))).toBe(false);
-    expect(gunzipSync(archive).includes(Buffer.from("ironcrew-2.8.0/README.md"))).toBe(true);
+    expect(gunzipSync(archive).includes(Buffer.from("ironcrew-0.1.0/README.md"))).toBe(true);
     const sums = fs.readFileSync(path.join(out, "SHA256SUMS"), "utf8");
     expect(sums).toContain(
       `${sha256(fs.readFileSync(path.join(out, "release-manifest.json")))}  release-manifest.json`,
@@ -200,9 +200,9 @@ describe("image and draft retry safety", () => {
       getDigest: async () => digest,
       run,
       smoke,
-      inspect: () => ({ "org.opencontainers.image.revision": commit, "org.opencontainers.image.version": "2.8.0" }),
-      image: `ghcr.io/${repo}:v2.8.0`,
-      version: "2.8.0",
+      inspect: () => ({ "org.opencontainers.image.revision": commit, "org.opencontainers.image.version": "0.1.0" }),
+      image: `ghcr.io/${repo}:v0.1.0`,
+      version: "0.1.0",
       commit,
       repository: repo,
     };
@@ -218,8 +218,8 @@ describe("image and draft retry safety", () => {
       getDigest: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(digest),
       run,
       smoke: vi.fn(),
-      image: `ghcr.io/${repo}:v2.8.0`,
-      version: "2.8.0",
+      image: `ghcr.io/${repo}:v0.1.0`,
+      version: "0.1.0",
       commit,
       repository: repo,
     };
@@ -237,45 +237,51 @@ describe("image and draft retry safety", () => {
     ).rejects.toThrow(/unhealthy/);
     expect(run.mock.calls.map((c) => c[0][0])).toEqual(["build"]);
   });
-  it("uploads only missing matching draft assets and publishes after integrity checks", async () => {
-    const f = repository(),
-      out = path.join(f.dir, "out");
-    const manifest = createReleasePackage({ root: f.dir, commit: f.commit, outDir: out, imageDigest: digest });
-    const existingBytes = fs.readFileSync(path.join(out, manifest.source.file));
-    const draft = {
-      id: 8,
-      draft: true,
-      tag_name: "v2.8.0",
-      target_commitish: f.commit,
-      assets: [
-        {
-          name: manifest.source.file,
-          state: "uploaded",
-          size: existingBytes.length,
-          digest: `sha256:${sha256(existingBytes)}`,
-        },
-      ],
-      upload_url: "https://uploads.github.com/repos/irongeeks/ironcrew/releases/8/assets{?name,label}",
-    };
-    const base = gateApi({ release: { ...draft, target_commitish: commit } });
-    const calls = [];
-    const api = async (route, options = {}) => {
-      calls.push([route, options]);
-      if (route.endsWith("/releases/8")) return options.method === "PATCH" ? { ...draft, draft: false } : draft;
-      if (route.startsWith("https://uploads.github.com/"))
-        return { digest: `sha256:${sha256(options.bytes)}`, size: options.bytes.length };
-      const value = await base(route.replaceAll(f.commit, commit), options);
-      if (value?.workflow_runs) value.workflow_runs = value.workflow_runs.map((r) => ({ ...r, head_sha: f.commit }));
-      if (route.includes("/branches/")) value.commit.sha = f.commit;
-      if (route.includes("/releases?")) return [draft];
-      return value;
-    };
-    expect((await publishRelease({ api, repository: repo, outDir: out })).published).toBe(true);
-    expect(calls.filter(([u]) => u.startsWith("https://uploads."))).toHaveLength(2);
-    expect(calls.at(-1)[1]).toEqual({ method: "PATCH", body: { draft: false } });
-    draft.assets[0].digest = "sha256:changed";
-    await expect(publishRelease({ api, repository: repo, outDir: out })).rejects.toThrow(/refusing overwrite/);
-  });
+  it.each([true, false])(
+    "publishes verified assets and promotes only the current main build (current: %s)",
+    async (currentMain) => {
+      const f = repository(),
+        out = path.join(f.dir, "out");
+      const manifest = createReleasePackage({ root: f.dir, commit: f.commit, outDir: out, imageDigest: digest });
+      const existingBytes = fs.readFileSync(path.join(out, manifest.source.file));
+      const draft = {
+        id: 8,
+        draft: true,
+        tag_name: "v0.1.0",
+        target_commitish: f.commit,
+        assets: [
+          {
+            name: manifest.source.file,
+            state: "uploaded",
+            size: existingBytes.length,
+            digest: `sha256:${sha256(existingBytes)}`,
+          },
+        ],
+        upload_url: "https://uploads.github.com/repos/irongeeks/ironcrew/releases/8/assets{?name,label}",
+      };
+      const base = gateApi({ release: { ...draft, target_commitish: commit } });
+      const calls = [];
+      const api = async (route, options = {}) => {
+        calls.push([route, options]);
+        if (route.endsWith("/releases/8")) return options.method === "PATCH" ? { ...draft, draft: false } : draft;
+        if (route.startsWith("https://uploads.github.com/"))
+          return { digest: `sha256:${sha256(options.bytes)}`, size: options.bytes.length };
+        const value = await base(route.replaceAll(f.commit, commit), options);
+        if (value?.workflow_runs) value.workflow_runs = value.workflow_runs.map((r) => ({ ...r, head_sha: f.commit }));
+        if (route.includes("/branches/")) value.commit.sha = currentMain ? f.commit : "e".repeat(40);
+        if (route.includes("/releases?")) return [draft];
+        return value;
+      };
+      expect((await publishRelease({ api, repository: repo, outDir: out })).published).toBe(true);
+      expect(calls.filter(([u]) => u.startsWith("https://uploads."))).toHaveLength(2);
+      expect(calls.at(-1)[1]).toEqual({
+        method: "PATCH",
+        body: { draft: false, make_latest: currentMain ? "true" : "false" },
+      });
+      draft.assets[0].digest = "sha256:changed";
+      await expect(publishRelease({ api, repository: repo, outDir: out })).rejects.toThrow(/refusing overwrite/);
+    },
+  );
 });
 it("keeps release jobs narrowly permissioned and runs dry-run checks for pull requests", () => {
   const workflow = yaml.load(fs.readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8"));

@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { releaseVersionOrderOverride } from "./release-version.mjs";
 
 const TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const SHA = /^[a-f0-9]{40}$/;
@@ -283,7 +284,10 @@ export async function updateRelease(
     );
     const currentVersion = currentPackage.version.split(".").map(BigInt),
       targetVersion = pkg.version.split(".").map(BigInt);
-    const difference = targetVersion.map((part, i) => part - currentVersion[i]).find((n) => n !== 0n) ?? 0n;
+    const difference =
+      releaseVersionOrderOverride(pkg.version, currentPackage.version) ??
+      targetVersion.map((part, i) => part - currentVersion[i]).find((n) => n !== 0n) ??
+      0n;
     ensure(
       difference >= 0n,
       "Automatischer Versions-Downgrade ist ausgeschlossen. Passende Datenbankwiederherstellung muss manuell geplant werden.",

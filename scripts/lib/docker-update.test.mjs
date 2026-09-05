@@ -28,12 +28,13 @@ async function fixture(overrides = {}) {
     ".env": "SECRET=test-private-value\n",
   }))
     await fs.writeFile(path.join(cwd, name), text);
+  const targetVersion = overrides.targetVersion ?? "0.1.1";
   const manifest = {
     schemaVersion: 1,
-    version: "2.8.0",
-    tag: "v2.8.0",
+    version: targetVersion,
+    tag: `v${targetVersion}`,
     commit: revision,
-    container: { image: "ghcr.io/irongeeks/ironcrew:v2.8.0", digest },
+    container: { image: `ghcr.io/irongeeks/ironcrew:v${targetVersion}`, digest },
   };
   const manifestFile = path.join(root, "release-manifest.json");
   await fs.writeFile(manifestFile, JSON.stringify(manifest));
@@ -90,7 +91,7 @@ async function fixture(overrides = {}) {
     if (args[0] === "exec")
       return JSON.stringify({
         ok: true,
-        version: updated ? (overrides.healthVersion ?? "2.8.0") : (overrides.currentVersion ?? "2.7.0"),
+        version: updated ? (overrides.healthVersion ?? targetVersion) : (overrides.currentVersion ?? "0.1.0"),
       });
     if (args[0] === "ps") return overrides.otherWriter ? "other-container" : running ? "old-container" : "";
     if (args[0] === "image" && args[1] === "inspect")
@@ -100,7 +101,7 @@ async function fixture(overrides = {}) {
           RepoDigests: [published],
           Config: {
             Labels: {
-              "org.opencontainers.image.version": "2.8.0",
+              "org.opencontainers.image.version": targetVersion,
               "org.opencontainers.image.revision": overrides.imageRevision ?? revision,
             },
           },
@@ -115,7 +116,14 @@ async function fixture(overrides = {}) {
     }
     return "";
   };
-  const options = parseDockerUpdateArgs(["--to", "v2.8.0", "--backup-dir", backupDir, "--manifest", manifestFile]);
+  const options = parseDockerUpdateArgs([
+    "--to",
+    `v${targetVersion}`,
+    "--backup-dir",
+    backupDir,
+    "--manifest",
+    manifestFile,
+  ]);
   return {
     root,
     cwd,
@@ -146,6 +154,26 @@ describe("explicit Docker release update", () => {
     expect(() => parseDockerUpdateArgs(["--to", "v2.8.0"])).toThrow();
     expect(compareVersions("2.8.0", "2.8.0-rc.10")).toBe(1);
     expect(compareVersions("2.8.0-rc.2", "2.8.0-rc.10")).toBe(-1);
+  });
+  it("migrates legacy 2.8.0 to 0.1.0 through the full stopped-volume backup flow", async () => {
+    const f = await fixture({ currentVersion: "2.8.0", targetVersion: "0.1.0" });
+    const result = await invoke(f);
+    expect(result.verified).toBe(true);
+    expect(f.calls.some((c) => c.args.includes("stop"))).toBe(true);
+    expect(await record(f)).toMatchObject({ currentVersion: "2.8.0" });
+  });
+  it.each([
+    ["2.7.0", "0.1.0"],
+    ["2.8.1", "0.1.0"],
+    ["2.8.0", "0.0.1"],
+    ["2.8.0", "0.2.0"],
+    ["0.1.1", "0.1.0"],
+    ["0.1.0", "2.8.0"],
+    ["0.2.0", "2.8.0"],
+  ])("rejects non-migration or retired target %s → %s without stopping", async (currentVersion, targetVersion) => {
+    const f = await fixture({ currentVersion, targetVersion });
+    await expect(invoke(f)).rejects.toThrow(/downgrade/i);
+    expect(f.calls.some((c) => c.args[0] === "pull" || c.args.includes("stop"))).toBe(false);
   });
   it("check reads the existing project and manifest without pulling, stopping or writing", async () => {
     const f = await fixture();

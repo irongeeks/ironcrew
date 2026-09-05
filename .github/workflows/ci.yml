@@ -222,3 +222,27 @@ jobs:
             playwright-report
             test-results
           if-no-files-found: ignore
+
+  documentation-screenshots:
+    name: documentation-screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Capture actual application views with isolated test data
+        run: pnpm exec playwright test --config playwright.docs.config.ts
+        env:
+          CI: true
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: documentation-screenshots
+          path: test-results/docs
+          if-no-files-found: error

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { isRemoteVersionNewer } from "../../update-auto-utils.ts";
+import { releaseVersionOrderOverride } from "../../../../../scripts/lib/release-version.mjs";
 
 export const RELEASE_REPOSITORY = "irongeeks/ironcrew";
 export const RELEASES_URL = `https://github.com/${RELEASE_REPOSITORY}/releases`;
@@ -94,7 +95,10 @@ export function createReleaseStatusReader(options: {
             )
               throw new Error("invalid_stable_release");
             tag = body.tag_name;
-            discovery = isRemoteVersionNewer(tag, options.currentVersion) ? "available" : "up_to_date";
+            const override = releaseVersionOrderOverride(tag, options.currentVersion);
+            discovery = (override === null ? isRemoteVersionNewer(tag, options.currentVersion) : override > 0)
+              ? "available"
+              : "up_to_date";
           }
         } catch (cause) {
           discovery = "unavailable";
@@ -120,7 +124,7 @@ export function createReleaseStatusReader(options: {
         install_type: options.installType,
         discovery,
         self_update_supported: false,
-        instructions: releaseInstructions(options.installType, tag),
+        instructions: releaseInstructions(options.installType, discovery === "available" ? tag : null),
       };
       return cached;
     })().finally(() => {

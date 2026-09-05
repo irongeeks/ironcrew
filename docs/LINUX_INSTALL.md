@@ -1,5 +1,6 @@
 # Installation — Linux
 
+For a guided first start, follow [Erste Schritte](GETTING_STARTED.md).
 For stable installations, follow [Releases and updates](RELEASES.md).
 That procedure supersedes older branch-based update commands below.
 
@@ -11,7 +12,7 @@ machine; nothing is sent to a third party unless you configure a provider.
 | Requirement | Version                                                              |
 | ----------- | -------------------------------------------------------------------- |
 | Node.js     | 22 or newer (SQLite support is a Node 22 builtin — no native module) |
-| pnpm        | 10 or newer                                                          |
+| pnpm        | 10.30.1 (pinned in package.json)                                                          |
 | git         | any recent version                                                   |
 | RAM         | 2 GB free is comfortable                                             |
 
@@ -59,7 +60,7 @@ LOGS_DIR=./data/logs
 # Bind to localhost unless you know you want otherwise.
 HOST=127.0.0.1
 # The API server's port (server/config/runtime.ts). 8800 is the Vite dev
-# server, which proxies here — setting PORT=8800 makes the two collide.
+# server, which proxies here — setting PORT=8790 makes the two collide.
 PORT=8790
 ```
 
@@ -95,7 +96,7 @@ policy, tools or roles through it is rejected at load — see
 Development, with hot reload:
 
 ```bash
-pnpm dev
+pnpm dev:local
 # web: http://127.0.0.1:8800
 ```
 

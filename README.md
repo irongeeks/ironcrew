@@ -1,234 +1,163 @@
 # IronCrew
 
-A self-hosted, local-first **multi-agent company OS**. You are the owner and
-CEO. You talk to one Executive Assistant, who triages, plans, delegates to a
-crew of specialist agents, and reports back with a result you accept or send
-for revision.
+**Deine virtuelle AI-Firma. Ein Ansprechpartner, eine Crew und ein gemeinsamer Arbeitsstand.**
 
-Built as a fork of [OctoOffice](https://github.com/Chepko932/OctoOffice)
-(Apache-2.0), with a governance-grade control plane added alongside it:
-atomic task claiming, an approval engine that technically blocks high-risk
-actions, budget enforcement, a hash-chained audit log, and a vendor policy that
-is enforced in the backend rather than hidden in the UI.
+IronCrew ist ein selbst gehostetes Multi-Agent-Company-OS für Linux und macOS.
+Du bist der CEO. Dein Executive Assistant nimmt Aufträge entgegen, plant und
+delegiert sie. Fachagenten bearbeiten die Aufgaben; Ergebnisse, Reviews,
+Freigaben und Kosten bleiben nachvollziehbar.
 
-> **Status: connected company workflows and modern office.**
-> Office, Kanban and CEO chat share persisted state and live events. Runtime-generated
-> project plans require owner review before task-tree delegation. The office offers
-> 20 original figures, private uploads, status spritesheets and optional GLB profiles.
-> Outbound native runner enrollment/fleet routing, one-run sandbox exceptions and
-> reviewed coaching versions are implemented.
->
-> The company features through [PR #22](https://github.com/irongeeks/ironcrew/pull/22)
-> are merged with **5,159 backend, 628 frontend, 40 script and 83 browser
-> tests passed** (one backend and three browser skips), plus Linux/macOS, Docker
-> restart/restore and supply-chain gates.
-> [Owner-managed routing profiles](docs/RUNTIME_ROUTING.md) now connect nine abstract
-> profiles to actual task and meeting runs, with explicit fallback and budget limits.
-> [PR #20](https://github.com/irongeeks/ironcrew/pull/20) carries its separate CI evidence.
-> Real authenticated provider runs remain operator acceptance checks. See
-> [master-prompt coverage](docs/MASTER_PROMPT_COVERAGE.md) for precise limits.
+[Erste Schritte](docs/GETTING_STARTED.md) · [Bedienung](docs/USER_GUIDE.md) ·
+[Dokumentation](docs/README.md) · [Releases](https://github.com/irongeeks/ironcrew/releases) ·
+[Installation und Updates](docs/RELEASES.md)
 
-## Releases and updates
+![IronCrew: modernes Firmengebäude mit Abteilungsbüros, Crew und CEO-Chat](docs/screenshots/ironcrew-office.png)
 
-Use a [published release](https://github.com/irongeeks/ironcrew/releases) for stable installations.
-[Native and Docker updates](docs/RELEASES.md) pin the version and preserve company data
-with a backup and an explicit recovery procedure. Development checkouts remain available below.
+*Browseraufnahme aus der isolierten Testinstallation: originale Seed-Crew und ein
+gekennzeichneter Dokumentationsauftrag. Die Bilder zeigen keine produktive Firma
+und belegen keine Ausführung mit einem echten Providerkonto.*
 
-## Quick start
+## Version 0.1.0
 
-```bash
-git clone https://github.com/irongeeks/ironcrew.git
-cd ironcrew
-pnpm install
-cp .env.example .env          # set API_AUTH_TOKEN to a long random value
-pnpm dev                      # http://127.0.0.1:8800
-```
+IronCrew beginnt seine eigene Produktversionierung bei **0.1.0**. Die zuvor
+veröffentlichte `2.8.0` folgte noch der übernommenen Versionsreihe. Sie bleibt
+als historische Veröffentlichung erhalten; die Weiterentwicklung läuft ab jetzt
+über `0.1.x` und spätere Versionen.
 
-Complete the setup wizard. **OFFICE** opens the modern company floor; **TASKS**
-opens its Kanban board and **COMMAND** focuses the same CEO conversation.
+**Bereits 2.8.0 installiert?** Verwende den
+[einmaligen Versionswechsel](docs/RELEASES.md#wechsel-von-280-auf-010).
+Der alte Updater kennt diesen Übergang noch nicht. Die Datenbank wird dabei
+nicht auf einen früheren Stand zurückgesetzt.
 
-No provider login is required to try it — MockRuntime exercises the whole flow.
-Full instructions: [Linux](docs/LINUX_INSTALL.md) · [macOS](docs/MACOS_INSTALL.md).
+`0.1.0` bezeichnet einen frühen Entwicklungsstand mit getesteten Kernabläufen.
+Ein vollständiger automatisierter Betrieb deines Geschäfts ist damit nicht zugesichert.
+Den konkreten Umfang und die verbleibenden Grenzen dokumentieren
+[Implementierungsstand](IMPLEMENTATION_STATUS.md) und
+[Master-Prompt-Abdeckung](docs/MASTER_PROMPT_COVERAGE.md).
 
-## What it does
+## Was du damit machen kannst
 
-```mermaid
-flowchart TD
-  CEO["CEO"] --> EA["Executive Assistant"]
-  EA -->|"Project"| PLAN["Validated plan"]
-  PLAN --> OWNER["Owner review"]
-  OWNER -->|"Approved"| QUEUE["Tasks · dependencies · budgets"]
-  EA -->|"Permitted routine"| QUEUE
-  QUEUE --> RUN["Runtime + live events"]
-  RUN --> REVIEW["Result review"]
-  REVIEW -->|"Revision"| QUEUE
-  REVIEW -->|"Accepted"| DONE["Result + audit"]
-```
+| Bereich | Funktionen |
+| --- | --- |
+| **CEO und Aufgaben** | EA-Chat, Projektplanung mit Freigabe, persistente Tasks, Abhängigkeiten, Kanban, Ergebnisse und Revisionen |
+| **Lebendiges Office** | Unterschiedlich eingerichtete Abteilungsbüros, Flure, Lounge, Meetings, Raumfokus und Figuren mit echten Agentenzuständen |
+| **Mitarbeiter** | Getrennte Fachrolle, Junior/Senior/Lead-Level, Modellprofil, Berechtigungen und visuelle Figur |
+| **Delegation und Qualität** | Leads verteilen neue Aufgaben und bewerten Arbeit mit 1–5 Sternen; Verlauf, Anzahl und Mittelwert je Mitarbeiter und tatsächlich verwendetem Modell |
+| **Runtimes** | MockRuntime sowie Adapter für Claude Code, Codex, Antigravity und OpenRouter; Health, Streaming, Abbruch, Rate-Limit-Queue und Recovery |
+| **Governance** | Technische Freigabegates, Budgets, atomare Task-Claims, Vendor-Policy und prüfbarer Audit-Trail |
+| **Wissen und Integrationen** | Obsidian-kompatibler Vault, optional Honcho, Tools/MCP, Mail und Business-Packs; der Umfang einzelner Adapter ist dokumentiert |
+| **Betrieb** | Nativ oder Docker Compose, nativer Host-Runner, versionierte Releases, Sicherungen und Wiederherstellung |
 
-Project planning: [workflow](docs/PROJECT_PLANNING.md) ·
-Native fleet: [setup and scopes](docs/RUNNER_FLEET.md) ·
-Characters: [selection, media and generator prompt](docs/CHARACTERS.md) ·
-Coaching: [reviewed guidance and evidence](docs/COACHING.md).
+Die Lead-Steuerung wird pro Abteilung eingerichtet und ausdrücklich aktiviert.
+Sterne sind Modellreviews mit Arbeitsbelegen, keine objektiven Benchmarks.
+[Team und Leistung](docs/CAREER_REVIEWS.md) erklärt die Auswertung.
 
-- **One point of contact.** You write to the EA. She classifies every message
-  (question, task, project, incident, sensitive request…), asks only when the
-  signal is genuinely weak, and delegates by department.
-- **Sensitive work is blocked, not executed.** A payment, a tax filing, a
-  contract, a production deployment — the EA creates an approval request and
-  says plainly that she has _not_ acted. Only you decide.
-- **Everything is on the record.** One correlation id spans your message, the
-  task, every run, every event and every audit entry — and the record is
-  hash-chained, verifiable offline, and can be shipped to a separately controlled sink when configured.
-- **The dangerous decisions can need two people.** Any approval can be raised
-  to a quorum: N approvals to proceed, **one rejection to stop**. A quorum can
-  never be lowered again, because a control the compromised account can undo
-  is not a control.
-- **A trade, not just a company.** A business pack adds the departments, posts,
-  tools and routines one trade needs — MSP, web agency, German finance, German
-  legal, knowledge work. It registers tools; it never grants them, and its
-  routines install switched off.
+## Ein Auftrag durch die Firma
 
-## Team levels and model quality
+1. Du beschreibst das gewünschte Ergebnis im CEO-Chat.
+2. Der EA triagiert den Auftrag. Größere Projekte erhalten einen Plan zur Freigabe.
+3. Aufgaben werden an passende Fachagenten delegiert; bei aktivierter
+   Abteilungssteuerung übernimmt der Lead die Verteilung.
+4. Runs liefern Live-Events, Arbeitsprodukte und ihren tatsächlichen Status.
+5. Ergebnisse gehen ins Review. Du kannst sie annehmen oder eine Revision anfordern.
+6. Aufgaben, Nachrichten, Entscheidungen und Audit bleiben nach einem Neustart erhalten.
 
-[Team & Leistung](docs/CAREER_REVIEWS.md) configures Junior/Senior/Lead separately
-from professional roles, visual characters and model profiles. Department leads
-route new tasks and review completed work with 1–5 stars and evidence. Employee
-and actual-model averages include counts, difficulty and revision context.
-Level changes require owner approval; existing tasks retain their flow when enabled.
+[Der erste Auftrag](docs/GETTING_STARTED.md) ·
+[Projektplanung](docs/PROJECT_PLANNING.md) · [Modellrouting](docs/RUNTIME_ROUTING.md)
 
-## Office and screenshots
+## Ein Blick in IronCrew
 
-The [living company building](docs/LIVING_OFFICE.md) adds individually furnished
-department offices, connected corridors, a lounge and room focus. Idle figures
-walk and gesture during ambient encounters; real tasks and meetings retain priority.
-Motion can be paused and respects reduced-motion preferences.
+**Abteilungsbüro im Raumfokus.** Einrichtung und Arbeitsplätze unterscheiden sich
+je nach Fachbereich. Bereitschaftsbewegungen und Gesprächsgesten kosten keine
+Modellaufrufe; echte Arbeit und Meetings haben Vorrang.
 
-The modern office uses original vector figures, real agent states, desks,
-meeting and approval areas. Choose from **20 original full-body figures** in the
-agent profile, or upload a private portrait and full-body image. A copyable
-generator prompt keeps your chosen character reference and style; image creation
-happens in the image model you choose. [Character setup and limits](docs/CHARACTERS.md).
+![Engineering-Abteilung im Raumfokus](docs/screenshots/ironcrew-department.png)
 
-The office works without WebGL and includes zoom, a keyboard
-accessible list and reduced-motion support. This illustration is rendered from
-the component with explicit test states; it is **not a browser screenshot**:
+**Team und Leistung.** Level, Fachrolle, Modellprofil und Bewertungen bleiben
+getrennt. Die neue Testfirma zeigt ehrlich „Unbewertet“, bis Arbeits- und Review-Runs vorliegen.
 
-![Office illustration with test states](docs/screenshots/crew-office-illustration.png)
-
-The screenshots below predate the integrated office and show the retained
-company panels:
-
-The Command Center — a live Kanban board, decision inbox and CEO chat, all
-backed by the same REST API this README describes elsewhere:
-
-![Command Center board](docs/screenshots/command-center-board.png)
+![Mitarbeiterübersicht mit Leveln, Modellprofilen und Bewertungsstatus](docs/screenshots/ironcrew-crew.png)
 
 <details>
-<summary>More views (decision inbox, projects, org chart, secrets)</summary>
+<summary>Mobile Ansicht und Versionsverwaltung</summary>
 
-Decision inbox — notifications and the append-only decision log:
+Auf kleinen Bildschirmen steht dieselbe Crew als bedienbare Liste bereit.
 
-![Decision inbox](docs/screenshots/command-center-inbox.png)
+<img src="docs/screenshots/ironcrew-mobile.png" alt="Mobile Crew-Liste in IronCrew" width="390" />
 
-Projects, traced back to the goal they serve:
+Die Einstellungen zeigen Version und Updateweg. Die externe Release-Prüfung
+ist in dieser isolierten Aufnahme bewusst deaktiviert.
 
-![Projects](docs/screenshots/command-center-projects.png)
-
-Org chart, grouped by department:
-
-![Org chart](docs/screenshots/command-center-orgchart.png)
-
-Password-manager integration — only ever a reference (provider + item), never
-a value; the "nicht erreichbar" badges here are honest, since neither `bw`
-nor `pass-cli` is installed on this particular machine:
-
-![Secrets](docs/screenshots/command-center-secrets.png)
+![Version 0.1.0 und Hinweise zum Update auf dem Host](docs/screenshots/ironcrew-updates.png)
 
 </details>
 
-## Design commitments
+Du kannst **20 originale Figuren** zuweisen oder eigene private Medien hochladen.
+Ein kopierbarer Generator-Prompt hilft bei der Erstellung in deinem Bildmodell.
+[Figuren und private Assets](docs/CHARACTERS.md) · [Office-Bedienung](docs/LIVING_OFFICE.md)
 
-These are enforced in code and covered by tests, not just documented.
+Aufnahmeverfahren, Herkunft und Reproduktion: [Screenshot-Dokumentation](docs/SCREENSHOTS.md).
 
-| Commitment                     | How                                                                                                                                                                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Policy beats persona**       | Persona, professional role and policy are three separate columns. A character pack may change display name and portrait — nothing else. Attempts to reach policy through a skin are rejected loudly.                |
-| **No agent approves anything** | `may_approve` is typed as the literal `false`. Approval is the human owner's alone.                                                                                                                                 |
-| **No double work**             | Task claiming is a compare-and-set on `status_version`; exactly one of N concurrent workers wins. Verified with a 25-way concurrency test.                                                                          |
-| **No unbounded agents**        | CLI permission bypass flags are never default. Each start and resume checks policy; elevation requires a scoped, unexpired owner-approved sandbox grant. The elevation approval UI remains incomplete.              |
-| **No secrets in logs**         | Redaction sits in the logger itself, not at the call site: every log object and message string is scrubbed before it reaches stdout, the `logs` table or the WebSocket stream. Also across stdout chunk boundaries. |
-| **Deny by default**            | Vendor policy and per-agent tool access both refuse anything not explicitly allowed. The blocklist always beats the allowlist.                                                                                      |
-| **No invented numbers**        | Every dashboard figure names its source and read time. Subscription runtimes record quota events, not a fabricated price.                                                                                           |
-| **No silent failure**          | A rate limit is its own event, not a generic error. A budget stop is HTTP 402; an approval block is 403. The UI shows both.                                                                                         |
-| **Tamper-evident record**      | The audit log is append-only and hash-chained. `pnpm run audit:verify:db` verifies the database offline, read-only. Tail truncation requires comparison with an independent copy.                                   |
+## Lokal starten
 
-## Development and operations
+Voraussetzungen: **Node.js 22+**, Git und die in `package.json` festgelegte
+**pnpm-Version 10.30.1**. Native Abhängigkeiten können Compilerwerkzeuge benötigen.
 
 ```bash
-pnpm dev            # development server with hot reload
-pnpm test           # unit and integration tests
-pnpm test:api       # server suite
-pnpm test:web       # frontend suite
-pnpm test:e2e       # Playwright
-pnpm build          # type check and bundle
-pnpm lint
+git clone --branch v0.1.0 https://github.com/irongeeks/ironcrew.git
+cd ironcrew
+corepack pnpm install --frozen-lockfile
+cp .env.example .env
 ```
 
-Operations — these run against a real database and are meant for the machine
-the company lives on:
+Trage eigene zufällige Werte für `OAUTH_ENCRYPTION_SECRET` und `API_AUTH_TOKEN`
+in `.env` ein. Der [Schnellstart](docs/GETTING_STARTED.md) führt dich durch die
+Konfiguration. Nutze für den ersten lokalen Versuch MockRuntime; dafür ist kein
+Providerkonto erforderlich.
 
 ```bash
-pnpm run audit:verify:db                  # verify the audit chain offline, read-only, without the server
-node scripts/ironcrew-migrate.mjs status  # which migrations are applied, which are pending
-node scripts/ironcrew-migrate.mjs check   # refuse to start an older build on a newer schema (own exit code)
-node scripts/ironcrew-backup.mjs --out backups --keep 7   # snapshot a running database, with a manifest
-node scripts/ironcrew-backup.mjs --inspect <archive>     # read the manifest, touch nothing
-node scripts/ironcrew-backup.mjs --restore <archive>     # restore, refusing to overwrite without --force
-node scripts/ironcrew-load-test.mjs                      # "does this box hold my company?", below the route layer
+corepack pnpm dev:local
+# Web: http://127.0.0.1:8800 · API: http://127.0.0.1:8790
 ```
 
-`audit:verify:db` opens the database read-only and walks every company's chain
-to the end. It exits **2** on a broken link _or a hole_ — a chain that is
-internally consistent because entries were removed is not an intact chain.
+Falls Corepack nicht installiert ist, installiere pnpm in der oben angegebenen
+Version und verwende `pnpm` anstelle von `corepack pnpm`.
+`pnpm dev` bindet den Entwicklungsserver an alle Interfaces;
+`dev:local` bleibt auf dem lokalen Rechner.
 
-## Documentation
+**Dauerbetrieb:** [Linux](docs/LINUX_INSTALL.md) · [macOS](docs/MACOS_INSTALL.md) ·
+[Docker und Updates](docs/RELEASES.md) · [Native Runner](docs/RUNNER_PROTOCOL.md)
 
-| Document                                                                                            | Contents                                                                                   |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)                                              | what is built, what is not, with test evidence                                             |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                                                      | layers, module map, invariants, data flow                                                  |
-| [`docs/UPSTREAM_ANALYSIS.md`](docs/UPSTREAM_ANALYSIS.md)                                            | what was taken from OctoOffice, OneManCompany and Paperclip, and what was deliberately not |
-| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)                                                      | trust boundaries, findings, mitigations, residual risk                                     |
-| [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)                                                          | schema and why it is shaped that way                                                       |
-| [`docs/CHARACTERS.md`](docs/CHARACTERS.md)                                                          | 20 original figures, private uploads and generator prompts                                 |
-| [`docs/CLI_RUNTIME_ACCEPTANCE.md`](docs/CLI_RUNTIME_ACCEPTANCE.md)                                  | version/capability/auth checks and manual start/resume acceptance                          |
-| [`docs/OPENROUTER_RUNTIME.md`](docs/OPENROUTER_RUNTIME.md)                                          | streaming, tool grants, limits and provider policy                                         |
-| [`docs/MEMORY.md`](docs/MEMORY.md)                                                                  | Obsidian, optional Honcho, sensitivity and durable sync                                    |
-| [`docs/PROVIDER_AUTH.md`](docs/PROVIDER_AUTH.md)                                                    | runtime authentication and permission modes                                                |
-| [`docs/IDENTITY.md`](docs/IDENTITY.md)                                                              | accounts, roles, sessions — and whose name the audit log carries                           |
-| [`docs/VESSELS_TALENTS.md`](docs/VESSELS_TALENTS.md)                                                | an agent is a Vessel × Talent — and what a vessel deliberately cannot grant                |
-| [`docs/RUN_QUEUE.md`](docs/RUN_QUEUE.md)                                                            | the durable queue between "this should run" and "this is running"                          |
-| [`docs/SERVICE.md`](docs/SERVICE.md)                                                                | running as a systemd service, and the scheduler that works while nobody watches            |
-| [`docs/MAIL.md`](docs/MAIL.md)                                                                      | mailboxes, per-agent grants, and why incoming mail is never a CEO message                  |
-| [`docs/MESSENGER.md`](docs/MESSENGER.md)                                                            | two-way Telegram/Discord, pairing, and who may speak as the CEO                            |
-| [`docs/CHANGE_PROPOSALS.md`](docs/CHANGE_PROPOSALS.md)                                              | an agent proposes file changes, the owner approves, then they apply                        |
-| [`docs/MARKETPLACES.md`](docs/MARKETPLACES.md)                                                      | installing skills and MCP servers, and the trust boundary that gates it                    |
-| [`docs/NETWORKING.md`](docs/NETWORKING.md)                                                          | Tailscale/Headscale status + remote workers over the tailnet                               |
-| [`docs/RUNNER_PROTOCOL.md`](docs/RUNNER_PROTOCOL.md)                                                | the runtime interface and event model                                                      |
-| [`docs/BUSINESS_PACKS.md`](docs/BUSINESS_PACKS.md)                                                  | the five trades, their posts and tools, and the read-only adapters behind them             |
-| [`docs/AUDIT_SHIPPING.md`](docs/AUDIT_SHIPPING.md)                                                  | shipping the audit record off the box, and what the cursor guarantees                      |
-| [`docs/BACKUP.md`](docs/BACKUP.md)                                                                  | snapshots of a running database, restore, and what a manifest is for                       |
-| [`docs/UPGRADE.md`](docs/UPGRADE.md)                                                                | upgrading, schema checks, and rolling back without corrupting the database                 |
-| [`docs/TOOLS.md`](docs/TOOLS.md)                                                                    | the tools an agent can hold, and how each one is granted                                   |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md)                                                                | what comes next                                                                            |
-| [`docs/LINUX_INSTALL.md`](docs/LINUX_INSTALL.md) · [`docs/MACOS_INSTALL.md`](docs/MACOS_INSTALL.md) | installation                                                                               |
-| [`docs/UPSTREAM_README.md`](docs/UPSTREAM_README.md)                                                | the original OctoOffice README, for inherited features                                     |
+CLI-Logins bleiben beim nativen Runner unter dessen Betriebssystemkonto.
+Ein Container erhält dafür keinen Zugriff auf dein gesamtes Home-Verzeichnis.
+Echte CLI-Starts mit deinem Konto prüfst du anhand der
+[Runtime-Abnahme](docs/CLI_RUNTIME_ACCEPTANCE.md).
 
-## Licence and attribution
+## Entwickeln und testen
 
-Apache-2.0. IronCrew is a fork of OctoOffice, Copyright (c) Joshua
-Dormann, used under Apache-2.0 with the licence preserved.
+```bash
+corepack pnpm lint
+corepack pnpm test
+corepack pnpm build
+corepack pnpm exec playwright install --with-deps chromium
+corepack pnpm test:e2e
+```
 
-See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the full attribution,
-the list of modified files, and what was learned (but not copied) from
-OneManCompany, Paperclip and Honcho.
+Die GitHub-Prüfungen decken Frontend, Backend, Skripte, Browser sowie Linux,
+macOS und Docker ab. Screenshots werden in einer separaten Testfirma erzeugt.
+Aktuelle Ergebnisse: [CI](https://github.com/irongeeks/ironcrew/actions/workflows/ci.yml) ·
+[Plattformprüfung](https://github.com/irongeeks/ironcrew/actions/workflows/platform-production.yml).
+
+## Dokumentation und Herkunft
+
+Der [Docs-Index](docs/README.md) bündelt Bedienung, Konfiguration, Betrieb,
+Architektur, Sicherheit und Entwicklung. Für Updates lies zusätzlich die
+[Release-Hinweise](docs/releases/README.md) und den [Changelog](CHANGELOG.md).
+
+IronCrew baut auf [OctoOffice](https://github.com/Chepko932/OctoOffice) auf.
+OneManCompany und Paperclip dienen als konzeptionelle Referenzen für Firmenmodell
+und Governance. Honcho bleibt eine optionale externe Memory-Integration.
+
+Lizenz: **Apache-2.0**. Copyright- und Lizenzhinweise bleiben erhalten.
+Details: [LICENSE](LICENSE) · [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) ·
+[Upstream-Analyse](docs/UPSTREAM_ANALYSIS.md).

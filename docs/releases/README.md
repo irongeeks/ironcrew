@@ -1,5 +1,17 @@
 # Releases
 
+## IronCrew
+
+- [v0.1.0](v0.1.0.md) — eigene Produktversionierung, gezielter Übergang von 2.8.0 und aktuelle Dokumentation mit Screenshots.
+- [v2.8.0](v2.8.0.md) — historischer erster Release unter übernommener Versionsnummer.
+
+[Installation und Versionswechsel](../RELEASES.md) · [Dokumentationsindex](../README.md)
+
+## Historische Entwicklungs- und Upstream-Hinweise
+
+Die folgenden Nummern dokumentieren frühere Entwicklungsstände und sind keine
+Aussage über aktuelle IronCrew-Releases oder heutige Provider-Policies.
+
 These notes describe releases of
 [OctoOffice](https://github.com/Chepko932/OctoOffice), the project IronCrew is
 forked from, and are kept under the names those releases shipped with. They are

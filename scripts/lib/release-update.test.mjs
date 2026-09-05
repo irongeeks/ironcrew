@@ -176,6 +176,46 @@ describe("native explicit release update with real local Git checkouts", () => {
       "Downgrade",
     );
   });
+  async function versionScenario(current, target) {
+    for (const [cwd, version] of [
+      [repo, current],
+      [source, target],
+    ]) {
+      await git(cwd, "config", "user.email", "fixture@example.invalid");
+      await git(cwd, "config", "user.name", "Release Fixture");
+      const pkg = JSON.parse(await fs.readFile(path.join(cwd, "package.json"), "utf8"));
+      await fs.writeFile(path.join(cwd, "package.json"), JSON.stringify({ ...pkg, version }));
+      await git(cwd, "commit", "-am", "version scenario");
+    }
+    oldCommit = await git(repo, "rev-parse", "HEAD");
+    commit = await git(source, "rev-parse", "HEAD");
+    await git(source, "tag", `v${target}`);
+    return { ...options, to: `v${target}`, commit };
+  }
+  it("migrates exactly legacy 2.8.0 to 0.1.0 with backup and intact company data", async () => {
+    const migration = await versionScenario("2.8.0", "0.1.0");
+    const result = await updateRelease(migration, { run });
+    expect(await git(repo, "rev-parse", "HEAD")).toBe(commit);
+    expect(await fs.readFile(db, "utf8")).toBe("unchanged database");
+    expect(await fs.stat(path.join(result.backupDirectory, "backup.tar.gz"))).toBeTruthy();
+    expect(calls.findIndex((c) => c.command === process.execPath)).toBeLessThan(
+      calls.findIndex((c) => c.command === "pnpm" && c.args[0] === "install"),
+    );
+  });
+  it.each([
+    ["2.7.0", "0.1.0"],
+    ["2.8.1", "0.1.0"],
+    ["2.8.0", "0.0.1"],
+    ["2.8.0", "0.2.0"],
+    ["0.1.1", "0.1.0"],
+    ["0.1.0", "2.8.0"],
+    ["0.2.0", "2.8.0"],
+  ])("rejects non-migration or retired target %s → %s before backup", async (current, target) => {
+    const scenario = await versionScenario(current, target);
+    await expect(updateRelease(scenario, { run })).rejects.toThrow("Downgrade");
+    expect(await git(repo, "rev-parse", "HEAD")).toBe(oldCommit);
+    expect(calls.some((c) => c.command === process.execPath || c.command === "pnpm")).toBe(false);
+  });
   it("requires explicit manual service confirmation before backup or installation", async () => {
     await expect(updateRelease({ ...options, confirmStopped: false }, { run })).rejects.toThrow("--confirm-stopped");
     expect(calls.some((c) => c.command === process.execPath || c.command === "pnpm")).toBe(false);
