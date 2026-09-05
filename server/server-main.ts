@@ -607,6 +607,7 @@ if (
     new OpenRouterRuntime({
       apiKey: process.env.OPENROUTER_API_KEY,
       defaultModel: process.env.OPENROUTER_DEFAULT_MODEL,
+      vendorPolicy: (companyId) => ironCrewOrchestrator.companyPolicies.effective(companyId),
       toolExecutor: ironCrewOrchestrator.runtimeToolExecutor(ironCrewApi.companyId),
     }),
   );

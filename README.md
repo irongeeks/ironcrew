@@ -17,7 +17,9 @@ Freigaben und Kosten bleiben nachvollziehbar.
 gekennzeichneter Dokumentationsauftrag. Die Bilder zeigen keine produktive Firma
 und belegen keine Ausführung mit einem echten Providerkonto.*
 
-## Version 0.1.0
+## Version 0.2.0
+
+Neu: [firmenbezogene Modell- und Provider-Freigaben](docs/VENDOR_POLICIES.md) mit Owner-Oberfläche, Versionsverlauf und Durchsetzung bis zum Runner. Die zusätzliche Funktion erhöht die frühe Produktversion von `0.1.0` auf `0.2.0`.
 
 IronCrew beginnt seine eigene Produktversionierung bei **0.1.0**. Die zuvor
 veröffentlichte `2.8.0` folgte noch der übernommenen Versionsreihe. Sie bleibt
@@ -29,7 +31,7 @@ als historische Veröffentlichung erhalten; die Weiterentwicklung läuft ab jetz
 Der alte Updater kennt diesen Übergang noch nicht. Die Datenbank wird dabei
 nicht auf einen früheren Stand zurückgesetzt.
 
-`0.1.0` bezeichnet einen frühen Entwicklungsstand mit getesteten Kernabläufen.
+`0.2.0` bezeichnet einen frühen Entwicklungsstand mit getesteten Kernabläufen.
 Ein vollständiger automatisierter Betrieb deines Geschäfts ist damit nicht zugesichert.
 Den konkreten Umfang und die verbleibenden Grenzen dokumentieren
 [Implementierungsstand](IMPLEMENTATION_STATUS.md) und
@@ -104,7 +106,7 @@ Voraussetzungen: **Node.js 22+**, Git und die in `package.json` festgelegte
 **pnpm-Version 10.30.1**. Native Abhängigkeiten können Compilerwerkzeuge benötigen.
 
 ```bash
-git clone --branch v0.1.0 https://github.com/irongeeks/ironcrew.git
+git clone --branch v0.2.0 https://github.com/irongeeks/ironcrew.git
 cd ironcrew
 corepack pnpm install --frozen-lockfile
 cp .env.example .env

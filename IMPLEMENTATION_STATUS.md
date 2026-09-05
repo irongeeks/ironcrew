@@ -4,6 +4,28 @@ Honest state of IronCrew. Nothing is listed as done unless it is
 implemented **and** covered by a passing test. Anything verified only by design
 review, or not verifiable in this environment, is said so explicitly.
 
+## Company vendor restrictions 0.2.0 — 2026-09-05
+
+Owner-managed family/provider subsets are persisted per company in migration 0035,
+with revision and baseline-fingerprint conflict checks, reason, actor and atomic
+append-only audit. The German Command Center panel offers effective-state display,
+explicit conflict reconciliation, read-only model/provider checks and history.
+The installation YAML remains the ceiling. See [VENDOR_POLICIES.md](docs/VENDOR_POLICIES.md).
+
+Task, meeting, resume and routing admission use effective policy. Native jobs carry
+only tightening allowlists, intersected with the runner's own YAML; Control Plane
+and runner must be updated together. In-flight external requests are not revoked.
+Native company restrictions are a per-start snapshot, while embedded OpenRouter
+can read current company restrictions before each request.
+
+Local verification: all 640 frontend tests passed; 749 focused orchestrator/runtime/
+runner/routing tests passed, plus 8 new store/API and 20 migration checks. These
+focused counts overlap existing suites and are not an aggregate backend total.
+Both TypeScript checks, production build and lint passed (446 existing warnings).
+The local Unix-socket daemon tests are restricted; full platform verification uses CI.
+The release PR records consolidated CI/platform and browser evidence before merge.
+No actual provider login or operator-host deployment is claimed.
+
 ## Product version 0.1.0 — 2026-09-05
 
 IronCrew now uses its own early product version, 0.1.0. The previous 2.8.0 release

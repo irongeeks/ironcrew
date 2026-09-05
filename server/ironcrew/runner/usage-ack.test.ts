@@ -23,7 +23,7 @@ afterEach(() => {
 class MeteredRuntime extends StubRuntime {
   paidRounds = 0;
   constructor() {
-    super("metered");
+    super("mock");
   }
   async *startRun(_input: RunInput, ctx: RunContext) {
     yield stubEvent(ctx, "run.started");
@@ -125,7 +125,7 @@ describe("usage ingestion acknowledgement", () => {
         assignedAgentId: cto.id,
       });
       company.budgets.setBudget({ companyId, scopeType: "company", limitMicros: 1000 });
-      const result = await company.executeNextTask(companyId, { runtimeType: "metered" });
+      const result = await company.executeNextTask(companyId, { runtimeType: "mock" });
       expect(result?.task.status).toBe("failed");
       expect(company.runs.listForTask(task.id)[0].cost_micros).toBe(1000);
       expect(test.runtime.paidRounds).toBe(1);

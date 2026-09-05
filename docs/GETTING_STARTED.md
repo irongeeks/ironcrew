@@ -9,7 +9,7 @@ Für einen dauerhaften Dienst oder Docker nutze anschließend [Releases und Upda
 Benötigt werden ein aktueller Patchstand von Node.js 22 oder neuer, Git und pnpm **10.30.1**, entsprechend `package.json`. Für native Abhängigkeiten können Compilerwerkzeuge nötig sein: unter macOS die Xcode Command Line Tools, unter Linux die Build-Werkzeuge der Distribution.
 
 ```bash
-git clone --branch v0.1.0 https://github.com/irongeeks/ironcrew.git
+git clone --branch v0.2.0 https://github.com/irongeeks/ironcrew.git
 cd ironcrew
 pnpm install --frozen-lockfile
 cp .env.example .env

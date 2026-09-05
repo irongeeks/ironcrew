@@ -131,6 +131,34 @@ describe("LineDecoder", () => {
 });
 
 describe("toWireContext", () => {
+  it("retains deny-all restrictions and rejects attempts to send relaxed hard guards", () => {
+    const ctx = {
+      companyId: "cmp",
+      projectId: null,
+      taskId: "task",
+      runId: "run",
+      agentId: "agent",
+      correlationId: "corr",
+      workspacePath: "",
+      permissionMode: "restricted" as const,
+      vendorRestrictions: { allowedFamilies: [], allowedProviders: [] },
+    };
+    const message = {
+      v: RUNNER_PROTOCOL_VERSION,
+      kind: "start",
+      id: "request",
+      runtimeType: "openrouter",
+      input: { prompt: "x" },
+      context: toWireContext(ctx),
+    };
+    expect(decodeClientMessage(JSON.stringify(message))).toEqual(message);
+    message.context.vendorRestrictions = {
+      ...ctx.vendorRestrictions,
+      telemetry: true,
+    } as typeof ctx.vendorRestrictions;
+    expect(() => decodeClientMessage(JSON.stringify(message))).toThrow("Invalid runner request shape");
+  });
+
   const context = {
     companyId: "cmp_1",
     projectId: null,

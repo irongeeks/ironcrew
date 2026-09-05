@@ -106,6 +106,29 @@ async function collect(iterable: AsyncIterable<RunEvent>): Promise<RunEvent[]> {
 }
 
 describe("a job crosses the boundary and comes back", () => {
+  it("carries restrictions across the wire and denies a now-disabled CLI vendor", async () => {
+    const runtime = new ScriptedRuntime("claude");
+    const { client } = connected([runtime]);
+    const events = await collect(
+      client.startRun(
+        { prompt: "x", model: "sonnet" },
+        context({ vendorRestrictions: { allowedFamilies: ["openai/*"], allowedProviders: [] } }),
+      ),
+    );
+    expect(events.map((e) => e.type)).toEqual(["run.failed"]);
+    expect(events[0].payload.message).toContain("Vendor-Policy");
+  });
+  it("does not allow wire restrictions to authorize a blocked alias", async () => {
+    const { client } = connected([new ScriptedRuntime("claude")]);
+    const events = await collect(
+      client.startRun(
+        { prompt: "x", model: "qwen-code" },
+        context({ vendorRestrictions: { allowedFamilies: ["anthropic/*", "qwen/*"], allowedProviders: [] } }),
+      ),
+    );
+    expect(events.map((e) => e.type)).toEqual(["run.failed"]);
+  });
+
   it("streams the runner's events to the control plane", async () => {
     const { client } = connected([new ScriptedRuntime("claude")]);
     const events = await collect(client.startRun({ prompt: "Hallo" }, context()));

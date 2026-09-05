@@ -29,6 +29,7 @@
  */
 
 import { z } from "zod";
+import { companyPolicyRestrictionsSchema, type CompanyPolicyRestrictions } from "../../../src/shared/company-policy.ts";
 import { McpServerConfigSchema } from "../../connectors/built-in/mcp/mcp-config.ts";
 import type { RunEvent, RunInput, RuntimeCapabilities, RuntimeHealth, AuthStatus } from "../runtime/run-events.ts";
 import type { McpServerConfig } from "../../connectors/built-in/mcp/mcp-config.ts";
@@ -61,6 +62,7 @@ export interface WireRunContext {
   sandboxExpiresAt?: number;
   allowedTools?: string[];
   sensitive?: boolean;
+  vendorRestrictions?: CompanyPolicyRestrictions;
   redactValues?: readonly string[];
 }
 
@@ -206,6 +208,7 @@ const wireContextSchema = z
     sandboxExpiresAt: z.number().int().positive().optional(),
     allowedTools: z.array(z.string().min(1).max(256)).max(128).optional(),
     sensitive: z.boolean().optional(),
+    vendorRestrictions: companyPolicyRestrictionsSchema.optional(),
     redactValues: z.array(z.string().max(65536)).max(128).optional(),
   })
   .strict()
@@ -318,6 +321,7 @@ export function toWireContext(context: WireRunContext & { signal?: unknown }): W
     ...(context.sandboxExpiresAt !== undefined ? { sandboxExpiresAt: context.sandboxExpiresAt } : {}),
     ...(context.allowedTools ? { allowedTools: context.allowedTools } : {}),
     ...(context.sensitive !== undefined ? { sensitive: context.sensitive } : {}),
+    ...(context.vendorRestrictions ? { vendorRestrictions: context.vendorRestrictions } : {}),
     ...(context.redactValues ? { redactValues: context.redactValues } : {}),
   };
 }

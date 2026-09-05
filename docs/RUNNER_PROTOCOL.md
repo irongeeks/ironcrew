@@ -405,3 +405,13 @@ code is non-zero, a hard/idle timeout fired, or output was truncated at
 select it per agent (`PATCH /api/crew/agents/:id/runtime`) and see its live
 capabilities/health/auth (`GET /api/crew/runtimes`, the Command Center's
 Provider Health affordance in the agent-detail dialog).
+
+## Company vendor restrictions (0.2.0)
+
+`WireRunContext.vendorRestrictions` contains only `allowedFamilies` and
+`allowedProviders`. The native runner intersects these lists with its own freshly
+read installation policy before start/resume. It never accepts remote hardblock,
+privacy or fallback overrides. Existing strict-schema runners reject this new
+field; update the Control Plane and runners together. The company snapshot applies
+to this invocation; later company edits apply on the next start/resume. See
+[VENDOR_POLICIES.md](VENDOR_POLICIES.md).

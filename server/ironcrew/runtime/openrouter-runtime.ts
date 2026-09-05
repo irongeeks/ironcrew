@@ -35,7 +35,13 @@ import { z } from "zod";
 import { REDACTED, redact, redactValue, StreamRedactor } from "../security/redaction.ts";
 import { readOpenRouterStream } from "./openrouter-stream.ts";
 import type { OpenRouterTool, OpenRouterToolCall, OpenRouterToolExecutor } from "./openrouter-tools.ts";
-import { buildOpenRouterProviderPolicy, evaluateModel, getVendorPolicy } from "../policy/vendor-policy.ts";
+import {
+  buildOpenRouterProviderPolicy,
+  evaluateModel,
+  getVendorPolicy,
+  restrictVendorPolicy,
+  type VendorPolicy,
+} from "../policy/vendor-policy.ts";
 import type {
   AgentRuntime,
   AuthStatus,
@@ -60,6 +66,8 @@ export interface OpenRouterRuntimeOptions {
   /** Injectable for tests — defaults to the global fetch. */
   fetchImpl?: typeof fetch;
   toolExecutor?: OpenRouterToolExecutor;
+  /** Trusted composition-root resolver. Run input cannot replace the baseline. */
+  vendorPolicy?: (companyId: string) => VendorPolicy;
   /** Response-token cap, separate from RunInput.maxTurns (agent loop rounds). */
   maxOutputTokens?: number;
 }
@@ -133,6 +141,7 @@ export class OpenRouterRuntime implements AgentRuntime {
   private readonly fetchImpl: typeof fetch;
   private readonly toolExecutor?: OpenRouterToolExecutor;
   private readonly maxOutputTokens: number;
+  private readonly vendorPolicy: (companyId: string) => VendorPolicy;
   private readonly cancelled = new Set<string>();
   private readonly active = new Map<string, AbortController>();
 
@@ -143,6 +152,7 @@ export class OpenRouterRuntime implements AgentRuntime {
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.toolExecutor = opts.toolExecutor;
+    this.vendorPolicy = opts.vendorPolicy ?? getVendorPolicy;
     this.maxOutputTokens = z
       .number()
       .int()
@@ -262,7 +272,7 @@ export class OpenRouterRuntime implements AgentRuntime {
     // dozens of vendors, so a run could otherwise arrive at a blocked one
     // without anybody having chosen it — and a policy checked after the
     // answer comes back is a policy that has already been broken.
-    const policy = getVendorPolicy();
+    const policy = restrictVendorPolicy(this.vendorPolicy(context.companyId), context.vendorRestrictions);
     const decision = evaluateModel(policy, model, "openrouter");
     if (!decision.allowed) {
       yield emit("run.failed", {
@@ -281,7 +291,6 @@ export class OpenRouterRuntime implements AgentRuntime {
       });
       return;
     }
-    const provider = buildOpenRouterProviderPolicy(policy, { sensitive: context.sensitive !== false });
 
     yield emit("run.started", { model, runtime: this.type });
 
@@ -337,6 +346,15 @@ export class OpenRouterRuntime implements AgentRuntime {
       const messages: ChatMessage[] = [{ role: "user", content: redact(input.prompt, knownSecrets).text }];
       for (let round = 0; round < rounds; round++) {
         abort.signal.throwIfAborted();
+        // Tool discovery/execution may have yielded while an owner tightened
+        // policy. Re-read immediately before each external model request.
+        const requestPolicy = restrictVendorPolicy(this.vendorPolicy(context.companyId), context.vendorRestrictions);
+        const requestDecision = evaluateModel(requestPolicy, model, "openrouter");
+        if (!requestDecision.allowed)
+          throw new Error(`Vendor-Policy verweigert den Request: ${requestDecision.reason}`);
+        if (requestPolicy.openrouter.allowed_providers.length === 0)
+          throw new Error("Vendor-Policy erlaubt keinen OpenRouter-Provider.");
+        const provider = buildOpenRouterProviderPolicy(requestPolicy, { sensitive: context.sensitive !== false });
         const response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
           method: "POST",
           headers: this.headers(),

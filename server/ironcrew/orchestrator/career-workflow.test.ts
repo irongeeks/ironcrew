@@ -124,6 +124,32 @@ async function workOnly() {
   return (await orc.executeTaskById(companyId, taskId))!;
 }
 describe("real department lead routing and review runs", () => {
+  it.each(["routing", "review"])("revalidates company restrictions before an internal lead %s run", async (phase) => {
+    let internalTaskId: string;
+    if (phase === "review") {
+      const work = await workOnly();
+      internalTaskId = orc.career.reviewForRun(companyId, work.runId)!.internalTaskId!;
+    } else {
+      await orc.executeTaskById(companyId, taskId);
+      internalTaskId = orc.career.routingForTask(companyId, taskId)!.internalTaskId!;
+    }
+    const before = runtime.calls.length;
+    const current = orc.companyPolicies.snapshot(companyId);
+    orc.companyPolicies.save(
+      companyId,
+      {
+        baseRevision: current.revision,
+        baselineFingerprint: current.baselineFingerprint,
+        reason: "OpenAI-Routen bis zur nächsten Freigabe sperren.",
+        restrictions: { ...current.restrictions, allowedFamilies: ["anthropic/*"] },
+      },
+      "ceo",
+    );
+    await expect(orc.executeTaskById(companyId, internalTaskId)).rejects.toThrow("Vendor-Policy");
+    expect(runtime.calls).toHaveLength(before);
+    expect(orc.career.snapshot(companyId).reviews).toEqual([]);
+  });
+
   it("executes lead assignment, junior work, and independent review through persisted model profiles", async () => {
     orc.enqueueRun(companyId, taskId);
     await orc.drainRunQueue(companyId, { limit: 10 });

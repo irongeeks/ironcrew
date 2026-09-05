@@ -1,3 +1,4 @@
+import { evaluateRuntimeModel, getVendorPolicy, restrictVendorPolicy } from "../policy/vendor-policy.ts";
 /**
  * IronCrew — the runner side of the wire.
  *
@@ -414,6 +415,15 @@ export class RunnerServer {
               }, elevationWindow);
         try {
           const context: RunContext = { ...message.context, signal: controller.signal };
+          const vendor = evaluateRuntimeModel(
+            restrictVendorPolicy(getVendorPolicy(), context.vendorRestrictions),
+            message.runtimeType,
+            message.input.model,
+          );
+          if (!vendor.allowed) {
+            fail(message.id, `Vendor-Policy verweigert den Run: ${vendor.reason}`);
+            return;
+          }
           const sessionRef = message.kind === "resume" ? message.sessionRef : message.input.sessionRef;
           if (sessionRef && (!runtime.resumeRun || !capabilities.sessionResume)) {
             fail(message.id, "Diese Laufzeit unterstützt keine Sitzungsfortsetzung.");

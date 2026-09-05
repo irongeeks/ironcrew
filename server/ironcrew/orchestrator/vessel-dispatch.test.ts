@@ -58,7 +58,7 @@ class SpyRuntime extends StubRuntime {
   readonly seen: Array<{ input: RunInput; context: RunContext }> = [];
 
   constructor(private readonly behaviour: "complete" | "hang" | "quiet-abort" = "complete") {
-    super("spy");
+    super("mock");
   }
 
   async *startRun(input: RunInput, context: RunContext): AsyncIterable<RunEvent> {
@@ -91,7 +91,7 @@ describe("the vessel's model reaches the runtime", () => {
   it("hands the model to the run and records it on the run row", async () => {
     const spy = new SpyRuntime();
     orc.registerRuntime(spy);
-    setVessel({ runtime_provider: "spy", model: "claude-opus-5" });
+    setVessel({ runtime_provider: "mock", model: "claude-opus-5" });
 
     await readyTask();
     const exec = await orc.executeNextTask(companyId);
@@ -103,7 +103,7 @@ describe("the vessel's model reaches the runtime", () => {
   it("passes no model at all when the vessel names none", async () => {
     const spy = new SpyRuntime();
     orc.registerRuntime(spy);
-    setVessel({ runtime_provider: "spy", model: "" });
+    setVessel({ runtime_provider: "mock", model: "" });
 
     await readyTask();
     const exec = await orc.executeNextTask(companyId);
@@ -119,7 +119,7 @@ describe("the vessel's timeout stops the run", () => {
   it("fails a run that outlives the vessel's limit", async () => {
     const spy = new SpyRuntime("hang");
     orc.registerRuntime(spy);
-    setVessel({ runtime_provider: "spy", timeout_ms: 40 });
+    setVessel({ runtime_provider: "mock", timeout_ms: 40 });
 
     await readyTask();
     const exec = await orc.executeNextTask(companyId);
@@ -133,7 +133,7 @@ describe("the vessel's timeout stops the run", () => {
   it("aborts the runtime rather than only marking the run afterwards", async () => {
     const spy = new SpyRuntime("hang");
     orc.registerRuntime(spy);
-    setVessel({ runtime_provider: "spy", timeout_ms: 40 });
+    setVessel({ runtime_provider: "mock", timeout_ms: 40 });
 
     await readyTask();
     await orc.executeNextTask(companyId);
@@ -146,7 +146,7 @@ describe("the vessel's timeout stops the run", () => {
   it("does not mistake a quiet abort for a clean finish", async () => {
     const spy = new SpyRuntime("quiet-abort");
     orc.registerRuntime(spy);
-    setVessel({ runtime_provider: "spy", timeout_ms: 40 });
+    setVessel({ runtime_provider: "mock", timeout_ms: 40 });
 
     await readyTask();
     const exec = await orc.executeNextTask(companyId);

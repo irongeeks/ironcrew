@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { getVendorPolicy } from "../policy/vendor-policy.ts";
 import { OpenRouterRuntime } from "./openrouter-runtime.ts";
 import type { OpenRouterToolExecutor } from "./openrouter-tools.ts";
 import type { RunContext, RunEvent } from "./run-events.ts";
@@ -283,5 +284,55 @@ describe("OpenRouter audited client tools", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("policy changes between external requests", () => {
+  it.each(["model", "provider"])(
+    "does not send another round after the owner revokes a %s during tool execution",
+    async (revoked) => {
+      const baseline = getVendorPolicy();
+      let policy = baseline;
+      const tools = executor({
+        execute: vi.fn(async () => {
+          policy =
+            revoked === "model"
+              ? { ...baseline, allowed_families: ["openai/*"] }
+              : { ...baseline, openrouter: { ...baseline.openrouter, allowed_providers: [] } };
+          return { title: "Ready" };
+        }),
+      });
+      const fetchImpl = vi.fn(async () => response(streamText(toolFrame())));
+      const rt = new OpenRouterRuntime({
+        apiKey: "fixture-key",
+        fetchImpl,
+        toolExecutor: tools,
+        vendorPolicy: () => policy,
+      });
+      const events = await collect(rt.startRun({ prompt: "x" }, ctx));
+      expect(tools.execute).toHaveBeenCalledOnce();
+      expect(fetchImpl).toHaveBeenCalledOnce();
+      expect(events.at(-1)?.type).toBe("run.failed");
+      expect(events.at(-1)?.payload.message).toContain("Vendor-Policy");
+    },
+  );
+  it("rechecks before the first request after asynchronous tool discovery", async () => {
+    const baseline = getVendorPolicy();
+    let policy = baseline;
+    const tools = executor({
+      listTools: vi.fn(async () => {
+        policy = { ...baseline, allowed_families: [] };
+        return [];
+      }),
+    });
+    const fetchImpl = vi.fn(async () => response(streamText(delta("Done", "stop"))));
+    const rt = new OpenRouterRuntime({
+      apiKey: "fixture-key",
+      fetchImpl,
+      toolExecutor: tools,
+      vendorPolicy: () => policy,
+    });
+    expect((await collect(rt.startRun({ prompt: "x" }, ctx))).at(-1)?.type).toBe("run.failed");
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

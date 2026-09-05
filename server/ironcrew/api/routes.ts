@@ -1,3 +1,5 @@
+import { registerCompanyPolicyRoutes } from "./company-policy-routes.ts";
+import { CompanyPolicyStore } from "../policy/company-policy-store.ts";
 import { registerRoutingRoutes } from "./routing-routes.ts";
 import { registerCareerRoutes } from "./career-routes.ts";
 import { RoutingError } from "../domain/routing-store.ts";
@@ -27,7 +29,7 @@ import { CrewLiveEvents } from "./live-events.ts";
 import type { OidcProvider } from "../auth/oidc-provider.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
-import { getVendorPolicy, evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
+import { evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
 import { ApprovalRequiredError } from "../policy/approval-policy.ts";
 import { ApprovalReviewError, MAX_REQUIRED_APPROVALS } from "../domain/approval-review-store.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
@@ -658,6 +660,14 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
    * decides what the company is allowed to do.
    */
   const ownerOnly = auth.requireRole("owner");
+  const companyPolicyStore = new CompanyPolicyStore(db);
+  registerCompanyPolicyRoutes(app, {
+    store: companyPolicyStore,
+    companyId,
+    auth,
+    base,
+    onChanged: () => broadcast("crew_state_changed", { policy: true }),
+  });
   registerCharacterRoutes(app, { db, companyId, auth, base });
   registerRoutingRoutes(app, {
     store: orchestrator.routing,
@@ -2985,7 +2995,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
   app.get(
     `${base}/vendor-policy`,
     wrap((_req, res) => {
-      const policy = getVendorPolicy();
+      const policy = companyPolicyStore.effective(companyId);
       res.json({
         version: policy.version,
         policyName: policy.policy_name,
@@ -3005,7 +3015,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/vendor-policy/check`,
     wrap((req, res) => {
       const { model, provider } = modelCheckSchema.parse(req.body ?? {});
-      const decision = evaluateModel(getVendorPolicy(), model, provider);
+      const decision = evaluateModel(companyPolicyStore.effective(companyId), model, provider);
       res.status(decision.allowed ? 200 : 403).json({ model, provider: provider ?? null, decision });
     }),
   );
@@ -3016,7 +3026,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       const models = z
         .array(z.object({ id: z.string(), provider: z.string().optional() }))
         .parse((req.body ?? {}).models ?? []);
-      res.json(filterModelCatalogue(getVendorPolicy(), models));
+      res.json(filterModelCatalogue(companyPolicyStore.effective(companyId), models));
     }),
   );
 

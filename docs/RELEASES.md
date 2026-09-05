@@ -8,6 +8,10 @@ Installiere eine [veröffentlichte Version](https://github.com/irongeeks/ironcre
 und lies deren Hinweise zu Migrationen, Konfiguration und Runner-Kompatibilität.
 `main` ist der Entwicklungsstand.
 
+Für `0.2.0` müssen Control Plane und native Runner gemeinsam aktualisiert werden. Neue Jobs enthalten die Firmenfreigaben; ältere Runner verweigern diese Jobs. Die erste Datenbankmigration ergänzt ausschließlich eine Revisionstabelle. Bestehende Freigaben entsprechen bis zur ersten Owner-Änderung weiterhin der YAML-Policy. Ein bereits laufender externer Request wird durch eine Policy-Änderung nicht zurückgenommen.
+
+Bestehende `2.8.0`-Installationen wechseln zunächst auf `0.1.0` wie unten beschrieben und anschließend auf `0.2.0`. Die einmalige Versionsausnahme wird nicht erweitert.
+
 ## Wechsel von 2.8.0 auf 0.1.0
 
 Die frühere `2.8.0` setzte noch die übernommene Versionsreihe fort. Ab `0.1.0`
@@ -96,7 +100,7 @@ Vorprüfung für eine konkrete Version:
 
 ```bash
 cd /opt/ironcrew
-node scripts/ironcrew-update.mjs --to v0.1.0 --check
+node scripts/ironcrew-update.mjs --to v0.2.0 --check
 ```
 
 Die Prüfung lädt das veröffentlichte Manifest und das exakte Release-Tag. Sie
@@ -109,7 +113,7 @@ Danach als Betreiberkonto mit Zugriff auf die ausdrücklich genannten Dateien:
 ```bash
 sudo systemctl stop ironcrew
 sudo systemctl stop ironcrew-runner
-node scripts/ironcrew-update.mjs --to v0.1.0 \
+node scripts/ironcrew-update.mjs --to v0.2.0 \
   --db /opt/ironcrew/data/ironcrew.sqlite \
   --backup-dir /var/backups/ironcrew \
   --extra /etc/ironcrew/ironcrew.env
@@ -142,9 +146,9 @@ Wenn `ironcrew-update.mjs` noch fehlt, hole den veröffentlichten Release in ein
 **separates** Verzeichnis. Der Updater selbst benötigt dort kein `pnpm install`:
 
 ```bash
-git clone --depth 1 --branch v0.1.0 https://github.com/irongeeks/ironcrew.git /tmp/ironcrew-release-tools
+git clone --depth 1 --branch v0.2.0 https://github.com/irongeeks/ironcrew.git /tmp/ironcrew-release-tools
 node /tmp/ironcrew-release-tools/scripts/ironcrew-update.mjs \
-  --repo /opt/ironcrew --to v0.1.0 --check
+  --repo /opt/ironcrew --to v0.2.0 --check
 ```
 
 Führe nach der Vorprüfung denselben externen Updater mit den Installationsoptionen
@@ -170,9 +174,9 @@ separaten Release-Clone ausgeführt werden; das Arbeitsverzeichnis bleibt das
 
 ```bash
 cd /opt/ironcrew
-node scripts/ironcrew-docker-update.mjs --to v0.1.0 \
+node scripts/ironcrew-docker-update.mjs --to v0.2.0 \
   --backup-dir /var/backups/ironcrew-docker --check
-node scripts/ironcrew-docker-update.mjs --to v0.1.0 \
+node scripts/ironcrew-docker-update.mjs --to v0.2.0 \
   --backup-dir /var/backups/ironcrew-docker
 ```
 

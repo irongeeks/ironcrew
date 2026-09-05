@@ -175,7 +175,10 @@ export function createCrewAuth(db: DatabaseSync): CrewAuth {
 export function methodGuard(auth: CrewAuth) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const method = (req.method ?? "GET").toUpperCase();
-    const needed: UserRole = method === "GET" || method === "HEAD" || method === "OPTIONS" ? "viewer" : "operator";
+    // This strict-schema admission check is read-only even though its input uses a JSON body.
+    const policyCheck = method === "POST" && req.path === "/policies/vendor/check";
+    const needed: UserRole =
+      method === "GET" || method === "HEAD" || method === "OPTIONS" || policyCheck ? "viewer" : "operator";
     auth.requireRole(needed)(req, res, next);
   };
 }

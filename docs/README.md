@@ -24,6 +24,7 @@ IronCrew ist eine lokal betreibbare virtuelle AI-Firma. Der CEO arbeitet über e
 | [Lebendiges Office](LIVING_OFFICE.md) | Abteilungsräume, Bewegung, Raumfokus und zugängliche Liste |
 | [Figuren](CHARACTERS.md) | 20 Originalfiguren, private Uploads und kopierbarer Generator-Prompt |
 | [Team und Leistung](CAREER_REVIEWS.md) | Junior, Senior, Lead, fachliche Reviews und Modellvergleich |
+| [Provider-Freigaben](VENDOR_POLICIES.md) | Firmenfreigaben unter der zentralen YAML-Policy, Revisionen und Modellprüfung |
 | [Modell-Routing](RUNTIME_ROUTING.md) | Neun Profile, konkrete Modellzuordnung und kontrollierte Fallbacks |
 | [Vessels und Talente](VESSELS_TALENTS.md) | Ausführungsrahmen und Fachkompetenz getrennt konfigurieren |
 | [Projektplanung](PROJECT_PLANNING.md) | Plan prüfen, Budget festlegen und Task-Abhängigkeiten freigeben |

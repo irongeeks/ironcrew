@@ -538,8 +538,8 @@ describe("goal ancestry in the run context", () => {
    * observe what executeNextTask() built, not just that it ran.
    */
   class PromptCapturingRuntime implements AgentRuntime {
-    readonly id = "capture";
-    readonly type = "capture";
+    readonly id = "mock";
+    readonly type = "mock";
     receivedPrompt: string | null = null;
 
     async capabilities() {
@@ -596,7 +596,7 @@ describe("goal ancestry in the run context", () => {
       assignedAgentId: cto.id,
     });
 
-    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+    await orc.executeNextTask(companyId, { runtimeType: "mock" });
 
     expect(capture.receivedPrompt).toContain("Strategischer Kontext");
     expect(capture.receivedPrompt).toContain("Pricing page");
@@ -621,7 +621,7 @@ describe("goal ancestry in the run context", () => {
       assignedAgentId: cto.id,
     });
 
-    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+    await orc.executeNextTask(companyId, { runtimeType: "mock" });
     expect(capture.receivedPrompt).not.toContain("Strategischer Kontext");
   });
 
@@ -632,7 +632,7 @@ describe("goal ancestry in the run context", () => {
     const cto = orc.getAgent(companyId, "cto")!;
     orc.tasks.create({ companyId, title: "Standalone task", status: "ready", assignedAgentId: cto.id });
 
-    await orc.executeNextTask(companyId, { runtimeType: "capture" });
+    await orc.executeNextTask(companyId, { runtimeType: "mock" });
     expect(capture.receivedPrompt).not.toContain("Strategischer Kontext");
   });
 });
@@ -1014,8 +1014,8 @@ describe("meetings — moderator, bounded rounds, budget", () => {
 
     let lastPrompt = "";
     const capturingRuntime: AgentRuntime = {
-      id: "capture",
-      type: "capture",
+      id: "mock",
+      type: "mock",
       capabilities: async () => ({
         streaming: true,
         sessionResume: false,

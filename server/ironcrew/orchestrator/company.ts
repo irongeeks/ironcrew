@@ -22,6 +22,9 @@ import { TaskStore, type TaskRow } from "../domain/task-store.ts";
 import { RunStore } from "../runtime/run-store.ts";
 import { appendAuditEvent, type ActorType } from "../domain/audit.ts";
 import { canTransition, deriveAgentStatus, type TaskStatus } from "../domain/task-state.ts";
+import { CompanyPolicyStore } from "../policy/company-policy-store.ts";
+import { evaluateRuntimeModel } from "../policy/vendor-policy.ts";
+import type { CompanyPolicyRestrictions } from "../../../src/shared/company-policy.ts";
 import { ApprovalEngine } from "../policy/approval-policy.ts";
 import type { AuditShipper } from "../audit/audit-shipper.ts";
 import {
@@ -264,6 +267,7 @@ export class CompanyOrchestrator {
   readonly runRequests: RunRequestStore;
   readonly tools: ToolStore;
   readonly routines: RoutineStore;
+  readonly companyPolicies: CompanyPolicyStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly searchProviders = new Map<string, SearchProvider>();
   /** Business-pack integrations, keyed by the pack definition's integration key. */
@@ -310,7 +314,8 @@ export class CompanyOrchestrator {
     this.projects = new ProjectStore(db);
     this.projectPlans = new ProjectPlanStore(db);
     this.coaching = new CoachingStore(db);
-    this.routing = new RoutingStore(db);
+    this.companyPolicies = new CompanyPolicyStore(db);
+    this.routing = new RoutingStore(db, undefined, (companyId) => this.companyPolicies.effective(companyId));
     this.career = new CareerReviewStore(db);
     this.careerWorkflow = new CareerWorkflow(db, this.career, this.tasks, this.runs, (companyId, taskId, actorId) => {
       this.enqueueRun(companyId, taskId, { requestedBy: actorId, maxAttempts: 1 });
@@ -563,8 +568,13 @@ export class CompanyOrchestrator {
           modelVendor: route.target.vendorModel.split("/")[0],
         });
       }
+      const meetingModel = route?.target.model ?? (agent.vessel_model.trim() || undefined);
+      const meetingWorkspace =
+        route?.workspacePath ??
+        (await this.resolveWorkspace(companyId, meeting.project_id, runtime, opts.workspacePath));
+      const vendorRestrictions = this.admittedVendorRestrictions(companyId, runtimeType, meetingModel);
       for await (const ev of runtime.startRun(
-        { prompt, ...(route ? { model: route.target.model, modelProfile: route.profileKey } : {}) },
+        { prompt, model: meetingModel, ...(route ? { modelProfile: route.profileKey } : {}) },
         {
           companyId,
           projectId: meeting.project_id,
@@ -576,9 +586,8 @@ export class CompanyOrchestrator {
           runId: newId("run"),
           agentId: speakerAgentId,
           correlationId: newCorrelationId(),
-          workspacePath:
-            route?.workspacePath ??
-            (await this.resolveWorkspace(companyId, meeting.project_id, runtime, opts.workspacePath)),
+          workspacePath: meetingWorkspace,
+          vendorRestrictions,
           sensitive: true,
           permissionMode: "restricted",
           ...(route ? { signal: meetingAbort.signal } : {}),
@@ -3583,6 +3592,21 @@ export class CompanyOrchestrator {
     return this.executeTask(companyId, candidate, opts);
   }
 
+  /** Re-read after asynchronous preparation, immediately before a new invocation. */
+  private admittedVendorRestrictions(
+    companyId: string,
+    runtimeType: string,
+    model?: string,
+  ): CompanyPolicyRestrictions {
+    const policy = this.companyPolicies.effective(companyId);
+    const decision = evaluateRuntimeModel(policy, runtimeType, model);
+    if (!decision.allowed) throw new RoutingError("vendor_denied", decision.reason, 403);
+    return {
+      allowedFamilies: [...policy.allowed_families],
+      allowedProviders: [...policy.openrouter.allowed_providers],
+    };
+  }
+
   private async resolveWorkspace(
     companyId: string,
     projectId: string | null,
@@ -3998,6 +4022,7 @@ export class CompanyOrchestrator {
       // Workspace, memory and capability discovery may await external work. Re-read
       // career assignment and junior limits after those awaits, before any model starts.
       if (!planning) this.careerWorkflow.assertBeforeStart(companyId, candidate.id, agentId);
+      context.vendorRestrictions = this.admittedVendorRestrictions(companyId, runtimeType, model);
       const stream = canResume
         ? runtime.resumeRun!(sessionRef, { ...input, sessionRef }, context)
         : runtime.startRun(input, context);
