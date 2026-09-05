@@ -45,3 +45,12 @@ Bilder herunter, prüfe sie visuell und übernimm die PNGs samt Metadaten nach
 
 Ältere Bilder bleiben als historisches Material im Repository, werden in der
 aktuellen README aber nicht als gegenwärtige Oberfläche ausgegeben.
+
+## Geprüfte Aufnahmen für 0.1.0
+
+Die eingecheckten Bilder stammen aus dem
+[Capture-Lauf 33957922393](https://github.com/irongeeks/ironcrew/actions/runs/33957922393),
+Artefakt `documentation-screenshots` (`9966979577`). Alle fünf Bilder wurden
+visuell geprüft; die Mitarbeitertabelle enthält alle 14 Seed-Mitarbeiter ohne
+abgeschnittene Zeilen. Der Aufnahmecommit und Zeitpunkt stehen in
+[screenshots.json](screenshots/screenshots.json).

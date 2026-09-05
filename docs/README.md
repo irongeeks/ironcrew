@@ -44,6 +44,7 @@ IronCrew ist eine lokal betreibbare virtuelle AI-Firma. Der CEO arbeitet über e
 | [Upstream-Analyse](UPSTREAM_ANALYSIS.md) · [Drittanbieterhinweise](../THIRD_PARTY_NOTICES.md) | Herkunft und Attribution |
 | [Implementierungsstand](../IMPLEMENTATION_STATUS.md) | Umgesetzte Funktionen, Testnachweise und offene Abnahmen |
 | [Roadmap](ROADMAP.md) · [Master-Prompt-Abdeckung](MASTER_PROMPT_COVERAGE.md) | Langfristiges Zielbild und verbleibende Arbeit |
+| [Screenshots](SCREENSHOTS.md) | Aufnahmeverfahren, Testdatenherkunft und reproduzierbare Browserbilder |
 | [Changelog](../CHANGELOG.md) · [Release-Historie](releases/README.md) | Änderungen je Version |
 
 Die Einstiegsdokumentation ist deutsch; einige technische Referenzen sind englisch. Für Installation und Updates ist die Release-Anleitung maßgeblich. Ältere Release-Notizen beschreiben ihren damaligen Stand.

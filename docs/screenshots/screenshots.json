@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "commit": "43af937800565b6854bde715fd9ca732c1c42d71",
+  "capturedAt": "2026-09-05T09:25:56.954Z",
+  "source": "tests/docs/readme.spec.ts",
+  "data": "Fresh isolated E2E database, original seed crew, one explicit documentation test task; no provider run.",
+  "updateCheck": "Disabled; no simulated release availability.",
+  "files": [
+    "ironcrew-office.png",
+    "ironcrew-department.png",
+    "ironcrew-crew.png",
+    "ironcrew-mobile.png",
+    "ironcrew-updates.png"
+  ]
+}
