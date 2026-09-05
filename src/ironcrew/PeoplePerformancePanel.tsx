@@ -43,7 +43,11 @@ const PROFESSIONAL_ROLE_NAMES: Record<string, string> = {
   automation_and_tools: "Automatisierung & Werkzeuge",
 };
 const roleName = (role: string | undefined) =>
-  role ? (PROFESSIONAL_ROLE_NAMES[role] ?? role.replaceAll("_", " ")) : "";
+  role
+    ? Object.hasOwn(PROFESSIONAL_ROLE_NAMES, role)
+      ? PROFESSIONAL_ROLE_NAMES[role]
+      : role.replaceAll("_", " ")
+    : "";
 const FALLBACK_REVIEW_ROLES = new Set<string>(CAREER_FALLBACK_REVIEWER_ROLES);
 const displayTime = (value: number) => new Date(value).toLocaleString("de-DE");
 const average = (value: number | null) =>
