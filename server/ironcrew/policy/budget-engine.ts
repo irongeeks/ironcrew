@@ -79,6 +79,7 @@ export interface RecordCostInput {
   companyId: string;
   runId?: string | null;
   taskId?: string | null;
+  rootTaskId?: string | null;
   projectId?: string | null;
   agentId?: string | null;
   runtimeType?: string;
@@ -156,8 +157,8 @@ export class BudgetEngine {
         params.push(budget.scope_id);
         break;
       case "task":
-        clauses.push("task_id = ?");
-        params.push(budget.scope_id);
+        clauses.push("(task_id = ? OR root_task_id = ?)");
+        params.push(budget.scope_id, budget.scope_id);
         break;
       case "runtime":
         clauses.push("(runtime_type = ? OR origin_runtime_type = ?)");
@@ -190,6 +191,7 @@ export class BudgetEngine {
       agentId?: string | null;
       projectId?: string | null;
       taskId?: string | null;
+      rootTaskId?: string | null;
       runtimeType?: string;
       originRuntimeType?: string;
       provider?: string;
@@ -210,7 +212,7 @@ export class BudgetEngine {
         case "project":
           return !!dims.projectId && b.scope_id === dims.projectId;
         case "task":
-          return !!dims.taskId && b.scope_id === dims.taskId;
+          return (!!dims.taskId && b.scope_id === dims.taskId) || (!!dims.rootTaskId && b.scope_id === dims.rootTaskId);
         case "runtime":
           return (
             (!!dims.runtimeType && b.scope_id === dims.runtimeType) ||
@@ -289,8 +291,8 @@ export class BudgetEngine {
         `INSERT INTO crew_cost_events
            (id, company_id, run_id, task_id, project_id, agent_id, runtime_type, provider,
             model, kind, input_tokens, output_tokens, cost_micros, window_day, window_month, created_at,
-            origin_runtime_type, model_vendor)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            origin_runtime_type, model_vendor, root_task_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
         id,
@@ -311,6 +313,7 @@ export class BudgetEngine {
         now,
         input.originRuntimeType ?? null,
         input.modelVendor ?? null,
+        input.rootTaskId ?? null,
       );
 
     const breached = this.status(
@@ -319,6 +322,7 @@ export class BudgetEngine {
         agentId: input.agentId,
         projectId: input.projectId,
         taskId: input.taskId,
+        rootTaskId: input.rootTaskId,
         runtimeType: input.runtimeType,
         originRuntimeType: input.originRuntimeType,
         provider: input.provider,

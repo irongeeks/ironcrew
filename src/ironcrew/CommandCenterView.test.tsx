@@ -4190,3 +4190,50 @@ describe("honest runtime authentication", () => {
     expect(await screen.findByTestId("agent-runtime-detail")).toHaveTextContent("Anmeldung nicht geprüft");
   });
 });
+
+describe("people setup identity consistency", () => {
+  it.each([
+    { role: null, writable: true, label: "single-owner bootstrap" },
+    { role: "viewer", writable: false, label: "authenticated viewer" },
+  ])("keeps People configuration consistent for $label", async ({ role, writable }) => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      const payload =
+        url === "/api/crew/people"
+          ? {
+              config: { revision: 0, enabled: false, departments: [] },
+              profiles: [],
+              reviews: [],
+              aggregates: { agents: [], models: [] },
+              pendingChanges: [],
+              workflows: [],
+            }
+          : url === "/api/crew/routing"
+            ? { revision: 0, config: { version: 1, profiles: [] }, bindings: [], vessels: [], history: [] }
+            : null;
+      if (!payload) throw new Error(`Unexpected People request: ${url}`);
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    try {
+      const client = makeClient({
+        authStatus: vi.fn().mockResolvedValue({
+          bootstrap: role === null,
+          authenticated: role !== null,
+          user: role === null ? null : { id: "usr_viewer", role, display_name: "Viewer", status: "active" },
+        }),
+      });
+      render(<CommandCenterView initialView="tasks" client={client} />);
+      await userEvent.setup().click(await screen.findByTestId("open-people"));
+      await screen.findByRole("heading", { name: "Mitarbeiter & Modellprofile" });
+      const save = screen.queryByRole("button", { name: "Abteilungssteuerung speichern" });
+      if (writable) expect(save).toBeEnabled();
+      else {
+        expect(save).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Leveländerung zur Freigabe anfragen" })).not.toBeInTheDocument();
+        expect(screen.getByText(/Nur der Owner kann Abteilungssteuerung/)).toBeInTheDocument();
+      }
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});

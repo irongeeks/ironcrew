@@ -81,6 +81,14 @@ Coaching: [reviewed guidance and evidence](docs/COACHING.md).
   legal, knowledge work. It registers tools; it never grants them, and its
   routines install switched off.
 
+## Team levels and model quality
+
+[Team & Leistung](docs/CAREER_REVIEWS.md) configures Junior/Senior/Lead separately
+from professional roles, visual characters and model profiles. Department leads
+route new tasks and review completed work with 1–5 stars and evidence. Employee
+and actual-model averages include counts, difficulty and revision context.
+Level changes require owner approval; existing tasks retain their flow when enabled.
+
 ## Office and screenshots
 
 The [living company building](docs/LIVING_OFFICE.md) adds individually furnished

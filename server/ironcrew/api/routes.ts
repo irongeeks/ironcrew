@@ -1,4 +1,5 @@
 import { registerRoutingRoutes } from "./routing-routes.ts";
+import { registerCareerRoutes } from "./career-routes.ts";
 import { RoutingError } from "../domain/routing-store.ts";
 /**
  * IronCrew — REST surface.
@@ -666,6 +667,14 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     onChanged: () => broadcast("crew_agent_changed", { routing: true }),
   });
   registerCoachingRoutes(app, { db, companyId, auth, base });
+  registerCareerRoutes(app, {
+    db,
+    companyId,
+    auth,
+    base,
+    store: orchestrator.career,
+    onChange: () => broadcast("crew_agent_changed", { career: true }),
+  });
   registerSandboxRoutes(app, {
     db,
     companyId,

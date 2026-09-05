@@ -1,16 +1,14 @@
 # Master-Prompt-Abdeckung — IronCrew
 
-Stand: 2026-09-05, PR #18 (`1e441e4`) und PR #19 sind gemergt. Aktuelle Basis ist
-`main` bei `e365cfb9bdd887d1a77570749edd84b3374229a4`, mit unverändertem Tree gegenüber
-dem vollständig geprüften `ebfad74`. Routingprofile sind separat in [PR #20](https://github.com/irongeeks/ironcrew/pull/20) implementiert;
-die folgenden CI-Ergebnisse gelten nicht für spätere Routing-Änderungen.
+Stand: 2026-09-05. PR #18 und #19 sind gemergt; [PR #20](https://github.com/irongeeks/ironcrew/pull/20) ist bei `36a71db` gemergt und entspricht dem vollständig geprüften Tree von `4eec70b`.
+Das Gebäude ist in [PR #21](https://github.com/irongeeks/ironcrew/pull/21) bei `e7c928b` gemergt (80 Browsertests bestanden). [PR #22](https://github.com/irongeeks/ironcrew/pull/22) dokumentiert die genaue Abschlussrevision der Laufbahnerweiterung.
 Diese Matrix trennt implementierten Umfang, kontrollierte CI-Nachweise und
 Betreibertests mit echten Konten.
 Sie ist **keine Behauptung, dass der komplette Master-Prompt produktionsreif erfüllt ist**.
 
 - **Implementiert**: entsprechender Code und Bedienpfad sind vorhanden.
 - **Fixture-getestet**: mit echten lokalen Dateien/SQLite und kontrollierten Runtime-/HTTP-Gegenstellen geprüft; kein Nachweis eines echten Providerkontos.
-- **CI bestätigt**: die unten verlinkten Läufe prüfen `ebfad74`; spätere Änderungen benötigen eigene Gates.
+- **CI bestätigt**: Routing auf `4eec70b` bestand [CI 33949377702](https://github.com/irongeeks/ironcrew/actions/runs/33949377702) und [Plattform 33949377720](https://github.com/irongeeks/ironcrew/actions/runs/33949377720): 5.114 Backendtests (1 Skip), 599 Frontendtests, 40 Skripttests, 78 Browsertests (3 bestehende Skips). Ältere Nachweise unten bleiben als historische Basis gekennzeichnet.
 - **Betreibertest**: benötigt den Zielhost, ein eigenes Konto, Zugangsdaten oder eine bewusste produktive Freigabe.
 - **Teilweise / optional später**: der konkrete Umfang ist begrenzt oder bewusst noch nicht umgesetzt.
 
@@ -83,3 +81,9 @@ addiert. Spätere Routing-Arbeit benötigt einen eigenen Gesamt-/Browserlauf.
 5. Weitere begrenzte Produktumfänge aus der Matrix priorisieren: vollständige
    Policy-Editierbarkeit und echte Business-KPI-Quellen; PostgreSQL, HA und
    erweiterte Memory-Funktionen bleiben optionale Zukunftsarbeit.
+
+## Erweiterung: Abteilungsleitung und Aufgabenbewertungen
+
+[CAREER_REVIEWS.md](CAREER_REVIEWS.md) beschreibt Junior/Senior/Lead, die getrennte Modellprofilzuweisung, genehmigte Leveländerungen und aktive Abteilungssteuerung. Tatsächliche Lead-Runs delegieren neue Aufgaben und bewerten abgeschlossene Arbeitsruns mit 1–5 Sternen und Begründung. Junioren sind auf einfache, risikoarme, nicht sensible Aufgaben beschränkt. Eigene Lead-Arbeit benötigt einen ausdrücklich eingerichteten unabhängigen QA-/COO-Reviewer.
+
+Gespeichert werden Arbeits- und Reviewrun einschließlich ihrer tatsächlichen Modellbindung und Rubrikversion. Mittelwerte zählen die aktuelle Bewertung jeder Aufgabe einmal; alte Revisionen bleiben sichtbar. Fehlende Bewertungen erzeugen keine Sterne. Das sind kontextabhängige Reviewerurteile ohne automatische Beförderung, kein objektiver Modellbenchmark. Lokale Store-/Workflow-/UI-Tests und die vollständigen Backend-/Frontend-/Build-/Plattformprüfungen auf `963db68` bestanden; die abschließenden Browsernachweise und der Mergezustand stehen in [PR #22](https://github.com/irongeeks/ironcrew/pull/22).

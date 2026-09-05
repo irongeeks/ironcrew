@@ -1,3 +1,5 @@
+import { CareerReviewStore } from "../domain/career-review-store.ts";
+import { CareerWorkflow } from "./career-workflow.ts";
 import { RoutingStore, RoutingError } from "../domain/routing-store.ts";
 import { selectProfileRoute, type RouteSelection } from "../runtime/profile-router.ts";
 /**
@@ -237,6 +239,8 @@ export class CompanyOrchestrator {
   readonly projectPlans: ProjectPlanStore;
   readonly coaching: CoachingStore;
   readonly routing: RoutingStore;
+  readonly career: CareerReviewStore;
+  private readonly careerWorkflow: CareerWorkflow;
   readonly sandboxAccess: SandboxAccessService;
   private readonly activeRuns = new Map<
     string,
@@ -307,6 +311,10 @@ export class CompanyOrchestrator {
     this.projectPlans = new ProjectPlanStore(db);
     this.coaching = new CoachingStore(db);
     this.routing = new RoutingStore(db);
+    this.career = new CareerReviewStore(db);
+    this.careerWorkflow = new CareerWorkflow(db, this.career, this.tasks, this.runs, (companyId, taskId, actorId) => {
+      this.enqueueRun(companyId, taskId, { requestedBy: actorId, maxAttempts: 1 });
+    });
     this.sandboxAccess = new SandboxAccessService(db);
     this.notifications = new NotificationStore(db);
     this.decisions = new DecisionStore(db);
@@ -1656,6 +1664,7 @@ export class CompanyOrchestrator {
 
     if (decision === "approved" && approval.approval_type === "sandbox_elevation")
       this.sandboxAccess.settleApproval(companyId, approval.id);
+    this.career.settleApproval(companyId, approval.id);
     this.settleApprovedTask(companyId, approval, decision, reason, opts);
 
     return approval;
@@ -3605,8 +3614,15 @@ export class CompanyOrchestrator {
     if (!agent || agent.company_id !== companyId) return null;
 
     if (this.approvals.listPending(companyId).some((approval) => approval.task_id === candidate.id)) return null;
+    if (!this.projectPlans.forTask(companyId, candidate.id) && this.careerWorkflow.prepare(companyId, candidate))
+      return null;
+    const careerInternal = this.career.internalForTask(companyId, candidate.id);
+    const rootTaskId = careerInternal?.taskId;
+    if (careerInternal && opts.runtimeType)
+      throw new Error("Interne Lead-Runs verwenden ausschließlich die Modellzuordnung ihres Mitarbeiters.");
     const originalAgent = agent;
     this.budgets.assertRunPermitted(companyId, {
+      rootTaskId,
       agentId,
       taskId: candidate.id,
       projectId: candidate.project_id,
@@ -3704,6 +3720,7 @@ export class CompanyOrchestrator {
 
     // Pre-dispatch budget gate.
     this.budgets.assertRunPermitted(companyId, {
+      rootTaskId,
       agentId,
       projectId: candidate.project_id,
       taskId: candidate.id,
@@ -3868,7 +3885,7 @@ export class CompanyOrchestrator {
       this.runs.setWorkspace(run.id, workspacePath);
       const planning = this.projectPlans.forTask(companyId, candidate.id);
       const grant =
-        planning || (route && route.fallbackIndex > 0)
+        planning || careerInternal || (route && route.fallbackIndex > 0)
           ? null
           : this.sandboxAccess.consumeForRun({
               companyId,
@@ -3928,9 +3945,10 @@ export class CompanyOrchestrator {
             this.listAgents(companyId).map((a) => ({ key: a.key, role: a.professional_role })),
           )
         : "";
+      const careerContext = this.careerWorkflow.instructions(companyId, candidate.id, agentId);
       const memoryContext = routedMemory ?? (await this.runMemoryContext(companyId, candidate, agentId));
       const input: RunInput = {
-        prompt: `${seedAgentGuidance}${coachingContext}${strategicContext}${planningContext}\n\n# Aufgabe\n${candidate.description}${candidate.review_notes ? `\n\n# Revision des CEO\n${candidate.review_notes}` : ""}${memoryContext}`,
+        prompt: `${seedAgentGuidance}${coachingContext}${strategicContext}${planningContext}${careerContext ? `\n\n${careerContext}` : ""}\n\n# Aufgabe\n${candidate.description}${candidate.review_notes ? `\n\n# Revision des CEO\n${candidate.review_notes}` : ""}${memoryContext}`,
         model,
         ...(route ? { modelProfile: route.profileKey } : {}),
       };
@@ -3947,12 +3965,13 @@ export class CompanyOrchestrator {
         sandboxGrantId: permission.grantId,
         sandboxExpiresAt,
         signal: abort.signal,
-        allowedTools: planning
-          ? []
-          : ["workspace.read", "workspace.list"].filter((key) => {
-              const decision = this.tools.resolve(companyId, agentId, key, { projectId: candidate.project_id });
-              return decision.allowed && !decision.requiresApproval;
-            }),
+        allowedTools:
+          planning || careerInternal
+            ? []
+            : ["workspace.read", "workspace.list"].filter((key) => {
+                const decision = this.tools.resolve(companyId, agentId, key, { projectId: candidate.project_id });
+                return decision.allowed && !decision.requiresApproval;
+              }),
       };
       if (route) {
         const currentRoute = this.routing.binding(companyId, agentId);
@@ -3964,6 +3983,7 @@ export class CompanyOrchestrator {
           throw new RoutingError("route_changed", "Routing oder Workspace wurde während der Vorbereitung geändert.");
         this.routing.target(companyId, route.target);
         this.budgets.assertRunPermitted(companyId, {
+          rootTaskId,
           agentId,
           taskId: candidate.id,
           projectId: candidate.project_id,
@@ -3975,6 +3995,9 @@ export class CompanyOrchestrator {
       }
       const sessionRef = this.runs.resumableSession(this.runs.get(run.id)!, workspacePath);
       const canResume = sessionRef && runtime.resumeRun && (await runtime.capabilities()).sessionResume;
+      // Workspace, memory and capability discovery may await external work. Re-read
+      // career assignment and junior limits after those awaits, before any model starts.
+      if (!planning) this.careerWorkflow.assertBeforeStart(companyId, candidate.id, agentId);
       const stream = canResume
         ? runtime.resumeRun!(sessionRef, { ...input, sessionRef }, context)
         : runtime.startRun(input, context);
@@ -4016,6 +4039,7 @@ export class CompanyOrchestrator {
           const p = ev.payload as { inputTokens?: number; outputTokens?: number; costMicros?: number };
           this.runs.addUsage(run.id, p.inputTokens ?? 0, p.outputTokens ?? 0, p.costMicros ?? 0);
           this.budgets.recordCost({
+            rootTaskId,
             companyId,
             runId: run.id,
             taskId: candidate.id,
@@ -4040,6 +4064,7 @@ export class CompanyOrchestrator {
           // monetary hard stop is reached; quota-only events retain cost 0.
           try {
             this.budgets.assertRunPermitted(companyId, {
+              rootTaskId,
               agentId,
               projectId: candidate.project_id,
               taskId: candidate.id,
@@ -4146,6 +4171,29 @@ export class CompanyOrchestrator {
       const plan = this.projectPlans.capture(companyId, candidate.id, run.id, summary);
       if (plan.status === "failed") recordFailure({ message: `Projektplan ungültig: ${plan.error}` });
     }
+    if (
+      !careerInternal &&
+      this.career.routingForTask(companyId, candidate.id) &&
+      !failed &&
+      !waiting &&
+      !events.some((e) => e.type === "run.completed")
+    )
+      recordFailure({ message: "Arbeitsrun wurde nicht vollständig abgeschlossen; keine Bewertung möglich." });
+    if (careerInternal && !failed && !waiting) {
+      try {
+        if (!events.some((e) => e.type === "run.completed"))
+          throw new Error("Lead-Run endete ohne bestätigten Abschluss.");
+        this.careerWorkflow.capture(companyId, candidate.id, run.id, summary);
+      } catch (error) {
+        recordFailure({ message: `Lead-Ausgabe ungültig: ${error instanceof Error ? error.message : String(error)}` });
+      }
+    }
+    if (careerInternal && failed)
+      this.careerWorkflow.fail(
+        companyId,
+        candidate.id,
+        "Lead-Run fehlgeschlagen; Details im Runverlauf. Eine erneute Ausführung erfordert eine explizite Entscheidung.",
+      );
     const current = this.tasks.get(candidate.id)!;
     const target: TaskStatus = failed
       ? "failed"
@@ -4153,7 +4201,9 @@ export class CompanyOrchestrator {
         ? "approval_required"
         : waiting
           ? "waiting"
-          : "review";
+          : careerInternal
+            ? "done"
+            : "review";
     this.tasks.transition(candidate.id, target, {
       expectedVersion: current.status_version,
       reason: `run ${run.id} finished`,
@@ -4163,6 +4213,9 @@ export class CompanyOrchestrator {
       correlationId: candidate.correlation_id,
     });
 
+    if (target === "review" && !this.projectPlans.forTask(companyId, candidate.id)) {
+      this.careerWorkflow.queueReview(companyId, this.tasks.get(candidate.id)!, run.id);
+    }
     if (target === "review" && summary) {
       const plan = this.projectPlans.forTask(companyId, candidate.id);
       this.addMessage({
@@ -4174,7 +4227,7 @@ export class CompanyOrchestrator {
         correlationId: candidate.correlation_id,
         body: plan
           ? `Projektplan bereit: ${plan.plan?.goal}. Bitte Aufgaben, Risiken und Budget im Projektplan prüfen und freigeben. Quelle: Run ${run.id}.`
-          : `Ergebnis zur Abnahme: ${candidate.title}\n\n${summary.slice(0, 16000)}\n\nQuelle: ${agent.display_name}, Run ${run.id}.`,
+          : `${this.career.reviewForRun(companyId, run.id)?.status === "pending" ? "Ergebnis eingereicht; Lead-Review ausstehend" : this.career.reviewForRun(companyId, run.id)?.status === "owner_required" ? "Ergebnis zur Owner-Abnahme; neutraler Reviewer fehlt" : "Ergebnis zur Abnahme"}: ${candidate.title}\n\n${summary.slice(0, 16000)}\n\nQuelle: ${agent.display_name}, Run ${run.id}.`,
       });
     }
     if (target === "review" && summary && this.memoryProviders.has("obsidian")) {
@@ -4452,13 +4505,23 @@ export class CompanyOrchestrator {
       return null;
     if (!canTransition(task.status, "ready")) return null;
 
-    const revised = this.tasks.transition(taskId, "ready", {
-      reason: `revision requested: ${reason}`,
-      actorType: "owner",
-      actorId: humanActor(opts),
-      reviewNotes: reason,
-      correlationId: task.correlation_id,
-    });
+    let revised: TaskRow | null;
+    this.db.exec("SAVEPOINT revise_career_task");
+    try {
+      revised = this.tasks.transition(taskId, "ready", {
+        reason: `revision requested: ${reason}`,
+        actorType: "owner",
+        actorId: humanActor(opts),
+        reviewNotes: reason,
+        correlationId: task.correlation_id,
+      });
+      const internal = this.career.internalForTask(companyId, taskId);
+      if (revised && internal?.status === "failed") this.career.reopenLink(companyId, internal.id, humanActor(opts));
+      this.db.exec("RELEASE revise_career_task");
+    } catch (error) {
+      this.db.exec("ROLLBACK TO revise_career_task; RELEASE revise_career_task");
+      throw error;
+    }
     if (!revised) return null;
 
     // A revision is a new run that has to actually happen; without this the

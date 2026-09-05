@@ -1,3 +1,4 @@
+import { leadRoutingOutputSchema, leadReviewOutputSchema } from "../../../src/shared/career.ts";
 /**
  * IronCrew — MockRuntime.
  *
@@ -167,6 +168,34 @@ export class MockRuntime implements AgentRuntime {
     yield emit("tool.completed", { tool: "read_file", bytes: 2048 });
 
     let responseText = this.options.responseText;
+    // Explicitly labeled deterministic fixtures; never evidence of a real lead's judgement.
+    if (!this.customResponse && input.prompt.includes("IRONCREW_DEPARTMENT_ROUTING_V1")) {
+      const match = input.prompt.match(/Routing-Kandidaten: (\[[^\n]+\])/);
+      const candidates = match ? (JSON.parse(match[1]) as Array<{ agentId: string; level: string }>) : [];
+      const selected = candidates.find((a) => a.level === "senior") ?? candidates.find((a) => a.level === "lead");
+      if (!selected) throw new Error("Mock-Routingfixture benötigt einen Senior oder Lead.");
+      responseText = JSON.stringify(
+        leadRoutingOutputSchema.parse({
+          version: 1,
+          assignedAgentId: selected.agentId,
+          difficulty: "normal",
+          rationale:
+            "MockRuntime-Testfixture: deterministische Auswahl für den Integrationstest, keine reale fachliche Lead-Entscheidung.",
+        }),
+      );
+    }
+    if (!this.customResponse && input.prompt.includes("IRONCREW_LEAD_REVIEW_V1")) {
+      responseText = JSON.stringify(
+        leadReviewOutputSchema.parse({
+          version: 1,
+          score: 3,
+          rationale: "MockRuntime-Testfixture: festes Testurteil, keine reale fachliche Qualitätsbewertung.",
+          rubricDimensions: { correctness: 3, completeness: 3, quality: 3 },
+          evidence: ["MockRuntime: ausschließlich synthetische Testdaten"],
+        }),
+      );
+    }
+
     if (!this.customResponse && input.prompt.includes("IRONCREW_PROJECT_PLAN_V1")) {
       const match = input.prompt.match(/Verfügbare Agenten: (\[[^\n]+\])/);
       const agents = match ? (JSON.parse(match[1]) as Array<{ key: string }>) : [];

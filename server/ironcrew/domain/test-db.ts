@@ -1,3 +1,4 @@
+import { migration as crewCareerReviews } from "../../modules/bootstrap/migrations/0034-crew-career-reviews.ts";
 import { migration as crewRoutingProfiles } from "../../modules/bootstrap/migrations/0033-crew-routing-profiles.ts";
 /**
  * In-memory database helper for IronCrew domain tests.
@@ -81,6 +82,7 @@ export function createTestDb(filePath?: string): DatabaseSync {
   crewCoaching.up(db);
   crewProjectPlans.up(db);
   crewRoutingProfiles.up(db);
+  crewCareerReviews.up(db);
 
   return db;
 }

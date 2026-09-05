@@ -1,3 +1,4 @@
+import { PeoplePerformancePanel, PeopleAgentSummary } from "./PeoplePerformancePanel";
 import { RoutingProfilesPanel } from "./RoutingProfilesPanel";
 import { CoachingPanel } from "./CoachingPanel.tsx";
 import { ProjectPlanningPanel } from "./ProjectPlanningPanel.tsx";
@@ -312,9 +313,9 @@ export function CommandCenterView({
   const [memoryProviders, setMemoryProviders] = useState<MemoryProviderStatus[]>([]);
   const [memories, setMemories] = useState<MemoryRef[]>([]);
   const [showMemory, setShowMemory] = useState(false);
-  const [companyPanel, setCompanyPanel] = useState<"coaching" | "planning" | "sandbox" | "fleet" | "routing" | null>(
-    null,
-  );
+  const [companyPanel, setCompanyPanel] = useState<
+    "coaching" | "planning" | "sandbox" | "fleet" | "routing" | "people" | null
+  >(null);
   const [myRole, setMyRole] = useState<string | null>(null);
   const [memoryQuery, setMemoryQuery] = useState("");
   const [semanticMemorySearch, setSemanticMemorySearch] = useState(false);
@@ -2282,6 +2283,9 @@ export function CommandCenterView({
           >
             Modell-Routing
           </button>
+          <button type="button" className="ic-btn" data-testid="open-people" onClick={() => setCompanyPanel("people")}>
+            Team & Leistung
+          </button>
           <button
             type="button"
             className="ic-btn"
@@ -2939,6 +2943,15 @@ export function CommandCenterView({
 
       {currentAgent && (
         <DetailDialog title={currentAgent.displayName} onClose={() => setSelectedAgent(null)}>
+          <PeopleAgentSummary
+            agentId={currentAgent.id}
+            agents={agents}
+            refreshKey={lastRefreshedAt ?? undefined}
+            onOpenPeople={() => {
+              setSelectedAgent(null);
+              setCompanyPanel("people");
+            }}
+          />
           <div style={{ width: 80, height: 80 }}>
             <CharacterAvatar
               characterId={currentAgent.persona.character_id}
@@ -3940,10 +3953,20 @@ export function CommandCenterView({
               sandbox: "Sandbox-Freigaben",
               fleet: "Native Runner-Flotte",
               routing: "Modell-Routing",
+              people: "Team & Leistung",
             }[companyPanel]
           }
           onClose={() => setCompanyPanel(null)}
         >
+          {companyPanel === "people" && (
+            <PeoplePerformancePanel
+              agents={agents}
+              departments={departments}
+              canManage={myRole === "owner" || myRole === null}
+              refreshKey={lastRefreshedAt ?? undefined}
+              onOpenRouting={() => setCompanyPanel("routing")}
+            />
+          )}
           {companyPanel === "routing" && (
             <RoutingProfilesPanel
               agents={agents}
