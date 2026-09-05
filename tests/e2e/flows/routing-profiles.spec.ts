@@ -58,7 +58,10 @@ test("persists an owner-edited model profile and an existing agent binding throu
   await expect(panel).toBeVisible();
   const navigation = panel.getByRole("navigation", { name: "Routing-Profile", exact: true });
   await expect(navigation.getByRole("button")).toHaveCount(9);
-  await navigation.getByRole("button", { name: coding.label, exact: true }).click();
+  // Chromium includes the visible CSS-generated unconfigured status in the name.
+  await navigation
+    .getByRole("button", { name: `${coding.label}${coding.primary ? "" : " · offen"}`, exact: true })
+    .click();
   await panel.getByRole("textbox", { name: "Profilbezeichnung", exact: true }).fill("Coding · E2E Mockroute");
   // Role/name queries also work with native selects wrapped in visible labels.
   await panel.getByRole("combobox", { name: "Primärziel: Vessel", exact: true }).selectOption(vessel!.id);
