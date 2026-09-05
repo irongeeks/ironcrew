@@ -40,6 +40,16 @@ function appearance(key: string): number {
   return Array.from(key).reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % 4;
 }
 
+/** Desktop fits the whole room between the controls and timeline. Mobile keeps
+ * the document's natural scroll path, with width-only fitting. */
+export function officeFitScale(width: number, floorHeight: number, availableHeight: number | null): number {
+  return Math.min(
+    1,
+    Math.max(1, width) / 1120,
+    availableHeight === null ? 1 : Math.max(1, availableHeight) / floorHeight,
+  );
+}
+
 /** Original vector characters. No external images, pixel sprites, or runtime assumptions. */
 function CrewFigure({ agent }: { agent: Agent }): React.JSX.Element {
   const variant = appearance(agent.key);
@@ -154,17 +164,39 @@ export function CrewOffice({
   const [view, setView] = useState<"floor" | "list">("floor");
   const [zoom, setZoom] = useState<"fit" | "actual">("fit");
   const [viewportWidth, setViewportWidth] = useState(1120);
+  const [availableHeight, setAvailableHeight] = useState<number | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry && entry.contentRect.width > 0) setViewportWidth(entry.contentRect.width);
+    const stage = viewport.closest<HTMLElement>(".ic-stage");
+    const measure = (observedWidth?: number) => {
+      const rect = viewport.getBoundingClientRect();
+      const width = observedWidth ?? rect.width;
+      if (width > 0) setViewportWidth(width);
+      const stageBottom = stage?.getBoundingClientRect().bottom ?? window.innerHeight;
+      const viewportTop = rect.top + (stage?.scrollTop ?? 0);
+      const footer = viewport.parentElement?.querySelector<HTMLElement>(".crew-office-meetings")?.offsetHeight ?? 0;
+      setAvailableHeight(
+        window.innerWidth > 780 && stageBottom > viewportTop
+          ? Math.max(1, stageBottom - viewportTop - footer - 26)
+          : null,
+      );
+    };
+    const onResize = () => measure();
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries.find((item) => item.target === viewport) ?? entries[0];
+      measure(entry?.target === stage ? undefined : entry?.contentRect.width);
     });
     observer.observe(viewport);
-    return () => observer.disconnect();
+    if (stage) observer.observe(stage);
+    measure();
+    window.addEventListener("resize", onResize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", onResize);
+    };
   }, [view, agents.length]);
-  const scale = zoom === "fit" ? Math.min(1, viewportWidth / 1120) : 1;
   const [departmentFilter, setDepartmentFilter] = useState("");
   const departmentById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sortedAgents = useMemo(
@@ -189,7 +221,8 @@ export function CrewOffice({
   );
   const meetingHeight = Math.max(218, Math.ceil(meetingAgents.length / 2) * 157 + 75);
   const decisionHeight = Math.max(180, Math.ceil(decisionAgents.length / 2) * 157 + 75);
-  const height = Math.max(650, rows * 205 + 210, meetingHeight + decisionHeight + 170);
+  const height = Math.max(650, rows * 220 + 210, meetingHeight + decisionHeight + 170);
+  const scale = zoom === "fit" ? officeFitScale(viewportWidth, height, availableHeight) : 1;
   const decisionTop = height - decisionHeight - 68;
   const visibleAgents = sortedAgents.filter((a) => !departmentFilter || a.departmentId === departmentFilter);
   const activeMeetings = meetings.filter((meeting) => meeting.status === "in_progress");
@@ -331,7 +364,7 @@ export function CrewOffice({
                   <Desk
                     key={agent.id}
                     x={114 + (index % 5) * 144}
-                    y={198 + Math.floor(index / 5) * 205}
+                    y={198 + Math.floor(index / 5) * 220}
                     active={agent.status === "working" || agent.status === "thinking"}
                     label={departmentById.get(agent.departmentId ?? "")?.name ?? "Crew"}
                   />
@@ -344,7 +377,7 @@ export function CrewOffice({
                 const meetingIndex = meetingAgents.indexOf(agent);
                 const decisionIndex = decisionAgents.indexOf(agent);
                 let x = 64 + (index % 5) * 144;
-                let y = 191 + Math.floor(index / 5) * 205;
+                let y = 191 + Math.floor(index / 5) * 220;
                 if (meetingIndex >= 0) {
                   x = 835 + (meetingIndex % 2) * 123;
                   y = 115 + Math.floor(meetingIndex / 2) * 157;

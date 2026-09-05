@@ -14,9 +14,11 @@ report CLI authentication honestly, and fence obsolete workers after recovery.
 
 Measured results and environment limits are in
 [the implementation report](docs/REVIEW_FIXES_2026-09-05.md). The full master-prompt
-MVP is **not yet verified**: authenticated native CLI acceptance and browser
-acceptance remain outstanding locally. OpenRouter streaming/tool calling,
-CLI resume, Honcho and remote task dispatch are still unfinished.
+MVP is **not yet verified**: authenticated native CLI acceptance remains open.
+GitHub CI passed 4,849 backend, 562 frontend and 22 script tests, plus all
+quality gates; browser captures and final follow-up checks are attached to
+[PR #18](https://github.com/irongeeks/ironcrew/pull/18). OpenRouter streaming/tool
+calling, CLI resume, Honcho and remote task dispatch are still unfinished.
 
 The phase tables below are historical implementation notes; their earlier
 "done" labels must not be read as proof of these missing end-to-end capabilities.

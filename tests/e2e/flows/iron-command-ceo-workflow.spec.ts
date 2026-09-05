@@ -315,6 +315,22 @@ for (const width of [390, 768, 1440, 1920]) {
     await expect(page.getByTestId("crew-office")).toBeVisible();
     await expect(page.locator('[data-testid^="office-person-"]').first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+    if (width >= 1440) {
+      // ResizeObserver settles the transformed floor after the crew loads.
+      // Width-only fitting used to leave the bottom desks clipped on desktop.
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => {
+              const floor = document.querySelector(".crew-office-floor")?.getBoundingClientRect();
+              const stage = document.querySelector(".ic-stage")?.getBoundingClientRect();
+              if (!floor || !stage || floor.width <= 0 || floor.height <= 0) return Number.POSITIVE_INFINITY;
+              return Math.max(stage.top - floor.top, floor.bottom - Math.min(stage.bottom, window.innerHeight), 0);
+            }),
+          { message: "Einpassen must keep the complete desktop office floor visible inside the stage" },
+        )
+        .toBeLessThanOrEqual(2);
+    }
     await page.screenshot({ path: testInfo.outputPath(`office-${width}.png`), fullPage: true });
   });
 }

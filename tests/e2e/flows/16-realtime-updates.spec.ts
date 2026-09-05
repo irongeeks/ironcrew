@@ -295,12 +295,28 @@ test.describe("Real-time WebSocket Updates", () => {
     expect(task?.id).toBeTruthy();
     try {
       await expect(page.getByTestId("kanban").getByText(task.title, { exact: true })).toBeVisible();
+      const blocked = await request.post(`/api/crew/tasks/${task.id}/status`, {
+        headers,
+        data: { status: "blocked", reason: "E2E external blocker" },
+      });
+      expect(blocked.ok()).toBeTruthy();
+      expect((await blocked.json()).task.status).toBe("blocked");
+      await expect(page.getByTestId("column-blocked").getByText(task.title, { exact: true })).toBeVisible();
+      await expect(page.getByTestId("column-ready").getByText(task.title, { exact: true })).toHaveCount(0);
+
       const cancelled = await request.post(`/api/crew/tasks/${task.id}/status`, {
         headers,
         data: { status: "cancelled", reason: "E2E live update verified" },
       });
       expect(cancelled.ok()).toBeTruthy();
-      await expect(page.getByTestId("column-cancelled").getByText(task.title, { exact: true })).toBeVisible();
+      expect((await cancelled.json()).task.status).toBe("cancelled");
+      // Cancelled work is retained by the API but omitted from the active board.
+      // Its disappearance, after the visible blocked transition, proves that
+      // the second external update also reached this already-mounted view.
+      await expect(page.getByTestId("kanban").getByText(task.title, { exact: true })).toHaveCount(0);
+      const persisted = await request.get(`/api/crew/tasks/${task.id}`);
+      expect(persisted.ok()).toBeTruthy();
+      expect((await persisted.json()).task.status).toBe("cancelled");
     } finally {
       const current = await (await request.get(`/api/crew/tasks/${task.id}`)).json();
       if (current.task.status !== "cancelled") {

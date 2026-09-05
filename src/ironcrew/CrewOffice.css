@@ -218,6 +218,7 @@
   border: 1px solid #405963;
   border-radius: 3px;
   font-size: 10px;
+  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

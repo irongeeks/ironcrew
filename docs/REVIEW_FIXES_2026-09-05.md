@@ -41,22 +41,21 @@ that every phase of the original master prompt is finished.
 
 ## Verification
 
-- Frontend: **562 passed**, 62 files.
-- Backend: **4,842 passed** in the final broad run; one pre-existing process-start
-  race failed under parallel load. That test was corrected to wait for actual
-  readiness and its complete **7-test suite then passed**. Combined final-code
-  coverage: **4,843 backend cases**. Six real Unix-socket cases cannot run in this
-  environment and were excluded explicitly on the final local run; one existing
-  skip remains. They are retained in the normal CI suite.
-- Scripts: **22 passed**.
-- TypeScript and Vite production build: passed.
-- Full ESLint: no errors; 448 inherited warnings in the earlier full run.
-  Changed files also receive a final scoped lint/format check.
-- Playwright: **75 tests discovered in 21 files**, including office interaction,
-  live external updates, mobile navigation and 390/768/1440/1920px captures.
-  The available browser rejects localhost with `ERR_BLOCKED_BY_CLIENT`; these
-  browser tests were not run locally. CI no longer ignores E2E failures and
-  retains screenshots/traces under its test artifact.
+- GitHub CI on `12f4c5b`: **4,849 backend**, **562 frontend**, and **22 script
+  tests passed** (one existing backend skip). The CI run also verifies the six
+  real Unix-socket cases blocked by local EPERM.
+- GitHub quality job: security audit, formatting, lint, OpenAPI check, TypeScript
+  and Vite production build passed. The existing lint warnings remain.
+- First browser run: **71 passed, 3 existing skips, 1 failed**. The failure was a
+  new test expecting a nonexistent cancelled column. The corrected test now
+  verifies an external ready-to-blocked transition and removal after cancellation,
+  with the cancelled history still retained by the API.
+- Browser captures at **390/768/1440/1920px** passed and were inspected. They also
+  exposed desktop height-fit and task-label spacing issues addressed in the
+  follow-up correction. Final checks and downloadable Playwright artifacts are
+  attached to [PR #18](https://github.com/irongeeks/ironcrew/pull/18).
+- The local browser rejects localhost with `ERR_BLOCKED_BY_CLIENT`; no local
+  browser acceptance is claimed. E2E failures are no longer ignored by CI.
 - `docs/screenshots/crew-office-illustration.png` is a static render of the actual
   SVG scene with explicit test states. It verifies drawing geometry and crowded
   room layouts. It is **not** a browser screenshot or a real agent run.

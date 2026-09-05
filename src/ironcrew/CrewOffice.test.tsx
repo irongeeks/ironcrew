@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { CrewOffice, currentOfficeTask } from "./CrewOffice";
+import { CrewOffice, currentOfficeTask, officeFitScale } from "./CrewOffice";
 import type { Agent, Task } from "./types";
 
 function agent(overrides: Partial<Agent> = {}): Agent {
@@ -68,6 +68,16 @@ function props() {
 }
 
 describe("CrewOffice canonical office", () => {
+  it("fits every desk into desktop height while keeping mobile width fitting and natural scrolling", () => {
+    // A 1080px desktop has 550px left below the dashboard controls. Width alone
+    // would hide the third desk row behind the run timeline.
+    const desktopScale = officeFitScale(1375, 870, 524);
+    expect(870 * desktopScale).toBeLessThanOrEqual(524);
+    expect(1120 * desktopScale).toBeLessThanOrEqual(1375);
+    const mobileScale = officeFitScale(390, 870, null);
+    expect(mobileScale).toBe(390 / 1120);
+    expect(officeFitScale(1920, 870, 1500)).toBe(1);
+  });
   it("opens the same agent and task records used by the dashboard with keyboard controls", async () => {
     const input = props();
     const user = userEvent.setup();
