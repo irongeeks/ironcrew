@@ -74,7 +74,7 @@ test("persists an owner-edited model profile and an existing agent binding throu
   const savedResponse = await saveResponse;
   expect(savedResponse.request().headers()["content-type"]).toContain("application/json");
   expect(savedResponse.ok()).toBeTruthy();
-  await expect(panel.getByRole("status")).toContainText("Routing-Profile gespeichert");
+  await expect(panel.getByRole("status").filter({ hasText: "Routing-Profile gespeichert" })).toBeVisible();
   await expect(panel).toHaveAttribute("aria-busy", "false");
   const saved = await snapshot(request);
   expect(saved.revision).toBe(before.revision + 1);
@@ -98,12 +98,12 @@ test("persists an owner-edited model profile and an existing agent binding throu
   if (originalBinding === "coding") {
     await binding.selectOption("");
     await saveBinding.click();
-    await expect(panel.getByRole("status")).toContainText("Profilzuordnung entfernt");
+    await expect(panel.getByRole("status").filter({ hasText: "Profilzuordnung entfernt" })).toBeVisible();
     await expect(panel).toHaveAttribute("aria-busy", "false");
   }
   await binding.selectOption("coding");
   await saveBinding.click();
-  await expect(panel.getByRole("status")).toContainText("Profil dem Agenten zugeordnet");
+  await expect(panel.getByRole("status").filter({ hasText: "Profil dem Agenten zugeordnet" })).toBeVisible();
   await expect(panel).toHaveAttribute("aria-busy", "false");
   expect((await snapshot(request)).bindings).toContainEqual({ agentId: agent.id, profileKey: "coding" });
 
