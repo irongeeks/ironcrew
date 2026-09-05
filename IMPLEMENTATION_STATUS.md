@@ -4,6 +4,43 @@ Honest state of IronCrew. Nothing is listed as done unless it is
 implemented **and** covered by a passing test. Anything verified only by design
 review, or not verifiable in this environment, is said so explicitly.
 
+## Integrated local product scope 0.3.0 — 2026-09-05
+
+The current requirement-to-code/test map is [PRODUCT_ACCEPTANCE.md](docs/PRODUCT_ACCEPTANCE.md).
+It separates the implemented local product from actual operator-host/account acceptance
+and optional long-term expansion. The sections below this one retain historical
+milestone evidence; their test totals are not totals for the current tree.
+
+Implemented in this milestone:
+
+- [Company configuration](docs/COMPANY_CONFIGURATION.md): company-scoped revisions,
+  owner editing, compare-and-swap conflicts, audit and effective runtime/tool/approval/
+  memory boundaries. The fixed approval floor and vendor ceiling cannot be relaxed.
+- [Business source dashboard](docs/BUSINESS_DASHBOARD.md): explicit reads from the
+  existing configured MSP/finance adapters, owner and agent-tool gates, source/time/
+  bounded drill-down evidence, and separate unavailable/error states. No inferred
+  cashflow, MRR or invented agency figures. Its measurement cache is intentionally
+  volatile; refresh audit survives restart.
+- [Objective run checks](docs/OBJECTIVE_EVALUATIONS.md): immutable rubric versions,
+  deterministic text/JSON checks on completed outputs, measurements, replay and
+  exact-rubric/model comparisons. Lead stars remain a separate professional review;
+  neither mechanism automatically promotes employees or grants permissions.
+- Memory synchronization and semantic retrieval revalidate current source provenance;
+  a reclassified or malformed local note is not kept externally authorized by stale metadata.
+- Native modal dialogs provide a contained keyboard focus, Escape handling, sensible
+  initial focus and restoration to the trigger.
+
+Module tests and browser cases accompany each change; the release PR records the
+consolidated CI/platform/browser outcome for its exact revision. No pending overall
+run is counted as passed here. README screenshots were recaptured on the 0.3.0 PR merge tree and visually checked;
+`docs/screenshots/screenshots.json` preserves capture commit and test-data provenance.
+
+The application and fixture-based acceptance paths are implemented. The complete
+master-prompt MVP is still subject to at least one official authenticated CLI run on
+the target host, the operator's restore rehearsal and whichever optional external
+accounts are actually enabled. No live business account, production service or private
+provider login was exercised merely by adding these features.
+
 ## Company vendor restrictions 0.2.0 — 2026-09-05
 
 Owner-managed family/provider subsets are persisted per company in migration 0035,

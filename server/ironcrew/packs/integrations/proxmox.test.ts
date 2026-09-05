@@ -31,7 +31,7 @@ function fakeFetch(responses: FakeResponse | FakeResponse[]) {
     const next = queue.length > 1 ? queue.shift()! : queue[0];
     const status = next.status ?? 200;
     const body = next.text ?? JSON.stringify(next.json ?? null);
-    return { ok: status < 400, status, text: async () => body } as unknown as Response;
+    return new Response(body, { status });
   });
   return { impl: impl as unknown as typeof fetch, calls };
 }
@@ -193,9 +193,9 @@ describe("ProxmoxAdapter", () => {
     expect(guests.some((g) => g.node === "pve-01" && g.status === "ok")).toBe(false);
   });
 
-  it("survives a response whose data is not a list", async () => {
+  it("rejects malformed data instead of reporting an empty inventory", async () => {
     const { pve } = adapter({ json: { data: { unexpected: true } } });
-    await expect(pve.listNodes()).resolves.toEqual([]);
+    await expect(pve.listNodes()).rejects.toThrow(/ungültige Datenliste/);
   });
 
   it("says the token is wrong on 401, and says nothing else", async () => {
@@ -318,7 +318,7 @@ describe("ProxmoxAdapter", () => {
       }
     }
     // The happy path too — a success message is a message like any other.
-    const { pve: ok } = adapter(VERSION);
+    const { pve: ok } = adapter([VERSION, RESOURCES]);
     messages.push((await ok.testConnection()).message);
     await ok.listGuests();
 

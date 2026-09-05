@@ -1,5 +1,9 @@
+import { DetailDialog } from "./DetailDialog";
+import { BusinessDashboardPanel } from "./BusinessDashboardPanel";
+import { ObjectiveEvaluationsPanel } from "./ObjectiveEvaluationsPanel";
 import { PeoplePerformancePanel, PeopleAgentSummary } from "./PeoplePerformancePanel";
 import { RoutingProfilesPanel } from "./RoutingProfilesPanel";
+import { ConfigurationPanel } from "./ConfigurationPanel";
 import { VendorPolicyPanel } from "./VendorPolicyPanel";
 import { CoachingPanel } from "./CoachingPanel.tsx";
 import { ProjectPlanningPanel } from "./ProjectPlanningPanel.tsx";
@@ -315,7 +319,17 @@ export function CommandCenterView({
   const [memories, setMemories] = useState<MemoryRef[]>([]);
   const [showMemory, setShowMemory] = useState(false);
   const [companyPanel, setCompanyPanel] = useState<
-    "coaching" | "planning" | "sandbox" | "fleet" | "routing" | "people" | "vendor-policy" | null
+    | "coaching"
+    | "planning"
+    | "sandbox"
+    | "fleet"
+    | "routing"
+    | "people"
+    | "vendor-policy"
+    | "configuration"
+    | "business"
+    | "evaluations"
+    | null
   >(null);
   const [myRole, setMyRole] = useState<string | null>(null);
   // Only an explicit successful auth response grants bootstrap privileges.
@@ -2302,6 +2316,32 @@ export function CommandCenterView({
           <button
             type="button"
             className="ic-btn"
+            data-testid="open-configuration"
+            onClick={() => setCompanyPanel("configuration")}
+          >
+            Firmenkonfiguration
+          </button>
+          <button
+            type="button"
+            className="ic-btn"
+            data-testid="open-evaluations"
+            onClick={() => setCompanyPanel("evaluations")}
+          >
+            Objektive Tests
+          </button>
+          {(myRole === "owner" || singleOwnerBootstrap) && (
+            <button
+              type="button"
+              className="ic-btn"
+              data-testid="open-business-dashboard"
+              onClick={() => setCompanyPanel("business")}
+            >
+              Geschäftsdaten
+            </button>
+          )}
+          <button
+            type="button"
+            className="ic-btn"
             data-testid="open-coaching"
             onClick={() => setCompanyPanel("coaching")}
           >
@@ -3967,6 +4007,9 @@ export function CommandCenterView({
               fleet: "Native Runner-Flotte",
               routing: "Modell-Routing",
               "vendor-policy": "Provider-Freigaben",
+              configuration: "Firmenkonfiguration",
+              business: "Geschäftsdaten",
+              evaluations: "Objektive Tests",
               people: "Team & Leistung",
             }[companyPanel]
           }
@@ -3994,6 +4037,14 @@ export function CommandCenterView({
               refreshKey={lastRefreshedAt ?? undefined}
             />
           )}
+          {companyPanel === "configuration" && (
+            <ConfigurationPanel
+              canManage={myRole === "owner" || singleOwnerBootstrap}
+              refreshKey={lastRefreshedAt ?? undefined}
+            />
+          )}
+          {companyPanel === "business" && <BusinessDashboardPanel onClose={() => setCompanyPanel(null)} />}
+          {companyPanel === "evaluations" && <ObjectiveEvaluationsPanel refreshKey={lastRefreshedAt ?? undefined} />}
           {companyPanel === "coaching" && (
             <CoachingPanel
               agents={agents}
@@ -6399,36 +6450,6 @@ function Metric({
     <div className="ic-metric" data-tone={tone}>
       <span className="ic-metric-label">{label}</span>
       <span className="ic-metric-value">{value}</span>
-    </div>
-  );
-}
-
-function DetailDialog({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div className="ic-detail-backdrop" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="ic-detail">
-        <h2>{title}</h2>
-        {children}
-        <button type="button" className="ic-btn" onClick={onClose}>
-          Schliessen
-        </button>
-      </div>
     </div>
   );
 }

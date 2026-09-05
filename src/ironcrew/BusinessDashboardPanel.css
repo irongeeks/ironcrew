@@ -1,0 +1,132 @@
+.business-dashboard {
+  color: var(--cc-text, #e5edf3);
+  padding: 1.4rem;
+  max-width: 1100px;
+  margin: auto;
+}
+.business-dashboard header,
+.business-source-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.business-dashboard h2,
+.business-dashboard h3 {
+  margin: 0 0 0.5rem;
+}
+.business-dashboard h2 {
+  font-size: 1.4rem;
+}
+.business-dashboard h3 {
+  font-size: 1rem;
+}
+.business-dashboard p {
+  line-height: 1.6;
+}
+.business-eyebrow {
+  color: #83c9d1;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  margin: 0 0 0.4rem;
+}
+.business-agent {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 28rem;
+  margin-top: 1.3rem;
+}
+.business-dashboard select,
+.business-dashboard button {
+  background: #18262e;
+  color: inherit;
+  border: 1px solid #42606c;
+  border-radius: 0.35rem;
+  padding: 0.65rem 0.8rem;
+  font: inherit;
+}
+.business-dashboard button {
+  cursor: pointer;
+}
+.business-dashboard button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.business-dashboard :focus-visible {
+  outline: 2px solid #83c9d1;
+  outline-offset: 3px;
+}
+.business-sources {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-block: 1.5rem;
+}
+.business-sources article {
+  min-width: 0;
+  border-top: 1px solid #344853;
+  padding-top: 1rem;
+}
+.business-source-heading span,
+.business-note {
+  font-size: 0.8rem;
+  color: #b0c3cf;
+}
+.business-sources article[data-state="error"] .business-source-heading span {
+  color: #f4a49c;
+}
+.business-dashboard code {
+  display: block;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+  color: #a7beca;
+}
+.business-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.3rem;
+}
+.business-metrics dt {
+  font-size: 0.8rem;
+  max-width: 16rem;
+}
+.business-metrics dd {
+  margin: 0.25rem 0;
+  font-size: 1.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.business-dashboard details {
+  margin-block: 1rem;
+}
+.business-dashboard summary {
+  cursor: pointer;
+  padding-block: 0.4rem;
+}
+.business-records {
+  overflow-x: auto;
+  max-height: 20rem;
+}
+.business-records table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: left;
+}
+.business-records td,
+.business-records th {
+  padding: 0.5rem;
+  border-bottom: 1px solid #344853;
+  overflow-wrap: anywhere;
+}
+.business-dashboard [role="alert"] {
+  color: #f4b9ae;
+}
+@media (max-width: 700px) {
+  .business-sources {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .business-dashboard {
+    padding: 1rem;
+  }
+}

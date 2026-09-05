@@ -56,6 +56,20 @@ Der Lead bewertet abgeschlossene Facharbeit mit 1–5 Sternen, Begründung und Q
 
 **Team & Leistung** und das Mitarbeiterprofil zeigen Durchschnitt, Anzahl, Verteilung und Historie. Die Auswertung nutzt je Aufgabe die Bewertung des neuesten abgeschlossenen Arbeitsruns; eine neue, noch unbewertete Revision übernimmt keine alten Sterne. Filter nach Schwierigkeit, Zeitraum und tatsächlich protokolliertem Modell helfen beim Vergleich. Beachte die Anzahl und Art der Aufgaben: Ein hoher Durchschnitt bei wenigen einfachen Tasks ist kein allgemeiner Modellbenchmark. Details: [Team und Leistung](CAREER_REVIEWS.md).
 
+### Ergebnisse mit festen Kriterien prüfen
+
+Unter **Objektive Tests** legt der Owner versionierte Rubriken an. Unterstützt werden exakte Textvorgaben, ausgeschlossene Texte und JSON-Feldtypen. Ein Owner oder Operator wertet damit einen abgeschlossenen Run aus. Das startet keinen weiteren Modellaufruf. Jede Messung speichert Kriterienversion, Einzelresultate, Hashes und Audit-Bezug; **Nachweis reproduzieren** prüft denselben gespeicherten Nachweis erneut.
+
+Vergleiche nur passende Aufgaben und dieselbe Rubrikversion. Die Anzeige trennt Mitarbeiter, Runtime und protokolliertes Modell und nennt die Stichprobenzahl. Eine erfüllte Textprüfung beweist keine fachliche Richtigkeit; Lead-Reviews und CEO-Freigaben bleiben eigenständig. [Objektive Tests](OBJECTIVE_EVALUATIONS.md).
+
+## Firmenkonfiguration
+
+**Firmenkonfiguration** öffnet die Owner-Einstellungen für **Laufzeiten**, **Freigaben**, **Tools** und **Memory**. Setze zusätzliche Laufzeit-/Parallelitätsgrenzen, sperre registrierte Tools oder verlange zusätzliche Freigaben. Im Memory-Bereich begrenzt du Kontextabrufe; die semantische Suche benötigt weiterhin eine separate Einrichtung.
+
+Die feste Freigabeliste und Vendor-Policy bleiben verbindlich. Jede Speicherung benötigt eine Begründung. Bei einem Versionskonflikt bleibt dein Entwurf erhalten: Lade den Serverstand, vergleiche die Werte und entscheide ausdrücklich über die weitere Bearbeitung. Details: [Firmenkonfiguration](COMPANY_CONFIGURATION.md).
+
+Dialoge halten den Tastaturfokus innerhalb der geöffneten Ansicht. **Escape** schließt den obersten Dialog; anschließend kehrt der Fokus zur auslösenden Schaltfläche zurück. Ein Dialog startet am Titel, damit längere Formulare nicht unbeabsichtigt am Ende öffnen.
+
 ## Figuren zuweisen oder selbst erstellen
 
 Öffne im Mitarbeiterprofil den Figureneditor, wähle eines der **20 Originale**, prüfe die Vorschau und wähle **Figur speichern**. Optional lassen sich ein privates Portrait und ein Ganzkörperbild hochladen.
@@ -67,6 +81,12 @@ Unter **Prompt für eine eigene Figur erstellen** kannst du Identität und Stil 
 Unter **Wissen** findest du lokale Memory-Einträge und ihre Quellen. Der Obsidian-kompatible Vault bleibt für lesbare Notizen maßgeblich; operative Aufgaben, Runs und Referenzen liegen in SQLite. Honcho ist optional und standardmäßig deaktiviert. Ein Honcho-Ausfall soll lokale Arbeit nicht blockieren; Details zu Klassifikation und Synchronisierung stehen in [Memory](MEMORY.md).
 
 **E-Mail**, **Messenger**, **Kanäle** und Business-Packs benötigen ihre jeweilige Einrichtung. Prüfe Status und dokumentierten Funktionsumfang, bevor du echte Kundenaufträge darüber ausführen lässt. [E-Mail](MAIL.md) · [Messenger](MESSENGER.md) · [Business-Packs](BUSINESS_PACKS.md)
+
+### Geschäftsdaten prüfen
+
+**Geschäftsdaten** zeigt dem Owner vorhandene MSP- und Finance-Quellen. Beim Öffnen wird nur der letzte lokale Datenstand geladen. Erst Mitarbeiterauswahl und **Aktualisieren** lösen einen externen Abruf aus; Gewerke, Adapterkonfiguration und passende Toolrechte müssen vorhanden sein. Zusätzliche Freigabe- und Sperrregeln gelten weiterhin.
+
+Jede Messung zeigt Quelle, Abrufzeit und **Datengrundlage ansehen**. Teilmengen bleiben als solche gekennzeichnet; fehlende Konfiguration und Fehler werden nicht zu Nullwerten. Der flüchtige Messcache ist nach einem Neustart leer, während die Aufrufe im Audit erhalten bleiben. Cashflow, MRR, Umsatz und Agency-KPIs werden nicht aus unvollständigen Listen erfunden. [Quellen und Grenzen](BUSINESS_DASHBOARD.md).
 
 ## Updates und Datensicherung
 

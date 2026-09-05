@@ -307,7 +307,8 @@ export class LexwareOfficeAdapter implements PackIntegrationAdapter {
     if (opts.sort) params.set("sort", opts.sort);
 
     const raw = await this.get<RawVoucherPage>(`/v1/voucherlist?${params.toString()}`, "Belegliste");
-    const rows = Array.isArray(raw.content) ? raw.content : [];
+    if (!Array.isArray(raw?.content)) throw new PackIntegrationError("Lexware: ungültige Datenliste.");
+    const rows = raw.content;
     const page = num(raw.number) ?? 0;
     const totalPages = num(raw.totalPages) ?? 0;
     return {

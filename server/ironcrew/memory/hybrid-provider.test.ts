@@ -243,4 +243,58 @@ describe("optional semantic memory", () => {
     expect(h.syncStatus().synced).toBe(0);
     expect(await h.read(written.externalId)).toContain("restricted");
   });
+  it.each([
+    ["removed frontmatter", (content: string) => content.replace(/^---\n[\s\S]*?\n---\n/, "")],
+    ["missing sensitivity", (content: string) => content.replace(/^sensitivity:.*\n/m, "")],
+    ["invalid sensitivity", (content: string) => content.replace("sensitivity: public", "sensitivity: [public]")],
+    ["malformed YAML", (content: string) => content.replace("sensitivity: public", "sensitivity: [")],
+    ["another company", (content: string) => content.replace("companyId: company", "companyId: other")],
+    ["another task", (content: string) => content.replace("taskId: task-1", "taskId: task-2")],
+    ["removed task scope", (content: string) => content.replace(/^taskId:.*\n/m, "")],
+    [
+      "new project scope",
+      (content: string) => content.replace("taskId: task-1", "taskId: task-1\nprojectId: project-2"),
+    ],
+    [
+      "new agent scope",
+      (content: string) => content.replace("taskId: task-1", "taskId: task-1\nagentId: another-agent"),
+    ],
+  ] as const)("revokes semantic access after %s, before and after synchronization", async (_name, edit) => {
+    const f = fixture();
+    const h = f.hybrid();
+    const written = await h.write(entry);
+    await h.syncPending();
+    const file = join(f.dir, written.path!);
+    writeFileSync(file, edit(readFileSync(file, "utf8")));
+    f.transport.mockResolvedValueOnce(
+      Response.json([
+        { content: "remote stale copy", metadata: { company_id: "company", external_id: written.externalId } },
+      ]),
+    );
+    // No watcher callback is required to hide a now unauthorized remote hit.
+    expect(await h.searchSemantic("unmatched-query", "public")).toEqual([]);
+    h.localChanged(written.externalId);
+    const before = f.transport.mock.calls.length;
+    await h.syncPending();
+    expect(f.transport.mock.calls.slice(before).map((call) => call[1].method)).toEqual(["DELETE"]);
+    expect(h.syncStatus()).toMatchObject({ synced: 0, pending: 0 });
+    expect(await h.read(written.externalId)).not.toBeNull();
+  });
+
+  it("keeps revocation retryable after a failed remote delete without uploading invalid content", async () => {
+    const f = fixture();
+    const h = f.hybrid();
+    const written = await h.write(entry);
+    await h.syncPending();
+    writeFileSync(join(f.dir, written.path!), "Private replacement with no transmission grant.");
+    h.localChanged(written.externalId);
+    const before = f.transport.mock.calls.length;
+    f.transport.mockRejectedValueOnce(new Error("offline"));
+    await h.syncPending();
+    expect(h.syncStatus().failed).toBe(1);
+    f.advance();
+    await f.hybrid().syncPending();
+    expect(f.transport.mock.calls.slice(before).map((call) => call[1].method)).toEqual(["DELETE", "DELETE"]);
+    expect(h.syncStatus().pending).toBe(0);
+  });
 });

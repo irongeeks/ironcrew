@@ -63,7 +63,7 @@ describe("creating a routine", () => {
     expect(() => routine({ name: "  " })).toThrow(RoutineMutationError);
     expect(() => routine({ instruction: "   " })).toThrow(RoutineMutationError);
     expect(() => routine({ intervalMinutes: 0 })).toThrow(RoutineMutationError);
-    expect(() => routine({ intervalMinutes: 60 * 24 * 365 })).toThrow(/Kalender/);
+    expect(() => routine({ intervalMinutes: 60 * 24 * 366 })).toThrow(/Kalender/);
   });
 
   it("refuses a duplicate name", () => {

@@ -31,11 +31,7 @@ function fakeFetch(replies: Reply | Reply[]) {
     calls.push({ url: String(url), init: init ?? {} });
     const reply = queue.length > 1 ? (queue.shift() as Reply) : queue[0];
     const status = reply.status ?? 200;
-    return {
-      ok: status < 400,
-      status,
-      text: async () => (reply.text !== undefined ? reply.text : JSON.stringify(reply.body ?? null)),
-    } as unknown as Response;
+    return new Response(reply.text !== undefined ? reply.text : JSON.stringify(reply.body ?? null), { status });
   });
   return { impl: impl as unknown as typeof fetch, calls };
 }

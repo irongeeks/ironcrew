@@ -49,8 +49,8 @@ export class RoutineMutationError extends Error {
 const COLUMNS = `id, company_id, name, instruction, agent_id, project_id, interval_minutes, enabled,
   next_run_at, last_run_at, last_task_id, run_count, created_at, updated_at`;
 
-/** One day. Longer intervals are a calendar, not a routine. */
-const MAX_INTERVAL_MINUTES = 60 * 24 * 31;
+// Fixed intervals support quarterly pack routines; calendar deadlines remain separate.
+const MAX_INTERVAL_MINUTES = 60 * 24 * 365;
 
 export interface RoutineInput {
   companyId: string;
@@ -78,7 +78,7 @@ export class RoutineStore {
       throw new RoutineMutationError("Das Intervall muss mindestens eine Minute betragen.");
     }
     if (input.intervalMinutes > MAX_INTERVAL_MINUTES) {
-      throw new RoutineMutationError("Intervalle über einen Monat sind ein Kalender, keine Routine.");
+      throw new RoutineMutationError("Intervalle über ein Jahr sind ein Kalender, keine Routine.");
     }
     if (this.byName(input.companyId, name)) {
       throw new RoutineMutationError(`Es gibt bereits eine Routine namens "${name}".`);
@@ -176,7 +176,7 @@ export class RoutineStore {
         throw new RoutineMutationError("Das Intervall muss mindestens eine Minute betragen.");
       }
       if (patch.intervalMinutes > MAX_INTERVAL_MINUTES) {
-        throw new RoutineMutationError("Intervalle über einen Monat sind ein Kalender, keine Routine.");
+        throw new RoutineMutationError("Intervalle über ein Jahr sind ein Kalender, keine Routine.");
       }
       sets.push("interval_minutes = ?", "next_run_at = ?");
       // A changed interval re-bases the next firing, so shortening it does

@@ -2,6 +2,7 @@
 
 ## IronCrew
 
+- [v0.3.0](v0.3.0.md) — aktive Firmenkonfiguration, Geschäftsdaten und objektive Modelltests.
 - [v0.2.0](v0.2.0.md) — versionierte Firmenfreigaben und durchgängige Vendor-Durchsetzung.
 
 - [v0.1.0](v0.1.0.md) — eigene Produktversionierung, gezielter Übergang von 2.8.0 und aktuelle Dokumentation mit Screenshots.

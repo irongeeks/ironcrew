@@ -1,10 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { load } from "js-yaml";
 import { allRows, oneRow } from "../domain/sql.ts";
 import { redactText } from "../security/redaction.ts";
 import type { MemoryProvider, MemoryWriteInput, MemoryWriteResult, MemorySearchHit } from "./memory-provider.ts";
 import type { HonchoMemoryProvider } from "./honcho-provider.ts";
+import { readCurrentProvenance } from "./current-provenance.ts";
 
 const metadataSchema = z.object({
   kind: z.enum(["note", "fact", "preference", "hypothesis", "summary"]),
@@ -118,9 +118,11 @@ export class HybridMemoryProvider implements MemoryProvider {
       const seen = new Set(local.map((hit) => hit.externalId));
       for (const hit of remote) {
         const row = this.row(hit.externalId);
-        if (!row || row.operation === "delete" || seen.has(hit.externalId)) continue;
-        // No stale remote results if the operator removed a file from Obsidian.
-        if ((await this.options.local.read(hit.externalId)) === null) continue;
+        if (!row || row.operation === "delete" || row.state !== "synced" || seen.has(hit.externalId)) continue;
+        // An external edit can revoke permission before the watcher or outbox runs.
+        const content = await this.options.local.read(hit.externalId);
+        if (content === null || !this.maySyncCurrent(content, metadataSchema.parse(JSON.parse(row.metadata_json))))
+          continue;
         local.push(hit);
         seen.add(hit.externalId);
       }
@@ -139,6 +141,21 @@ export class HybridMemoryProvider implements MemoryProvider {
       WHERE company_id=? AND external_id=? AND operation='write'`,
       )
       .run(this.companyId, externalId);
+  }
+
+  /** The original explicit grant applies only while the authoritative file keeps
+   * its company, scope and classification. Removing or damaging metadata cannot
+   * turn old outbox metadata into permission to transmit new document contents. */
+  private maySyncCurrent(content: string, metadata: z.infer<typeof metadataSchema>): boolean {
+    const current = readCurrentProvenance(content);
+    const granted = metadata.provenance;
+    return Boolean(
+      current &&
+      this.options.semantic.accepts(granted) &&
+      this.options.semantic.accepts(current) &&
+      current.sensitivity === granted.sensitivity &&
+      (["taskId", "projectId", "agentId"] as const).every((key) => (current[key] ?? null) === (granted[key] ?? null)),
+    );
   }
 
   syncStatus(): { pending: number; failed: number; synced: number; pendingDeletion: number } {
@@ -195,15 +212,7 @@ export class HybridMemoryProvider implements MemoryProvider {
               continue;
             }
             const metadata = metadataSchema.parse(JSON.parse(row.metadata_json));
-            const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
-            const localClassification = frontmatter
-              ? z.object({ sensitivity: z.string().optional() }).passthrough().safeParse(load(frontmatter))
-              : null;
-            const changedClassification =
-              localClassification?.success &&
-              localClassification.data.sensitivity !== undefined &&
-              localClassification.data.sensitivity !== metadata.provenance.sensitivity;
-            if (!this.options.semantic.accepts(metadata.provenance) || changedClassification) {
+            if (!this.maySyncCurrent(content, metadata)) {
               await this.options.semantic.delete(row.external_id);
               this.db
                 .prepare("DELETE FROM crew_memory_sync WHERE company_id=? AND external_id=? AND operation='write'")

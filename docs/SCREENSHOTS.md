@@ -1,7 +1,7 @@
 # Screenshots der Dokumentation
 
 Die README zeigt echte Chromium-Aufnahmen der IronCrew-Weboberfläche.
-Sie werden aus dem Quellcode der Version 0.1.0 erzeugt, nicht aus einem Mock-up
+Sie werden aus dem Quellcode der Version 0.3.0 erzeugt, nicht aus einem Mock-up
 oder einer nachgebauten Illustration.
 
 ## Was die Bilder darstellen
@@ -46,11 +46,11 @@ Bilder herunter, prüfe sie visuell und übernimm die PNGs samt Metadaten nach
 Ältere Bilder bleiben als historisches Material im Repository, werden in der
 aktuellen README aber nicht als gegenwärtige Oberfläche ausgegeben.
 
-## Geprüfte Aufnahmen für 0.1.0
+## Geprüfte Aufnahmen für 0.3.0
 
 Die eingecheckten Bilder stammen aus dem
-[Capture-Lauf 33957922393](https://github.com/irongeeks/ironcrew/actions/runs/33957922393),
-Artefakt `documentation-screenshots` (`9966979577`). Alle fünf Bilder wurden
+[Capture-Lauf 33974382581](https://github.com/irongeeks/ironcrew/actions/runs/33974382581),
+Artefakt `documentation-screenshots` (`9971875801`). Alle fünf Bilder wurden
 visuell geprüft; die Mitarbeitertabelle enthält alle 14 Seed-Mitarbeiter ohne
 abgeschnittene Zeilen. Der Aufnahmecommit und Zeitpunkt stehen in
 [screenshots.json](screenshots/screenshots.json).

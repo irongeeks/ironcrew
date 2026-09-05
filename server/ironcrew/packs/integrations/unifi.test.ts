@@ -32,11 +32,7 @@ function fakeFetch(routes: Record<string, Answer>) {
     if (!answer) throw new Error(`unrouted: ${href}`);
     const status = answer.status ?? 200;
     const text = answer.text ?? JSON.stringify(answer.body ?? {});
-    return {
-      ok: status < 400,
-      status,
-      text: async () => text,
-    } as unknown as Response;
+    return new Response(text, { status });
   });
   return { impl: impl as unknown as typeof fetch, calls };
 }
@@ -297,11 +293,7 @@ describe("UnifiAdapter — mapping", () => {
         offset === 0
           ? [{ id: "s1", name: "A", internalReference: "a" }]
           : [{ id: "s2", name: "B", internalReference: "b" }];
-      return {
-        ok: true,
-        status: 200,
-        text: async () => JSON.stringify({ offset, limit: 200, count: 1, totalCount: 2, data }),
-      } as unknown as Response;
+      return new Response(JSON.stringify({ offset, limit: 200, count: 1, totalCount: 2, data }));
     });
     const unifi = new UnifiAdapter({ baseUrl: BASE, apiKey: API_KEY, fetchImpl: impl as unknown as typeof fetch });
 

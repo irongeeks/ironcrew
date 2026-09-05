@@ -277,3 +277,18 @@ authority (`docs/IDENTITY.md`).
    add its key to `INTEGRATION_ADAPTERS`, and register it behind its
    environment variables in `server-main.ts`. Skip any of those three and a
    test fails — which is the point.
+
+## Geschäftsdaten im Command Center
+
+Die Lesemethoden der konfigurierten MSP- und Finance-Adapter sind über die
+[Geschäftsdatenansicht](BUSINESS_DASHBOARD.md) erreichbar. Der Owner löst den Abruf
+bewusst über einen Mitarbeiter mit passendem Werkzeugrecht aus; ohne Datenquelle
+werden keine Kennzahlen angezeigt. Jede Messung besitzt Quelle, Zeitpunkt und
+aufklappbare Datengrundlage. Die Oberfläche öffnet keine automatische Verbindung.
+
+
+Pack-Installationen sind atomar: Schlägt ein späterer Schritt fehl, werden auch
+vorher angelegte Mitarbeiter, Werkzeuge, Routinen und Audit-Einträge dieser
+Installation zurückgerollt. Die Finance-Routine zur UStVA-Vorbereitung nutzt ein
+festes 90-Tage-Intervall; unterstützte Intervalle reichen bis 365 Tage. Das ist
+keine Kalenderfristberechnung. Tatsächliche Abgabetermine bleiben separat zu prüfen.

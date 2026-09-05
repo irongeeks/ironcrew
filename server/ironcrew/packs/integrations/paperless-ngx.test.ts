@@ -38,12 +38,7 @@ function routedFetch(routes: Array<[match: string, response: FakeResponse]>) {
     const hit = routes.find(([match]) => asString.includes(match));
     const spec: FakeResponse = hit?.[1] ?? { status: 404, body: { detail: "Not found." } };
     const status = spec.status ?? 200;
-    return {
-      ok: status < 400,
-      status,
-      headers: new Headers(spec.headers ?? {}),
-      text: async () => spec.text ?? JSON.stringify(spec.body ?? {}),
-    } as unknown as Response;
+    return new Response(spec.text ?? JSON.stringify(spec.body ?? {}), { status, headers: spec.headers ?? {} });
   });
   return { impl: impl as unknown as typeof fetch, calls };
 }

@@ -200,8 +200,8 @@ export class UnifiAdapter implements PackIntegrationAdapter {
   }
 
   /** GET /v1/sites — the site UUID every other call needs. */
-  async listSites(): Promise<UnifiSite[]> {
-    const rows = await this.listAll<RawSite>("/sites", "UniFi-Standorte");
+  async listSites(opts: { maxPages?: number } = {}): Promise<UnifiSite[]> {
+    const rows = await this.listAll<RawSite>("/sites", "UniFi-Standorte", opts.maxPages);
     return rows.map(toSite);
   }
 
@@ -214,9 +214,13 @@ export class UnifiAdapter implements PackIntegrationAdapter {
    * request *per device*. A dashboard listing 60 access points should decide
    * whether it wants 61 requests; it should not discover them.
    */
-  async listDevices(opts: { withUptime?: boolean } = {}): Promise<UnifiDevice[]> {
-    const siteId = await this.resolveSiteId();
-    const rows = await this.listAll<RawDevice>(`/sites/${encodeURIComponent(siteId)}/devices`, "UniFi-Geräte");
+  async listDevices(opts: { withUptime?: boolean; maxPages?: number } = {}): Promise<UnifiDevice[]> {
+    const siteId = await this.resolveSiteId(opts.maxPages);
+    const rows = await this.listAll<RawDevice>(
+      `/sites/${encodeURIComponent(siteId)}/devices`,
+      "UniFi-Geräte",
+      opts.maxPages,
+    );
     const devices = rows.map(toDevice);
     if (!opts.withUptime) return devices;
 
@@ -254,12 +258,12 @@ export class UnifiAdapter implements PackIntegrationAdapter {
    * a UUID. With nothing configured, "default" wins if it exists; otherwise
    * the first site, which on a single-site console is the only one.
    */
-  private async resolveSiteId(): Promise<string> {
+  private async resolveSiteId(maxPages?: number): Promise<string> {
     if (this.configuredSite && UUID_RE.test(this.configuredSite)) return this.configuredSite;
     if (!this.siteIdPromise) {
       // A failed lookup must not be cached: a console that was briefly down
       // would otherwise stay "broken" for the lifetime of this adapter.
-      this.siteIdPromise = this.lookupSiteId().catch((err: unknown) => {
+      this.siteIdPromise = this.lookupSiteId(maxPages).catch((err: unknown) => {
         this.siteIdPromise = undefined;
         throw err;
       });
@@ -267,8 +271,8 @@ export class UnifiAdapter implements PackIntegrationAdapter {
     return this.siteIdPromise;
   }
 
-  private async lookupSiteId(): Promise<string> {
-    const sites = await this.listSites();
+  private async lookupSiteId(maxPages?: number): Promise<string> {
+    const sites = await this.listSites({ maxPages });
     if (sites.length === 0) {
       throw new PackIntegrationError(`UniFi-Standorte: ${this.host} meldet keinen Standort.`);
     }
@@ -298,12 +302,13 @@ export class UnifiAdapter implements PackIntegrationAdapter {
   }
 
   /** Walks the `offset`/`limit`/`totalCount` envelope every list endpoint uses. */
-  private async listAll<T>(path: string, what: string): Promise<T[]> {
+  private async listAll<T>(path: string, what: string, maxPages = MAX_PAGES): Promise<T[]> {
     const rows: T[] = [];
-    for (let page = 0; page < MAX_PAGES; page += 1) {
+    for (let page = 0; page < Math.max(1, Math.min(MAX_PAGES, maxPages)); page += 1) {
       const query = `?offset=${rows.length}&limit=${PAGE_SIZE}`;
       const body = await this.request<RawPage<T>>(`${path}${query}`, what);
-      const batch = Array.isArray(body?.data) ? body.data : [];
+      if (!Array.isArray(body?.data)) throw new PackIntegrationError(`${what}: ungültige Datenliste.`);
+      const batch = body.data;
       rows.push(...batch);
       // An empty page ends the walk even if `totalCount` disagrees; without
       // that guard a server that reports more than it serves loops forever.

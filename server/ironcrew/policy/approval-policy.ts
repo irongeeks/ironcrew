@@ -17,21 +17,9 @@ import { appendAuditEvent } from "../domain/audit.ts";
  * policy. Kept as data so config can extend it, but these entries are the
  * non-negotiable floor and are never removed at runtime.
  */
-export const ALWAYS_APPROVAL_REQUIRED = [
-  "bank_transfer",
-  "tax_filing",
-  "contract_execution",
-  "legally_binding_statement",
-  "external_customer_commitment",
-  "pricing_or_discount_override",
-  "production_deployment",
-  "tier0_change",
-  "irreversible_data_change",
-  "secret_disclosure",
-  "permission_change",
-  "agent_lifecycle_change",
-  "sandbox_elevation",
-] as const;
+export { ALWAYS_APPROVAL_REQUIRED } from "../../../src/shared/company-configuration.ts";
+import { ALWAYS_APPROVAL_REQUIRED } from "../../../src/shared/company-configuration.ts";
+import { CompanyConfigurationStore } from "./company-configuration-store.ts";
 
 export type ApprovalType = (typeof ALWAYS_APPROVAL_REQUIRED)[number] | string;
 
@@ -224,7 +212,13 @@ export class ApprovalEngine {
    * covered by a live approval.
    */
   assertActionPermitted(companyId: string, approvalType: string, taskId: string | null, now = Date.now()): void {
-    if (!requiresApproval(approvalType)) return;
+    if (
+      !requiresApproval(approvalType) &&
+      !new CompanyConfigurationStore(this.db)
+        .effective(companyId)
+        .approvals.additionalRequiredTypes.includes(approvalType)
+    )
+      return;
     if (this.isApproved(companyId, approvalType, taskId, now)) return;
 
     const pending = this.db

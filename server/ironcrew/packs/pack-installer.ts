@@ -117,6 +117,21 @@ export class PackInstaller {
    * pack key behind a cheerful success.
    */
   install(companyId: string, pack: BusinessPack, opts: InstallOpts = {}): InstallResult {
+    // Pack, crew, tools, routines and their audit entries form one installation.
+    // SAVEPOINT composes with an existing owner transaction without committing it.
+    this.db.exec("SAVEPOINT crew_pack_install");
+    try {
+      const result = this.installWithinTransaction(companyId, pack, opts);
+      this.db.exec("RELEASE SAVEPOINT crew_pack_install");
+      return result;
+    } catch (error) {
+      this.db.exec("ROLLBACK TO SAVEPOINT crew_pack_install");
+      this.db.exec("RELEASE SAVEPOINT crew_pack_install");
+      throw error;
+    }
+  }
+
+  private installWithinTransaction(companyId: string, pack: BusinessPack, opts: InstallOpts): InstallResult {
     const row = this.packs.install({
       companyId,
       packKey: pack.key,
