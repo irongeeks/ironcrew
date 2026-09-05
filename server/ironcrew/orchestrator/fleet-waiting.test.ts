@@ -72,4 +72,6 @@ it("keeps unavailable fleet work queued without attempts or provider limits and 
     clock.mockRestore();
     fs.rmSync(directory, { recursive: true, force: true });
   }
-});
+  // File-backed migrations, two dispatches, database reopen and audit verification
+  // also run under coverage beside the full backend suite on shared CI workers.
+}, 15_000);
