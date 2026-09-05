@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — 2026-09-05
+
+- Add modern vector office with canonical crew/task IDs, workspace desks,
+  meetings, approval zone, fit/zoom, keyboard navigation and reduced motion.
+- Share Office, Tasks and CEO chat state; fix mobile entry and global mission action.
+- Add authenticated company SSE, burst batching and persisted reload on reconnect.
+- Recover failed runs after backoff and persist rate-limit continuation across restart.
+- Pass project workspaces to runtimes; fail clearly when a filesystem runtime has none.
+- Enforce OpenRouter provider allowlists in real requests; cancel in-flight requests
+  and retain timeouts until response bodies are consumed.
+- Stop presenting CLI installation as confirmed authentication.
+- Show unknown audit state when data is unavailable; expose original task/run history
+  and submit concrete CEO revision instructions.
+- Preserve existing mail, Sevdesk and other business integrations.
+
+
 All notable changes to IronCrew will be documented in this file.
 
 Every entry below is inherited: releases up to and including 2.6.0 were made by

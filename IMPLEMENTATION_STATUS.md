@@ -4,7 +4,24 @@ Honest state of IronCrew. Nothing is listed as done unless it is
 implemented **and** covered by a passing test. Anything verified only by design
 review, or not verifiable in this environment, is said so explicitly.
 
-Last updated: **Phase 5 — production hardening.** Approval quorums
+## Current review corrections — 2026-09-05
+
+The primary interface now includes a modern spatial 2D office backed by the
+same company state as Kanban and CEO chat. Retry, rate-limit continuation,
+project workspaces, live updates, mobile navigation and original task/run
+inspection are implemented. Additional fixes enforce OpenRouter provider policy,
+report CLI authentication honestly, and fence obsolete workers after recovery.
+
+Measured results and environment limits are in
+[the implementation report](docs/REVIEW_FIXES_2026-09-05.md). The full master-prompt
+MVP is **not yet verified**: authenticated native CLI acceptance and browser
+acceptance remain outstanding locally. OpenRouter streaming/tool calling,
+CLI resume, Honcho and remote task dispatch are still unfinished.
+
+The phase tables below are historical implementation notes; their earlier
+"done" labels must not be read as proof of these missing end-to-end capabilities.
+
+Previous milestone: **Phase 5 — production hardening.** Approval quorums
 (`crew_approval_reviews`, four eyes on a dangerous gate), Authentik OIDC beside
 the password login, the audit chain shipped off the box to a file or HTTP sink,
 a tested backup/restore path, a load test, and the upgrade runbook. Before that:
@@ -15,11 +32,10 @@ queue and scheduler, routines, the OpenRouter runtime, the native runner daemon,
 and Antigravity as a real CLI adapter), plus **identity** (accounts, roles,
 sessions, and a real `usr_…` in the audit log).
 
-Everything from mailboxes and marketplaces back through Phase 2's Company OS is
-still true and is summarised in the tables below; it has simply stopped being
-the newest thing.
+Mailboxes, marketplaces and earlier Company OS features remain in place;
+their historical coverage is listed below, subject to the current review notes.
 
-## Verification summary
+## Historical verification summary (before these corrections)
 
 Re-measured on this checkout, not carried forward from a previous phase.
 

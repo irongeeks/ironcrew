@@ -4,6 +4,21 @@ IronCrew is a self-hosted, local-first multi-agent company OS. It is a
 fork of OctoOffice (Apache-2.0) with a new governance-grade control plane
 grafted alongside the existing runtime.
 
+## Shared office and live state (2026-09-05)
+
+The primary Office, Tasks and Command routes keep one mounted
+`CommandCenterView`. `CrewOffice` consumes the same canonical agents, departments,
+tasks and meetings as its board and dialogs; there is no synchronization into
+legacy OctoOffice tables. Legacy configuration tools remain explicitly labelled.
+
+`GET /api/crew/events` uses the Crew identity boundary and revalidates sessions
+on delivery. The server publishes redacted run events and content-free state
+invalidations. Scheduler callbacks use this channel as well. Crew events no
+longer traverse the legacy shared-password WebSocket. On initial connection or
+reconnect, the client reloads persisted REST state, so process restarts do not
+rely on an in-memory replay buffer. Token deltas update the timeline without
+reloading every panel. Transport keepalives are not domain polling.
+
 ## Layers
 
 ```text
@@ -12,7 +27,7 @@ grafted alongside the existing runtime.
 │ Command Center · CEO Chat · Kanban · Decision Inbox          │
 │ Agent Roster · Run Timeline                                  │
 └─────────────────────────────┬────────────────────────────────┘
-                              │ REST /api/crew  +  WebSocket
+                              │ REST /api/crew  +  authenticated SSE
 ┌─────────────────────────────▼────────────────────────────────┐
 │ Control Plane (server/ironcrew)                           │
 │ Orchestrator · Task State Machine · Atomic Claiming          │

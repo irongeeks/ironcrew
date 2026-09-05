@@ -283,3 +283,19 @@ skipped that step would be a way to run a task nobody assigned to anyone.
   intervals and its switches.
 - `THREAT_MODEL.md` **T-16** — what it means that all of this happens with
   nobody watching.
+
+
+## Execution recovery corrections (2026-09-05)
+
+A failed task is transitioned back to `ready` only when its retry request has
+actually been claimed after `not_before`. Pending/rejected/expired approvals
+block automatic revival. Rate limits keep the request queued with the original
+run ID and a persisted cooldown; a new orchestrator can continue it after restart.
+Other tasks on the same runtime respect that cooldown. Cancelled tasks cannot
+be revived by the queue.
+
+The task's project `workspace_path` is passed to execution (an explicit caller
+workspace still takes precedence). Filesystem runtimes fail with a recorded
+error if no absolute workspace is configured. Only runtimes explicitly declaring
+`workspaceRequired: false`, such as the mock and text-only OpenRouter adapter,
+can operate without one. The former invented temporary directory is gone.

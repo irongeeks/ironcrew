@@ -11,21 +11,16 @@ atomic task claiming, an approval engine that technically blocks high-risk
 actions, budget enforcement, a hash-chained audit log, and a vendor policy that
 is enforced in the backend rather than hidden in the UI.
 
-> **Status: Phases 0–5 shipped.** On top of the Company OS slice (goals,
-> projects, Kanban, meetings, an Obsidian memory, Discord/Telegram/email) the
-> system now has a tool register with risk classes, an MCP scope per agent and
-> project, a separate runner daemon, real accounts with roles and sessions,
-> five business packs behind seven read-only integrations, four-eyes approvals,
-> OIDC beside the password login, and an audit chain that is copied off the box
-> — **5,378 tests** across the server, client and operations-script suites.
+> **Status: integrated company office and review fixes.** Office, Kanban and
+> CEO chat now use the canonical company domain, with authenticated live events
+> and persisted task/run history. Retry, provider cooldown and project workspace
+> handling have been corrected. Existing mail and business-pack integrations remain.
 >
-> Two things are deliberately not built and say so: multi-company, and a
-> PostgreSQL adapter. One thing is built but not reachable — sandbox
-> elevation can be granted and read, but nothing can raise the approval that
-> would mint it, so every run resolves `restricted`. It fails safe.
-> [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) has the honest,
-> test-backed breakdown; [`docs/ROADMAP.md`](docs/ROADMAP.md) has the reasoning
-> for the two that were refused.
+> The complete master-prompt MVP is **not yet verified**: an authenticated real
+> CLI end-to-end run, full browser acceptance, OpenRouter streaming/tool calling,
+> CLI session resume, Honcho and remote-worker dispatch remain open. See
+> [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for measured checks and
+> [`docs/REVIEW_FIXES_2026-09-05.md`](docs/REVIEW_FIXES_2026-09-05.md) for this change.
 
 ## Quick start
 
@@ -37,7 +32,8 @@ cp .env.example .env          # set API_AUTH_TOKEN to a long random value
 pnpm dev                      # http://127.0.0.1:8800
 ```
 
-Complete the setup wizard, then open the **COMMAND** tab.
+Complete the setup wizard. **OFFICE** opens the modern company floor; **TASKS**
+opens its Kanban board and **COMMAND** focuses the same CEO conversation.
 
 No provider login is required to try it — MockRuntime exercises the whole flow.
 Full instructions: [Linux](docs/LINUX_INSTALL.md) · [macOS](docs/MACOS_INSTALL.md).
@@ -72,7 +68,17 @@ CEO ◄── summary ◄── review ◄────────────�
   legal, knowledge work. It registers tools; it never grants them, and its
   routines install switched off.
 
-## Screenshots
+## Office and screenshots
+
+The modern office uses original vector figures, real agent states, desks,
+meeting and approval areas. It works without WebGL and includes zoom, a keyboard
+accessible list and reduced-motion support. This illustration is rendered from
+the component with explicit test states; it is **not a browser screenshot**:
+
+![Office illustration with test states](docs/screenshots/crew-office-illustration.png)
+
+The screenshots below predate the integrated office and show the retained
+company panels:
 
 The Command Center — a live Kanban board, decision inbox and CEO chat, all
 backed by the same REST API this README describes elsewhere:
