@@ -18,14 +18,21 @@ is enforced in the backend rather than hidden in the UI.
 > Outbound native runner enrollment/fleet routing, one-run sandbox exceptions and
 > reviewed coaching versions are implemented.
 >
-> PR #19 is merged with **5,085 backend, 592 frontend, 40 script and 76 browser
-> tests passed** (one backend and four browser skips), plus Linux/macOS, Docker
+> The company features through [PR #22](https://github.com/irongeeks/ironcrew/pull/22)
+> are merged with **5,159 backend, 628 frontend, 40 script and 83 browser
+> tests passed** (one backend and three browser skips), plus Linux/macOS, Docker
 > restart/restore and supply-chain gates.
 > [Owner-managed routing profiles](docs/RUNTIME_ROUTING.md) now connect nine abstract
 > profiles to actual task and meeting runs, with explicit fallback and budget limits.
 > [PR #20](https://github.com/irongeeks/ironcrew/pull/20) carries its separate CI evidence.
 > Real authenticated provider runs remain operator acceptance checks. See
 > [master-prompt coverage](docs/MASTER_PROMPT_COVERAGE.md) for precise limits.
+
+## Releases and updates
+
+Use a [published release](https://github.com/irongeeks/ironcrew/releases) for stable installations.
+[Native and Docker updates](docs/RELEASES.md) pin the version and preserve company data
+with a backup and an explicit recovery procedure. Development checkouts remain available below.
 
 ## Quick start
 

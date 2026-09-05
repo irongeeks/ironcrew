@@ -1,5 +1,8 @@
 # Installation — macOS
 
+For stable installations, follow [Releases and updates](RELEASES.md).
+That procedure supersedes older branch-based update commands below.
+
 IronCrew is self-hosted and local-first. The platform CI verifies the current
 GitHub-hosted macOS runner; use Node22+ on a supported macOS release.
 

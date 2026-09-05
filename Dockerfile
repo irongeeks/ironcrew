@@ -72,6 +72,7 @@ RUN pnpm build
 FROM base AS production
 
 ENV NODE_ENV=production
+ENV IRONCREW_INSTALL_TYPE=docker
 ENV REMOTION_RUNTIME_BOOTSTRAP=0
 ENV HOST=0.0.0.0
 

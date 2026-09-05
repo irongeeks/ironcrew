@@ -1,5 +1,8 @@
 # Installation — Linux
 
+For stable installations, follow [Releases and updates](RELEASES.md).
+That procedure supersedes older branch-based update commands below.
+
 IronCrew is self-hosted and local-first. Everything runs on your own
 machine; nothing is sent to a third party unless you configure a provider.
 

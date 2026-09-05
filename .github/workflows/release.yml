@@ -1,0 +1,118 @@
+name: Versioned release
+on:
+  pull_request:
+  workflow_run:
+    workflows: [CI, Platform and production verification]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Optional full main commit SHA; both verification workflows must have passed this exact commit"
+        required: false
+        type: string
+permissions:
+  contents: read
+# Both upstream completions may arrive together. Never cancel an in-progress publication.
+concurrency:
+  group: ironcrew-versioned-release-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'publish' }}
+  cancel-in-progress: false
+jobs:
+  package-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Release gate, resume and packaging regression tests
+        run: pnpm exec vitest run --config scripts/lib/vitest.config.mjs scripts/lib/release-packaging.test.mjs
+      - name: Build and verify the exact PR source archive without publishing
+        shell: bash
+        run: |
+          node scripts/release/package.mjs "$(git rev-parse HEAD)" /tmp/ironcrew-release-check
+          cd /tmp/ironcrew-release-check
+          sha256sum --check SHA256SUMS
+          tar -tzf ironcrew-*-source.tar.gz > /tmp/ironcrew-release-contents.txt
+      - name: Validate release Compose override before any deployment
+        shell: bash
+        env:
+          IRONCREW_RELEASE_IMAGE: ghcr.io/irongeeks/ironcrew:v0.0.0
+        run: |
+          cp .env.example .env
+          docker compose -f compose.yaml -f compose.release.yaml --profile prod config --format json > /tmp/ironcrew-release-compose.json
+          node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('/tmp/ironcrew-release-compose.json')); if(c.services.ironcrew.build) throw Error('Release must not build local source');"
+  gate:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      ready: ${{ steps.gate.outputs.ready }}
+      commit: ${{ steps.gate.outputs.commit }}
+      version: ${{ steps.gate.outputs.version }}
+    steps:
+      # Execute only trusted default-branch gate code, never a triggering PR checkout/artifact.
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha || inputs.commit || github.sha }}
+        run: node scripts/release/gate.mjs
+  publish:
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Authenticate image publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Build, smoke-test and publish or verify the existing exact version image
+        id: image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.gate.outputs.commit }}
+        run: node scripts/release/image.mjs
+      - name: Package source, OCI digest manifest and checksums
+        env:
+          RELEASE_COMMIT: ${{ needs.gate.outputs.commit }}
+          RELEASE_IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: node scripts/release/package.mjs "$RELEASE_COMMIT" /tmp/ironcrew-release
+      - name: Recheck both CI gates, resume matching draft assets and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/publish.mjs /tmp/ironcrew-release
+      - name: Remove registry login
+        if: always()
+        run: docker logout ghcr.io

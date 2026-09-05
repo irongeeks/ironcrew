@@ -136,3 +136,8 @@ data/crew-attachments/
 config/private/*
 !config/private/*.example.yaml
 vault/
+
+# Per-installation release state and update lock
+release-image.env
+release-manifest.json
+.ironcrew-docker-update.lock/

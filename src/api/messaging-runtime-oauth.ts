@@ -237,6 +237,12 @@ export async function saveRoomThemes(roomThemes: Record<string, RoomTheme>): Pro
 }
 
 export interface UpdateStatus {
+  install_type?: "docker" | "native" | "source";
+  latest_tag?: string | null;
+  channel?: "stable";
+  discovery?: "available" | "up_to_date" | "no_release" | "disabled" | "unavailable";
+  self_update_supported?: false;
+  instructions?: { command: string | null; steps: string[]; documentation_url: string };
   current_version: string;
   latest_version: string | null;
   update_available: boolean;

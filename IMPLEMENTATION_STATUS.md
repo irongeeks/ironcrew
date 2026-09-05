@@ -500,3 +500,26 @@ The PR links carry final browser and merge results; provider-account acceptance 
    secret on an isolated target; CI has already exercised the packaged fixture flow.
 5. Prioritize remaining product scope from the coverage matrix and those acceptance
    results, including live business sources and optional future infrastructure.
+
+## Versioned releases and updates — 2026-09-05
+
+The release change continues the existing package version from 2.7.0 to 2.8.0;
+this is the first GitHub release for this repository, not evidence of earlier
+published IronCrew versions. It adds exact-commit CI/platform publication gates,
+source archives and checksums, a digest-linked production image, explicit native
+and Docker maintenance tools, and read-only stable release information in Settings.
+
+Native updates use real Git tag/commit verification and a separate build worktree;
+backup, failed preparation and partial-swap recovery are covered by regression
+checks. Docker updates retain the existing project/mount identity and persist a
+private recovery record. The web process cannot apply updates or restart itself.
+See [RELEASES.md](docs/RELEASES.md) for installation, first-update bootstrap and
+recovery procedures. Runtime account acceptance remains a target-host step.
+
+Local integration checks: 89 script tests, 632 frontend tests and 11 release
+route/discovery tests pass, as do both TypeScript checks, ESLint and the versioned
+production build. The Docker updater smoke uses a local registry fixture while
+executing actual Compose stop, archive, start, SQL persistence and failure recovery.
+The final aggregate CI, Docker updater verification and first publication are
+recorded in the release PR and GitHub Actions; no production operator host has
+been updated by this change.

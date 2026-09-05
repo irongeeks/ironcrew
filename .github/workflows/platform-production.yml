@@ -76,3 +76,5 @@ jobs:
           package-manager-cache: false
       - name: Production image restart and backup recovery without external networking
         run: node scripts/ci/docker-smoke.mjs ironcrew:ci
+      - name: Explicit release update preserves company data and fails stopped
+        run: node scripts/ci/docker-update-smoke.mjs --image ironcrew:ci
