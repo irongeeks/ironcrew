@@ -73,5 +73,6 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - name: Production image restart and backup recovery without external networking
         run: node scripts/ci/docker-smoke.mjs ironcrew:ci

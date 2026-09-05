@@ -21,27 +21,30 @@ reloading every panel. Transport keepalives are not domain polling.
 
 ## Layers
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Web (React + TypeScript + Vite)                              │
-│ Command Center · CEO Chat · Kanban · Decision Inbox          │
-│ Agent Roster · Run Timeline                                  │
-└─────────────────────────────┬────────────────────────────────┘
-                              │ REST /api/crew  +  authenticated SSE
-┌─────────────────────────────▼────────────────────────────────┐
-│ Control Plane (server/ironcrew)                           │
-│ Orchestrator · Task State Machine · Atomic Claiming          │
-│ Run Queue · Scheduler · Vessels × Talents                    │
-│ Approval Engine · Budget Engine · Vendor Policy              │
-│ Permission Policy · Redaction · Hash-chained Audit           │
-└─────────────────────────────┬────────────────────────────────┘
-                              │ normalised Run Protocol
-┌─────────────────────────────▼────────────────────────────────┐
-│ Runtime Layer                                                │
-│ MockRuntime (shipped) · Claude Code / Codex / Gemini via the │
-│ upstream adapters · OpenRouter (planned)                     │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  UI["Office · CEO-Chat · Kanban"] -->|"REST + SSE"| CP["Control Plane"]
+  CP --> DB["SQLite · Audit · persistente Queue"]
+  CP --> LOCAL["Embedded / Socket-Runner"]
+  FLEET["Nativer Fleet-Runner"] -->|"Ausgehendes WSS + Enrollment"| CP
+  LOCAL --> RUNTIME["CLI-Runtimes / OpenRouter"]
+  FLEET --> RUNTIME
+  CP --> MEMORY["Obsidian · optional Honcho"]
 ```
+
+Project planning is an EA run with a validated structured result. Owner review
+atomically turns its plan into canonical child tasks and dependencies; the ordinary
+scheduler, budget engine and action approvals remain authoritative. Coaching appends
+only approved, versioned guidance below role/policy constraints.
+
+The optional Fleet listener terminates TLS directly. Scoped, rotating runner
+credentials never contain CLI OAuth tokens. Persistent execution leases, session
+worker affinity and drain intervals protect reconnect/recovery. One-run sandbox
+exceptions expire both in the orchestrator and independently inside the runner.
+
+Character appearances are separate from role and policy. Managed image/spritesheet
+assets feed the 2D Office; optional self-contained GLB previews load on demand in
+profiles. No second company-state synchronization is introduced.
 
 ## The central design decision: additive, not a rewrite
 
@@ -211,17 +214,12 @@ PostgreSQL is deliberately **not** an MVP requirement. Every IronCrew
 business table already carries `company_id`, so multi-tenancy and a Postgres
 adapter are additive later rather than a schema rewrite.
 
-## What is not built yet
+## Acceptance and remaining work
 
-See `IMPLEMENTATION_STATUS.md` for the exhaustive, test-backed list. In
-short: `CliAdapterRuntime` now drives real CLI runtimes end-to-end (Phase
-1.5), and Phase 2's Company OS — goals, projects, Kanban, dependencies, the
-decision inbox, the org chart, bounded meetings, an Obsidian `MemoryProvider`,
-and Discord/Telegram/email notification fan-out — is built and tested, as are
-mailboxes (IMAP/JMAP/M365/Gmail with per-agent grants) and marketplaces for
-skills and MCP servers. IronCrew also runs unattended now: agents are
-Vessel × Talent pairings, the intent to run is a durable queue, and a
-scheduler drains it as a systemd service (`docs/SERVICE.md`). What remains: a tool registry with risk-classed
-approvals, a native runner daemon (so the control plane and the runtime stop
-sharing a process), and the business packs (MSP, Web Agency, Finance, Legal,
-Knowledge) — all Phase 3+.
+Native runners, tool registry, approvals, OpenRouter, business-pack adapters and
+outbound fleet transport are implemented. Their test evidence and limitations are
+tracked in [MASTER_PROMPT_COVERAGE.md](MASTER_PROMPT_COVERAGE.md) and
+[IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md). Those records distinguish
+controlled fixture tests from real provider-account acceptance. PostgreSQL/HA and
+additional business-source KPIs remain separate work; an adapter interface is not
+proof of a configured production integration.

@@ -11,17 +11,18 @@ atomic task claiming, an approval engine that technically blocks high-risk
 actions, budget enforcement, a hash-chained audit log, and a vendor policy that
 is enforced in the backend rather than hidden in the UI.
 
-> **Status: integrated company office, selectable characters and runtime integration.**
-> Office, Kanban and CEO chat share persisted company state and live events.
-> The office offers 20 original figures and private portrait/full-body uploads.
-> Capability-gated CLI session resume, OpenRouter streaming and scoped tools,
-> optional Honcho hybrid memory, native SecretRef resolution and explicitly
-> configured mTLS runner dispatch are implemented.
+> **Status: connected company workflows and modern office.**
+> Office, Kanban and CEO chat share persisted state and live events. Runtime-generated
+> project plans require owner review before task-tree delegation. The office offers
+> 20 original figures, private uploads, status spritesheets and optional GLB profiles.
+> Outbound native runner enrollment/fleet routing, one-run sandbox exceptions and
+> reviewed coaching versions are implemented.
 >
-> Consolidated checks: **569 frontend and 26 script tests passed; TypeScript and production build passed. Current backend/browser evidence: [PR #18](https://github.com/irongeeks/ironcrew/pull/18)**. The complete master-prompt
-> MVP is **not yet verified**: authenticated provider runs and deployment acceptance
-> remain operator checks. Automatic outbound runner enrollment and fleet routing
-> are not implemented. See [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
+> Current CI: **5,085 backend, 588 frontend and 40 script tests passed**, plus
+> Linux/macOS native checks and SBOM/license gates. Browser and Docker acceptance
+> for [PR #19](https://github.com/irongeeks/ironcrew/pull/19) is being finalized.
+> Real authenticated provider runs remain operator acceptance checks. See
+> [master-prompt coverage](docs/MASTER_PROMPT_COVERAGE.md) for precise limits.
 
 ## Quick start
 
@@ -41,14 +42,23 @@ Full instructions: [Linux](docs/LINUX_INSTALL.md) · [macOS](docs/MACOS_INSTALL.
 
 ## What it does
 
-```text
-CEO ──► Executive Assistant ──► triage ──► task ──► delegation
-                                                       │
-                                                       ▼
-                                    agent + runtime ──► run events
-                                                       │
-CEO ◄── summary ◄── review ◄────────────────────────────┘
+```mermaid
+flowchart TD
+  CEO["CEO"] --> EA["Executive Assistant"]
+  EA -->|"Project"| PLAN["Validated plan"]
+  PLAN --> OWNER["Owner review"]
+  OWNER -->|"Approved"| QUEUE["Tasks · dependencies · budgets"]
+  EA -->|"Permitted routine"| QUEUE
+  QUEUE --> RUN["Runtime + live events"]
+  RUN --> REVIEW["Result review"]
+  REVIEW -->|"Revision"| QUEUE
+  REVIEW -->|"Accepted"| DONE["Result + audit"]
 ```
+
+Project planning: [workflow](docs/PROJECT_PLANNING.md) ·
+Native fleet: [setup and scopes](docs/RUNNER_FLEET.md) ·
+Characters: [selection, media and generator prompt](docs/CHARACTERS.md) ·
+Coaching: [reviewed guidance and evidence](docs/COACHING.md).
 
 - **One point of contact.** You write to the EA. She classifies every message
   (question, task, project, incident, sensitive request…), asks only when the

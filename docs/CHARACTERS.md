@@ -84,11 +84,11 @@ private Uploads werden nicht Teil der öffentlichen Assets oder eines Git-Commit
 | Animationen  | Mehrseitige bzw. animierte Bilder werden abgewiesen                                                                      |
 | Verarbeitung | Neu kodiertes statisches WebP; Orientierung wird angewendet, Metadaten und angehängte Fremddaten werden nicht übernommen |
 | Ablage       | Standardmäßig `data/private-assets/characters/`, Metadaten in SQLite, Zuordnung getrennt pro Agent                       |
-| Quota        | 200 MiB gespeicherte Bilddaten pro Firma                                                                                 |
+| Quota        | 200 MiB gespeicherte Medien und höchstens 1000 Dateien pro Firma                                                         |
 | Zugriff      | Authentifizierte, firmengebundene API; `Cache-Control: private, no-store`; keine öffentliche Static-Asset-Route          |
 | Dateisystem  | Neu angelegte private Wurzel mit Modus `0700`, Dateien `0600`; Symlink- und Integritätsprüfungen                         |
 | Zuweisung    | Nur interne Asset-Referenzen; keine beliebigen externen Bild-URLs                                                        |
-| Entfernen    | Neuauswahl trennt die Zuordnung; physisches Löschen über die UI ist derzeit nicht implementiert                          |
+| Entfernen    | Dateiverwaltung mit physischem Löschen; verwendete Assets benötigen ausdrücklich bestätigtes Lösen der Zuordnungen       |
 
 Die private Ablage ist Zugriffsschutz, keine zusätzliche Verschlüsselung auf dem
 Datenträger. Für einen vollständigen Umzug müssen Datenbank und private Bilddateien
@@ -96,10 +96,25 @@ zusammen gesichert werden; eine reine SQLite-Sicherung enthält die Bilder nicht
 
 ## Grenzen und Implementierung
 
-Private Bilder sind statische Basisbilder mit tatsächlichen Live-Statusanzeigen.
-GLB/GLTF-Uploads, ein Spritesheet-Player, separate Bildanimationen pro Agentenstatus
-und ein eingebauter Bildgenerator sind nicht implementiert. Der Prompt ist eine
-Hilfe zur Erstellung der heute unterstützten Bilder.
+Ein Spritesheet ist eine statische Bilddatei mit mehreren Frames. Im Figurenprofil
+lassen sich Framegröße, Spalten und je Agentenstatus Zeile, Anzahl, FPS und Wiederholung
+festlegen. Das Office spielt die Zeile des tatsächlichen Backendstatus ab. Bei
+reduzierter Bewegung oder verborgenem Tab pausiert der Player; Fehleranimationen
+laufen einmal. GIF/APNG und andere mehrseitige Dateien bleiben abgewiesen.
+
+Optional lässt sich eine selbstenthaltene GLB-Datei bis 5 MiB im Profil hochladen
+und mit Kamera-/Zoom-Steuerung ansehen. Eingebettete Geometrie und Skelettanimationen
+werden unterstützt; Texturen, externe Ressourcen, Erweiterungen und Kompression sind
+nicht erlaubt. GLTF-Dateien mit Nebenressourcen werden nicht importiert. Die 3D-Vorschau
+wird separat geladen; das Office bleibt 2D und behält seine zugängliche DOM-Ansicht.
+
+Die Dateiverwaltung zeigt tatsächliche Zuordnungen. Löschen eines verwendeten Assets
+wird ohne ausdrückliches Detach abgewiesen. Eine fehlgeschlagene physische Löschung
+bleibt als ausstehend sichtbar und kann wiederaufgenommen werden; ein gelöschter
+Datenbankeintrag wird nicht als erfolgreiche Dateilöschung ausgegeben.
+
+Ein integrierter Bildmodell-Aufruf ist weiterhin nicht Bestandteil des Generators.
+Der kopierbare Prompt unterstützt auch ein Raster aus Statusframes.
 
 - `src/shared/character-skins.ts`: stabile Auswahl-IDs und Beschreibungen.
 - `src/ironcrew/CharacterSkinEditor.tsx` und `CharacterPrompt.ts`: Auswahl, Vorschau,
