@@ -62,6 +62,13 @@ and mobile roster cases. Actual profile, configuration and mobile screenshots we
 inspected. The final follow-up labels professional roles readably and hardens native vault
 watching after a macOS directory-event regression. The final
 exact-revision browser/CI evidence and merge state are recorded in PR #22.
+The native watcher correction on `115f951` passed [CI 33951716893](https://github.com/irongeeks/ironcrew/actions/runs/33951716893)
+with **5,159 backend tests (1 skipped), 627 frontend tests, 40 script tests and
+83 browser tests (3 existing conditional skips)**. [Platform 33951716900](https://github.com/irongeeks/ironcrew/actions/runs/33951716900)
+passed every gate, including all 15 watcher tests on macOS. The final UI correction
+preserves unsaved department setup during unchanged-revision live refreshes; its
+regression and final merge evidence are linked from PR #22.
+
 See [CAREER_REVIEWS.md](docs/CAREER_REVIEWS.md) for setup and limits.
 
 Actual CLI subscriptions, mTLS customer networks, OIDC, Honcho, mail and business

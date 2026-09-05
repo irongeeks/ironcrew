@@ -451,7 +451,6 @@ export function PeoplePerformancePanel({
       }
     } catch (cause) {
       if (generation.current === token) {
-        setSnapshot(null);
         setError(cause instanceof Error ? cause.message : "Teamdaten konnten nicht geladen werden.");
       }
     } finally {
@@ -462,7 +461,8 @@ export function PeoplePerformancePanel({
     generation.current++;
   }, []);
   useEffect(() => {
-    setSnapshot(null);
+    // Keep mounted owner forms during live refreshes. The configuration revision
+    // key below resets drafts only when the persisted configuration changes.
     void load();
     return invalidate;
   }, [load, refreshKey, invalidate]);

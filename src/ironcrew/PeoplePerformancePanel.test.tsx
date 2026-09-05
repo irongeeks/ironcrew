@@ -305,6 +305,46 @@ describe("PeoplePerformancePanel", () => {
     expect(screen.queryByText(/4 \/ 5/)).not.toBeInTheDocument();
   });
 
+  it("preserves an unsaved department selection through same-revision live refresh and refresh errors", async () => {
+    const { rerender, onOpenRouting } = await mount(true);
+    fireEvent.change(screen.getAllByLabelText("Abteilungslead")[0], { target: { value: "" } });
+    let finish!: (response: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    rerender(
+      <PeoplePerformancePanel
+        agents={agents}
+        departments={departments}
+        canManage
+        refreshKey={1}
+        onOpenRouting={onOpenRouting}
+      />,
+    );
+    expect(screen.getAllByLabelText("Abteilungslead")[0]).toHaveValue("");
+    expect(screen.getByText("Teamdaten werden geladen …")).toBeInTheDocument();
+    finish(json(snapshot));
+    await waitFor(() => expect(screen.queryByText("Teamdaten werden geladen …")).not.toBeInTheDocument());
+    expect(screen.getAllByLabelText("Abteilungslead")[0]).toHaveValue("");
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("Aktualisierung fehlgeschlagen"));
+    rerender(
+      <PeoplePerformancePanel
+        agents={agents}
+        departments={departments}
+        canManage
+        refreshKey={2}
+        onOpenRouting={onOpenRouting}
+      />,
+    );
+    await screen.findByRole("alert");
+    expect(screen.getByRole("alert")).toHaveTextContent("Aktualisierung fehlgeschlagen");
+    expect(screen.getAllByLabelText("Abteilungslead")[0]).toHaveValue("");
+    expect(writes).toHaveLength(0);
+  });
+
   it("surfaces server conflicts without announcing a saved configuration", async () => {
     await mount(true);
     rejectWrite = true;
