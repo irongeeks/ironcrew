@@ -51,6 +51,7 @@ export class OutboundRunner {
   private stopped = false;
   private attempt = 0;
   private scope: WorkerScope | null = null;
+  private credentialFile = "";
   constructor(private readonly options: OutboundRunnerOptions) {
     this.url = new URL(options.url);
     if (
@@ -73,8 +74,17 @@ export class OutboundRunner {
     });
   }
   async start(): Promise<void> {
+    const configuredDirectory = path.dirname(this.options.credentialFile);
+    await fs.mkdir(configuredDirectory, { recursive: true, mode: 0o700 });
+    // macOS exposes /var and /tmp through system symlinks. Resolve the parent
+    // once, then keep all file operations under that owned canonical directory.
+    const directory = await fs.realpath(configuredDirectory);
+    const parent = await fs.stat(directory);
+    if ((parent.mode & 0o022) !== 0 || (process.getuid && parent.uid !== process.getuid()))
+      throw new Error("Fleet credential directory must be owned and not writable by others");
+    this.credentialFile = path.join(directory, path.basename(this.options.credentialFile));
     try {
-      const file = await fs.open(this.options.credentialFile, constants.O_RDONLY | constants.O_NOFOLLOW);
+      const file = await fs.open(this.credentialFile, constants.O_RDONLY | constants.O_NOFOLLOW);
       try {
         const stat = await file.stat();
         if (
@@ -102,30 +112,34 @@ export class OutboundRunner {
   }
   private async save(worker: WorkerScope, credential: string, expiresAt: number) {
     const next = credentialSchema.parse({ worker, credential, expiresAt });
-    const dir = path.dirname(this.options.credentialFile);
-    await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-    if ((await fs.realpath(dir)) !== path.resolve(dir))
-      throw new Error("Fleet credential directory must not use symlinks");
+    const dir = path.dirname(this.credentialFile);
+    if ((await fs.realpath(dir)) !== dir) throw new Error("Fleet credential directory changed after startup");
     const parent = await fs.stat(dir);
     if ((parent.mode & 0o022) !== 0 || (process.getuid && parent.uid !== process.getuid()))
       throw new Error("Fleet credential directory must be owned and not writable by others");
-    const temporary = `${this.options.credentialFile}.${randomBytes(8).toString("hex")}.tmp`;
+    const temporary = `${this.credentialFile}.${randomBytes(8).toString("hex")}.tmp`;
     const file = await fs.open(
       temporary,
       constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
       0o600,
     );
     try {
-      await file.writeFile(JSON.stringify(next));
-      await file.sync();
-    } finally {
-      await file.close();
-    }
-    try {
-      await fs.rename(temporary, this.options.credentialFile);
+      try {
+        await file.writeFile(JSON.stringify(next));
+        await file.sync();
+      } finally {
+        await file.close();
+      }
+      await fs.rename(temporary, this.credentialFile);
     } catch (error) {
-      await fs.unlink(temporary);
+      await fs.rm(temporary, { force: true });
       throw error;
+    }
+    const directory = await fs.open(dir, constants.O_RDONLY);
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
     }
     this.credential = next;
   }
@@ -133,12 +147,46 @@ export class OutboundRunner {
     return Promise.all(
       this.options.runtimes
         .filter((runtime) => this.scope?.runtimeTypes.includes(runtime.type))
-        .map(async (runtime) => ({
-          type: runtime.type,
-          capabilities: await runtime.capabilities(),
-          health: await runtime.healthCheck(),
-          auth: await runtime.authStatus(),
-        })),
+        .map(async (runtime): Promise<RuntimeDescriptor> => {
+          let timer: NodeJS.Timeout | undefined;
+          try {
+            const [capabilities, health, auth] = await Promise.race([
+              Promise.all([runtime.capabilities(), runtime.healthCheck(), runtime.authStatus()]),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error("Runtime probe timed out")), 10_000);
+                timer.unref();
+              }),
+            ]);
+            return { type: runtime.type, capabilities, health, auth };
+          } catch {
+            return {
+              type: runtime.type,
+              capabilities: {
+                streaming: false,
+                sessionResume: false,
+                usageReporting: false,
+                costReporting: false,
+                toolCalls: false,
+                subagents: false,
+                defaultConcurrency: 1,
+              },
+              health: {
+                healthy: false,
+                installed: false,
+                checkedAt: Date.now(),
+                detail: "Laufzeitprüfung fehlgeschlagen oder Zeitlimit überschritten",
+              },
+              auth: {
+                authenticated: false,
+                verification: "unverified",
+                method: "none",
+                detail: "Laufzeitprüfung nicht verfügbar",
+              },
+            };
+          } finally {
+            clearTimeout(timer);
+          }
+        }),
     );
   }
   private connect(): Promise<void> {
@@ -300,7 +348,8 @@ export class OutboundRunner {
           reject(new Error("Fleet connection failed"));
         }
       });
-      ws.on("close", () => {
+      ws.on("close", (code) => {
+        if (code === 1008) this.stopped = true;
         clearTimeout(timer);
         clearInterval(this.heartbeat);
         for (const channel of [...this.channels.values()]) channel.disconnect();

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { request } from "../api/core";
@@ -34,6 +34,7 @@ async function enroll() {
   fireEvent.change(screen.getByLabelText("Projekt"), { target: { value: "project-one" } });
   await userEvent.click(screen.getByRole("button", { name: "Einmalige Anmeldung erstellen" }));
   await screen.findByText(token);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Einmalige Anmeldung erstellen" })).toBeEnabled());
 }
 describe("FleetPanel", () => {
   it("submits explicit project, workspace, runtime, concurrency and short enrollment scope", async () => {
@@ -64,13 +65,15 @@ describe("FleetPanel", () => {
     expect(screen.queryByText(token)).not.toBeInTheDocument();
     await enroll();
     view.unmount();
-    render(<FleetPanel projects={projects} canManage={false} />);
+    await act(async () => {
+      render(<FleetPanel projects={projects} canManage={false} />);
+    });
     expect(screen.queryByText(token)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Einmalige Anmeldung erstellen" })).not.toBeInTheDocument();
     expect(storage).not.toHaveBeenCalled();
   });
   it("requires explicit revoke confirmation and preserves current worker state when revoke fails", async () => {
-    mock.mockImplementation(async (url, options) => {
+    mock.mockImplementation(async (_url, options) => {
       if (options?.method === "POST") throw new Error("Widerruf fehlgeschlagen");
       return { workers: [{ ...worker, state: "active" }] };
     });

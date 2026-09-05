@@ -74,9 +74,9 @@ async function setup(runtime = new MockRuntime()) {
   if (!address || typeof address === "string") throw new Error("Missing listener");
   const url = `wss://127.0.0.1:${address.port}/api/crew/fleet/connect`;
   const runners: OutboundRunner[] = [];
-  const add = async (label = "native") => {
+  const add = async (label = "native", credentialDirectory = dir) => {
     const { worker, enrollment } = hub.store.create({ ...input, label, workspaceRoot: dir }, "owner");
-    const credentialFile = path.join(dir, `${worker.id}.json`);
+    const credentialFile = path.join(credentialDirectory, `${worker.id}.json`);
     const runner = new OutboundRunner({
       url,
       credentialFile,
@@ -196,6 +196,31 @@ describe("real outgoing WSS runner", () => {
       await fixture.close();
     }
   });
+  it("enrolls through a canonicalized system-style directory alias without accepting a credential-file symlink", async () => {
+    const fixture = await setup();
+    try {
+      const canonical = fs.mkdtempSync(path.join(dir, "credential-owned-"));
+      const alias = `${canonical}-alias`;
+      fs.symlinkSync(canonical, alias, "dir");
+      const enrolled = await fixture.add("aliased", alias);
+      expect(fs.realpathSync(enrolled.credentialFile)).toBe(
+        path.join(fs.realpathSync(canonical), path.basename(enrolled.credentialFile)),
+      );
+      expect(fs.statSync(enrolled.credentialFile).mode & 0o777).toBe(0o600);
+      const link = path.join(canonical, "linked-credential.json");
+      fs.symlinkSync(enrolled.credentialFile, link);
+      const rejected = new OutboundRunner({
+        url: fixture.url,
+        credentialFile: link,
+        workspaceRoot: dir,
+        runtimes: [new MockRuntime()],
+        ca: cert,
+      });
+      await expect(rejected.start()).rejects.toThrow();
+    } finally {
+      await fixture.close();
+    }
+  });
   it("uses deterministic capacity routing and rejects duplicate active task claims or foreign scopes", async () => {
     const fixture = await setup();
     try {
@@ -299,6 +324,7 @@ describe("real outgoing WSS runner", () => {
       }
       expect(nextRound).toBe(false);
       expect(events.at(-1)?.type).toBe("run.cancelled");
+      expect(fixture.hub.store.leases()[0].state).toBe("lost");
     } finally {
       await fixture.close();
     }
@@ -341,7 +367,7 @@ describe("real outgoing WSS runner", () => {
         .runtime("mock")
         .startRun({ prompt: "retry" }, { ...context(fixture.companyId), taskId: "next-task", runId: "retry" }))
         events.push(event);
-      expect(events.at(-1)?.type).toBe("run.completed");
+      expect(events.at(-1)).toMatchObject({ type: "run.waiting", payload: { reason: "runner_unavailable" } });
     } finally {
       await fixture.close();
     }

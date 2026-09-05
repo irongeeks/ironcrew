@@ -92,7 +92,7 @@ export class FleetStore {
       credentialExpiresAt: row.credential_expires_at,
       activeLeases: oneRow<{ n: number }>(
         this.db.prepare(
-          "SELECT COUNT(*) n FROM crew_fleet_leases WHERE worker_id=? AND state='active' AND expires_at>?",
+          "SELECT COUNT(*) n FROM crew_fleet_leases WHERE worker_id=? AND state IN ('active','lost','revoked') AND expires_at>?",
         ),
         row.id,
         this.now(),

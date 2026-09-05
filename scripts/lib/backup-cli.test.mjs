@@ -9,7 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 // Exercise the real plain-node launcher, including its tsx child. A synchronous
 // spawn cannot be interrupted by Vitest's timeout, and killing only that parent
 // can leave descendants holding its stdio open. Bound the whole process group.
-function runCli(args, directory) {
+function runCli(args, directory, deadlineMs = 15000) {
   return new Promise((resolve, reject) => {
     const env = Object.fromEntries(
       ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SystemRoot"]
@@ -36,7 +36,7 @@ function runCli(args, directory) {
     const timer = setTimeout(() => {
       failure = new Error("Backup CLI exceeded its 15-second test deadline.");
       stop();
-    }, 15000);
+    }, deadlineMs);
     const collect = (stream, chunk) => {
       if (stream === "stdout") stdout += chunk;
       else stderr += chunk;
@@ -90,3 +90,18 @@ it("backup and restore CLI preserve relative paths from a rescue working directo
     rmSync(directory, { recursive: true, force: true });
   }
 }, 35000);
+
+it("terminates a stuck CLI process group instead of blocking the test worker", async () => {
+  await expect(
+    runCli(
+      [
+        "-e",
+        `const {spawn}=require('node:child_process');
+    spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'});
+    setInterval(()=>{},1000);`,
+      ],
+      root,
+      500,
+    ),
+  ).rejects.toThrow("test deadline");
+}, 5000);
