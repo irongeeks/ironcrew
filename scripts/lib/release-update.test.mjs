@@ -11,7 +11,7 @@ const git = async (cwd, ...args) => {
   return result.stdout.trim();
 };
 beforeEach(async () => {
-  directory = await fs.mkdtemp(path.join(os.tmpdir(), "crew update space-"));
+  directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "crew update space-")));
   source = path.join(directory, "source");
   repo = path.join(directory, "installed");
   backupRoot = path.join(directory, "backups");

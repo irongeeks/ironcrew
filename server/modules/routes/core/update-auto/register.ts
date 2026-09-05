@@ -54,15 +54,13 @@ export function registerUpdateAutoRoutes(base: UpdateAutoRouteBaseDeps, _util: U
   });
   for (const endpoint of ["/api/update-apply", "/api/update-auto-config"]) {
     app.post(endpoint, authenticated, async (_req, res) => {
-      res
-        .status(409)
-        .json({
-          ok: false,
-          error: "manual_update_required",
-          message:
-            "IronCrew aktualisiert sich nicht aus dem laufenden Webprozess. Bitte den Host-Update-Assistenten für ein stabiles Release verwenden.",
-          update_status: await readStatus(),
-        });
+      res.status(409).json({
+        ok: false,
+        error: "manual_update_required",
+        message:
+          "IronCrew aktualisiert sich nicht aus dem laufenden Webprozess. Bitte den Host-Update-Assistenten für ein stabiles Release verwenden.",
+        update_status: await readStatus(),
+      });
     });
   }
 }

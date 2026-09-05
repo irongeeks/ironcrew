@@ -516,7 +516,7 @@ private recovery record. The web process cannot apply updates or restart itself.
 See [RELEASES.md](docs/RELEASES.md) for installation, first-update bootstrap and
 recovery procedures. Runtime account acceptance remains a target-host step.
 
-Local integration checks: 84 script tests, 632 frontend tests and 11 release
+Local integration checks: 89 script tests, 632 frontend tests and 11 release
 route/discovery tests pass, as do both TypeScript checks, ESLint and the versioned
 production build. The Docker updater smoke uses a local registry fixture while
 executing actual Compose stop, archive, start, SQL persistence and failure recovery.

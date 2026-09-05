@@ -293,8 +293,12 @@ export async function updateDockerRelease(
     throw new Error("Run this updater from the existing Compose project directory.");
   const permittedFiles = new Set([path.join(cwd, "compose.yaml"), path.join(cwd, "compose.release.yaml")]);
   const previousFiles = (labels["com.docker.compose.project.config_files"] ?? "").split(",");
-  if (!previousFiles.length || previousFiles.some((file) => !permittedFiles.has(path.resolve(file))))
+  if (!previousFiles.length || previousFiles.some((file) => !file))
     throw new Error("Existing additional Compose overrides require a reviewed manual update.");
+  for (const file of previousFiles) {
+    if (!permittedFiles.has(await fs.realpath(path.resolve(cwd, file))))
+      throw new Error("Existing additional Compose overrides require a reviewed manual update.");
+  }
   const mounts = validateMounts(config, container, cwd);
   if (!container.State?.Running) throw new Error("Existing service must be running and healthy before an update.");
   const health = await json(["exec", container.Id, "node", "--input-type=module", "-e", HEALTH_SCRIPT]);
@@ -312,7 +316,17 @@ export async function updateDockerRelease(
       if (!stat.isDirectory())
         throw new Error("Only regular bind directories are supported; symlinks and file binds require manual backup.");
       canonicalSources.push(await fs.realpath(mount.Source));
-    } else canonicalSources.push(await canonicalDestination(mount.Source));
+    } else {
+      try {
+        canonicalSources.push(await canonicalDestination(mount.Source));
+      } catch (error) {
+        // A local Docker daemon owns these paths; Docker Desktop keeps them inside
+        // its VM. Operators need not traverse daemon storage to back up by volume
+        // name. Backup and bind paths above still require host canonicalization.
+        if (!["EACCES", "EPERM"].includes(error.code)) throw error;
+        canonicalSources.push(path.resolve(mount.Source));
+      }
+    }
   }
   const outsideMounts = (directory) => {
     for (const source of canonicalSources)

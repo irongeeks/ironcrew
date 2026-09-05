@@ -18,7 +18,7 @@ if (args.length !== 2 || args[0] !== "--image" || !args[1] || /[\s\n]/.test(args
   throw new Error("Usage: node scripts/ci/docker-update-smoke.mjs --image <already-built-local-production-image>");
 const image = args[1],
   repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const root = await fs.mkdtemp(path.join(os.tmpdir(), "ironcrew-update-smoke-"));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "ironcrew-update-smoke-")));
 const cwd = path.join(root, "company"),
   backupDir = path.join(root, "backups");
 const project = `ironcrew-update-smoke-${randomBytes(6).toString("hex")}`;
@@ -77,6 +77,7 @@ try {
     env_file: .env
     environment:
       NODE_ENV: production
+      SKIP_OWNERSHIP_FIX: "1"
       DB_PATH: /data/octooffice.sqlite
       LOGS_DIR: /data/logs
       OBSIDIAN_VAULT_PATH: /data/vault

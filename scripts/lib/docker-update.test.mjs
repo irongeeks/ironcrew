@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -11,10 +11,11 @@ const oldImage = `sha256:${"a".repeat(64)}`,
 const published = `ghcr.io/irongeeks/ironcrew@${digest}`;
 const roots = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));
 });
 async function fixture(overrides = {}) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "docker-update-"));
+  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "docker-update-")));
   roots.push(root);
   const cwd = path.join(root, "company"),
     backupDir = path.join(root, "backups");
@@ -71,8 +72,8 @@ async function fixture(overrides = {}) {
       Labels: {
         "com.docker.compose.project": "original-project",
         "com.docker.compose.service": "ironcrew",
-        "com.docker.compose.project.working_dir": cwd,
-        "com.docker.compose.project.config_files": path.join(cwd, "compose.yaml"),
+        "com.docker.compose.project.working_dir": overrides.workingDir ?? cwd,
+        "com.docker.compose.project.config_files": overrides.configFiles ?? path.join(cwd, "compose.yaml"),
       },
     },
   });
@@ -153,6 +154,46 @@ describe("explicit Docker release update", () => {
     expect(f.calls.some((c) => c.args[0] === "pull" || c.args.includes("stop") || c.args.includes("up"))).toBe(false);
     await expect(fs.stat(f.backupDir)).rejects.toMatchObject({ code: "ENOENT" });
     expect(JSON.stringify(result)).not.toContain("test-private-value");
+  });
+  it("accepts canonical aliases for the same existing Compose files and rejects extra overrides", async () => {
+    const labels = {};
+    const f = await fixture(labels);
+    const alias = path.join(f.root, "company-alias");
+    await fs.symlink(f.cwd, alias, "dir");
+    labels.workingDir = alias;
+    labels.configFiles = path.join(alias, "compose.yaml");
+    const result = await updateDockerRelease({ ...f.options, dryRun: true }, { cwd: alias, env: {}, run: f.run });
+    expect(result.cwd).toBe(f.cwd);
+    const extra = path.join(f.cwd, "extra.yaml");
+    await fs.writeFile(extra, "services: {}\n");
+    labels.configFiles += `,${path.join(alias, "extra.yaml")}`;
+    await expect(invoke(f, { dryRun: true })).rejects.toThrow("additional Compose overrides");
+    expect(f.calls.some((call) => call.args.includes("stop") || call.args[0] === "pull")).toBe(false);
+  });
+  it.each(["EACCES", "EPERM"])("backs up daemon-owned named volumes despite host %s", async (code) => {
+    const f = await fixture();
+    const realpath = fs.realpath.bind(fs);
+    vi.spyOn(fs, "realpath").mockImplementation(async (directory, ...args) => {
+      if (directory === f.mounts[0].Source) throw Object.assign(new Error("Daemon storage inaccessible"), { code });
+      return realpath(directory, ...args);
+    });
+    const result = await invoke(f);
+    expect(result.verified).toBe(true);
+    const archives = f.calls.filter((call) => call.args[0] === "run");
+    expect(
+      archives.some((call) => call.args.includes(`type=volume,src=${f.mounts[0].Name},dst=/source,readonly`)),
+    ).toBe(true);
+  });
+  it.each(["bind", "backup"])("still rejects inaccessible %s paths before downtime", async (kind) => {
+    const f = await fixture();
+    const denied = kind === "bind" ? f.mounts[2].Source : f.backupDir;
+    const realpath = fs.realpath.bind(fs);
+    vi.spyOn(fs, "realpath").mockImplementation(async (directory, ...args) => {
+      if (directory === denied) throw Object.assign(new Error("Host path inaccessible"), { code: "EACCES" });
+      return realpath(directory, ...args);
+    });
+    await expect(invoke(f)).rejects.toMatchObject({ code: "EACCES" });
+    expect(f.calls.some((call) => call.args.includes("stop") || call.args[0] === "pull")).toBe(false);
   });
   it("pins the published digest, pulls before stop, backs up all stopped mounts and keeps project and legacy volume", async () => {
     const f = await fixture();
