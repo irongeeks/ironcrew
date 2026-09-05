@@ -2643,7 +2643,12 @@ describe("the audit chain leaving the box", () => {
     orchestrator.registerAuditShipper(
       new AuditShipper({
         db,
-        sink: new HttpAuditSink({ url: "http://collector.invalid/ingest", bearerToken: "sk-audit-secret-token" }),
+        sink: new HttpAuditSink({
+          url: "http://collector.invalid/ingest",
+          bearerToken: "sk-audit-secret-token",
+          // Exercise redaction deterministically; this test must never contact a collector.
+          fetchImpl: vi.fn().mockRejectedValue(new Error("Collector rejected sk-audit-secret-token")),
+        }),
       }),
     );
     const res = await request(app).get("/api/crew/audit/shipping").expect(200);

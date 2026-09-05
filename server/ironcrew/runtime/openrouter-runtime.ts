@@ -32,7 +32,7 @@
 
 import { newId } from "../domain/ids.ts";
 import { redact } from "../security/redaction.ts";
-import { evaluateModel, getVendorPolicy } from "../policy/vendor-policy.ts";
+import { buildOpenRouterProviderPolicy, evaluateModel, getVendorPolicy } from "../policy/vendor-policy.ts";
 import type {
   AgentRuntime,
   AuthStatus,
@@ -90,6 +90,7 @@ export class OpenRouterRuntime implements AgentRuntime {
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly cancelled = new Set<string>();
+  private readonly active = new Map<string, AbortController>();
 
   constructor(opts: OpenRouterRuntimeOptions) {
     this.apiKey = opts.apiKey;
@@ -162,6 +163,7 @@ export class OpenRouterRuntime implements AgentRuntime {
 
   async cancelRun(runId: string): Promise<void> {
     this.cancelled.add(runId);
+    this.active.get(runId)?.abort();
   }
 
   private headers(): Record<string, string> {
@@ -201,7 +203,8 @@ export class OpenRouterRuntime implements AgentRuntime {
     // dozens of vendors, so a run could otherwise arrive at a blocked one
     // without anybody having chosen it — and a policy checked after the
     // answer comes back is a policy that has already been broken.
-    const decision = evaluateModel(getVendorPolicy(), model, "openrouter");
+    const policy = getVendorPolicy();
+    const decision = evaluateModel(policy, model, "openrouter");
     if (!decision.allowed) {
       yield emit("run.failed", {
         message: `Vendor-Policy verbietet "${model}": ${decision.reason}`,
@@ -209,6 +212,17 @@ export class OpenRouterRuntime implements AgentRuntime {
       });
       return;
     }
+
+    // A permitted model family does not constrain its hosting provider.
+    // An empty allowlist must never become an unconstrained router request.
+    if (policy.openrouter.allowed_providers.length === 0) {
+      yield emit("run.failed", {
+        message: "Vendor-Policy erlaubt keinen OpenRouter-Provider.",
+        code: "no_allowed_providers",
+      });
+      return;
+    }
+    const provider = buildOpenRouterProviderPolicy(policy, { sensitive: context.sensitive !== false });
 
     yield emit("run.started", { model, runtime: this.type });
 
@@ -222,82 +236,93 @@ export class OpenRouterRuntime implements AgentRuntime {
     // vessel's timeout and an operator's cancel should both stop the request
     // itself, not just stop us listening to it.
     const abort = new AbortController();
+    this.active.set(context.runId, abort);
     const onAbort = () => abort.abort();
     context.signal?.addEventListener("abort", onAbort, { once: true });
-    const timer = setTimeout(() => abort.abort(), this.timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, this.timeoutMs);
     timer.unref?.();
 
-    let response: Response;
     try {
-      response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
+      const response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: this.headers(),
         signal: abort.signal,
         body: JSON.stringify({
           model,
+          provider,
           messages: [{ role: "user", content: input.prompt }],
           ...(input.maxTurns ? { max_tokens: input.maxTurns } : {}),
         }),
       });
-    } catch (err) {
-      clearTimeout(timer);
-      context.signal?.removeEventListener("abort", onAbort);
-      if (context.signal?.aborted) {
-        yield emit("run.cancelled", { reason: "abgebrochen" });
+      if (response.status === 429) {
+        // Reported as its own event rather than a generic failure: the control
+        // plane treats a rate limit as "try later", not as "this task is bad".
+        yield emit("rate_limit.detected", { provider: "openrouter", status: 429 });
+        yield emit("run.waiting", { reason: "rate_limited" });
         return;
       }
-      yield emit("run.failed", { message: err instanceof Error ? err.message : String(err) });
-      return;
+
+      if (!response.ok) {
+        yield emit("run.failed", { message: `OpenRouter antwortete mit HTTP ${response.status}.` });
+        return;
+      }
+
+      let data: OpenRouterResponse;
+      try {
+        data = (await response.json()) as OpenRouterResponse;
+      } catch (err) {
+        if (abort.signal.aborted) throw err;
+        yield emit("run.failed", { message: "OpenRouter lieferte kein gültiges JSON." });
+        return;
+      }
+
+      // Cancellation also wins when an injected transport finishes its body
+      // despite the signal. Never publish a result after the owner cancelled.
+      if (abort.signal.aborted) throw abort.signal.reason;
+
+      if (data.error) {
+        yield emit("run.failed", { message: String(data.error.message ?? "OpenRouter meldete einen Fehler.") });
+        return;
+      }
+
+      const usage = data.usage ?? {};
+      const inputTokens = numberOr(usage.prompt_tokens, 0);
+      const outputTokens = numberOr(usage.completion_tokens, 0);
+      yield emit("usage.updated", {
+        inputTokens,
+        outputTokens,
+        // Credits are USD; the budget engine counts micros.
+        costMicros: Math.round(numberOr(usage.cost, 0) * 1_000_000),
+      });
+
+      const content = data.choices?.[0]?.message?.content;
+      const text = typeof content === "string" ? content : "";
+      if (text === "") {
+        // An empty completion is a failure, not a silent success: a task moved
+        // to review with no result wastes a human's attention.
+        yield emit("run.failed", { message: "OpenRouter lieferte eine leere Antwort." });
+        return;
+      }
+
+      yield emit("message.completed", { text });
+      yield emit("run.completed", { finishReason: String(data.choices?.[0]?.finish_reason ?? "stop") });
+    } catch (err) {
+      if (context.signal?.aborted || this.cancelled.has(context.runId)) {
+        yield emit("run.cancelled", { reason: "abgebrochen" });
+      } else if (timedOut) {
+        yield emit("run.failed", { code: "timeout", message: "OpenRouter-Anfrage hat das Zeitlimit überschritten." });
+      } else {
+        yield emit("run.failed", { message: err instanceof Error ? err.message : String(err) });
+      }
+    } finally {
+      clearTimeout(timer);
+      context.signal?.removeEventListener("abort", onAbort);
+      this.active.delete(context.runId);
+      this.cancelled.delete(context.runId);
     }
-    clearTimeout(timer);
-    context.signal?.removeEventListener("abort", onAbort);
-
-    if (response.status === 429) {
-      // Reported as its own event rather than a generic failure: the control
-      // plane treats a rate limit as "try later", not as "this task is bad".
-      yield emit("rate_limit.detected", { provider: "openrouter", status: 429 });
-      yield emit("run.waiting", { reason: "rate_limited" });
-      return;
-    }
-
-    if (!response.ok) {
-      yield emit("run.failed", { message: `OpenRouter antwortete mit HTTP ${response.status}.` });
-      return;
-    }
-
-    let data: OpenRouterResponse;
-    try {
-      data = (await response.json()) as OpenRouterResponse;
-    } catch {
-      yield emit("run.failed", { message: "OpenRouter lieferte kein gültiges JSON." });
-      return;
-    }
-
-    if (data.error) {
-      yield emit("run.failed", { message: String(data.error.message ?? "OpenRouter meldete einen Fehler.") });
-      return;
-    }
-
-    const usage = data.usage ?? {};
-    const inputTokens = numberOr(usage.prompt_tokens, 0);
-    const outputTokens = numberOr(usage.completion_tokens, 0);
-    yield emit("usage.updated", {
-      inputTokens,
-      outputTokens,
-      // Credits are USD; the budget engine counts micros.
-      costMicros: Math.round(numberOr(usage.cost, 0) * 1_000_000),
-    });
-
-    const content = data.choices?.[0]?.message?.content;
-    const text = typeof content === "string" ? content : "";
-    if (text === "") {
-      // An empty completion is a failure, not a silent success: a task moved
-      // to review with no result wastes a human's attention.
-      yield emit("run.failed", { message: "OpenRouter lieferte eine leere Antwort." });
-      return;
-    }
-
-    yield emit("message.completed", { text });
-    yield emit("run.completed", { finishReason: String(data.choices?.[0]?.finish_reason ?? "stop") });
   }
 }

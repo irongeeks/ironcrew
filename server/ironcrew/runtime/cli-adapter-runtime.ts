@@ -128,9 +128,15 @@ export class CliAdapterRuntime implements AgentRuntime {
         setupHint: `Install the ${this.adapter.name} and log in with its official CLI login, then retry.`,
       };
     }
-    // env.version is a CLI version string, not an account identifier — safe
-    // to surface as the non-identifying hint the AuthStatus contract allows.
-    return { authenticated: true, method: "subscription-cli", detail: env.message, accountHint: env.version };
+    // testEnvironment only establishes that the CLI starts and reports its
+    // version. That succeeds even without a login and is not an auth probe.
+    return {
+      authenticated: false,
+      verification: "unverified",
+      method: "subscription-cli",
+      detail: "CLI installiert. Anmeldung nicht geprüft; die Versionsprüfung bestätigt keinen Login.",
+      setupHint: `Anmeldung lokal unter dem Runner-Benutzer mit der offiziellen ${this.adapter.name} prüfen.`,
+    };
   }
 
   async cancelRun(runId: string): Promise<void> {

@@ -17,7 +17,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -37,13 +38,19 @@ function resolveIn(cwd: string): { path: string; warned: boolean } {
 console.log("RESOLVED:" + DEFAULT_DB_PATH);`;
   const scriptPath = path.join(workdir, "probe.mjs");
   fs.writeFileSync(scriptPath, script);
-  const out = execFileSync("npx", ["tsx", scriptPath], {
-    cwd,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    // The .env loader and module graph make this slower than a unit test.
-    timeout: 60_000,
-  });
+  // Resolve the installed loader once; invoking npx from a temp directory may
+  // download a package and the tsx CLI unnecessarily requires an IPC socket.
+  const out = execFileSync(
+    process.execPath,
+    ["--import", pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href, scriptPath],
+    {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      // The .env loader and module graph make this slower than a unit test.
+      timeout: 60_000,
+    },
+  );
   const line = out.split("\n").find((l) => l.startsWith("RESOLVED:"))!;
   return { path: line.slice("RESOLVED:".length).trim(), warned: false };
 }

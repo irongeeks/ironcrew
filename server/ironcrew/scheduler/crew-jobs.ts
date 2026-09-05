@@ -208,6 +208,7 @@ export function buildCrewJobs(opts: CrewJobOptions): ScheduledJob[] {
         const pruned = orchestrator.runRequests.prune(companyId, opts.queueRetentionMs ?? DEFAULT_QUEUE_RETENTION_MS);
         if (locks > 0 || requests > 0 || pruned > 0) {
           log.info({ locks, requests, pruned }, "queue housekeeping");
+          broadcast("crew_run_queue_changed", { locks, requests, pruned });
         }
       },
     },

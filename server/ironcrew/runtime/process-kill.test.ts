@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { isPidAlive, killProcessTree } from "./process-kill.ts";
 
 describe("isPidAlive", () => {
@@ -20,38 +21,51 @@ describe("isPidAlive", () => {
 
 describe("killProcessTree (real process, Linux)", () => {
   it("terminates a real spawned process", async () => {
-    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
-      stdio: "ignore",
+    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000); process.stdout.write('ready');"], {
+      stdio: ["ignore", "pipe", "ignore"],
       detached: true,
     });
-    await new Promise((r) => setTimeout(r, 100)); // let it actually start
-    expect(child.pid).toBeGreaterThan(0);
-    expect(isPidAlive(child.pid!)).toBe(true);
-
-    killProcessTree(child.pid!, 300);
-
-    await new Promise((r) => setTimeout(r, 250));
-    expect(isPidAlive(child.pid!)).toBe(false);
+    try {
+      await once(child.stdout!, "data");
+      expect(child.pid).toBeGreaterThan(0);
+      expect(isPidAlive(child.pid!)).toBe(true);
+      const exited = once(child, "exit");
+      killProcessTree(child.pid!, 300);
+      await exited;
+      expect(isPidAlive(child.pid!)).toBe(false);
+    } finally {
+      if (child.pid && isPidAlive(child.pid)) child.kill("SIGKILL");
+    }
   }, 10_000);
 
   it("escalates to SIGKILL when the process ignores SIGTERM", async () => {
-    // Ignore SIGTERM so only the SIGKILL escalation can end it.
-    const child = spawn(process.execPath, ["-e", "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);"], {
-      stdio: "ignore",
-      detached: true,
-    });
-    await new Promise((r) => setTimeout(r, 100));
-    expect(isPidAlive(child.pid!)).toBe(true);
-
-    killProcessTree(child.pid!, 300);
-
-    // Still alive right after SIGTERM, since it's ignored...
-    await new Promise((r) => setTimeout(r, 100));
-    expect(isPidAlive(child.pid!)).toBe(true);
-
-    // ...but gone once the grace period elapses and SIGKILL fires.
-    await new Promise((r) => setTimeout(r, 500));
-    expect(isPidAlive(child.pid!)).toBe(false);
+    // Readiness is acknowledged after the signal handler is installed. A
+    // fixed sleep races process startup on busy CI hosts and tests SIGTERM
+    // default behavior instead of escalation.
+    const child = spawn(
+      process.execPath,
+      [
+        "-e",
+        "process.on('SIGTERM', () => process.stdout.write('ignored')); setInterval(() => {}, 1000); process.stdout.write('ready');",
+      ],
+      {
+        stdio: ["ignore", "pipe", "ignore"],
+        detached: true,
+      },
+    );
+    try {
+      await once(child.stdout!, "data");
+      const ignored = once(child.stdout!, "data");
+      const exited = once(child, "exit");
+      killProcessTree(child.pid!, 300);
+      const [acknowledgement] = await ignored;
+      expect(String(acknowledgement)).toContain("ignored");
+      const [, signal] = await exited;
+      expect(signal).toBe("SIGKILL");
+      expect(isPidAlive(child.pid!)).toBe(false);
+    } finally {
+      if (child.pid && isPidAlive(child.pid)) child.kill("SIGKILL");
+    }
   }, 10_000);
 
   it("does not throw when the pid is already gone", () => {

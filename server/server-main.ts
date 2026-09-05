@@ -588,7 +588,6 @@ const ironCrewOidc = buildOidcProvider();
 const ironCrewApi = registerIronCrewRoutes(app, {
   db,
   oidc: ironCrewOidc,
-  broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
   orchestrator: ironCrewOrchestrator,
   scheduler: () => ironCrewScheduler,
 });
@@ -746,7 +745,7 @@ ironCrewScheduler = schedulerEnabled()
         orchestrator: ironCrewOrchestrator,
         companyId: ironCrewApi.companyId,
         intervals: intervalsFromEnv(),
-        broadcast: (runtimeContext as unknown as { broadcast: (e: string, p: unknown) => void }).broadcast,
+        broadcast: ironCrewApi.broadcast,
       }),
     })
   : null;

@@ -273,6 +273,7 @@ export class RunnerServer {
           id: message.id,
           value: {
             authenticated: status.authenticated,
+            ...(status.verification ? { verification: status.verification } : {}),
             method: status.method,
             detail: status.detail,
             ...(status.accountHint ? { accountHint: status.accountHint } : {}),

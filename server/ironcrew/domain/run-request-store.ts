@@ -245,7 +245,7 @@ export class RunRequestStore {
   claimNext(
     companyId: string,
     leaseOwner: string,
-    opts: { now?: number; leaseTtlMs?: number } = {},
+    opts: { now?: number; leaseTtlMs?: number; taskId?: string } = {},
   ): RunRequestRow | null {
     const now = opts.now ?? Date.now();
     const ttl = opts.leaseTtlMs ?? DEFAULT_LEASE_TTL_MS;
@@ -257,6 +257,7 @@ export class RunRequestStore {
       this.db.prepare(
         `SELECT id, status, attempts FROM crew_run_requests
           WHERE company_id = ?
+            AND (? IS NULL OR task_id = ?)
             AND not_before <= ?
             AND (status = 'queued'
                  OR (status = 'running' AND (lease_expires_at IS NULL OR lease_expires_at <= ?)))
@@ -264,6 +265,8 @@ export class RunRequestStore {
           LIMIT 20`,
       ),
       companyId,
+      opts.taskId ?? null,
+      opts.taskId ?? null,
       now,
       now,
     );
@@ -325,10 +328,11 @@ export class RunRequestStore {
    * `last_error` from an earlier attempt is left in place — it is evidence
    * that this took more than one try, and a success does not make it untrue.
    */
-  complete(id: string, opts: { runId?: string | null; now?: number } = {}): RunRequestRow | null {
+  complete(id: string, opts: { runId?: string | null; now?: number; leaseOwner?: string } = {}): RunRequestRow | null {
     const now = opts.now ?? Date.now();
     const request = this.get(id);
     if (!request) return null;
+    if (opts.leaseOwner && (request.status !== "running" || request.lease_owner !== opts.leaseOwner)) return null;
     if (request.status === "done") return request;
     if (isFinished(request.status)) {
       throw new RunRequestError(`Run request "${id}" is ${request.status} and cannot be completed.`);
@@ -343,9 +347,10 @@ export class RunRequestStore {
                 lease_expires_at = NULL,
                 finished_at = ?,
                 updated_at = ?
-          WHERE id = ? AND status IN ${LIVE_STATUSES}`,
+          WHERE id = ? AND status IN ${LIVE_STATUSES}
+            AND (? IS NULL OR lease_owner = ?)`,
       )
-      .run(opts.runId ?? null, now, now, id);
+      .run(opts.runId ?? null, now, now, id, opts.leaseOwner ?? null, opts.leaseOwner ?? null);
 
     return this.get(id);
   }
@@ -366,10 +371,15 @@ export class RunRequestStore {
    * because a request whose run hangs the process must not be retried
    * forever — for that case the attempt is spent, and correctly so.
    */
-  defer(id: string, reason: string, opts: { delayMs?: number; now?: number } = {}): RunRequestRow | null {
+  defer(
+    id: string,
+    reason: string,
+    opts: { delayMs?: number; now?: number; runId?: string; leaseOwner?: string } = {},
+  ): RunRequestRow | null {
     const now = opts.now ?? Date.now();
     const request = this.get(id);
     if (!request) return null;
+    if (opts.leaseOwner && (request.status !== "running" || request.lease_owner !== opts.leaseOwner)) return null;
     if (isFinished(request.status)) {
       throw new RunRequestError(`Run request "${id}" is ${request.status}; it cannot be deferred.`);
     }
@@ -380,14 +390,16 @@ export class RunRequestStore {
         `UPDATE crew_run_requests
             SET status = 'queued',
                 attempts = MAX(0, attempts - 1),
+                run_id = COALESCE(?, run_id),
                 not_before = ?,
                 last_error = ?,
                 lease_owner = NULL,
                 lease_expires_at = NULL,
                 updated_at = ?
-          WHERE id = ? AND status IN ${LIVE_STATUSES}`,
+          WHERE id = ? AND status IN ${LIVE_STATUSES}
+            AND (? IS NULL OR lease_owner = ?)`,
       )
-      .run(now + delay, reason, now, id);
+      .run(opts.runId ?? null, now + delay, reason, now, id, opts.leaseOwner ?? null, opts.leaseOwner ?? null);
 
     return this.get(id);
   }
@@ -402,10 +414,15 @@ export class RunRequestStore {
    * Refused on a finished request for the same reason `complete` is: a late
    * failure from a displaced drain must not reopen something that was closed.
    */
-  fail(id: string, error: string, opts: { now?: number } = {}): RunRequestRow | null {
+  fail(
+    id: string,
+    error: string,
+    opts: { now?: number; runId?: string; leaseOwner?: string } = {},
+  ): RunRequestRow | null {
     const now = opts.now ?? Date.now();
     const request = this.get(id);
     if (!request) return null;
+    if (opts.leaseOwner && (request.status !== "running" || request.lease_owner !== opts.leaseOwner)) return null;
     if (isFinished(request.status)) {
       throw new RunRequestError(`Run request "${id}" is ${request.status}; a late failure cannot reopen it.`);
     }
@@ -417,14 +434,16 @@ export class RunRequestStore {
         .prepare(
           `UPDATE crew_run_requests
               SET status = 'dead',
+                  run_id = COALESCE(?, run_id),
                   last_error = ?,
                   lease_owner = NULL,
                   lease_expires_at = NULL,
                   finished_at = ?,
                   updated_at = ?
-            WHERE id = ? AND status IN ${LIVE_STATUSES}`,
+            WHERE id = ? AND status IN ${LIVE_STATUSES}
+            AND (? IS NULL OR lease_owner = ?)`,
         )
-        .run(error, now, now, id);
+        .run(opts.runId ?? null, error, now, now, id, opts.leaseOwner ?? null, opts.leaseOwner ?? null);
 
       if (result.changes === 1) {
         appendAuditEvent(this.db, {
@@ -435,7 +454,7 @@ export class RunRequestStore {
           entityType: "run_request",
           entityId: id,
           taskId: request.task_id,
-          runId: request.run_id,
+          runId: opts.runId ?? request.run_id,
           outcome: "failed",
           correlationId: request.correlation_id,
           // The error text stays on the row and out of the audit log: it can
@@ -451,14 +470,24 @@ export class RunRequestStore {
       .prepare(
         `UPDATE crew_run_requests
             SET status = 'queued',
+                run_id = COALESCE(?, run_id),
                 last_error = ?,
                 not_before = ?,
                 lease_owner = NULL,
                 lease_expires_at = NULL,
                 updated_at = ?
-          WHERE id = ? AND status IN ${LIVE_STATUSES}`,
+          WHERE id = ? AND status IN ${LIVE_STATUSES}
+            AND (? IS NULL OR lease_owner = ?)`,
       )
-      .run(error, now + backoffMs(request.attempts), now, id);
+      .run(
+        opts.runId ?? null,
+        error,
+        now + backoffMs(request.attempts),
+        now,
+        id,
+        opts.leaseOwner ?? null,
+        opts.leaseOwner ?? null,
+      );
 
     return this.get(id);
   }

@@ -137,22 +137,26 @@ describe("capabilities / healthCheck / authStatus (no process spawned)", () => {
     const auth = await runtime.authStatus();
     expect(JSON.stringify(auth)).not.toMatch(/sk-|Bearer /);
     if (health.installed) {
-      expect(auth.authenticated).toBe(true);
-      expect(auth.accountHint).toMatch(/claude code/i);
+      expect(auth.authenticated).toBe(false);
+      expect(auth.verification).toBe("unverified");
+      expect(auth.accountHint).toBeUndefined();
     } else {
       expect(auth.authenticated).toBe(false);
       expect(auth.setupHint).toBeTruthy();
     }
   });
 
-  it("authStatus reports authenticated with a non-identifying hint when the CLI is present", async () => {
+  it("never treats an installed CLI's version as proof of authentication", async () => {
     const fakeOk: CliAdapter = {
       ...claudeAdapter,
       testEnvironment: async () => ({ ok: true, version: "claude/9.9.9", message: "found" }),
     };
     const auth = await new CliAdapterRuntime(fakeOk).authStatus();
-    expect(auth.authenticated).toBe(true);
-    expect(auth.accountHint).toBe("claude/9.9.9");
+    expect(auth.authenticated).toBe(false);
+    expect(auth.verification).toBe("unverified");
+    expect(auth.accountHint).toBeUndefined();
+    expect(auth.detail).toContain("Anmeldung nicht geprüft");
+    expect(auth.setupHint).toContain("Runner-Benutzer");
   });
 });
 

@@ -101,7 +101,7 @@ import {
   type MarketplaceKind,
   type MarketplaceSource,
 } from "../marketplace/marketplace-source.ts";
-import { MarketplaceInstaller, type InstallOptions, type InstallResult } from "../marketplace/marketplace-installer.ts";
+import type { MarketplaceInstaller, InstallOptions, InstallResult } from "../marketplace/marketplace-installer.ts";
 import { resolvePermissionMode } from "../policy/runtime-permissions.ts";
 import { mayDelegateAutonomously, normaliseGerman, triage, type TriageResult } from "./triage.ts";
 import {
@@ -470,7 +470,8 @@ export class CompanyOrchestrator {
           runId: newId("run"),
           agentId: speakerAgentId,
           correlationId: newCorrelationId(),
-          workspacePath: opts.workspacePath ?? "/tmp/iron-crew-workspace",
+          workspacePath: await this.resolveWorkspace(companyId, meeting.project_id, runtime, opts.workspacePath),
+          sensitive: true,
           permissionMode: "restricted",
         },
       )) {
@@ -2046,7 +2047,7 @@ export class CompanyOrchestrator {
     return deriveAgentStatus({
       online: agent?.status !== "offline",
       paused: agent?.status === "paused",
-      rateLimited: agent?.status === "rate_limited" || lastRun?.status === "rate_limited",
+      rateLimited: lastRun?.status === "rate_limited" && rows.some((row) => row.status === "waiting"),
       taskStatuses: rows.map((r) => r.status),
       lastRunFailed: lastRun?.status === "failed",
     });
@@ -2936,7 +2937,7 @@ export class CompanyOrchestrator {
    * Three outcomes per request, and the difference between the last two is the
    * point of the whole queue:
    *
-   *   completed  the run finished; the task moved to review or waiting
+   *   completed  the run finished; the task moved to review or approval waiting
    *   failed     the run happened and went wrong — that spends an attempt,
    *              and enough of them dead-letter the request for a human
    *   deferred   the run never started because the agent or the vessel was
@@ -2948,7 +2949,7 @@ export class CompanyOrchestrator {
     opts: ExecuteOptions & { limit?: number; leaseOwner?: string } = {},
   ): Promise<{ claimed: number; completed: number; failed: number; deferred: number }> {
     const limit = Math.max(1, opts.limit ?? 5);
-    const leaseOwner = opts.leaseOwner ?? `drain:${process.pid}`;
+    const leaseOwner = `${opts.leaseOwner ?? `drain:${process.pid}`}:${newCorrelationId()}`;
     const result = { claimed: 0, completed: 0, failed: 0, deferred: 0 };
 
     // A drain that crashed mid-run holds a lease nobody will release. Sweeping
@@ -2962,34 +2963,104 @@ export class CompanyOrchestrator {
       result.claimed++;
 
       try {
-        const executed = await this.executeTaskById(companyId, request.task_id, opts);
+        const task = this.tasks.get(request.task_id);
+        if (!task || task.company_id !== companyId || task.status === "cancelled") {
+          this.runRequests.cancel(request.id, { reason: "Aufgabe nicht mehr ausführbar." });
+          continue;
+        }
+        if (task.status === "done" || task.status === "review") {
+          this.runRequests.complete(request.id, { leaseOwner });
+          result.completed++;
+          continue;
+        }
+        const previousRun = request.run_id ? this.runs.get(request.run_id) : null;
+        const retryDue = task.status === "failed" && request.attempts > 1;
+        const cooldownOver = task.status === "waiting" && previousRun?.status === "rate_limited";
+        // Only the due queue lease may revive these states. An approval or a
+        // human blocker must never be interpreted as a retry opportunity.
+        const unresolvedApproval = this.db
+          .prepare(
+            "SELECT 1 FROM crew_approvals WHERE task_id = ? AND status IN ('pending', 'rejected', 'expired') LIMIT 1",
+          )
+          .get(task.id);
+        if ((retryDue || cooldownOver) && !unresolvedApproval) {
+          this.tasks.transition(task.id, "ready", {
+            expectedVersion: task.status_version,
+            reason: cooldownOver ? "Provider-Cooldown beendet" : "Automatischer Wiederholungsversuch nach Backoff",
+            actorType: "system",
+            actorId: "scheduler",
+            correlationId: task.correlation_id,
+          });
+        }
+        const executed = await this.withRunRequestLease(request, () =>
+          this.executeTaskById(companyId, request.task_id, opts),
+        );
 
         if (!executed) {
-          this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.");
+          this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.", { leaseOwner });
           result.deferred++;
           continue;
         }
 
-        if (executed.task.status === "failed") {
-          // The run's own summary is the useful text here; the queue records
-          // it so the reason survives on the request a human is looking at.
-          this.runRequests.fail(request.id, executed.task.result_summary || "Lauf fehlgeschlagen.");
-          result.failed++;
-        } else {
-          this.runRequests.complete(request.id, { runId: executed.runId });
-          result.completed++;
-        }
+        result[this.settleRunRequest(request, executed)]++;
       } catch (err) {
         // An exception here is the drain's own failure, not the runtime's —
         // executeTask already catches those. Spending an attempt is right:
         // whatever broke will break again next tick, and the dead letter is
         // how it becomes visible instead of looping forever.
-        this.runRequests.fail(request.id, err instanceof Error ? err.message : String(err));
+        this.runRequests.fail(request.id, err instanceof Error ? err.message : String(err), { leaseOwner });
         result.failed++;
       }
     }
 
     return result;
+  }
+
+  private async withRunRequestLease<T>(request: RunRequestRow, execute: () => Promise<T>): Promise<T> {
+    const heartbeat = setInterval(() => {
+      this.runRequests.renew(request.id, request.lease_owner!);
+    }, 30_000);
+    heartbeat.unref?.();
+    try {
+      return await execute();
+    } finally {
+      clearInterval(heartbeat);
+    }
+  }
+
+  private settleRunRequest(
+    request: RunRequestRow,
+    executed: { task: TaskRow; runId: string; events: RunEvent[] },
+  ): "completed" | "failed" | "deferred" {
+    if (executed.task.status === "failed") {
+      // The run's own summary is the useful text here; the queue records
+      // it so the reason survives on the request a human is looking at.
+      this.runRequests.fail(
+        request.id,
+        this.runs.get(executed.runId)?.error_message || executed.task.result_summary || "Lauf fehlgeschlagen.",
+        {
+          runId: executed.runId,
+          leaseOwner: request.lease_owner!,
+        },
+      );
+      return "failed";
+    } else if (executed.task.status === "waiting" && this.runs.get(executed.runId)?.status === "rate_limited") {
+      const rateLimit = [...executed.events].reverse().find((event) => event.type === "rate_limit.detected");
+      const resetAt = rateLimit?.payload.resetAt;
+      const now = Date.now();
+      const delayMs =
+        typeof resetAt === "number" && Number.isFinite(resetAt) ? Math.max(30_000, resetAt - now) : 60_000;
+      this.runRequests.defer(request.id, "Provider-Limit: Fortsetzung nach Cooldown.", {
+        delayMs,
+        now,
+        runId: executed.runId,
+        leaseOwner: request.lease_owner!,
+      });
+      return "deferred";
+    } else {
+      this.runRequests.complete(request.id, { runId: executed.runId, leaseOwner: request.lease_owner! });
+      return "completed";
+    }
   }
 
   async executeNextTask(
@@ -2998,7 +3069,21 @@ export class CompanyOrchestrator {
   ): Promise<{ task: TaskRow; runId: string; events: RunEvent[] } | null> {
     const claimable = this.tasks.findClaimable(companyId);
     if (claimable.length === 0) return null;
-    return this.executeTask(companyId, claimable[0], opts);
+    const candidate = claimable[0];
+    const intent = this.enqueueRun(companyId, candidate.id);
+    if (!intent) return null;
+    const leaseOwner = `manual:${process.pid}:${newCorrelationId()}`;
+    const request = this.runRequests.claimNext(companyId, leaseOwner, { taskId: candidate.id });
+    if (!request) return null;
+    try {
+      const executed = await this.withRunRequestLease(request, () => this.executeTask(companyId, candidate, opts));
+      if (executed) this.settleRunRequest(request, executed);
+      else this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.", { leaseOwner });
+      return executed;
+    } catch (error) {
+      this.runRequests.fail(request.id, error instanceof Error ? error.message : String(error), { leaseOwner });
+      throw error;
+    }
   }
 
   /**
@@ -3024,6 +3109,25 @@ export class CompanyOrchestrator {
     return this.executeTask(companyId, candidate, opts);
   }
 
+  private async resolveWorkspace(
+    companyId: string,
+    projectId: string | null,
+    runtime: AgentRuntime,
+    override?: string,
+  ): Promise<string> {
+    const project = projectId ? this.projects.get(projectId) : null;
+    if (project && project.company_id !== companyId) throw new Error("Projekt gehört zu einer anderen Firma.");
+    const workspace = override ?? project?.workspace_path;
+    if (workspace) {
+      if (!path.isAbsolute(workspace)) throw new Error("Projekt-Workspace muss ein absoluter Pfad sein.");
+      return path.normalize(workspace);
+    }
+    // A mock never touches disk. Every real runtime must explicitly declare
+    // filesystem independence or receive a configured project workspace.
+    if ((await runtime.capabilities()).workspaceRequired === false) return "";
+    throw new Error("Kein Projekt-Workspace konfiguriert. Bitte dem Projekt einen absoluten Arbeitsordner zuweisen.");
+  }
+
   private async executeTask(
     companyId: string,
     candidate: TaskRow,
@@ -3038,6 +3142,20 @@ export class CompanyOrchestrator {
     const runtimeType = opts.runtimeType ?? agent.runtime_provider;
     const runtime = this.runtimes.get(runtimeType);
     if (!runtime) throw new Error(`No runtime registered for type "${runtimeType}".`);
+
+    // A provider cooldown applies to its other queued tasks too. The source
+    // is durable queue state, so a restart cannot reset the provider's limit.
+    const coolingDown = this.db
+      .prepare(
+        `
+      SELECT 1 FROM crew_run_requests q JOIN crew_runs r ON r.id = q.run_id
+      WHERE q.company_id = ? AND q.status IN ('queued', 'running')
+        AND q.not_before > ? AND r.runtime_type = ? AND r.status = 'rate_limited'
+      LIMIT 1
+    `,
+      )
+      .get(companyId, Date.now(), runtimeType);
+    if (coolingDown) return null;
 
     // Pre-dispatch budget gate.
     this.budgets.assertRunPermitted(companyId, {
@@ -3168,6 +3286,7 @@ export class CompanyOrchestrator {
     const events: RunEvent[] = [];
     let failed = false;
     let waiting = false;
+    let rateLimited = false;
     let summary = "";
 
     // The vessel's timeout, as an abort signal. Both runtimes already honour
@@ -3185,6 +3304,14 @@ export class CompanyOrchestrator {
     // vessel's timeout — which, at ten minutes by default, is exactly what an
     // un-unref'd timer would do to a server trying to shut down.
     timer.unref?.();
+    const lockHeartbeat = setInterval(() => {
+      if (!this.tasks.renewLock(candidate.id, run.id) || !this.agentLocks.renew(agentId, run.id)) {
+        abort.abort();
+        return;
+      }
+      this.runs.heartbeat(run.id);
+    }, 30_000);
+    lockHeartbeat.unref?.();
 
     /**
      * Records a failure the runtime did not report itself.
@@ -3223,11 +3350,17 @@ export class CompanyOrchestrator {
           runId: run.id,
           agentId,
           correlationId: candidate.correlation_id,
-          workspacePath: opts.workspacePath ?? "/tmp/iron-crew-workspace",
+          workspacePath: await this.resolveWorkspace(companyId, candidate.project_id, runtime, opts.workspacePath),
+          sensitive: candidate.sensitive !== 0,
           permissionMode: permission.mode,
           signal: abort.signal,
         },
       )) {
+        const currentTask = this.tasks.get(candidate.id);
+        if (currentTask?.execution_run_id !== run.id || currentTask.status !== "running") {
+          abort.abort();
+          break;
+        }
         const persisted = this.runs.appendEvent({
           companyId,
           runId: run.id,
@@ -3264,6 +3397,10 @@ export class CompanyOrchestrator {
         if (ev.type === "message.completed") summary = String((ev.payload as { text?: string }).text ?? "");
         if (ev.type === "run.failed") failed = true;
         if (ev.type === "run.cancelled") failed = true;
+        if (ev.type === "rate_limit.detected") {
+          rateLimited = true;
+          waiting = true;
+        }
         if (ev.type === "run.waiting") waiting = true;
         if (ev.type === "approval.required") {
           const p = ev.payload as { approvalType?: string; summary?: string; riskLevel?: string };
@@ -3291,6 +3428,7 @@ export class CompanyOrchestrator {
       );
     } finally {
       clearTimeout(timer);
+      clearInterval(lockHeartbeat);
     }
 
     // A runtime that ends its stream quietly on abort would otherwise leave a
@@ -3298,6 +3436,16 @@ export class CompanyOrchestrator {
     if (timedOut && !failed) {
       recordFailure({ message: `Zeitlimit des Vessels erreicht (${timeoutMs} ms).`, timedOut: true });
     }
+
+    // A recovered/reassigned task belongs to its successor. A late stream
+    // may leave evidence on its own run, but cannot finish the successor's task.
+    const heldTask = this.tasks.get(candidate.id);
+    if (!heldTask || heldTask.execution_run_id !== run.id || heldTask.status !== "running") {
+      this.tasks.releaseLock(candidate.id, run.id);
+      this.agentLocks.release(agentId, run.id);
+      return { task: heldTask ?? candidate, runId: run.id, events };
+    }
+    if (rateLimited && !failed) this.runs.setStatus(run.id, "rate_limited");
 
     this.tasks.releaseLock(candidate.id, run.id);
     // Guarded on run.id, so a run whose lease already expired and was taken

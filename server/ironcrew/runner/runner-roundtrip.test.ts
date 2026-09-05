@@ -128,6 +128,19 @@ describe("a job crosses the boundary and comes back", () => {
     expect((await client.healthCheck()).healthy).toBe(true);
     expect((await client.authStatus()).method).toBeTruthy();
   });
+
+  it("preserves an unverified CLI login across the runner boundary", async () => {
+    const runtime = new ScriptedRuntime("claude");
+    runtime.authStatus = async () => ({
+      authenticated: false,
+      verification: "unverified" as const,
+      method: "subscription-cli" as const,
+      detail: "Anmeldung nicht geprüft",
+    });
+    const { client } = connected([runtime]);
+
+    expect(await client.authStatus()).toMatchObject({ authenticated: false, verification: "unverified" });
+  });
 });
 
 describe("a run always ends", () => {
