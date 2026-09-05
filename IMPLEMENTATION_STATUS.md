@@ -4,6 +4,22 @@ Honest state of IronCrew. Nothing is listed as done unless it is
 implemented **and** covered by a passing test. Anything verified only by design
 review, or not verifiable in this environment, is said so explicitly.
 
+## Product version 0.1.0 — 2026-09-05
+
+IronCrew now uses its own early product version, 0.1.0. The previous 2.8.0 release
+remains immutable history. The native and Docker updaters allow only the explicit
+2.8.0 → stable 0.1.x transition; the new reader never advertises the retired target.
+The current main release is explicitly selected as Latest after verification.
+
+The German [README](README.md), [documentation index](docs/README.md),
+[first-start guide](docs/GETTING_STARTED.md) and [user guide](docs/USER_GUIDE.md)
+cover the actual company workflow. [Screenshot provenance](docs/SCREENSHOTS.md)
+separates isolated test data from real authenticated provider execution.
+
+Local verification: release-update/packaging and backend discovery regression
+checks, typecheck and formatting. Full CI/platform and screenshot artifact evidence
+is recorded with the release pull request before merge. No operator host was deployed.
+
 ## Current Company OS completion branch — 2026-09-05
 
 PR #18 is merged at `1e441e4`; PR #19 is merged on `main` at

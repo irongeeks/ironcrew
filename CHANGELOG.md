@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0 — 2026-09-05
+
+- Begin IronCrew’s own product versioning at 0.1.0, retaining 2.8.0 as immutable release history.
+- Add a bounded 2.8.0 → 0.1.x transition for native and Docker updates; ordinary downgrade protections remain.
+- Explicitly select the published release as latest and suppress the retired 2.8.0 update target.
+- Replace the README with German product, installation and workflow documentation.
+- Add a documentation index, first-task guide, user guide and reproducible browser screenshots with test-data provenance.
+- Correct the macOS API port and use localhost-only development commands in installation guides.
+
 ## 2.8.0 — 2026-09-05
 
 - Introduce versioned GitHub releases, checksummed source archives and pinned production images.

@@ -51,6 +51,30 @@ describe("stable IronCrew release discovery", () => {
     expect(await read()).toMatchObject({ discovery: "disabled", enabled: false, latest_tag: null });
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it.each([
+    ["2.8.0", "0.1.0", true],
+    ["2.8.0", "0.1.5", true],
+    ["0.1.0", "0.1.1", true],
+    ["0.1.1", "0.1.0", false],
+    ["0.1.0", "2.8.0", false],
+    ["0.2.0", "2.8.0", false],
+    ["1.0.0", "2.8.0", false],
+    ["2.7.0", "0.1.0", false],
+    ["2.8.1", "0.1.0", false],
+    ["2.8.0", "0.2.0", false],
+  ])("offers only valid release transitions %s → %s (%s)", async (currentVersion, target, available) => {
+    const read = createReleaseStatusReader({
+      currentVersion,
+      installType: "native",
+      enabled: true,
+      fetcher: vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...release, tag_name: `v${target}` }))),
+    });
+    const status = await read();
+    expect(status.update_available).toBe(available);
+    expect(status.instructions.command).toBe(
+      available ? `node scripts/ironcrew-update.mjs --to v${target} --check` : null,
+    );
+  });
   it("deduplicates simultaneous refreshes and only offers safe target-pinned host checks", async () => {
     let complete!: (r: Response) => void;
     const fetcher = vi.fn(

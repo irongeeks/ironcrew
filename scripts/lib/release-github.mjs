@@ -150,7 +150,13 @@ export async function publishRelease({ api, repository, outDir }) {
     if (asset.digest !== `sha256:${sha256(bytes)}` || asset.size !== bytes.length)
       throw new Error(`Uploaded asset integrity failed: ${name}`);
   }
-  await api(`${base}/releases/${release.id}`, { method: "PATCH", body: { draft: false } });
+  // Explicitly select the new 0.1.x line despite the retired 2.8.0 tag. A manual
+  // ancestor release or a superseded build must not replace the current latest.
+  const main = await api(`${base}/branches/main`);
+  await api(`${base}/releases/${release.id}`, {
+    method: "PATCH",
+    body: { draft: false, make_latest: main.commit.sha === manifest.commit ? "true" : "false" },
+  });
   return { published: true, tag: manifest.tag };
 }
 

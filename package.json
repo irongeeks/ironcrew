@@ -1,7 +1,7 @@
 {
   "name": "ironcrew",
   "private": true,
-  "version": "2.8.0",
+  "version": "0.1.0",
   "description": "Self-hosted, local-first multi-agent company OS: an executive assistant triages your directives, delegates to a crew of specialist agents, and reports back under a governance-grade control plane.",
   "license": "Apache-2.0",
   "author": "IronGeeks",

@@ -1,9 +1,66 @@
 # Releases und Updates
 
-IronCrew verwendet stabile Versionen im Format `vMAJOR.MINOR.PATCH`.
+IronCrew verwendet Releases im Format `vMAJOR.MINOR.PATCH`.
+Die eigene Produktversionsreihe beginnt bei **0.1.0**; `0.x` bezeichnet die frühe
+Entwicklungsphase. Der technisch benannte Stable-Kanal enthält Veröffentlichungen
+ohne Vorab-Suffix, ist aber keine Zusicherung vollständiger Produktionsreife.
 Installiere eine [veröffentlichte Version](https://github.com/irongeeks/ironcrew/releases)
 und lies deren Hinweise zu Migrationen, Konfiguration und Runner-Kompatibilität.
 `main` ist der Entwicklungsstand.
+
+## Wechsel von 2.8.0 auf 0.1.0
+
+Die frühere `2.8.0` setzte noch die übernommene Versionsreihe fort. Ab `0.1.0`
+verwendet IronCrew eine eigene Produktversionierung. Der Quellstand wird dabei
+weiterentwickelt; Schema, Task-Historie und Firmendaten werden nicht zurückgesetzt.
+Der alte Release und sein Tag bleiben unverändert als Historie erhalten.
+
+Der **Updater aus 2.8.0** lehnt numerisch kleinere Versionen zu Recht ab. Hole
+daher zuerst die Werkzeuge aus **0.1.0 in einen separaten Checkout**. Die neuen
+Werkzeuge erlauben ausschließlich den Übergang von exakt `2.8.0` auf `0.1.x`.
+Andere Downgrades bleiben gesperrt; `2.8.0` wird nicht erneut als Update angeboten.
+
+```bash
+git clone --depth 1 --branch v0.1.0 https://github.com/irongeeks/ironcrew.git /tmp/ironcrew-0.1.0-tools
+```
+
+**Nativ:** zunächst nur prüfen:
+
+```bash
+node /tmp/ironcrew-0.1.0-tools/scripts/ironcrew-update.mjs \
+  --repo /opt/ironcrew --to v0.1.0 --check
+```
+
+Nach den unten beschriebenen Dienststopps mit denselben neuen Werkzeugen anwenden
+(Pfade auf die tatsächliche Installation anpassen):
+
+```bash
+node /tmp/ironcrew-0.1.0-tools/scripts/ironcrew-update.mjs \
+  --repo /opt/ironcrew --to v0.1.0 \
+  --db /opt/ironcrew/data/ironcrew.sqlite \
+  --backup-dir /var/backups/ironcrew \
+  --extra /etc/ironcrew/ironcrew.env
+```
+
+Nur vorhandene Zusatzdateien angeben. Bei manuellem Betrieb die unten erläuterten
+Optionen `--service-manager manual --confirm-stopped` ergänzen. Backup, Build,
+Commitprüfung und manueller Dienststart bleiben unverändert erforderlich.
+
+**Docker:** das Arbeitsverzeichnis bleibt das bestehende Compose-Projekt; allein
+das aufgerufene Skript kommt aus dem neuen Checkout:
+
+```bash
+cd /opt/ironcrew
+node /tmp/ironcrew-0.1.0-tools/scripts/ironcrew-docker-update.mjs \
+  --to v0.1.0 --backup-dir /var/backups/ironcrew-docker --check
+node /tmp/ironcrew-0.1.0-tools/scripts/ironcrew-docker-update.mjs \
+  --to v0.1.0 --backup-dir /var/backups/ironcrew-docker
+```
+
+Vorher muss die bestehende Installation gesund laufen. Der Docker-Updater
+übernimmt Stoppen, Datensicherung, Imagewechsel und Gesundheitsprüfung.
+Die Installationspfade, Volumes und die vorhandene Firma bleiben erhalten.
+Nicht die allgemeine Downgradeprüfung abschalten und keine alten Release-Tags umbiegen.
 
 ## Release-Vertrag
 
@@ -35,11 +92,11 @@ und ein sauberer Git-Checkout. Nutze das Betreiberkonto mit Schreibrecht auf
 Checkout und Sicherungsziel. Änderungen an versionierten Dateien müssen zuvor
 reviewbar gesichert oder committed sein; private Dateien bleiben gitignored.
 
-Vorprüfung für eine konkrete Version (hier der erste Release):
+Vorprüfung für eine konkrete Version:
 
 ```bash
 cd /opt/ironcrew
-node scripts/ironcrew-update.mjs --to v2.8.0 --check
+node scripts/ironcrew-update.mjs --to v0.1.0 --check
 ```
 
 Die Prüfung lädt das veröffentlichte Manifest und das exakte Release-Tag. Sie
@@ -52,7 +109,7 @@ Danach als Betreiberkonto mit Zugriff auf die ausdrücklich genannten Dateien:
 ```bash
 sudo systemctl stop ironcrew
 sudo systemctl stop ironcrew-runner
-node scripts/ironcrew-update.mjs --to v2.8.0 \
+node scripts/ironcrew-update.mjs --to v0.1.0 \
   --db /opt/ironcrew/data/ironcrew.sqlite \
   --backup-dir /var/backups/ironcrew \
   --extra /etc/ironcrew/ironcrew.env
@@ -85,9 +142,9 @@ Wenn `ironcrew-update.mjs` noch fehlt, hole den veröffentlichten Release in ein
 **separates** Verzeichnis. Der Updater selbst benötigt dort kein `pnpm install`:
 
 ```bash
-git clone --depth 1 --branch v2.8.0 https://github.com/irongeeks/ironcrew.git /tmp/ironcrew-release-tools
+git clone --depth 1 --branch v0.1.0 https://github.com/irongeeks/ironcrew.git /tmp/ironcrew-release-tools
 node /tmp/ironcrew-release-tools/scripts/ironcrew-update.mjs \
-  --repo /opt/ironcrew --to v2.8.0 --check
+  --repo /opt/ironcrew --to v0.1.0 --check
 ```
 
 Führe nach der Vorprüfung denselben externen Updater mit den Installationsoptionen
@@ -113,9 +170,9 @@ separaten Release-Clone ausgeführt werden; das Arbeitsverzeichnis bleibt das
 
 ```bash
 cd /opt/ironcrew
-node scripts/ironcrew-docker-update.mjs --to v2.8.0 \
+node scripts/ironcrew-docker-update.mjs --to v0.1.0 \
   --backup-dir /var/backups/ironcrew-docker --check
-node scripts/ironcrew-docker-update.mjs --to v2.8.0 \
+node scripts/ironcrew-docker-update.mjs --to v0.1.0 \
   --backup-dir /var/backups/ironcrew-docker
 ```
 

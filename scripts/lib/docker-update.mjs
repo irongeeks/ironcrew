@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
+import { releaseVersionOrderOverride } from "./release-version.mjs";
 
 const REPOSITORY = "ghcr.io/irongeeks/ironcrew";
 const IMAGE_ENV = "release-image.env";
@@ -304,7 +305,10 @@ export async function updateDockerRelease(
   const health = await json(["exec", container.Id, "node", "--input-type=module", "-e", HEALTH_SCRIPT]);
   if (health.ok !== true || typeof health.version !== "string")
     throw new Error("Existing application health or version cannot be verified.");
-  if (compareVersions(release.version, health.version) < 0)
+  if (
+    (releaseVersionOrderOverride(release.version, health.version) ?? compareVersions(release.version, health.version)) <
+    0
+  )
     throw new Error(
       "Downgrades are forbidden; restore a matching backup through the documented manual recovery procedure.",
     );
