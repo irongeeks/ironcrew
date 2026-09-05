@@ -21,7 +21,7 @@ test.describe("Canonical Crew Office", () => {
     for (const agent of agents) {
       await expect(page.getByTestId(`office-person-${agent.id}`)).toHaveAttribute("data-status", agent.status);
     }
-    await expect(page.getByRole("heading", { name: "Die Crew bei der Arbeit" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ein Gebäude für die ganze Crew" })).toBeVisible();
   });
 
   test("opens the canonical agent details from a figure with the keyboard", async ({ page, request }) => {

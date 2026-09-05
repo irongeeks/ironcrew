@@ -1,6 +1,9 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AGENT_STATUS_LABEL, TASK_STATUS_LABEL, type Agent, type Department, type Meeting, type Task } from "./types";
 import { CharacterAvatar } from "./CharacterAvatar";
+import { createOfficeBuilding } from "./office-building-layout";
+import { OfficeBuilding } from "./OfficeBuilding";
+import { useOfficeMotion } from "./useOfficeMotion";
 import "./CrewOffice.css";
 
 export interface CrewOfficeProps {
@@ -47,47 +50,6 @@ export function officeFitScale(width: number, floorHeight: number, availableHeig
   );
 }
 
-function Desk({ x, y, active, label }: { x: number; y: number; active: boolean; label: string }): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y})`} className="crew-office-desk" data-active={active}>
-      <rect x="-63" y="-28" width="126" height="49" rx="9" fill="#080f15" opacity=".55" transform="translate(0 7)" />
-      <path d="M-59 3v25m118-25v25" stroke="#344650" strokeWidth="5" />
-      <rect x="-66" y="-31" width="132" height="49" rx="9" fill="#2a3741" stroke="#4e626f" />
-      <path d="M-56 14H55" stroke={active ? "#69b7bc" : "#3d4c58"} />
-      <path d="M-8-25v10h17" stroke="#8b9fa9" strokeWidth="3" fill="none" />
-      <rect x="-36" y="-51" width="65" height="35" rx="4" fill="#0d1c25" stroke="#6d8998" />
-      <path
-        className="crew-office-screen-lines"
-        d="M-28-41h32m-32 6h46m-46 6h23"
-        stroke={active ? "#7ac8c9" : "#41535f"}
-        strokeWidth="2"
-      />
-      <rect x="-27" y="-7" width="44" height="12" rx="3" fill="#17242e" stroke="#5b6c77" />
-      <path d="M-20-3H8M-20 1H8" stroke="#536675" />
-      <ellipse cx="41" cy="-1" rx="6" ry="8" fill="#83939c" />
-      <path d="M-53-18v12h9v-12" fill="#acb8be" />
-      <ellipse cx="-48.5" cy="-18" rx="4.5" ry="2" fill="#384954" />
-      <text x="0" y="-65" textAnchor="middle" className="crew-office-department-label">
-        {label}
-      </text>
-    </g>
-  );
-}
-
-function Plant({ x, y }: { x: number; y: number }): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <ellipse cy="10" rx="16" ry="6" fill="#080f15" opacity=".5" />
-      <path d="M-12-1h24l-3 16H-9z" fill="#4a5558" />
-      <path
-        d="M0 0q-24-7-20-21Q-4-18 0 0m0 0q25-9 20-25Q3-18 0 0m0 0q-12-31 1-35Q13-23 0 0"
-        fill="#486d61"
-        stroke="#66897a"
-      />
-    </g>
-  );
-}
-
 export function CrewOffice({
   agents,
   tasks,
@@ -97,7 +59,8 @@ export function CrewOffice({
   onSelectTask,
   onSelectMeeting,
 }: CrewOfficeProps): React.JSX.Element {
-  const patternId = useId().replace(/:/g, "");
+  const [focusedRoomId, setFocusedRoomId] = useState<string | null>(null);
+  const [motionPaused, setMotionPaused] = useState(false);
   const [view, setView] = useState<"floor" | "list">("floor");
   const [zoom, setZoom] = useState<"fit" | "actual">("fit");
   const [viewportWidth, setViewportWidth] = useState(1120);
@@ -145,7 +108,6 @@ export function CrewOffice({
       }),
     [agents, departments],
   );
-  const rows = Math.max(3, Math.ceil(agents.length / 5));
   const currentTasks = useMemo(
     () => new Map(agents.map((a) => [a.id, currentOfficeTask(a.id, tasks)])),
     [agents, tasks],
@@ -156,11 +118,68 @@ export function CrewOffice({
       a.status !== "in_meeting" &&
       (a.status === "waiting_for_approval" || currentTasks.get(a.id)?.status === "approval_required"),
   );
-  const meetingHeight = Math.max(218, Math.ceil(meetingAgents.length / 2) * 157 + 75);
-  const decisionHeight = Math.max(180, Math.ceil(decisionAgents.length / 2) * 157 + 75);
-  const height = Math.max(650, rows * 220 + 210, meetingHeight + decisionHeight + 170);
-  const scale = zoom === "fit" ? officeFitScale(viewportWidth, height, availableHeight) : 1;
-  const decisionTop = height - decisionHeight - 68;
+  const layout = useMemo(
+    () => createOfficeBuilding(departments, sortedAgents, meetingAgents.length, decisionAgents.length),
+    [departments, sortedAgents, meetingAgents.length, decisionAgents.length],
+  );
+  const height = layout.height;
+  const focusedRoom = layout.rooms.find((room) => room.id === focusedRoomId);
+  const focus = focusedRoom
+    ? {
+        x: Math.max(0, focusedRoom.x - 12),
+        y: Math.max(0, focusedRoom.y - 12),
+        width: focusedRoom.width + 24,
+        height: focusedRoom.height + 24,
+      }
+    : { x: 0, y: 0, width: layout.width, height };
+  const scale =
+    zoom === "actual"
+      ? 1
+      : focusedRoom
+        ? Math.min(2.5, viewportWidth / focus.width, availableHeight === null ? 2.5 : availableHeight / focus.height)
+        : officeFitScale(viewportWidth, height, availableHeight);
+  const motionSubjects = useMemo(
+    () =>
+      sortedAgents.map((agent) => {
+        const meetingIndex = meetingAgents.indexOf(agent),
+          decisionIndex = decisionAgents.indexOf(agent);
+        const home = layout.homes[agent.id];
+        return {
+          id: agent.id,
+          status: agent.status,
+          taskStatus: currentTasks.get(agent.id)?.status,
+          homeNodeId: home.nodeId,
+          anchor:
+            meetingIndex >= 0
+              ? layout.meetingSeats[meetingIndex]
+              : decisionIndex >= 0
+                ? layout.decisionSeats[decisionIndex]
+                : home.point,
+          priority: meetingIndex >= 0 || decisionIndex >= 0,
+        };
+      }),
+    [sortedAgents, meetingAgents, decisionAgents, layout, currentTasks],
+  );
+  const { refFor } = useOfficeMotion({
+    graph: layout.graph,
+    subjects: motionSubjects,
+    paused: motionPaused,
+    enabled: view === "floor",
+    viewport: focusedRoom ? focus : undefined,
+  });
+  const activeAgentIds = useMemo(
+    () => new Set(agents.filter((a) => a.status === "working" || a.status === "thinking").map((a) => a.id)),
+    [agents],
+  );
+  const openRoom = (id: string) => {
+    setFocusedRoomId(id);
+    setZoom("fit");
+  };
+  const overview = () => {
+    setFocusedRoomId(null);
+    setDepartmentFilter("");
+    setZoom("fit");
+  };
   const visibleAgents = sortedAgents.filter((a) => !departmentFilter || a.departmentId === departmentFilter);
   const activeMeetings = meetings.filter((meeting) => meeting.status === "in_progress");
   const taskLabel = (agent: Agent) => {
@@ -169,12 +188,21 @@ export function CrewOffice({
   };
 
   return (
-    <section className="crew-office" aria-label="Virtuelles Büro" data-testid="crew-office">
+    <section
+      className="crew-office"
+      aria-label="Virtuelles Büro"
+      data-testid="crew-office"
+      data-ambient-paused={motionPaused || undefined}
+    >
       <header className="crew-office-toolbar">
         <div>
           <span className="crew-office-eyebrow">IRONCREW / OFFICE</span>
-          <h2>Die Crew bei der Arbeit</h2>
-          <p>Crew, Aufgaben und Entscheidungen an einem Ort.</p>
+          <h2>{focusedRoom ? focusedRoom.name : "Ein Gebäude für die ganze Crew"}</h2>
+          <p>
+            {focusedRoom
+              ? "Figur öffnen · Aufgabe verfolgen · Einrichtung und Crew im Detail"
+              : "Eigene Büros, kurze Wege und ein gemeinsamer Treffpunkt."}
+          </p>
         </div>
         <div className="crew-office-controls">
           <label>
@@ -182,7 +210,12 @@ export function CrewOffice({
             <select
               aria-label="Büro nach Abteilung filtern"
               value={departmentFilter}
-              onChange={(event) => setDepartmentFilter(event.target.value)}
+              onChange={(event) => {
+                const id = event.target.value;
+                setDepartmentFilter(id);
+                setFocusedRoomId(id || null);
+                setZoom("fit");
+              }}
             >
               <option value="">Alle Abteilungen</option>
               {departments.map((d) => (
@@ -192,6 +225,19 @@ export function CrewOffice({
               ))}
             </select>
           </label>
+          {focusedRoom && (
+            <button type="button" className="crew-office-control-button" onClick={overview}>
+              Gebäudeübersicht
+            </button>
+          )}
+          <button
+            type="button"
+            className="crew-office-control-button"
+            aria-pressed={motionPaused}
+            onClick={() => setMotionPaused((value) => !value)}
+          >
+            {motionPaused ? "Bürobewegung fortsetzen" : "Bürobewegung pausieren"}
+          </button>
           <div className="crew-office-view-switch" role="group" aria-label="Büroansicht">
             <button type="button" aria-pressed={view === "floor"} onClick={() => setView("floor")}>
               Grundriss
@@ -213,6 +259,7 @@ export function CrewOffice({
         </div>
       </header>
       <div className="crew-office-legend">
+        <span className="crew-office-ambient-note">Begegnungen zeigen Bereitschaft · Meetings zeigen echte Arbeit</span>
         <span>
           <i data-tone="active" />
           Arbeit / Analyse
@@ -241,98 +288,52 @@ export function CrewOffice({
           role="region"
           aria-label="Bürogrundriss, horizontal verschiebbar. Alternativ Listenansicht verwenden."
         >
-          <div className="crew-office-canvas-space" style={{ width: 1120 * scale, height: height * scale }}>
-            <div className="crew-office-floor" style={{ height, transform: `scale(${scale})` }}>
-              <svg width="1120" height={height} viewBox={`0 0 1120 ${height}`} aria-hidden="true">
-                <defs>
-                  <pattern id={patternId} width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M40 0H0v40" fill="none" stroke="#24333d" strokeWidth=".6" />
-                  </pattern>
-                </defs>
-                <rect
-                  x="16"
-                  y="24"
-                  width="1088"
-                  height={height - 45}
-                  rx="24"
-                  fill="#111d27"
-                  stroke="#455963"
-                  strokeWidth="2"
-                />
-                <rect x="24" y="32" width="1072" height={height - 60} rx="20" fill={`url(#${patternId})`} />
-                <path d={`M792 35v${height - 74}`} stroke="#33454f" strokeWidth="2" />
-                <path d={`M800 55v${height - 110}`} stroke="#698991" opacity=".5" />
-                <rect x="44" y="69" width="721" height={height - 128} rx="14" fill="#19262f" stroke="#34434d" />
-                <path d="M57 42h243m40 0h220m35 0h171" stroke="#5e9aab" strokeWidth="5" opacity=".75" />
-                <text x="56" y="102" className="crew-office-room-label">
-                  ARBEITSBEREICH
-                </text>
-                <text x="713" y="102" className="crew-office-room-number">
-                  01
-                </text>
-                <rect x="822" y="69" width="253" height={meetingHeight} rx="13" fill="#172c32" stroke="#46666c" />
-                <text x="842" y="99" className="crew-office-room-label">
-                  MEETINGRAUM
-                </text>
-                <rect x="854" y="143" width="186" height="68" rx="34" fill="#344b54" stroke="#688990" />
-                <ellipse cx="947" cy="178" rx="47" ry="18" fill="#223a43" stroke="#74989e" />
-                <path d="M928 178h38m-19-11v22" stroke="#66969d" />
-                <text x="946" y={69 + meetingHeight - 17} textAnchor="middle" className="crew-office-scene-note">
-                  {meetingAgents.length ? `${meetingAgents.length} Agents im Meeting` : "Für die nächste Abstimmung"}
-                </text>
-                <rect
-                  x="822"
-                  y={decisionTop}
-                  width="253"
-                  height={decisionHeight}
-                  rx="13"
-                  fill="#2a2b28"
-                  stroke="#6c624c"
-                />
-                <text x="842" y={decisionTop + 30} className="crew-office-room-label">
-                  ENTSCHEIDUNGEN
-                </text>
-                <path d={`M844 ${decisionTop + 56}h209`} stroke="#9e865c" />
-                <rect x="846" y={decisionTop + 81} width="198" height="31" rx="9" fill="#4c4b3f" stroke="#857b60" />
-                <text x="56" y={height - 35} className="crew-office-scene-note">
-                  Figur: Agent öffnen · Auftrag: Aufgabe und Run-Verlauf öffnen
-                </text>
-                {sortedAgents.map((agent, index) => (
-                  <Desk
-                    key={agent.id}
-                    x={114 + (index % 5) * 144}
-                    y={198 + Math.floor(index / 5) * 220}
-                    active={agent.status === "working" || agent.status === "thinking"}
-                    label={departmentById.get(agent.departmentId ?? "")?.name ?? "Crew"}
-                  />
-                ))}
-                <Plant x={754} y={height - 80} />
-                <Plant x={1064} y={46} />
-                <Plant x={831} y={height - 42} />
-              </svg>
-              {sortedAgents.map((agent, index) => {
-                const meetingIndex = meetingAgents.indexOf(agent);
-                const decisionIndex = decisionAgents.indexOf(agent);
-                let x = 64 + (index % 5) * 144;
-                let y = 191 + Math.floor(index / 5) * 220;
-                if (meetingIndex >= 0) {
-                  x = 835 + (meetingIndex % 2) * 123;
-                  y = 115 + Math.floor(meetingIndex / 2) * 157;
-                } else if (decisionIndex >= 0) {
-                  x = 835 + (decisionIndex % 2) * 123;
-                  y = decisionTop + 55 + Math.floor(decisionIndex / 2) * 157;
-                }
+          <div
+            className="crew-office-canvas-space"
+            data-focused-room={focusedRoom?.id}
+            style={{ width: focus.width * scale, height: focus.height * scale }}
+          >
+            <div
+              className="crew-office-floor"
+              style={{
+                height,
+                transform: focusedRoom ? `scale(${scale}) translate(${-focus.x}px, ${-focus.y}px)` : `scale(${scale})`,
+              }}
+            >
+              <OfficeBuilding layout={layout} activeAgentIds={activeAgentIds} />
+              {layout.rooms.map((room) => (
+                <button
+                  key={room.id}
+                  type="button"
+                  className="crew-office-room-focus"
+                  data-testid={`office-room-focus-${room.id}`}
+                  aria-label={`Raum öffnen: ${room.name}`}
+                  tabIndex={focusedRoom && focusedRoom.id !== room.id ? -1 : 0}
+                  aria-hidden={focusedRoom && focusedRoom.id !== room.id ? true : undefined}
+                  aria-pressed={focusedRoom?.id === room.id}
+                  style={{ left: room.x + 12, top: room.y + 8, maxWidth: room.width - 24 }}
+                  onClick={() => openRoom(room.id)}
+                >
+                  <span>{room.name}</span>
+                  <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                    <path d="M4 2h6v6M10 2 2 10" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                  </svg>
+                </button>
+              ))}
+              {sortedAgents.map((agent) => {
+                const anchor = motionSubjects.find((subject) => subject.id === agent.id)!.anchor;
                 const task = currentTasks.get(agent.id);
                 const filtered = !!departmentFilter && departmentFilter !== agent.departmentId;
                 return (
                   <div
                     key={agent.id}
+                    ref={refFor(agent.id)}
                     className="crew-office-occupant"
                     data-status={agent.status}
                     data-blocked={task?.status === "blocked" || undefined}
                     data-filtered={filtered || undefined}
                     data-testid={`office-person-${agent.id}`}
-                    style={{ transform: `translate(${x}px, ${y}px)` }}
+                    style={{ "--office-x": anchor.x, "--office-y": anchor.y } as CSSProperties}
                   >
                     <button
                       type="button"
@@ -350,6 +351,19 @@ export function CrewOffice({
                         status={agent.status}
                         className="crew-office-person"
                       />
+                      <span className="crew-office-encounter" aria-hidden="true">
+                        <svg width="24" height="17" viewBox="0 0 24 17">
+                          <path
+                            d="M3 1h18a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-9l-5 4v-4H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2Z"
+                            fill="#304c54"
+                            stroke="#a5c4c4"
+                          />
+                          <circle cx="7" cy="6" r="1" fill="#d1e3dc" />
+                          <circle cx="12" cy="6" r="1" fill="#d1e3dc" />
+                          <circle cx="17" cy="6" r="1" fill="#d1e3dc" />
+                        </svg>
+                        <span>Begegnung</span>
+                      </span>
                       <span className="crew-office-name">{agent.displayName}</span>
                       <span className="crew-office-state">{AGENT_STATUS_LABEL[agent.status]}</span>
                     </button>

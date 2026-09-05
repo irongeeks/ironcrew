@@ -83,6 +83,11 @@ Coaching: [reviewed guidance and evidence](docs/COACHING.md).
 
 ## Office and screenshots
 
+The [living company building](docs/LIVING_OFFICE.md) adds individually furnished
+department offices, connected corridors, a lounge and room focus. Idle figures
+walk and gesture during ambient encounters; real tasks and meetings retain priority.
+Motion can be paused and respects reduced-motion preferences.
+
 The modern office uses original vector figures, real agent states, desks,
 meeting and approval areas. Choose from **20 original full-body figures** in the
 agent profile, or upload a private portrait and full-body image. A copyable
