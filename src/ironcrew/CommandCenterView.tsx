@@ -318,6 +318,9 @@ export function CommandCenterView({
     "coaching" | "planning" | "sandbox" | "fleet" | "routing" | "people" | "vendor-policy" | null
   >(null);
   const [myRole, setMyRole] = useState<string | null>(null);
+  // Only an explicit successful auth response grants bootstrap privileges.
+  // A missing identity or failed status request must remain read-only.
+  const [singleOwnerBootstrap, setSingleOwnerBootstrap] = useState(false);
   const [memoryQuery, setMemoryQuery] = useState("");
   const [semanticMemorySearch, setSemanticMemorySearch] = useState(false);
   const [newMemorySensitivity, setNewMemorySensitivity] = useState("internal");
@@ -521,6 +524,7 @@ export function CommandCenterView({
       setDecisions(dec.decisions);
       setMyUserId(who?.user?.id ?? null);
       setMyRole(who?.user?.role ?? null);
+      setSingleOwnerBootstrap(who?.bootstrap === true);
       setCompanyName(co.company.name);
       setDepartments(co.departments);
       setMeetings(mt.meetings);
@@ -3985,7 +3989,10 @@ export function CommandCenterView({
             />
           )}
           {companyPanel === "vendor-policy" && (
-            <VendorPolicyPanel canManage={myRole === "owner"} refreshKey={lastRefreshedAt ?? undefined} />
+            <VendorPolicyPanel
+              canManage={myRole === "owner" || singleOwnerBootstrap}
+              refreshKey={lastRefreshedAt ?? undefined}
+            />
           )}
           {companyPanel === "coaching" && (
             <CoachingPanel

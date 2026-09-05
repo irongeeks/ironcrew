@@ -3,7 +3,10 @@
 Im Command Center öffnet **Provider-Freigaben** die wirksamen Modellfamilien,
 OpenRouter-Provider, zentralen Schutzregeln und den Änderungsverlauf. Alle
 angemeldeten Benutzer können den Stand lesen und Modelle prüfen. Nur ein aktiver
-Owner darf speichern.
+Owner darf speichern. Im bestehenden Erststartmodus ohne Benutzerkonten hat der
+über die äußere Anwendungsauthentifizierung zugelassene lokale CEO diese Rechte;
+sein Audit-Actor heißt bis zur Kontoeinrichtung `ceo`. Ein fehlgeschlagener
+Identitätsabruf schaltet den Editor nicht frei.
 
 ## Bedienung
 
