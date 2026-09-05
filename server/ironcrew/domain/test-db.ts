@@ -1,3 +1,5 @@
+import { migration as crewObjectiveEvaluations } from "../../modules/bootstrap/migrations/0037-crew-objective-evaluations.ts";
+import { migration as crewCompanyConfiguration } from "../../modules/bootstrap/migrations/0036-crew-company-configuration.ts";
 import { migration as crewCompanyPolicy } from "../../modules/bootstrap/migrations/0035-crew-company-policy.ts";
 import { migration as crewCareerReviews } from "../../modules/bootstrap/migrations/0034-crew-career-reviews.ts";
 import { migration as crewRoutingProfiles } from "../../modules/bootstrap/migrations/0033-crew-routing-profiles.ts";
@@ -85,6 +87,8 @@ export function createTestDb(filePath?: string): DatabaseSync {
   crewRoutingProfiles.up(db);
   crewCareerReviews.up(db);
   crewCompanyPolicy.up(db);
+  crewCompanyConfiguration.up(db);
+  crewObjectiveEvaluations.up(db);
 
   return db;
 }

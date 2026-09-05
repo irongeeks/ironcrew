@@ -1,3 +1,4 @@
+import { CompanyConfigurationStore } from "../policy/company-configuration-store.ts";
 /**
  * IronCrew — what an agent may reach for.
  *
@@ -328,7 +329,9 @@ export class ToolStore {
   ): ToolDecision {
     const tool = this.byKey(companyId, toolKey);
     if (!tool) return { allowed: false, reason: "unknown_tool" };
-    if (tool.enabled !== 1) return { allowed: false, reason: "disabled" };
+    const configuration = new CompanyConfigurationStore(this.db).effective(companyId);
+    if (tool.enabled !== 1 || configuration.tools.blockedToolKeys.includes(toolKey))
+      return { allowed: false, reason: "disabled" };
 
     const agent = this.db
       .prepare("SELECT id, talent_id FROM crew_agents WHERE id = ? AND company_id = ?")
@@ -362,9 +365,11 @@ export class ToolStore {
       // NULL means "whatever the risk class implies", which is what keeps an
       // external tool gated by omission rather than by remembering.
       requiresApproval:
-        match.grant.requires_approval === null
+        configuration.approvals.additionalRequiredTypes.includes(toolKey) ||
+        configuration.tools.requireApprovalForRiskClasses.includes(tool.risk_class) ||
+        (match.grant.requires_approval === null
           ? defaultRequiresApproval(tool.risk_class)
-          : match.grant.requires_approval === 1,
+          : match.grant.requires_approval === 1),
       via: match.via,
     };
   }

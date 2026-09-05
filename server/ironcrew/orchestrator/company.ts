@@ -1,3 +1,4 @@
+import { CompanyConfigurationStore, CompanyConfigurationError } from "../policy/company-configuration-store.ts";
 import { CareerReviewStore } from "../domain/career-review-store.ts";
 import { CareerWorkflow } from "./career-workflow.ts";
 import { RoutingStore, RoutingError } from "../domain/routing-store.ts";
@@ -268,6 +269,7 @@ export class CompanyOrchestrator {
   readonly tools: ToolStore;
   readonly routines: RoutineStore;
   readonly companyPolicies: CompanyPolicyStore;
+  readonly configuration: CompanyConfigurationStore;
   private readonly messengerChannels = new Map<string, MessengerChannel>();
   private readonly searchProviders = new Map<string, SearchProvider>();
   /** Business-pack integrations, keyed by the pack definition's integration key. */
@@ -304,6 +306,7 @@ export class CompanyOrchestrator {
     // testRemoteWorker() below.
     private readonly sshConnectorFactory: (config: SshConfig) => SshConnectorInterface = createSshConnector,
   ) {
+    this.configuration = new CompanyConfigurationStore(db);
     this.tasks = new TaskStore(db);
     this.runs = new RunStore(db);
     this.approvals = new ApprovalEngine(db);
@@ -537,15 +540,18 @@ export class CompanyOrchestrator {
     let meetingCompleted = false;
     const meetingAbort = new AbortController();
     const originVessel = agent.vessel_id ? this.vessels.get(agent.vessel_id) : null;
-    const routeLease = route ? this.routing.reserveMeeting(companyId, meetingId, route.vessel, originVessel) : null;
-    const meetingTimer = route
-      ? setTimeout(
-          () => meetingAbort.abort(new Error("Meeting-Timeout")),
-          Math.min(agent.vessel_timeout_ms, route.vessel.timeout_ms),
-        )
-      : null;
-    meetingTimer?.unref?.();
+    const meetingTimeout = Math.min(
+      agent.vessel_timeout_ms > 0 ? agent.vessel_timeout_ms : DEFAULT_RUN_TIMEOUT_MS,
+      route?.vessel.timeout_ms ?? DEFAULT_RUN_TIMEOUT_MS,
+      this.configuration.effective(companyId).runtime.maxRunTimeoutMs,
+    );
+    const capacityLease = this.configuration.reserveMeeting(companyId, meetingTimeout, VESSEL_RUN_STALE_MS);
+    let routeLease: string | null = null;
+    const meetingTimer = setTimeout(() => meetingAbort.abort(new Error("Meeting-Timeout")), meetingTimeout);
+    meetingTimer.unref?.();
     try {
+      if (route) routeLease = this.routing.reserveMeeting(companyId, meetingId, route.vessel, originVessel);
+      else if (originVessel) routeLease = this.routing.reserveMeeting(companyId, meetingId, originVessel, null);
       if (route) {
         const latest = this.routing.binding(companyId, speakerAgentId);
         if (latest?.revision !== route.revision || latest.profile.key !== route.profileKey)
@@ -590,7 +596,7 @@ export class CompanyOrchestrator {
           vendorRestrictions,
           sensitive: true,
           permissionMode: "restricted",
-          ...(route ? { signal: meetingAbort.signal } : {}),
+          signal: meetingAbort.signal,
         },
       )) {
         if (ev.type === "usage.updated") {
@@ -626,9 +632,8 @@ export class CompanyOrchestrator {
           }
         }
         if (
-          route &&
-          (meetingAbort.signal.aborted ||
-            ["run.failed", "run.cancelled", "run.waiting", "rate_limit.detected"].includes(ev.type))
+          meetingAbort.signal.aborted ||
+          ["run.failed", "run.cancelled", "run.waiting", "rate_limit.detected"].includes(ev.type)
         )
           throw new RoutingError(
             "meeting_run_stopped",
@@ -637,7 +642,7 @@ export class CompanyOrchestrator {
         if (ev.type === "run.completed") meetingCompleted = true;
         if (ev.type === "message.completed") contribution = String((ev.payload as { text?: string }).text ?? "");
       }
-      if (route && (meetingAbort.signal.aborted || !meetingCompleted))
+      if (meetingAbort.signal.aborted || (route && !meetingCompleted))
         throw new RoutingError("meeting_incomplete", "Meeting-Run wurde ohne bestätigten Abschluss beendet.");
     } catch (err) {
       meetingAbort.abort(err);
@@ -645,6 +650,7 @@ export class CompanyOrchestrator {
     } finally {
       if (meetingTimer) clearTimeout(meetingTimer);
       if (routeLease) this.routing.releaseMeeting(routeLease);
+      this.configuration.releaseMeeting(capacityLease);
     }
 
     if (!route && (costMicros > 0 || inputTokens > 0 || outputTokens > 0)) {
@@ -1847,7 +1853,13 @@ export class CompanyOrchestrator {
     }
   }
 
-  async searchSemanticMemory(provider: string, query: string): Promise<MemorySearchHit[]> {
+  async searchSemanticMemory(provider: string, query: string, companyId?: string): Promise<MemorySearchHit[]> {
+    if (!companyId || !this.configuration.effective(companyId).memory.semanticSearchEnabled)
+      throw new CompanyConfigurationError(
+        "semantic_search_disabled",
+        "Externe semantische Suche ist für diese Firma deaktiviert.",
+        403,
+      );
     const memory = this.memoryProviders.get(provider);
     if (!(memory instanceof HybridMemoryProvider)) throw new MemoryMutationError("Honcho is not configured.");
     return memory.searchSemantic(query, "public", 20);
@@ -1855,6 +1867,8 @@ export class CompanyOrchestrator {
 
   /** Bounded, source-labelled local memory. Retrieval never implicitly sends a query to Honcho. */
   private async runMemoryContext(companyId: string, task: TaskRow, agentId: string): Promise<string> {
+    const memoryConfiguration = this.configuration.effective(companyId).memory;
+    if (!memoryConfiguration.runContextEnabled) return "";
     const refs = this.memories
       .list(companyId)
       .filter(
@@ -1865,7 +1879,7 @@ export class CompanyOrchestrator {
           (["public", "internal"].includes(ref.sensitivity) ||
             (ref.sensitivity === "confidential" && task.sensitive !== 0)),
       )
-      .slice(0, 5);
+      .slice(0, memoryConfiguration.maxContextEntries);
     const context: string[] = [];
     for (const ref of refs) {
       const provider = this.memoryProviders.get(ref.provider);
@@ -3266,6 +3280,10 @@ export class CompanyOrchestrator {
     this.packIntegrations.set(adapter.key, adapter);
   }
 
+  getPackIntegration(key: string): PackIntegrationAdapter | undefined {
+    return this.packIntegrations.get(key);
+  }
+
   listPackIntegrationKeys(): string[] {
     return [...this.packIntegrations.keys()];
   }
@@ -3819,11 +3837,14 @@ export class CompanyOrchestrator {
     //
     // Same fail-closed shape as above: the task returns to `ready` and is
     // picked up as soon as a seat frees.
-    if (!this.vesselAdmits(agent, run.id) || !this.vesselAdmits(originalAgent, run.id)) {
+    const companyHasCapacity = this.configuration.admitsTask(companyId, run.id, VESSEL_RUN_STALE_MS);
+    if (!companyHasCapacity || !this.vesselAdmits(agent, run.id) || !this.vesselAdmits(originalAgent, run.id)) {
       this.agentLocks.release(agentId, run.id);
       this.tasks.releaseLock(candidate.id, run.id);
       this.tasks.transition(claimed.id, "ready", {
-        reason: `vessel "${agent.vessel_key || agent.vessel_id}" is at its concurrency limit`,
+        reason: companyHasCapacity
+          ? `vessel "${agent.vessel_key || agent.vessel_id}" is at its concurrency limit`
+          : "company is at its concurrency limit",
         actorType: "system",
         actorId: "scheduler",
         correlationId: claimed.correlation_id,
@@ -3859,7 +3880,10 @@ export class CompanyOrchestrator {
     // `context.signal` — CliAdapterRuntime kills its process tree on it and
     // MockRuntime stops iterating — so the cap is enforced by the thing doing
     // the work rather than by a watchdog that can only notice afterwards.
-    const timeoutMs = agent.vessel_timeout_ms > 0 ? agent.vessel_timeout_ms : DEFAULT_RUN_TIMEOUT_MS;
+    const timeoutMs = Math.min(
+      agent.vessel_timeout_ms > 0 ? agent.vessel_timeout_ms : DEFAULT_RUN_TIMEOUT_MS,
+      this.configuration.effective(companyId).runtime.maxRunTimeoutMs,
+    );
     const abort = new AbortController();
     this.activeRuns.set(run.id, { companyId, taskId: candidate.id, abort, runtime });
     let timedOut = false;

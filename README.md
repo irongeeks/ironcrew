@@ -13,13 +13,17 @@ Freigaben und Kosten bleiben nachvollziehbar.
 
 ![IronCrew: modernes Firmengebäude mit Abteilungsbüros, Crew und CEO-Chat](docs/screenshots/ironcrew-office.png)
 
-*Browseraufnahme aus der isolierten Testinstallation: originale Seed-Crew und ein
+*Browseraufnahme aus Version 0.1.0 in der isolierten Testinstallation: originale Seed-Crew und ein
 gekennzeichneter Dokumentationsauftrag. Die Bilder zeigen keine produktive Firma
 und belegen keine Ausführung mit einem echten Providerkonto.*
 
-## Version 0.2.0
+## Version 0.3.0
 
-Neu: [firmenbezogene Modell- und Provider-Freigaben](docs/VENDOR_POLICIES.md) mit Owner-Oberfläche, Versionsverlauf und Durchsetzung bis zum Runner. Die zusätzliche Funktion erhöht die frühe Produktversion von `0.1.0` auf `0.2.0`.
+Neu sind die aktive [Firmenkonfiguration](docs/COMPANY_CONFIGURATION.md),
+[Geschäftsdaten aus vorhandenen Adaptern](docs/BUSINESS_DASHBOARD.md) und
+[reproduzierbare Run-Prüfungen](docs/OBJECTIVE_EVALUATIONS.md) zusätzlich zu den
+Lead-Sternen. Dialoge unterstützen Tastaturfokus und Escape; Memory-Synchronisierung
+prüft die aktuelle Herkunft und Freigabe der Quelldatei erneut.
 
 IronCrew beginnt seine eigene Produktversionierung bei **0.1.0**. Die zuvor
 veröffentlichte `2.8.0` folgte noch der übernommenen Versionsreihe. Sie bleibt
@@ -31,11 +35,11 @@ als historische Veröffentlichung erhalten; die Weiterentwicklung läuft ab jetz
 Der alte Updater kennt diesen Übergang noch nicht. Die Datenbank wird dabei
 nicht auf einen früheren Stand zurückgesetzt.
 
-`0.2.0` bezeichnet einen frühen Entwicklungsstand mit getesteten Kernabläufen.
+`0.3.0` bezeichnet einen frühen Entwicklungsstand mit getesteten Kernabläufen.
 Ein vollständiger automatisierter Betrieb deines Geschäfts ist damit nicht zugesichert.
 Den konkreten Umfang und die verbleibenden Grenzen dokumentieren
 [Implementierungsstand](IMPLEMENTATION_STATUS.md) und
-[Master-Prompt-Abdeckung](docs/MASTER_PROMPT_COVERAGE.md).
+[Produktabnahme](docs/PRODUCT_ACCEPTANCE.md).
 
 ## Was du damit machen kannst
 
@@ -44,14 +48,16 @@ Den konkreten Umfang und die verbleibenden Grenzen dokumentieren
 | **CEO und Aufgaben** | EA-Chat, Projektplanung mit Freigabe, persistente Tasks, Abhängigkeiten, Kanban, Ergebnisse und Revisionen |
 | **Lebendiges Office** | Unterschiedlich eingerichtete Abteilungsbüros, Flure, Lounge, Meetings, Raumfokus und Figuren mit echten Agentenzuständen |
 | **Mitarbeiter** | Getrennte Fachrolle, Junior/Senior/Lead-Level, Modellprofil, Berechtigungen und visuelle Figur |
-| **Delegation und Qualität** | Leads verteilen neue Aufgaben und bewerten Arbeit mit 1–5 Sternen; Verlauf, Anzahl und Mittelwert je Mitarbeiter und tatsächlich verwendetem Modell |
+| **Delegation und Qualität** | Leads verteilen Aufgaben und vergeben 1–5 Sterne; separate versionierte Text-/JSON-Prüfungen messen gespeicherte Run-Ergebnisse reproduzierbar |
 | **Runtimes** | MockRuntime sowie Adapter für Claude Code, Codex, Antigravity und OpenRouter; Health, Streaming, Abbruch, Rate-Limit-Queue und Recovery |
-| **Governance** | Technische Freigabegates, Budgets, atomare Task-Claims, Vendor-Policy und prüfbarer Audit-Trail |
+| **Governance** | Technische Freigabegates, Budgets, atomare Task-Claims, Vendor-Policy, Owner-Konfiguration für Laufzeiten/Tools/Memory und prüfbarer Audit-Trail |
 | **Wissen und Integrationen** | Obsidian-kompatibler Vault, optional Honcho, Tools/MCP, Mail und Business-Packs; der Umfang einzelner Adapter ist dokumentiert |
+| **Geschäftsdaten** | Expliziter Abruf vorhandener MSP-/Rechnungsadapter mit Quelle, Zeitpunkt, begrenzter Datengrundlage und ehrlichen Fehler-/Leerzuständen |
 | **Betrieb** | Nativ oder Docker Compose, nativer Host-Runner, versionierte Releases, Sicherungen und Wiederherstellung |
 
 Die Lead-Steuerung wird pro Abteilung eingerichtet und ausdrücklich aktiviert.
-Sterne sind Modellreviews mit Arbeitsbelegen, keine objektiven Benchmarks.
+Sterne sind Modellreviews mit Arbeitsbelegen. Die zusätzlichen objektiven Prüfungen
+werten festgelegte Kriterien aus; auch deren Quote ist kein allgemeiner Qualitätsbenchmark.
 [Team und Leistung](docs/CAREER_REVIEWS.md) erklärt die Auswertung.
 
 ## Ein Auftrag durch die Firma
@@ -106,7 +112,7 @@ Voraussetzungen: **Node.js 22+**, Git und die in `package.json` festgelegte
 **pnpm-Version 10.30.1**. Native Abhängigkeiten können Compilerwerkzeuge benötigen.
 
 ```bash
-git clone --branch v0.2.0 https://github.com/irongeeks/ironcrew.git
+git clone --branch v0.3.0 https://github.com/irongeeks/ironcrew.git
 cd ironcrew
 corepack pnpm install --frozen-lockfile
 cp .env.example .env

@@ -621,7 +621,8 @@ function page<TRaw, TOut>(
   limit: number,
   offset: number,
 ): SevdeskPage<TOut> {
-  const rows = Array.isArray(raw.objects) ? raw.objects : [];
+  if (!Array.isArray(raw?.objects)) throw new PackIntegrationError("sevDesk: ungültige Datenliste.");
+  const rows = raw.objects;
   const items = rows.map(map);
   // `total` is documented as a string ("157"), so it is parsed rather than read.
   const total = countFrom(raw.total);

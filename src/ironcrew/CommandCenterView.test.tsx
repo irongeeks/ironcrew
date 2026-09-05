@@ -908,13 +908,13 @@ describe("agent detail", () => {
     expect(within(dialog).getByText(/Policy hat immer Vorrang/)).toBeInTheDocument();
   });
 
-  it("closes on Escape", async () => {
+  it("closes on native cancel (Escape is verified in Playwright)", async () => {
     const user = userEvent.setup();
     render(<CommandCenterView initialView="tasks" client={makeClient()} />);
     const roster = await screen.findByRole("navigation", { name: "Mannschaft" });
     await user.click(within(roster).getByRole("button", { name: /Forge/ }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    await user.keyboard("{Escape}");
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
@@ -4114,7 +4114,7 @@ describe("integrated company office", () => {
     await user.click(await within(office).findByRole("button", { name: "Aufgabe von Forge: Backup dokumentieren" }));
     expect(await screen.findByRole("dialog", { name: "Backup dokumentieren" })).toBeInTheDocument();
     expect(client.task).toHaveBeenCalledWith("task_1");
-    await user.keyboard("{Escape}");
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
     await user.click(screen.getByRole("button", { name: "Kanban" }));
     await user.click(within(screen.getByTestId("kanban")).getByRole("button", { name: /Backup dokumentieren/ }));
     expect(await screen.findByRole("dialog", { name: "Backup dokumentieren" })).toBeInTheDocument();

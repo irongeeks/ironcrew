@@ -145,49 +145,62 @@ jobs:
       - name: Run build
         run: pnpm run build
 
-  unit-tests:
-    name: unit-tests
+  unit-suites:
+    name: unit-${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: web
+            command: pnpm run test:web --run --coverage
+            coverage: coverage/web
+          - suite: api
+            command: pnpm run test:api:ci --run --coverage
+            coverage: coverage/api
+          - suite: scripts
+            command: pnpm run test:scripts
+            coverage: coverage/scripts
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run Vitest (web + api) with coverage
-        run: pnpm run test:ci:unit
+      - run: pnpm install --frozen-lockfile
+      - name: Run independent test suite
+        run: ${{ matrix.command }}
         env:
           CI: true
-
-      - name: Upload coverage artifacts
-        if: always()
+      - name: Upload suite coverage
+        if: always() && matrix.suite != 'scripts'
         uses: actions/upload-artifact@v5
         with:
-          name: coverage-reports
-          path: |
-            coverage/web
-            coverage/api
-          if-no-files-found: warn
+          name: coverage-${{ matrix.suite }}
+          path: ${{ matrix.coverage }}
+          if-no-files-found: error
+
+  # Keep the existing required-check name; a failed or cancelled matrix cannot
+  # turn the aggregate gate green. The workflow still requires every job.
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    needs: unit-suites
+    if: always()
+    steps:
+      - name: Require every unit suite to pass
+        env:
+          SUITES_RESULT: ${{ needs.unit-suites.result }}
+        run: test "$SUITES_RESULT" = success
 
   e2e:
     name: e2e
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs:
-      - quality
-      - unit-tests
+    # An isolated runner can verify the browser in parallel with unit/quality
+    # jobs. Overall CI and release success still require all of them.
 
     steps:
       - name: Checkout
@@ -206,7 +219,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run Playwright E2E tests
         run: pnpm run test:e2e

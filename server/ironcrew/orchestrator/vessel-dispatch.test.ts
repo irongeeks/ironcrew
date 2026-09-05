@@ -267,3 +267,94 @@ describe("the vessel's concurrency caps how many runs share it", () => {
     expect(cancelled[0].id).not.toBe(existing);
   });
 });
+
+describe("company configuration dispatch limits", () => {
+  it("applies the company timeout below a longer vessel timeout", async () => {
+    const spy = new SpyRuntime("quiet-abort");
+    orc.registerRuntime(spy);
+    setVessel({ runtime_provider: "mock", timeout_ms: 600000 });
+    const configuration = orc.configuration.effective(companyId);
+    configuration.runtime.maxRunTimeoutMs = 1000;
+    orc.configuration.save(
+      companyId,
+      { baseRevision: 0, reason: "Maximale Laufzeit für diesen Betrieb begrenzen.", configuration },
+      "ceo",
+    );
+    await readyTask();
+    const result = await orc.executeNextTask(companyId);
+    expect(result?.task.status).toBe("failed");
+    expect(spy.seen[0].context.signal?.aborted).toBe(true);
+    expect(runs.get(result!.runId)?.status).toBe("failed");
+  });
+});
+
+it("company capacity blocks task dispatch across vessels and recovers after a meeting releases", async () => {
+  const spy = new SpyRuntime();
+  orc.registerRuntime(spy);
+  setVessel({ max_concurrency: 32 });
+  const configuration = orc.configuration.effective(companyId);
+  configuration.runtime.maxConcurrentRuns = 1;
+  orc.configuration.save(
+    companyId,
+    { baseRevision: 0, reason: "Nur ein aktiver Run im gesamten Unternehmen.", configuration },
+    "ceo",
+  );
+  const lease = orc.configuration.reserveMeeting(companyId, 60000, 120000);
+  const task = await readyTask();
+  expect(await orc.executeNextTask(companyId)).toBeNull();
+  expect(orc.tasks.get(task.id)?.status).toBe("ready");
+  expect(spy.seen).toHaveLength(0);
+  orc.configuration.releaseMeeting(lease);
+  // Make the persisted deferred request due without waiting on a wall-clock timer.
+  db.prepare("UPDATE crew_run_requests SET not_before=0 WHERE company_id=? AND task_id=?").run(companyId, task.id);
+  expect((await orc.drainRunQueue(companyId)).completed).toBe(1);
+  expect(orc.tasks.get(task.id)?.status).toBe("review");
+  expect(spy.seen).toHaveLength(1);
+});
+it("direct meeting turns honour the company timeout and release their capacity lease", async () => {
+  const spy = new SpyRuntime("quiet-abort");
+  orc.registerRuntime(spy);
+  setVessel({ timeout_ms: 600000 });
+  const configuration = orc.configuration.effective(companyId);
+  configuration.runtime.maxConcurrentRuns = 1;
+  configuration.runtime.maxRunTimeoutMs = 1000;
+  orc.configuration.save(
+    companyId,
+    { baseRevision: 0, reason: "Meeting-Laufzeit für diese Firma begrenzen.", configuration },
+    "ceo",
+  );
+  const agents = orc.listAgents(companyId);
+  const meeting = orc.meetings.create({
+    companyId,
+    topic: "Timeout-Prüfung",
+    moderatorAgentId: agents[0].id,
+    participantAgentIds: [agents[1].id],
+    maxRounds: 3,
+  });
+  orc.meetings.start(meeting.id);
+  const turn = await orc.runMeetingTurn(companyId, meeting.id);
+  expect(spy.seen[0].context.signal?.aborted).toBe(true);
+  expect(turn?.turn.contribution).toContain("Fehler");
+  expect(db.prepare("SELECT COUNT(*) AS n FROM crew_company_execution_leases").get()).toMatchObject({ n: 0 });
+});
+it("a direct meeting does not bypass a busy vessel and leaves no company lease", async () => {
+  const spy = new SpyRuntime();
+  orc.registerRuntime(spy);
+  setVessel({ max_concurrency: 1 });
+  const agents = orc.listAgents(companyId);
+  const task = orc.tasks.create({ companyId, title: "Existing work", assignedAgentId: agents[0].id });
+  const run = runs.create({ companyId, taskId: task.id, agentId: agents[0].id, runtimeType: "mock" });
+  db.prepare("UPDATE crew_runs SET status='running', heartbeat_at=? WHERE id=?").run(Date.now(), run.id);
+  const meeting = orc.meetings.create({
+    companyId,
+    topic: "Capacity check",
+    moderatorAgentId: agents[1].id,
+    participantAgentIds: [agents[2].id],
+    maxRounds: 3,
+  });
+  orc.meetings.start(meeting.id);
+  const result = await orc.runMeetingTurn(companyId, meeting.id);
+  expect(result?.turn.contribution).toContain("belegt");
+  expect(spy.seen).toHaveLength(0);
+  expect(db.prepare("SELECT COUNT(*) AS n FROM crew_company_execution_leases").get()).toMatchObject({ n: 0 });
+});

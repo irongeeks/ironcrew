@@ -16,6 +16,7 @@ import { PackMutationError, PackStore } from "./pack-store.ts";
 import { defineBusinessPack, type BusinessPack } from "./business-pack.ts";
 import { ToolStore } from "../domain/tool-store.ts";
 import { RoutineStore } from "../domain/routine-store.ts";
+import { BUSINESS_PACKS } from "./catalog.ts";
 import { listAuditEvents } from "../domain/audit.ts";
 
 let db: DatabaseSync;
@@ -324,5 +325,43 @@ describe("uninstalling", () => {
     installer.install(companyId, testPack());
     installer.uninstall(companyId, "test-trade");
     expect(() => installer.install(companyId, testPack())).not.toThrow();
+  });
+});
+
+describe("atomic pack installation", () => {
+  it.each(BUSINESS_PACKS)("fully installs the shipped $key pack with all routines disabled", (pack) => {
+    const result = installer.install(companyId, pack);
+    expect(result.pack.pack_key).toBe(pack.key);
+    const routines = new RoutineStore(db).list(companyId);
+    for (const definition of pack.routines) {
+      expect(routines.find((routine) => routine.name === definition.name)).toMatchObject({
+        enabled: 0,
+        interval_minutes: definition.interval_minutes,
+      });
+    }
+  });
+
+  it("rolls back pack, agents, tools, routines and audits if a later routine fails", () => {
+    const tables = [
+      "crew_packs",
+      "crew_pack_objects",
+      "crew_departments",
+      "crew_agents",
+      "crew_tools",
+      "crew_routines",
+      "crew_audit_events",
+    ];
+    const counts = () => tables.map((table) => db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()!.n);
+    const before = counts();
+    const bad = testPack({
+      routines: [
+        testPack().routines[0]!,
+        { key: "bad", name: "Unsupported interval", instruction: "Test", interval_minutes: 60 * 24 * 366 },
+      ],
+    });
+    expect(() => installer.install(companyId, bad)).toThrow(/Kalender/);
+    expect(counts()).toEqual(before);
+    expect(installer.isInstalled(companyId, bad.key)).toBe(false);
+    expect(installer.install(companyId, testPack()).created.agents).toBe(1);
   });
 });

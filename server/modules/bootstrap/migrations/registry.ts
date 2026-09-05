@@ -1,3 +1,5 @@
+import { migration as crewObjectiveEvaluations } from "./0037-crew-objective-evaluations.ts";
+import { migration as crewCompanyConfiguration } from "./0036-crew-company-configuration.ts";
 import { migration as crewCompanyPolicy } from "./0035-crew-company-policy.ts";
 import { migration as crewCareerReviews } from "./0034-crew-career-reviews.ts";
 import { migration as crewRoutingProfiles } from "./0033-crew-routing-profiles.ts";
@@ -91,6 +93,8 @@ const MIGRATION_ENTRIES: MigrationEntry[] = [
   { filename: "0033-crew-routing-profiles.ts", migration: crewRoutingProfiles },
   { filename: "0034-crew-career-reviews.ts", migration: crewCareerReviews },
   { filename: "0035-crew-company-policy.ts", migration: crewCompanyPolicy },
+  { filename: "0036-crew-company-configuration.ts", migration: crewCompanyConfiguration },
+  { filename: "0037-crew-objective-evaluations.ts", migration: crewObjectiveEvaluations },
 ];
 
 export function validateMigrations(migrations: Migration[]): void {

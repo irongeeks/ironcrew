@@ -283,7 +283,8 @@ function describeStatus(status: number, url: string): string {
 }
 
 function asArray<T>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : [];
+  if (!Array.isArray(value)) throw new PackIntegrationError("Proxmox: ungültige Datenliste.");
+  return value as T[];
 }
 
 /** Proxmox omits fields it has no value for; "absent" is not "zero". */

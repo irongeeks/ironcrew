@@ -1,3 +1,8 @@
+import { registerBusinessDashboardRoutes } from "./business-dashboard-routes.ts";
+import { BusinessDashboardService } from "../packs/business-dashboard.ts";
+import { registerObjectiveEvaluationRoutes } from "./objective-evaluation-routes.ts";
+import { CompanyConfigurationError } from "../policy/company-configuration-store.ts";
+import { registerCompanyConfigurationRoutes } from "./company-configuration-routes.ts";
 import { registerCompanyPolicyRoutes } from "./company-policy-routes.ts";
 import { CompanyPolicyStore } from "../policy/company-policy-store.ts";
 import { registerRoutingRoutes } from "./routing-routes.ts";
@@ -451,6 +456,10 @@ function sendDomainError(res: Response, err: unknown): boolean {
     res.status(400).json({ error: "invalid_meeting_mutation", message: err.message });
     return true;
   }
+  if (err instanceof CompanyConfigurationError) {
+    res.status(err.status).json({ error: err.code, message: err.message });
+    return true;
+  }
   if (err instanceof RoutingError) {
     res.status(err.status).json({ error: err.code, message: err.message });
     return true;
@@ -661,6 +670,13 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
    */
   const ownerOnly = auth.requireRole("owner");
   const companyPolicyStore = new CompanyPolicyStore(db);
+  registerCompanyConfigurationRoutes(app, {
+    store: orchestrator.configuration,
+    companyId,
+    auth,
+    base,
+    onChanged: () => broadcast("crew_state_changed", { configuration: true }),
+  });
   registerCompanyPolicyRoutes(app, {
     store: companyPolicyStore,
     companyId,
@@ -675,6 +691,24 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     auth,
     base,
     onChanged: () => broadcast("crew_agent_changed", { routing: true }),
+  });
+  registerObjectiveEvaluationRoutes(app, {
+    db,
+    companyId,
+    auth,
+    base,
+    onChanged: () => broadcast("crew_state_changed", { evaluations: true }),
+  });
+  registerBusinessDashboardRoutes(app, {
+    auth,
+    base,
+    service: new BusinessDashboardService({
+      db,
+      companyId,
+      getAdapter: (key) => orchestrator.getPackIntegration(key),
+      gate: (agentId, toolKey) => orchestrator.requestToolUse(companyId, agentId, toolKey),
+      agents: () => orchestrator.listAgents(companyId).map((a) => ({ id: a.id, displayName: a.display_name })),
+    }),
   });
   registerCoachingRoutes(app, { db, companyId, auth, base });
   registerCareerRoutes(app, {
@@ -1800,7 +1834,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
       res.json({
         hits:
           req.query.semantic === "1"
-            ? await orchestrator.searchSemanticMemory(provider, query)
+            ? await orchestrator.searchSemanticMemory(provider, query, companyId)
             : await orchestrator.searchMemory(provider, query),
       });
     }),

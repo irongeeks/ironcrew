@@ -1,0 +1,241 @@
+.configuration-panel {
+  color: #d1e1e8;
+  font:
+    13px/1.6 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  min-width: 0;
+}
+.configuration-panel > header,
+.configuration-panel .configuration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.configuration-panel > header {
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.configuration-panel h2 {
+  font-size: 21px;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  margin: 0 0 7px;
+}
+.configuration-panel h3 {
+  font-size: 14px;
+  margin: 20px 0 8px;
+}
+.configuration-panel p {
+  color: #a8bdc7;
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.configuration-panel .configuration-note,
+.configuration-panel .configuration-actions > span {
+  font-size: 12px;
+  color: #a2bbc5;
+}
+.configuration-panel .configuration-boundary {
+  padding: 14px 16px;
+  background: #14262e;
+  border: 1px solid #35505b;
+  border-radius: 6px;
+}
+.configuration-panel .configuration-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 20px 0 16px;
+  border-bottom: 1px solid #35505b;
+  padding-bottom: 10px;
+}
+.configuration-panel .configuration-nav button {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #a8bdc7;
+  padding: 8px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.configuration-panel .configuration-nav button[aria-pressed="true"] {
+  color: #d7ece8;
+  background: #254043;
+  border-color: #4c777a;
+}
+.configuration-panel .configuration-fields {
+  margin: 0 0 22px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.configuration-panel .configuration-fields > legend {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 8px;
+}
+.configuration-panel .configuration-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 18px 0;
+}
+.configuration-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-block: 12px;
+}
+.configuration-panel .configuration-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.configuration-panel .configuration-check > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.configuration-panel small {
+  display: block;
+  font-size: 11px;
+  color: #a2bbc5;
+}
+.configuration-panel input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: #78adaf;
+}
+.configuration-panel textarea,
+.configuration-panel input[type="number"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  background: #10232c;
+  color: #d1e1e8;
+  font: inherit;
+  border: 1px solid #46616e;
+  border-radius: 5px;
+  padding: 9px 10px;
+}
+.configuration-panel textarea {
+  resize: vertical;
+}
+.configuration-panel .configuration-tool-list {
+  max-height: 290px;
+  overflow-y: auto;
+  border-block: 1px solid #304750;
+  margin-block: 16px;
+  padding-right: 8px;
+}
+.configuration-panel .configuration-actions {
+  padding-block: 14px;
+}
+.configuration-panel summary {
+  cursor: pointer;
+  padding-block: 10px;
+}
+.configuration-panel .configuration-floor {
+  margin-top: 16px;
+}
+.configuration-panel .configuration-floor ul {
+  padding-left: 20px;
+}
+.configuration-panel .configuration-history {
+  border-top: 1px solid #35505b;
+  margin-top: 8px;
+  padding-top: 10px;
+}
+.configuration-panel .configuration-history ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.configuration-panel .configuration-history li {
+  border-top: 1px solid #304750;
+  padding-block: 12px;
+}
+.configuration-panel .configuration-history li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.configuration-panel time {
+  font-variant-numeric: tabular-nums;
+  color: #a8bdc7;
+}
+.configuration-panel pre {
+  overflow-x: auto;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid #304750;
+  border-radius: 5px;
+  background: #14262e;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.configuration-panel code {
+  overflow-wrap: anywhere;
+}
+.configuration-panel [role="alert"] {
+  color: #edcba2;
+  border-left: 3px solid #bda178;
+  background: #302e29;
+  padding: 10px 13px;
+  margin-block: 12px;
+}
+.configuration-panel .configuration-notice {
+  color: #c2e0d9;
+  border-left: 3px solid #79aba1;
+  background: #233b3b;
+  padding: 10px 13px;
+  margin-block: 12px;
+}
+.configuration-panel .configuration-loading {
+  min-height: 130px;
+  padding-block: 14px;
+}
+.configuration-panel .configuration-loading div {
+  height: 20px;
+  background: #233840;
+  border-radius: 3px;
+  margin-top: 14px;
+}
+.configuration-panel .configuration-loading div:last-child {
+  width: 65%;
+}
+.configuration-panel :is(button, input, textarea, summary):focus-visible {
+  outline: 2px solid #d6b875;
+  outline-offset: 3px;
+}
+.configuration-panel :is(button, input, textarea):disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.configuration-panel button:not(:disabled):active {
+  transform: translateY(1px);
+}
+@media (max-width: 650px) {
+  .configuration-panel .configuration-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .configuration-panel .configuration-nav button {
+    padding: 8px 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .configuration-panel * {
+    animation: none !important;
+    transition: none !important;
+  }
+  .configuration-panel button:not(:disabled):active {
+    transform: none;
+  }
+}

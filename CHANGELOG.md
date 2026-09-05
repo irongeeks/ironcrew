@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — 2026-09-05
+
+- Add versioned owner configuration with enforced company runtime ceilings, additional approvals, tool restrictions and memory retrieval settings.
+- Add source-backed business snapshots through configured integrations and existing per-agent tool authorization.
+- Add immutable objective evaluation rubrics, persisted redacted evidence and reproducible model comparisons alongside Lead reviews.
+- Install all business-pack components atomically and support bounded quarterly routine intervals.
+- Revoke stale Honcho disclosure permissions after externally changed vault provenance.
+- Verify CEO revision and acceptance across SQLite restarts.
+- Use native accessible dialogs with modal focus, nested Escape handling and responsive browser regressions.
+- Run independent CI suites concurrently while retaining all release gates.
+
 ## 0.2.0 — 2026-09-05
 
 - Add owner-managed company model/provider restrictions below the central YAML ceiling.

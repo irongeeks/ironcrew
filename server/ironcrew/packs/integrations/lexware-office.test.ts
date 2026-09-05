@@ -15,12 +15,7 @@ function fakeFetch(body: unknown, init: { status?: number; text?: string } = {})
   const impl = vi.fn(async (url: string | URL | Request, requestInit?: RequestInit) => {
     calls.push({ url: String(url), init: requestInit });
     const status = init.status ?? 200;
-    return {
-      ok: status < 400,
-      status,
-      // The adapter reads bodies through `integrationJson`, which uses text().
-      text: async () => (init.text !== undefined ? init.text : JSON.stringify(body)),
-    } as unknown as Response;
+    return new Response(init.text !== undefined ? init.text : JSON.stringify(body), { status });
   });
   return { impl: impl as unknown as typeof fetch, calls };
 }
@@ -321,15 +316,9 @@ describe("LexwareOfficeAdapter — mapping", () => {
     expect((await more.listVouchers()).hasMore).toBe(true);
   });
 
-  it("survives a voucherlist page with no content at all", async () => {
+  it("rejects a malformed voucher list instead of inventing zero", async () => {
     const { client } = adapter({});
-    expect(await client.listVouchers()).toEqual({
-      vouchers: [],
-      page: 0,
-      totalPages: 0,
-      totalElements: 0,
-      hasMore: false,
-    });
+    await expect(client.listVouchers()).rejects.toThrow(/ungültige Datenliste/);
   });
 
   it("maps an invoice", async () => {

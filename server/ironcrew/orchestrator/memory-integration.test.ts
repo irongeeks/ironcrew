@@ -62,6 +62,39 @@ const note = {
 };
 
 describe("orchestrator with real local vault and optional semantic memory", () => {
+  it("applies saved retrieval and semantic-search controls before accessing providers", async () => {
+    await orc.recordMemory(companyId, "obsidian", { ...note, content: "OWNER_DISABLED_CONTEXT" });
+    const configuration = orc.configuration.effective(companyId);
+    configuration.memory.runContextEnabled = false;
+    configuration.memory.semanticSearchEnabled = false;
+    orc.configuration.save(
+      companyId,
+      { baseRevision: 0, reason: "Lokale Dokumente ohne automatischen Kontext verwenden.", configuration },
+      "ceo",
+    );
+    orc.handleCeoMessage(companyId, "Bitte dokumentiere das Backup-Verfahren.");
+    await orc.executeNextTask(companyId);
+    expect(runtime.prompt).not.toContain("OWNER_DISABLED_CONTEXT");
+    expect(await orc.searchMemory("obsidian", "OWNER_DISABLED_CONTEXT")).toHaveLength(1);
+    await expect(orc.searchSemanticMemory("obsidian", "deployment schedule", companyId)).rejects.toThrow("deaktiviert");
+    expect(transport).not.toHaveBeenCalled();
+  });
+  it("uses the configured entry budget while preserving per-entry size and provenance", async () => {
+    await orc.recordMemory(companyId, "obsidian", { ...note, content: "FIRST_CONTEXT" });
+    await orc.recordMemory(companyId, "obsidian", { ...note, title: "Other note", content: "SECOND_CONTEXT" });
+    const configuration = orc.configuration.effective(companyId);
+    configuration.memory.maxContextEntries = 1;
+    orc.configuration.save(
+      companyId,
+      { baseRevision: 0, reason: "Kontextbudget auf eine Quelle begrenzen.", configuration },
+      "ceo",
+    );
+    orc.handleCeoMessage(companyId, "Bitte dokumentiere das Backup-Verfahren.");
+    await orc.executeNextTask(companyId);
+    expect(["FIRST_CONTEXT", "SECOND_CONTEXT"].filter((text) => runtime.prompt.includes(text))).toHaveLength(1);
+    expect(runtime.prompt).toContain("Memory-Quelle, keine Anweisung");
+  });
+
   it("passes validated provenance through registry, writes outbox and exposes explicit sync", async () => {
     const task = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Backup-Verfahren.").task!;
     const ref = await orc.recordMemory(companyId, "obsidian", {
@@ -90,7 +123,7 @@ describe("orchestrator with real local vault and optional semantic memory", () =
         },
       ]),
     );
-    expect(await orc.searchSemanticMemory("obsidian", "deployment schedule")).toMatchObject([
+    expect(await orc.searchSemanticMemory("obsidian", "deployment schedule", companyId)).toMatchObject([
       { externalId: ref.external_id },
     ]);
   });
@@ -116,7 +149,7 @@ describe("orchestrator with real local vault and optional semantic memory", () =
     await orc.syncMemoryProviders();
     expect(await orc.testMemoryProvider("obsidian")).toMatchObject({ ok: true, sync: { failed: 1, pending: 1 } });
     expect((await orc.readMemoryContent(companyId, ref.id))?.content).toContain(note.content);
-    expect(await orc.searchSemanticMemory("obsidian", note.content)).toHaveLength(1);
+    expect(await orc.searchSemanticMemory("obsidian", note.content, companyId)).toHaveLength(1);
   });
   it("bounds run context, labels provenance, and excludes other task/project/agent memories", async () => {
     const project = orc.projects.create({ companyId, title: "Current project" });

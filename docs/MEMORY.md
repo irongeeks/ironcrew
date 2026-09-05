@@ -57,6 +57,16 @@ fences keep changes made during uploads pending for the next sync. Unknown files
 receive automatic external permission. Local content remains authoritative when opening
 a result. The application owns watcher shutdown and surfaces watcher failures.
 
+Before every semantic upload, the current file must still carry valid YAML
+provenance matching the originally approved company, task, project, agent and
+sensitivity. Missing, malformed or changed provenance revokes that transmission
+grant: the old remote copy is deleted, with persistent retries on failure, while
+the local document remains available. Semantic results are suppressed immediately
+when the current provenance no longer authorizes them, even before the watcher or
+synchronization runs; queued edits never return stale remote snippets. Restoring a
+classification after successful revocation does not silently re-enroll the file.
+
+
 ## Recovery, forgetting and export
 
 Migration 0026 adds a reference-only durable outbox. No full note body is duplicated in

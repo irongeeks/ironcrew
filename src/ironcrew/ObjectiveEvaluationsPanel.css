@@ -1,0 +1,152 @@
+.objective-panel {
+  color: #dce7ee;
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  min-width: 0;
+}
+.objective-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.objective-panel h2 {
+  font-size: 1.4rem;
+  font-weight: 650;
+  margin: 0;
+}
+.objective-panel h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+.objective-panel p {
+  color: #a9bcc9;
+  line-height: 1.6;
+  margin: 0 0 0.75rem;
+}
+.objective-panel .objective-eyebrow {
+  color: #77cfc8;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.objective-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.objective-workspace > * {
+  padding: 1.25rem;
+  border: 1px solid #30414d;
+  border-radius: 12px;
+  background: #16232d;
+  min-width: 0;
+}
+.objective-panel label {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.8rem 0;
+  font-size: 0.875rem;
+}
+.objective-panel input,
+.objective-panel select,
+.objective-panel textarea {
+  min-width: 0;
+  width: 100%;
+  color: #e4eef5;
+  background: #0f1b24;
+  border: 1px solid #496171;
+  border-radius: 6px;
+  padding: 0.65rem;
+  font: inherit;
+}
+.objective-panel button {
+  color: #def7f3;
+  background: #234748;
+  border: 1px solid #497579;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.objective-panel button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.objective-panel :focus-visible {
+  outline: 2px solid #81d5cd;
+  outline-offset: 3px;
+}
+.objective-panel fieldset {
+  border: 1px solid #3a505c;
+  border-radius: 8px;
+  padding: 0.8rem;
+  margin: 1rem 0;
+  min-width: 0;
+}
+.objective-panel legend {
+  padding: 0 0.4rem;
+  color: #9bcac7;
+}
+.objective-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.objective-table-wrap {
+  overflow-x: auto;
+}
+.objective-panel table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+.objective-panel th,
+.objective-panel td {
+  text-align: left;
+  padding: 0.8rem;
+  border-bottom: 1px solid #30414d;
+}
+.objective-panel details {
+  border-top: 1px solid #30414d;
+  padding: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.objective-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.objective-panel code {
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.objective-panel li {
+  margin: 0.5rem 0;
+}
+.objective-panel [role="alert"] {
+  color: #ffb9ad;
+  border-left: 3px solid #d98776;
+  padding-left: 0.75rem;
+}
+.objective-panel [role="status"] {
+  color: #9ddbd1;
+}
+.objective-panel .objective-note {
+  font-size: 0.75rem;
+}
+@media (max-width: 850px) {
+  .objective-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .objective-panel {
+    padding: 1rem;
+  }
+  .objective-panel header {
+    align-items: start;
+    flex-direction: column;
+  }
+}

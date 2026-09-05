@@ -31,12 +31,7 @@ function fakeFetch(replies: Reply[]) {
     const reply = replies[Math.min(index, replies.length - 1)] ?? {};
     index += 1;
     const status = reply.status ?? 200;
-    return {
-      ok: status < 400,
-      status,
-      // The adapter reads bodies through `integrationJson`, which uses text().
-      text: async () => (reply.text !== undefined ? reply.text : JSON.stringify(reply.body ?? null)),
-    } as unknown as Response;
+    return new Response(reply.text !== undefined ? reply.text : JSON.stringify(reply.body ?? null), { status });
   });
   return { impl: impl as unknown as typeof fetch, calls };
 }
@@ -311,15 +306,9 @@ describe("SevdeskAdapter — the response envelope", () => {
     expect((err as Error).message).toMatch(/keine Rechnung gefunden/);
   });
 
-  it("survives a response with no objects at all", async () => {
+  it("rejects a missing list instead of inventing zero", async () => {
     const { client } = adapter({ body: {} });
-    expect(await client.listInvoices()).toEqual({
-      items: [],
-      limit: 100,
-      offset: 0,
-      total: undefined,
-      hasMore: false,
-    });
+    await expect(client.listInvoices()).rejects.toThrow(/ungültige Datenliste/);
   });
 });
 

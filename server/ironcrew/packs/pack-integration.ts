@@ -163,7 +163,7 @@ export async function integrationFetch(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   timer.unref?.();
   try {
-    return await fetchImpl(url, { ...init, signal: controller.signal });
+    return await fetchImpl(url, { ...init, redirect: "error", signal: controller.signal });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       throw new PackIntegrationError(`Zeitüberschreitung nach ${timeoutMs} ms.`);
@@ -176,10 +176,37 @@ export async function integrationFetch(
 
 /** Parses a JSON body, turning a non-JSON answer into a readable failure. */
 export async function integrationJson<T>(response: Response, what: string): Promise<T> {
-  const text = await response.text();
+  const maximumBytes = 2 * 1024 * 1024;
+  const reader = response.body?.getReader();
+  if (!reader) throw new PackIntegrationError(`${what}: leere Antwort.`);
+  let expired = false;
+  const timer = setTimeout(() => {
+    expired = true;
+    void reader.cancel().catch(() => undefined);
+  }, DEFAULT_INTEGRATION_TIMEOUT_MS);
+  timer.unref?.();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
   try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new PackIntegrationError(`${what}: die Antwort war kein JSON (HTTP ${response.status}).`, response.status);
+    while (true) {
+      const part = await reader.read();
+      if (expired) throw new PackIntegrationError(`${what}: Zeitüberschreitung beim Lesen.`);
+      if (part.done) break;
+      size += part.value.byteLength;
+      if (size > maximumBytes) {
+        await reader.cancel();
+        throw new PackIntegrationError(`${what}: Antwort überschreitet 2 MiB.`);
+      }
+      chunks.push(part.value);
+    }
+    const text = Buffer.concat(chunks).toString("utf8");
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new PackIntegrationError(`${what}: die Antwort war kein JSON (HTTP ${response.status}).`, response.status);
+    }
+  } finally {
+    clearTimeout(timer);
+    reader.releaseLock();
   }
 }
