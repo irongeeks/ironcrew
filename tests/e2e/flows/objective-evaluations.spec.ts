@@ -57,6 +57,24 @@ test("creates an immutable rubric, measures a persisted mock run and reproduces 
   expect(measurement.run.id).toBe(run!.id);
   expect(measurement.rubricId).toBe(saved.rubric.id);
   expect(measurement.totalCases).toBe(1);
+  const assertPanelFits = async () => {
+    const bounds = await panel.evaluate((element) => {
+      const container = element.closest(".ic-detail")!;
+      const rect = element.getBoundingClientRect();
+      return {
+        scrollWidth: container.scrollWidth,
+        clientWidth: container.clientWidth,
+        left: rect.left,
+        right: rect.right,
+        viewport: window.innerWidth,
+      };
+    });
+    expect(bounds.scrollWidth, "The dialog itself must not scroll horizontally").toBeLessThanOrEqual(
+      bounds.clientWidth + 1,
+    );
+    expect(bounds.left).toBeGreaterThanOrEqual(0);
+    expect(bounds.right).toBeLessThanOrEqual(bounds.viewport);
+  };
   // IDs are present in the backend response; select the visible evidence by its real run id.
   const evidence = panel
     .getByRole("region", { name: "Auswertungsverlauf" })
@@ -68,6 +86,7 @@ test("creates an immutable rubric, measures a persisted mock run and reproduces 
   await expect(evidence).toContainText(`${measurement.passedCases}/1 erfüllt`);
   await evidence.getByRole("button", { name: "Nachweis reproduzieren", exact: true }).click();
   await expect(panel.getByRole("status")).toContainText("alle Einzelresultate stimmen überein");
+  await assertPanelFits();
   await evidence.locator("summary").scrollIntoViewIfNeeded();
   await expect(evidence.locator("summary")).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath("objective-evaluations-evidence.png") });
@@ -86,6 +105,7 @@ test("creates an immutable rubric, measures a persisted mock run and reproduces 
   );
   expect(repeated.measurement.id).toBe(measurement.id);
   await page.setViewportSize({ width: 390, height: 844 });
+  await assertPanelFits();
   await heading.scrollIntoViewIfNeeded();
   await expect(heading).toBeInViewport();
   await expect(panel.getByRole("button", { name: "Aktualisieren", exact: true })).toBeVisible();

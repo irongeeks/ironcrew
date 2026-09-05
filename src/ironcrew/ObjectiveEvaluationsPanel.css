@@ -1,9 +1,24 @@
 .objective-panel {
   color: #dce7ee;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
   padding: 1.5rem;
   min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.objective-panel,
+.objective-panel * {
+  box-sizing: border-box;
+}
+.objective-panel > *,
+.objective-panel section,
+.objective-panel form,
+.objective-panel header > *,
+.objective-panel label {
+  min-width: 0;
+  max-width: 100%;
 }
 .objective-panel header {
   display: flex;
@@ -97,6 +112,9 @@
   gap: 0.6rem;
 }
 .objective-table-wrap {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
 }
 .objective-panel table {
