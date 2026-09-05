@@ -73,11 +73,27 @@ test("owner restrictions persist, block provider checks, and reject stale revisi
   await page.getByTestId("open-vendor-policy").click();
   await expect(panel.getByRole("checkbox", { name: "DeepInfra", exact: true })).not.toBeChecked();
   await expect(panel.getByRole("checkbox", { name: "mistralai/*", exact: true })).not.toBeChecked();
+  const heading = panel.getByRole("heading", { name: "Vendor- & Provider-Freigaben", exact: true });
+  await heading.scrollIntoViewIfNeeded();
+  await expect(heading).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("vendor-policy-overview.png") });
   await panel.getByRole("textbox", { name: "Modell-ID", exact: true }).fill("openai/browser-policy-example");
   await panel.getByRole("textbox", { name: "Provider (optional)", exact: true }).fill("DeepInfra");
   await panel.getByRole("button", { name: "Gespeicherte Policy prüfen", exact: true }).click();
   await expect(panel.getByRole("status").filter({ hasText: "Blockiert: openai/browser-policy-example" })).toBeVisible();
   await panel.getByText(/^Änderungsverlauf \(/).click();
   await expect(panel.getByText(reason, { exact: true })).toBeVisible();
-  await panel.screenshot({ path: testInfo.outputPath("vendor-policy-persisted.png") });
+  // The panel exceeds the fixed dialog scrollport. Element screenshots would
+  // include clipped offscreen areas; capture the actual visible viewport instead.
+  await panel.getByText(reason, { exact: true }).scrollIntoViewIfNeeded();
+  await expect(panel.getByText(reason, { exact: true })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("vendor-policy-persisted.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await heading.scrollIntoViewIfNeeded();
+  await expect(heading).toBeInViewport();
+  const bounds = await panel.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: testInfo.outputPath("vendor-policy-mobile.png") });
 });
