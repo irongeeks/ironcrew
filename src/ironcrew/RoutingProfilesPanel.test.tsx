@@ -1,5 +1,5 @@
 import { I18nProvider } from "../i18n";
-import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetApiRuntimeForTests, writeStoredCsrfToken } from "../api/core";
 import { ROUTING_PROFILE_KEYS, type RoutingConfig, type RoutingSnapshot } from "../shared/routing-profiles";
@@ -61,7 +61,29 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string, options?: RequestInit) => {
       if ((options?.method ?? "GET") === "GET" && url === "/api/crew/routing") return reply(server);
-      if (url === "/api/crew/models/openrouter") return reply({ models: [], fetchedAt: Date.now(), stale: false });
+      if (url === "/api/crew/models/openrouter")
+        return reply({
+          models: [
+            {
+              id: "google/research-model",
+              name: "Research model",
+              contextLength: 128000,
+              inputModalities: ["text"],
+              outputModalities: ["text"],
+              supportedParameters: [],
+            },
+            {
+              id: "openai/alternative-model",
+              name: "Alternative model",
+              contextLength: 64000,
+              inputModalities: ["text"],
+              outputModalities: ["text"],
+              supportedParameters: [],
+            },
+          ],
+          fetchedAt: Date.now(),
+          stale: false,
+        });
       const headers = new Headers(options?.headers);
       const body: unknown = JSON.parse(String(options?.body));
       writes.push({ url, body, headers, credentials: options?.credentials });
@@ -216,6 +238,58 @@ describe("RoutingProfilesPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "research" }));
     expect(screen.getByLabelText("Profilbezeichnung")).toHaveValue("research");
     expect(writes).toHaveLength(0);
+  });
+
+  it.each(["Primärziel", "Fallback 1"])("closes the %s catalog when management permission is lost", async (title) => {
+    const target = {
+      vesselId: "router",
+      runtimeType: "openrouter" as const,
+      model: "google/research-model",
+      vendorModel: "google/research-model",
+    };
+    const coding = server.config.profiles.find((profile) => profile.key === "coding")!;
+    coding.primary = target;
+    coding.fallbacks = [{ ...target, model: "openai/alternative-model", vendorModel: "openai/alternative-model" }];
+    const result = await ready();
+    const input = screen.getByRole("combobox", { name: `${title}: Modell` });
+    fireEvent.click(
+      within(screen.getByRole("region", { name: title })).getByRole("button", { name: "Alle Modelle anzeigen" }),
+    );
+    await screen.findByRole("option", { name: /Alternative model/ });
+
+    result.rerender(<RoutingProfilesPanel agents={agents} canManage={false} />);
+
+    expect(input).toBeDisabled();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    for (const button of screen.getAllByRole("button", { name: "Alle Modelle anzeigen" }))
+      expect(button).toBeDisabled();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(writes).toHaveLength(0);
+  });
+
+  it("closes an open model catalog while a routing save is pending", async () => {
+    server.config.profiles.find((profile) => profile.key === "coding")!.primary = {
+      vesselId: "router",
+      runtimeType: "openrouter",
+      model: "google/research-model",
+      vendorModel: "google/research-model",
+    };
+    await ready();
+    select("Profilbezeichnung", "Gespeichertes Profil");
+    const input = screen.getByRole("combobox", { name: "Primärziel: Modell" });
+    fireEvent.click(screen.getByRole("button", { name: "Alle Modelle anzeigen" }));
+    await screen.findByRole("option", { name: /Alternative model/ });
+    let finishSave!: (response: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise((resolve) => (finishSave = resolve)));
+
+    save();
+
+    expect(input).toBeDisabled();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Alle Modelle anzeigen" })).toBeDisabled();
+    expect(input).toHaveValue("google/research-model");
+    finishSave(reply(server));
+    await screen.findByText(/Routing-Profile gespeichert/);
   });
 });
 

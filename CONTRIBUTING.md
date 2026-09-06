@@ -49,7 +49,7 @@ docker compose --profile dev up --build
 # Web UI: http://localhost:8800 | API: http://localhost:8790
 ```
 
-### Option 2: Local (requires Node >= 22, pnpm)
+### Option 2: Local (requires Node >= 26, pnpm)
 
 ```bash
 bash install.sh   # macOS/Linux (or install.ps1 on Windows)

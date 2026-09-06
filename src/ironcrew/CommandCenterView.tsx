@@ -5440,7 +5440,7 @@ export function CommandCenterView({
                       data-testid={`vessel-edit-model-${v.id}`}
                       placeholder={ct("Modell")}
                       value={vesselDraft.model}
-                      onChange={(e) => setVesselDraft((prev) => ({ ...prev, model: e.target.value }))}
+                      onValueChange={(model) => setVesselDraft((prev) => ({ ...prev, model }))}
                     />
                     <label htmlFor={`ic-vessel-timeout-${v.id}`}>{ct("Zeitlimit (Min.)")}</label>
                     <input
@@ -5544,7 +5544,7 @@ export function CommandCenterView({
               data-testid="new-vessel-model"
               placeholder={ct("Modell (optional)")}
               value={newVesselModel}
-              onChange={(e) => setNewVesselModel(e.target.value)}
+              onValueChange={setNewVesselModel}
             />
             <label htmlFor="ic-new-vessel-timeout">{ct("Zeitlimit (Min.)")}</label>
             <input

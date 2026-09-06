@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /** Install definitions only; services are never started or enabled implicitly. */
+import console from "node:console";
+import process from "node:process";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -70,7 +72,7 @@ if (
   throw new Error("Install requires an existing built IronCrew checkout.");
 fs.accessSync(options.node, fs.constants.X_OK);
 const version = spawnSync(options.node, ["-p", 'process.versions.node.split(".")[0]'], { encoding: "utf8" });
-if (version.status !== 0 || Number(version.stdout.trim()) < 22) throw new Error("Node22+ is required.");
+if (version.status !== 0 || Number(version.stdout.trim()) < 26) throw new Error("Node.js 26+ is required.");
 const identity = spawnSync("id", ["-u", options.user], { encoding: "utf8" });
 if (identity.status !== 0 || Number(identity.stdout.trim()) === 0)
   throw new Error("Create a dedicated non-root service account first (see docs/SECURITY_OPERATIONS.md).");

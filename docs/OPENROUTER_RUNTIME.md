@@ -104,3 +104,23 @@ resolution is configured separately from this transport. A real provider call,
 account quota, billing and company-specific grants still require verification in
 the installed environment. Provider-native conversation/session resume is not
 advertised; approval continuation uses IronCrew's task/review context.
+
+## Live model picker
+
+Vessel and routing-profile model fields fetch the complete public
+[OpenRouter Models API](https://openrouter.ai/docs/guides/overview/models)
+with `output_modalities=all`. The picker searches names and IDs locally and
+optionally filters by model author (the ID namespace) and output modality.
+There is no fixed allowlist, price filter or maximum result count.
+
+The authenticated catalog endpoint caches metadata for 60 seconds. While the
+picker is open it refreshes once per minute; “Refresh live” requests a new
+upstream fetch immediately. Concurrent fetches are coalesced. Failures retain
+the last snapshot with its timestamp and stale status, with a 30-second retry
+backoff. Neither catalog discovery nor searching runs inference or needs an
+OpenRouter API key. Manual IDs remain valid input while loading or offline.
+
+Arrow keys highlight suggestions; Enter accepts the highlighted model, Tab
+leaves the entered ID intact, and Escape closes the suggestions before a
+surrounding dialog. Selecting non-text models is permitted with a runtime
+compatibility note; selection does not bypass company execution policies.

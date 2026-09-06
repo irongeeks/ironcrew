@@ -20,7 +20,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Full API suite including native runner, paths and character storage
@@ -42,7 +42,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Inventory installed production licenses
@@ -72,7 +72,7 @@ jobs:
           cache-to: type=gha,mode=max
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 26
           package-manager-cache: false
       - name: Production image restart and backup recovery without external networking
         run: node scripts/ci/docker-smoke.mjs ironcrew:ci

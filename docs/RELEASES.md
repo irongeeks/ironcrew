@@ -8,6 +8,12 @@ Installiere eine [veröffentlichte Version](https://github.com/irongeeks/ironcre
 und lies deren Hinweise zu Migrationen, Konfiguration und Runner-Kompatibilität.
 `main` ist der Entwicklungsstand.
 
+Ab **0.3.1** benötigen Control Plane und native Runner **Node.js 26 oder neuer**.
+Installiere Node 26 und pnpm 10.30.1 vor dem nativen Update; danach werden native
+Abhängigkeiten mit der neuen Node-Version installiert. Das Release-Image bringt
+Node 26 mit. Das Update von 0.3.0 auf 0.3.1 ergänzt keine Datenbankmigration.
+[Änderungen in 0.3.1](releases/v0.3.1.md).
+
 Seit `0.2.0` müssen Control Plane und native Runner gemeinsam aktualisiert werden. Jobs enthalten die Firmenfreigaben; ältere Runner verweigern diese Jobs. `0.3.0` ergänzt Migrationen 0036 und 0037 für Firmenkonfiguration und objektive Auswertungen. Bestehende Vendor-Freigaben bleiben wirksam; neue Runtime-Obergrenzen gelten beim Start und brechen laufende externe Requests nicht rückwirkend ab. [Änderungen und Grenzen](releases/v0.3.0.md).
 
 Bestehende `2.8.0`-Installationen wechseln zunächst auf `0.1.0` wie unten beschrieben und anschließend auf `0.3.0`. Die einmalige Versionsausnahme wird nicht erweitert.
@@ -91,7 +97,7 @@ keine alten Sicherungen automatisch.
 
 ## Nativ: Linux und macOS
 
-Voraussetzungen: Node.js 22+, Git, die in `package.json` festgelegte pnpm-Version
+Voraussetzungen: Node.js 26+, Git, die in `package.json` festgelegte pnpm-Version
 und ein sauberer Git-Checkout. Nutze das Betreiberkonto mit Schreibrecht auf
 Checkout und Sicherungsziel. Änderungen an versionierten Dateien müssen zuvor
 reviewbar gesichert oder committed sein; private Dateien bleiben gitignored.
@@ -100,7 +106,7 @@ Vorprüfung für eine konkrete Version:
 
 ```bash
 cd /opt/ironcrew
-node scripts/ironcrew-update.mjs --to v0.3.0 --check
+node scripts/ironcrew-update.mjs --to v0.3.1 --check
 ```
 
 Die Prüfung lädt das veröffentlichte Manifest und das exakte Release-Tag. Sie
@@ -113,7 +119,7 @@ Danach als Betreiberkonto mit Zugriff auf die ausdrücklich genannten Dateien:
 ```bash
 sudo systemctl stop ironcrew
 sudo systemctl stop ironcrew-runner
-node scripts/ironcrew-update.mjs --to v0.3.0 \
+node scripts/ironcrew-update.mjs --to v0.3.1 \
   --db /opt/ironcrew/data/ironcrew.sqlite \
   --backup-dir /var/backups/ironcrew \
   --extra /etc/ironcrew/ironcrew.env
@@ -146,9 +152,9 @@ Wenn `ironcrew-update.mjs` noch fehlt, hole den veröffentlichten Release in ein
 **separates** Verzeichnis. Der Updater selbst benötigt dort kein `pnpm install`:
 
 ```bash
-git clone --depth 1 --branch v0.3.0 https://github.com/irongeeks/ironcrew.git /tmp/ironcrew-release-tools
+git clone --depth 1 --branch v0.3.1 https://github.com/irongeeks/ironcrew.git /tmp/ironcrew-release-tools
 node /tmp/ironcrew-release-tools/scripts/ironcrew-update.mjs \
-  --repo /opt/ironcrew --to v0.3.0 --check
+  --repo /opt/ironcrew --to v0.3.1 --check
 ```
 
 Führe nach der Vorprüfung denselben externen Updater mit den Installationsoptionen
@@ -174,9 +180,9 @@ separaten Release-Clone ausgeführt werden; das Arbeitsverzeichnis bleibt das
 
 ```bash
 cd /opt/ironcrew
-node scripts/ironcrew-docker-update.mjs --to v0.3.0 \
+node scripts/ironcrew-docker-update.mjs --to v0.3.1 \
   --backup-dir /var/backups/ironcrew-docker --check
-node scripts/ironcrew-docker-update.mjs --to v0.3.0 \
+node scripts/ironcrew-docker-update.mjs --to v0.3.1 \
   --backup-dir /var/backups/ironcrew-docker
 ```
 

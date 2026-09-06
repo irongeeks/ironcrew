@@ -13,29 +13,33 @@ if [[ ! -f package.json || ! -f scripts/setup-wizard.mjs ]]; then
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js 22+ is required. Install from https://nodejs.org/" >&2
+  echo "Node.js 26+ is required. Install from https://nodejs.org/" >&2
   exit 1
 fi
 
 NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
-if [[ "${NODE_MAJOR}" -lt 22 ]]; then
-  echo "Node.js 22+ is required. Current: $(node -v)" >&2
+if [[ "${NODE_MAJOR}" -lt 26 ]]; then
+  echo "Node.js 26+ is required. Current: $(node -v)" >&2
   exit 1
 fi
 
 if ! command -v pnpm >/dev/null 2>&1; then
-  if ! command -v corepack >/dev/null 2>&1; then
-    echo "pnpm is required. Install via: npm install -g pnpm" >&2
+  PNPM_SPEC="$(node -p "require('./package.json').packageManager.split('+')[0]")"
+  if command -v corepack >/dev/null 2>&1; then
+    corepack enable
+    corepack prepare "${PNPM_SPEC}" --activate
+  elif command -v npm >/dev/null 2>&1; then
+    npm install --global "${PNPM_SPEC}"
+  else
+    echo "pnpm is required. Install via: npm install -g ${PNPM_SPEC}" >&2
     exit 1
   fi
-  corepack enable >/dev/null 2>&1 || true
-  corepack prepare pnpm@latest --activate >/dev/null 2>&1
 fi
 
 # ---------- Install dependencies ----------
 
 echo "[IronCrew] Installing dependencies..."
-pnpm install
+pnpm install --frozen-lockfile
 
 # ---------- Run interactive wizard ----------
 

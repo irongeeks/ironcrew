@@ -66,4 +66,4 @@ body:
     id: node
     attributes:
       label: Node.js Version
-      placeholder: v22.x
+      placeholder: v26.x

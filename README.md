@@ -17,13 +17,13 @@ Freigaben und Kosten bleiben nachvollziehbar.
 gekennzeichneter Dokumentationsauftrag. Die Bilder zeigen keine produktive Firma
 und belegen keine Ausführung mit einem echten Providerkonto.*
 
-## Version 0.3.0
+## Version 0.3.1
 
-Neu sind die aktive [Firmenkonfiguration](docs/COMPANY_CONFIGURATION.md),
-[Geschäftsdaten aus vorhandenen Adaptern](docs/BUSINESS_DASHBOARD.md) und
-[reproduzierbare Run-Prüfungen](docs/OBJECTIVE_EVALUATIONS.md) zusätzlich zu den
-Lead-Sternen. Dialoge unterstützen Tastaturfokus und Escape; Memory-Synchronisierung
-prüft die aktuelle Herkunft und Freigabe der Quelldatei erneut.
+Die OpenRouter-Modellauswahl zeigt den vollständigen Live-Katalog mit Suche,
+Autocomplete und Filtern. Die Oberfläche ist durchgehend auf Deutsch und Englisch
+verfügbar; selten benötigte Ansichten werden bei Bedarf geladen. Installation,
+Docker und CI verwenden jetzt **Node.js 26**.
+[Alle Änderungen und Update-Hinweise](docs/releases/v0.3.1.md).
 
 IronCrew beginnt seine eigene Produktversionierung bei **0.1.0**. Die zuvor
 veröffentlichte `2.8.0` folgte noch der übernommenen Versionsreihe. Sie bleibt
@@ -35,7 +35,7 @@ als historische Veröffentlichung erhalten; die Weiterentwicklung läuft ab jetz
 Der alte Updater kennt diesen Übergang noch nicht. Die Datenbank wird dabei
 nicht auf einen früheren Stand zurückgesetzt.
 
-`0.3.0` bezeichnet einen frühen Entwicklungsstand mit getesteten Kernabläufen.
+`0.3.1` bezeichnet einen frühen Entwicklungsstand mit getesteten Kernabläufen.
 Ein vollständiger automatisierter Betrieb deines Geschäfts ist damit nicht zugesichert.
 Den konkreten Umfang und die verbleibenden Grenzen dokumentieren
 [Implementierungsstand](IMPLEMENTATION_STATUS.md) und
@@ -108,13 +108,14 @@ Aufnahmeverfahren, Herkunft und Reproduktion: [Screenshot-Dokumentation](docs/SC
 
 ## Lokal starten
 
-Voraussetzungen: **Node.js 22+**, Git und die in `package.json` festgelegte
+Voraussetzungen: **Node.js 26+**, Git und die in `package.json` festgelegte
 **pnpm-Version 10.30.1**. Native Abhängigkeiten können Compilerwerkzeuge benötigen.
 
 ```bash
-git clone --branch v0.3.0 https://github.com/irongeeks/ironcrew.git
+git clone --branch v0.3.1 https://github.com/irongeeks/ironcrew.git
 cd ironcrew
-corepack pnpm install --frozen-lockfile
+npm install --global pnpm@10.30.1
+pnpm install --frozen-lockfile
 cp .env.example .env
 ```
 
@@ -124,12 +125,12 @@ Konfiguration. Nutze für den ersten lokalen Versuch MockRuntime; dafür ist kei
 Providerkonto erforderlich.
 
 ```bash
-corepack pnpm dev:local
+pnpm dev:local
 # Web: http://127.0.0.1:8800 · API: http://127.0.0.1:8790
 ```
 
-Falls Corepack nicht installiert ist, installiere pnpm in der oben angegebenen
-Version und verwende `pnpm` anstelle von `corepack pnpm`.
+Node.js 26 liefert Corepack nicht mit. Die Installation oben verwendet deshalb
+die festgelegte pnpm-Version direkt.
 `pnpm dev` bindet den Entwicklungsserver an alle Interfaces;
 `dev:local` bleibt auf dem lokalen Rechner.
 

@@ -5,27 +5,28 @@ For stable installations, follow [Releases and updates](RELEASES.md).
 That procedure supersedes older branch-based update commands below.
 
 IronCrew is self-hosted and local-first. The platform CI verifies the current
-GitHub-hosted macOS runner; use Node22+ on a supported macOS release.
+GitHub-hosted macOS runner; use Node26+ on a supported macOS release.
 
 ## Requirements
 
 | Requirement              | Version                                                                 |
 | ------------------------ | ----------------------------------------------------------------------- |
 | macOS                    | 13 or newer                                                             |
-| Node.js                  | 22 or newer (SQLite is a Node 22 builtin — no native module to compile) |
+| Node.js                  | 26 or newer (SQLite is built in) |
 | pnpm                     | 10.30.1 (pinned in package.json)                                                             |
 | Xcode Command Line Tools | for `git`                                                               |
 
 ```bash
 xcode-select --install          # if git is missing
-brew install node@22 pnpm
-node --version                  # must print v22.x or newer
+brew install node
+npm install --global pnpm@10.30.1
+node --version                  # must print v26.x or newer
 ```
 
 If Homebrew's Node is not first on your `PATH`:
 
 ```bash
-echo 'export PATH="/opt/homebrew/opt/node@22/bin:$PATH"' >> ~/.zshrc
+echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -138,7 +139,7 @@ attachments, the vault and configuration. Verify recovery to an isolated directo
 
 ## Troubleshooting
 
-**`command not found: node`** — Homebrew's `node@22` is keg-only; add it to
+**`command not found: node`** — add Homebrew's binary directory to
 `PATH` as shown above.
 
 **Every API call returns 401** — `API_AUTH_TOKEN` is unset or mismatched. When

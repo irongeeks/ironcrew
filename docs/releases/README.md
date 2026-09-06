@@ -2,6 +2,8 @@
 
 ## IronCrew
 
+- [v0.3.1](v0.3.1.md) — Node.js 26, vollständige OpenRouter-Live-Auswahl, Deutsch/Englisch und kleinere Startbundles.
+
 - [v0.3.0](v0.3.0.md) — aktive Firmenkonfiguration, Geschäftsdaten und objektive Modelltests.
 - [v0.2.0](v0.2.0.md) — versionierte Firmenfreigaben und durchgängige Vendor-Durchsetzung.
 

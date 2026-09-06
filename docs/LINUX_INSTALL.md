@@ -11,7 +11,7 @@ machine; nothing is sent to a third party unless you configure a provider.
 
 | Requirement | Version                                                              |
 | ----------- | -------------------------------------------------------------------- |
-| Node.js     | 22 or newer (SQLite support is a Node 22 builtin — no native module) |
+| Node.js     | 26 or newer (SQLite support is built in) |
 | pnpm        | 10.30.1 (pinned in package.json)                                                          |
 | git         | any recent version                                                   |
 | RAM         | 2 GB free is comfortable                                             |
@@ -33,12 +33,12 @@ cd ironcrew
 pnpm install
 ```
 
-If Node 22 is not your default:
+If Node 26 is not your default:
 
 ```bash
 # with nvm
-nvm install 22 && nvm use 22
-node --version    # must print v22.x or newer
+nvm install 26 && nvm use 26
+node --version    # must print v26.x or newer
 ```
 
 ## Configure
@@ -203,7 +203,7 @@ copy of a WAL-mode SQLite file is not a safe backup.
 
 ## Troubleshooting
 
-**`SyntaxError` or unknown option on start** — Node is older than 22.
+**`SyntaxError` or unknown option on start** — Node is older than 26.
 `node --version`.
 
 **`SQLITE_BUSY`** — another process holds the database. Only one control plane

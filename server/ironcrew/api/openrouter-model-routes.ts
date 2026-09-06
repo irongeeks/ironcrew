@@ -2,7 +2,7 @@ import type { Express } from "express";
 import type { OpenRouterCatalog, OpenRouterModel } from "../../../src/shared/openrouter-models.ts";
 
 export const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models?output_modalities=all";
-const CACHE_TTL_MS = 10 * 60_000;
+const CACHE_TTL_MS = 60_000;
 const RETRY_DELAY_MS = 30_000;
 
 function stringArray(value: unknown): string[] {
@@ -20,12 +20,19 @@ export class OpenRouterModelCatalog {
     private readonly now: () => number = Date.now,
   ) {}
 
-  async get(): Promise<OpenRouterCatalog> {
-    if (this.cached && this.now() - this.cached.fetchedAt < CACHE_TTL_MS) return this.cached;
+  async get(options: { forceRefresh?: boolean } = {}): Promise<OpenRouterCatalog> {
     if (this.pending) return this.pending;
     if (this.now() < this.retryAfter) {
-      if (this.cached) return { ...this.cached, stale: true };
+      if (this.cached) return this.cached;
       throw new Error("OpenRouter model catalog unavailable");
+    }
+    if (
+      !options.forceRefresh &&
+      this.cached &&
+      !this.cached.stale &&
+      this.now() - this.cached.fetchedAt < CACHE_TTL_MS
+    ) {
+      return this.cached;
     }
     this.pending = this.refresh();
     try {
@@ -68,7 +75,10 @@ export class OpenRouterModelCatalog {
       return this.cached;
     } catch (error) {
       this.retryAfter = this.now() + RETRY_DELAY_MS;
-      if (this.cached) return { ...this.cached, stale: true };
+      if (this.cached) {
+        this.cached = { ...this.cached, stale: true };
+        return this.cached;
+      }
       throw error;
     }
   }
@@ -80,9 +90,10 @@ export function registerOpenRouterModelRoutes(
   options: { base?: string; catalog?: OpenRouterModelCatalog } = {},
 ): void {
   const catalog = options.catalog ?? new OpenRouterModelCatalog();
-  app.get(`${options.base ?? "/api/crew"}/models/openrouter`, async (_req, res) => {
+  app.get(`${options.base ?? "/api/crew"}/models/openrouter`, async (req, res) => {
+    res.set("Cache-Control", "no-store");
     try {
-      res.json(await catalog.get());
+      res.json(await catalog.get({ forceRefresh: req.query.refresh === "1" }));
     } catch {
       res.status(503).json({
         error: "openrouter_catalog_unavailable",

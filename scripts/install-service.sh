@@ -202,13 +202,13 @@ if [[ -z "${NODE_BIN}" ]]; then
     fi
   done
 fi
-[[ -n "${NODE_BIN}" ]] || die "node not found. Install Node 22+ or pass --node /path/to/node"
+[[ -n "${NODE_BIN}" ]] || die "node not found. Install Node 26+ or pass --node /path/to/node"
 [[ "${NODE_BIN}" =~ ^/[A-Za-z0-9_./-]+$ ]] || die "node must be a simple absolute path; use scripts/deploy-service.mjs for other paths"
 [[ -x "${NODE_BIN}" ]] || die "not executable: ${NODE_BIN}"
 
 node_major="$("${NODE_BIN}" -e 'process.stdout.write(String(process.versions.node.split(".")[0]))' 2>/dev/null || echo 0)"
-if [[ "${node_major}" -lt 22 ]]; then
-  die "Node 22 or newer is required (${NODE_BIN} reports major version ${node_major})"
+if [[ "${node_major}" -lt 26 ]]; then
+  die "Node 26 or newer is required (${NODE_BIN} reports major version ${node_major})"
 fi
 
 echo "Installing the ${SERVICE_NAME} service."

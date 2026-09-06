@@ -189,7 +189,7 @@ export async function updateRelease(
   options,
   { run = execute, fetcher = globalThis.fetch, onProgress = () => {} } = {},
 ) {
-  ensure(Number(process.versions.node.split(".")[0]) >= 22, "Node.js 22 oder neuer ist erforderlich.");
+  ensure(Number(process.versions.node.split(".")[0]) >= 26, "Node.js 26 oder neuer ist erforderlich.");
   ensure(
     TAG.test(options.to ?? ""),
     "--to benötigt ein exaktes stabiles Tag vX.Y.Z; main/latest/Prereleases sind ausgeschlossen.",
