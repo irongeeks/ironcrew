@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add Linux/macOS prerequisite bootstrap with read-only checks, verified Node 26 downloads, pinned user-local pnpm, native build tools and repeatable setup.
+
 ## 0.3.1 — 2026-09-06
 
 - Require Node.js 26 or newer and use Node 26 in Docker, CI, installers and service checks; install the pinned pnpm version without assuming bundled Corepack.

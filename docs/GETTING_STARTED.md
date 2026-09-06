@@ -6,6 +6,12 @@ Für einen dauerhaften Dienst oder Docker nutze anschließend [Releases und Upda
 
 ## 1. Voraussetzungen und Installation
 
+Im aktuellen Quellcode nach 0.3.1 übernimmt `bash scripts/setup.sh` die Prüfung
+und Installation fehlender Voraussetzungen und die Einrichtung. Ein reiner
+Check ist mit `bash scripts/setup.sh --check` möglich.
+[Automatisches Setup und Archiv-Download ohne Git](INSTALLER.md).
+Die folgenden manuellen Schritte gelten auch für das unveränderte Release 0.3.1.
+
 Benötigt werden ein aktueller Patchstand von Node.js 26 oder neuer, Git und pnpm **10.30.1**, entsprechend `package.json`. Für native Abhängigkeiten können Compilerwerkzeuge nötig sein: unter macOS die Xcode Command Line Tools, unter Linux die Build-Werkzeuge der Distribution.
 
 ```bash

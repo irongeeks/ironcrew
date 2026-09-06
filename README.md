@@ -106,7 +106,22 @@ Ein kopierbarer Generator-Prompt hilft bei der Erstellung in deinem Bildmodell.
 
 Aufnahmeverfahren, Herkunft und Reproduktion: [Screenshot-Dokumentation](docs/SCREENSHOTS.md).
 
-## Lokal starten
+## Automatisches Setup im aktuellen Quellcode
+
+Fehlende Voraussetzungen lassen sich jetzt automatisch installieren:
+
+```bash
+bash scripts/setup.sh
+# Nur prüfen, ohne etwas zu installieren:
+bash scripts/setup.sh --check
+```
+
+Das Setup prüft Node.js, pnpm, Git, Python und native Build-Werkzeuge. Es verwendet
+vorhandene passende Versionen und installiert nur Fehlendes. Diese Ergänzung ist
+im aktuellen Quellcode nach Release 0.3.1 enthalten;
+[Installation ohne vorab eingerichtetes Node/Git](docs/INSTALLER.md).
+
+## Lokal starten (Release 0.3.1)
 
 Voraussetzungen: **Node.js 26+**, Git und die in `package.json` festgelegte
 **pnpm-Version 10.30.1**. Native Abhängigkeiten können Compilerwerkzeuge benötigen.
@@ -145,11 +160,11 @@ Echte CLI-Starts mit deinem Konto prüfst du anhand der
 ## Entwickeln und testen
 
 ```bash
-corepack pnpm lint
-corepack pnpm test
-corepack pnpm build
-corepack pnpm exec playwright install --with-deps chromium
-corepack pnpm test:e2e
+pnpm lint
+pnpm test
+pnpm build
+pnpm exec playwright install --with-deps chromium
+pnpm test:e2e
 ```
 
 Die GitHub-Prüfungen decken Frontend, Backend, Skripte, Browser sowie Linux,
