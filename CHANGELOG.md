@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — 2026-09-06
+
+- Require Node.js 26 or newer and use Node 26 in Docker, CI, installers and service checks; install the pinned pnpm version without assuming bundled Corepack.
+- Browse the complete live OpenRouter catalog with name/ID autocomplete, author/output filters, keyboard selection and manual refresh. Keep arbitrary model IDs and preserve the previous catalog during outages.
+- Keep all OpenRouter model families available by default, while retaining explicit owner policies.
+- Standardize the interface on German and English, including navigation, setup, errors and governance controls.
+- Load optional views on demand to reduce the initial bundle; isolate browser test data and strengthen Linux, macOS and Docker verification.
+- Fix setup/provider error reporting, bounded rate-limit retries, vault updates, dependency security issues and policy selection regressions.
+
 ## 0.3.0 — 2026-09-05
 
 - Add versioned owner configuration with enforced company runtime ceilings, additional approvals, tool restrictions and memory retrieval settings.

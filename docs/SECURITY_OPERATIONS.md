@@ -31,8 +31,8 @@ availability must be verified in that account's session. A headless launch daemo
 cannot assume a personal GUI login keychain is unlocked.
 
 Deploy a built checkout at `/opt/ironcrew`, owned by the administrator and readable
-by both services. Use Node 22 or later. With Homebrew, pass the real Node path
-(e.g. `/opt/homebrew/opt/node@22/bin/node`) rather than relying on a shell profile.
+by both services. Use Node 26 or later. With Homebrew, pass the real Node path
+(e.g. `/opt/homebrew/bin/node`) rather than relying on a shell profile.
 
 First render the exact files for review; this does not install or start anything:
 

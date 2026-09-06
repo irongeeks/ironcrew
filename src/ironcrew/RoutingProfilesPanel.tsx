@@ -59,12 +59,14 @@ function TargetEditor({
   vessels,
   onChange,
   controls,
+  disabled,
 }: {
   title: string;
   target: RouteTarget | null;
   vessels: RoutingSnapshot["vessels"];
   onChange: (target: RouteTarget | null) => void;
   controls?: React.ReactNode;
+  disabled: boolean;
 }): React.JSX.Element {
   const { tx, t } = useGovernanceI18n();
   const choose = (id: string) => {
@@ -111,24 +113,25 @@ function TargetEditor({
         </label>
         {target && (
           <>
-            <label>
+            <div className="routing-model-field">
               {title}
               {tx(": Modell")}{" "}
               <ModelInput
                 runtime={target.runtimeType}
+                disabled={disabled}
                 aria-label={`${title}: ${t({ de: "Modell", en: "Model" })}`}
                 type="text"
                 value={target.model}
                 placeholder={tx("Exakte Modell-ID oder CLI-Alias")}
-                onChange={(event) =>
+                onValueChange={(model) =>
                   onChange({
                     ...target,
-                    model: event.target.value,
-                    vendorModel: vendorModelFor(target.runtimeType, event.target.value),
+                    model,
+                    vendorModel: vendorModelFor(target.runtimeType, model),
                   })
                 }
               />
-            </label>
+            </div>
             <label>
               {title}
               {tx(": Vendor-Modell")}{" "}
@@ -353,6 +356,7 @@ export function RoutingProfilesPanel({
               </label>
               <TargetEditor
                 title={tx("Primärziel")}
+                disabled={busy || !canManage}
                 target={profile.primary}
                 vessels={snapshot.vessels}
                 onChange={(primary) =>
@@ -385,6 +389,7 @@ export function RoutingProfilesPanel({
                   <li key={index}>
                     <TargetEditor
                       title={`Fallback ${index + 1}`}
+                      disabled={busy || !canManage}
                       target={target}
                       vessels={snapshot.vessels}
                       onChange={(next) =>

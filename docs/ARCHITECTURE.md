@@ -205,7 +205,7 @@ drives it.
 
 ## Storage
 
-SQLite via `node:sqlite` (Node 22 builtin — no native dependency), WAL mode,
+SQLite via `node:sqlite` (Node builtin — no native dependency), WAL mode,
 `foreign_keys = ON`. Schema changes go through the versioned migration runner
 in `server/modules/bootstrap/migrations/`, which has a startup auto-scan that
 fails loudly if a migration file exists but was never registered.

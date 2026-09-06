@@ -20,6 +20,8 @@
  * Zero external dependencies — uses Node.js built-ins only.
  */
 
+import console from "node:console";
+import process from "node:process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -90,8 +92,8 @@ function parseArgs() {
 
 function checkNodeVersion() {
   const major = parseInt(process.versions.node.split(".")[0], 10);
-  if (major < 22) {
-    err(`Node.js >= 22 is required (found ${process.versions.node})`);
+  if (major < 26) {
+    err(`Node.js >= 26 is required (found ${process.versions.node})`);
     process.exit(1);
   }
   info(`Node.js ${process.versions.node}`);

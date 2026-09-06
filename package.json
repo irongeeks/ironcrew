@@ -1,7 +1,7 @@
 {
   "name": "ironcrew",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Self-hosted, local-first multi-agent company OS: an executive assistant triages your directives, delegates to a crew of specialist agents, and reports back under a governance-grade control plane.",
   "license": "Apache-2.0",
   "author": "IronGeeks",
@@ -150,7 +150,7 @@
     "vitest": "^3.0.3"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=26"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,scss,html}": "prettier --write",

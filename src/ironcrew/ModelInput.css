@@ -3,15 +3,110 @@
   flex: 1 1 240px;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+.ic-model-input-control {
+  display: flex;
+  gap: 6px;
   min-width: 0;
 }
-.ic-model-input > input {
+.ic-model-input-control > input {
   width: 100%;
+  flex: 1;
   min-width: 0;
 }
 .ic-model-input-help {
-  color: var(--ic-text-muted, #929eaf);
+  color: var(--ic-text-dim, #a2b9c6);
   font-size: 0.75rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+.ic-model-catalog {
+  padding: 10px;
+  border: 1px solid var(--ic-line, #314b58);
+  border-radius: 6px;
+  background: var(--ic-bg-inset, #101e27);
+  color: var(--ic-text, #d1e1e8);
+  min-width: 0;
+}
+.ic-model-catalog-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ic-model-catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ic-model-catalog-filters > label {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.75rem;
+}
+.ic-model-catalog-filters select {
+  width: 100%;
+  min-width: 0;
+}
+.ic-model-input button {
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+.ic-model-input button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.ic-model-catalog-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ic-model-catalog-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 8px;
+  border-top: 1px solid var(--ic-line, #314b58);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.ic-model-catalog-list > li:hover,
+.ic-model-catalog-list > li[data-active="true"] {
+  background: var(--ic-bg-panel, #284750);
+  outline: 1px solid #6a959e;
+  outline-offset: -1px;
+}
+.ic-model-catalog-list > li[aria-selected="true"] {
+  border-left: 3px solid #6a959e;
+}
+.ic-model-catalog-list strong {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.ic-model-catalog-list small,
+.ic-model-id {
+  color: var(--ic-text-dim, #a2b9c6);
+  font-size: 0.72rem;
+}
+.ic-model-id {
+  font-family: ui-monospace, monospace;
+}
+.routing-model-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
 }

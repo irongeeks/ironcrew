@@ -1,5 +1,5 @@
 # ---- base: foundational OS, Node.js, CLI providers ----
-FROM node:22-bookworm AS base
+FROM node:26-bookworm AS base
 
 # System deps: Chromium for Remotion, curl for healthcheck
 RUN apt-get update && \
@@ -15,8 +15,8 @@ RUN apt-get update && \
 ENV CHROME_PATH=/usr/bin/chromium
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Enable pnpm via corepack (pinned version from package.json)
-RUN corepack enable && corepack prepare pnpm@10.30.1 --activate
+# Install the package manager explicitly; Node.js 26 does not bundle Corepack.
+RUN npm install --global pnpm@10.30.1
 
 # CLI subscriptions belong to the native host runner; this image is the control plane.
 
