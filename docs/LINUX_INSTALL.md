@@ -7,6 +7,14 @@ That procedure supersedes older branch-based update commands below.
 IronCrew is self-hosted and local-first. Everything runs on your own
 machine; nothing is sent to a third party unless you configure a provider.
 
+## Automatic prerequisites
+
+On the current source after 0.3.1, run `bash scripts/setup.sh` to check and install
+missing requirements before configuration. Use `--check` for a read-only report
+or `--requirements-only` before updating an existing installation.
+[Automatic installer details](INSTALLER.md). The published 0.3.1 archive remains
+unchanged; the manual installation steps below still apply to that archive.
+
 ## Requirements
 
 | Requirement | Version                                                              |

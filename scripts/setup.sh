@@ -5,77 +5,43 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${ROOT_DIR}"
 
-# ---------- Validate environment ----------
-
-if [[ ! -f package.json || ! -f scripts/setup-wizard.mjs ]]; then
-  echo "Run this script from the IronCrew repository." >&2
-  exit 1
-fi
-
-if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js 26+ is required. Install from https://nodejs.org/" >&2
-  exit 1
-fi
-
-NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
-if [[ "${NODE_MAJOR}" -lt 26 ]]; then
-  echo "Node.js 26+ is required. Current: $(node -v)" >&2
-  exit 1
-fi
-
-if ! command -v pnpm >/dev/null 2>&1; then
-  PNPM_SPEC="$(node -p "require('./package.json').packageManager.split('+')[0]")"
-  if command -v corepack >/dev/null 2>&1; then
-    corepack enable
-    corepack prepare "${PNPM_SPEC}" --activate
-  elif command -v npm >/dev/null 2>&1; then
-    npm install --global "${PNPM_SPEC}"
-  else
-    echo "pnpm is required. Install via: npm install -g ${PNPM_SPEC}" >&2
-    exit 1
-  fi
-fi
-
-# ---------- Install dependencies ----------
-
-echo "[IronCrew] Installing dependencies..."
-pnpm install --frozen-lockfile
-
-# ---------- Run interactive wizard ----------
-
-START_AFTER_SETUP="0"
+CHECK_ONLY=0
+WRITE_PROFILE=1
+REQUIREMENTS_ONLY=0
+START_AFTER_SETUP=0
 WIZARD_ARGS=()
-
+# Parse before installing anything: --help and invalid arguments are read-only.
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --check) CHECK_ONLY=1; shift;;
+    --no-profile) WRITE_PROFILE=0; shift;;
+    --requirements-only) REQUIREMENTS_ONLY=1; shift;;
     --port)
-      [[ $# -ge 2 ]] || { echo "Missing value for --port" >&2; exit 1; }
-      WIZARD_ARGS+=(--port "$2")
-      shift 2
-      ;;
-    --yes|-y)
-      WIZARD_ARGS+=(--yes)
-      shift
-      ;;
-    --start)
-      START_AFTER_SETUP="1"
-      shift
-      ;;
+      [[ $# -ge 2 && "$2" =~ ^[0-9]+$ && ${#2} -le 5 ]] || { echo "--port requires a number from 1 to 65535" >&2; exit 1; }
+      [[ $((10#$2)) -ge 1 && $((10#$2)) -le 65535 ]] || { echo "--port requires a number from 1 to 65535" >&2; exit 1; }
+      WIZARD_ARGS+=(--port "$2"); shift 2;;
+    --yes|-y) WIZARD_ARGS+=(--yes); shift;;
+    --start) START_AFTER_SETUP=1; shift;;
     -h|--help)
-      echo "Usage: bash scripts/setup.sh [--port PORT] [--yes] [--start]"
-      exit 0
-      ;;
-    *)
-      shift
-      ;;
+      echo "Usage: bash scripts/setup.sh [--check | --requirements-only] [--port PORT] [--yes] [--start] [--no-profile]"
+      echo "Installs missing Node.js 26, pinned pnpm, Git, Python and native build tools."
+      echo "--check: inspect requirements without installing or changing files."
+      echo "--no-profile: do not add the toolchain to your shell profile."
+      echo "--requirements-only: install prerequisites without dependencies or configuration."
+      exit 0;;
+    *) echo "Unknown option: $1" >&2; exit 1;;
   esac
 done
 
+[[ -f package.json && -f scripts/setup-wizard.mjs ]] || { echo "Run this script from the IronCrew repository." >&2; exit 1; }
+source "${SCRIPT_DIR}/lib/bootstrap-requirements.sh"
+ensure_requirements
+[[ "${CHECK_ONLY}" == 0 && "${REQUIREMENTS_ONLY}" == 0 ]] || exit 0
+
+echo "[IronCrew] Installing project dependencies..."
+pnpm install --frozen-lockfile
 node scripts/setup-wizard.mjs "${WIZARD_ARGS[@]+"${WIZARD_ARGS[@]}"}"
-
-# ---------- Optionally start ----------
-
-if [[ "${START_AFTER_SETUP}" == "1" ]]; then
+if [[ "${START_AFTER_SETUP}" == 1 ]]; then
   echo "[IronCrew] Starting development server..."
   exec pnpm dev:local
 fi
