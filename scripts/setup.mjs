@@ -118,7 +118,7 @@ export function injectAgentsRules({ port, agentsPath } = {}) {
   const resolvedPath = agentsPath || findAgentsPath();
 
   let templateContent = fs.readFileSync(TEMPLATE_PATH, "utf8");
-  templateContent = templateContent.replace(/__PORT__/g, resolvedPort);
+  templateContent = templateContent.replace(/__PORT__/g, resolvedPort).trimEnd();
 
   console.log(`[IronCrew] Setting up orchestration rules`);
   console.log(`[IronCrew] Target: ${resolvedPath}`);
@@ -137,7 +137,7 @@ export function injectAgentsRules({ port, agentsPath } = {}) {
     const endIdx = existingContent.indexOf(found.end) + found.end.length;
     const before = existingContent.slice(0, startIdx);
     const after = existingContent.slice(endIdx);
-    const newContent = before + templateContent + after;
+    const newContent = before + templateContent + (after || "\n");
     fs.writeFileSync(resolvedPath, newContent, "utf8");
     console.log(`[IronCrew] Updated existing orchestration rules in ${resolvedPath}`);
   } else {

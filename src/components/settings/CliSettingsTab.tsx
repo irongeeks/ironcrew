@@ -23,16 +23,10 @@ export default function CliSettingsTab({
     >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--th-text-primary)" }}>
-          {t({
-            ko: "CLI 도구 상태",
-            en: "CLI Tool Status",
-            ja: "CLI ツール状態",
-            zh: "CLI Tool Status",
-            de: "CLI-Tool-Status",
-          })}
+          {t({ en: "CLI Tool Status", de: "CLI-Tool-Status" })}
         </h3>
         <button onClick={onRefresh} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-          🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "Refresh", de: "Aktualisieren" })}
+          🔄 {t({ en: "Refresh", de: "Aktualisieren" })}
         </button>
       </div>
 
@@ -68,20 +62,8 @@ export default function CliSettingsTab({
                       <div className="text-xs" style={{ color: "var(--th-text-muted)" }}>
                         {status.version ??
                           (status.installed
-                            ? t({
-                                ko: "버전 확인 불가",
-                                en: "Version unknown",
-                                ja: "バージョン不明",
-                                zh: "Version unknown",
-                                de: "Version unbekannt",
-                              })
-                            : t({
-                                ko: "미설치",
-                                en: "Not installed",
-                                ja: "未インストール",
-                                zh: "Not installed",
-                                de: "Nicht installiert",
-                              }))}
+                            ? t({ en: "Version unknown", de: "Version unbekannt" })
+                            : t({ en: "Not installed", de: "Nicht installiert" }))}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -99,20 +81,8 @@ export default function CliSettingsTab({
                         }
                       >
                         {status.installed
-                          ? t({
-                              ko: "설치됨",
-                              en: "Installed",
-                              ja: "インストール済み",
-                              zh: "Installed",
-                              de: "Installiert",
-                            })
-                          : t({
-                              ko: "미설치",
-                              en: "Not installed",
-                              ja: "未インストール",
-                              zh: "Not installed",
-                              de: "Nicht installiert",
-                            })}
+                          ? t({ en: "Installed", de: "Installiert" })
+                          : t({ en: "Not installed", de: "Nicht installiert" })}
                       </span>
                       {status.installed && (
                         <span
@@ -121,20 +91,8 @@ export default function CliSettingsTab({
                           }`}
                         >
                           {status.authenticated
-                            ? t({
-                                ko: "인증됨",
-                                en: "Authenticated",
-                                ja: "認証済み",
-                                zh: "Authenticated",
-                                de: "Authentifiziert",
-                              })
-                            : t({
-                                ko: "미인증",
-                                en: "Not Authenticated",
-                                ja: "未認証",
-                                zh: "Not Authenticated",
-                                de: "Nicht authentifiziert",
-                              })}
+                            ? t({ en: "Authenticated", de: "Authentifiziert" })
+                            : t({ en: "Not Authenticated", de: "Nicht authentifiziert" })}
                         </span>
                       )}
                       {cliAuthProviders.includes(provider) && status.installed && !status.authenticated && (
@@ -142,7 +100,7 @@ export default function CliSettingsTab({
                           onClick={() => setAuthModalProvider(provider as "claude" | "codex" | "gemini")}
                           className="text-xs px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
                         >
-                          {t({ ko: "로그인", en: "Login", ja: "ログイン", zh: "Login", de: "Anmelden" })}
+                          {t({ en: "Login", de: "Anmelden" })}
                         </button>
                       )}
                       {cliAuthProviders.includes(provider) && status.installed && status.authenticated && (
@@ -151,13 +109,7 @@ export default function CliSettingsTab({
                           className="text-xs px-2 py-0.5 rounded-lg bg-transparent hover:bg-blue-600/20 text-blue-400 transition-colors"
                           style={{ border: "1px solid color-mix(in srgb, var(--th-border) 50%, transparent)" }}
                         >
-                          {t({
-                            ko: "재인증",
-                            en: "Re-authenticate",
-                            ja: "再認証",
-                            zh: "Re-authenticate",
-                            de: "Erneut authentifizieren",
-                          })}
+                          {t({ en: "Re-authenticate", de: "Erneut authentifizieren" })}
                         </button>
                       )}
                     </div>
@@ -168,24 +120,12 @@ export default function CliSettingsTab({
                       <div className="flex min-w-0 flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                         <span className="w-auto shrink-0 text-xs sm:w-20" style={{ color: "var(--th-text-secondary)" }}>
                           {hasSubModel
-                            ? t({
-                                ko: "메인 모델:",
-                                en: "Main model:",
-                                ja: "メインモデル:",
-                                zh: "Main model:",
-                                de: "Hauptmodell:",
-                              })
-                            : t({ ko: "모델:", en: "Model:", ja: "モデル:", zh: "Model:", de: "Modell:" })}
+                            ? t({ en: "Main model:", de: "Hauptmodell:" })
+                            : t({ en: "Model:", de: "Modell:" })}
                         </span>
                         {cliModelsLoading ? (
                           <span className="text-xs animate-pulse" style={{ color: "var(--th-text-muted)" }}>
-                            {t({
-                              ko: "로딩 중...",
-                              en: "Loading...",
-                              ja: "読み込み中...",
-                              zh: "Loading...",
-                              de: "Laden...",
-                            })}
+                            {t({ en: "Loading...", de: "Laden..." })}
                           </span>
                         ) : modelList.length > 0 ? (
                           <select
@@ -213,9 +153,7 @@ export default function CliSettingsTab({
                               color: "var(--th-text-heading)",
                             }}
                           >
-                            <option value="">
-                              {t({ ko: "기본값", en: "Default", ja: "デフォルト", zh: "Default", de: "Standard" })}
-                            </option>
+                            <option value="">{t({ en: "Default", de: "Standard" })}</option>
                             {modelList.map((m) => (
                               <option key={m.slug} value={m.slug}>
                                 {m.displayName || m.slug}
@@ -224,13 +162,7 @@ export default function CliSettingsTab({
                           </select>
                         ) : (
                           <span className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                            {t({
-                              ko: "모델 목록 없음",
-                              en: "No models",
-                              ja: "モデル一覧なし",
-                              zh: "No models",
-                              de: "Keine Modelle",
-                            })}
+                            {t({ en: "No models", de: "Keine Modelle" })}
                           </span>
                         )}
                       </div>
@@ -241,13 +173,7 @@ export default function CliSettingsTab({
                             className="w-auto shrink-0 text-xs sm:w-20"
                             style={{ color: "var(--th-text-secondary)" }}
                           >
-                            {t({
-                              ko: "추론 레벨:",
-                              en: "Reasoning:",
-                              ja: "推론レベル:",
-                              zh: "Reasoning:",
-                              de: "Schlussfolgerung:",
-                            })}
+                            {t({ en: "Reasoning:", de: "Schlussfolgerung:" })}
                           </span>
                           <select
                             value={currentReasoningLevel || defaultReasoning}
@@ -284,23 +210,11 @@ export default function CliSettingsTab({
                               className="w-auto shrink-0 text-xs sm:w-20"
                               style={{ color: "var(--th-text-secondary)" }}
                             >
-                              {t({
-                                ko: "알바생 모델:",
-                                en: "Sub-agent model:",
-                                ja: "サブモデル:",
-                                zh: "Sub-agent model:",
-                                de: "Subagent-Modell:",
-                              })}
+                              {t({ en: "Sub-agent model:", de: "Subagent-Modell:" })}
                             </span>
                             {cliModelsLoading ? (
                               <span className="text-xs animate-pulse" style={{ color: "var(--th-text-muted)" }}>
-                                {t({
-                                  ko: "로딩 중...",
-                                  en: "Loading...",
-                                  ja: "読み込み中...",
-                                  zh: "Loading...",
-                                  de: "Laden...",
-                                })}
+                                {t({ en: "Loading...", de: "Laden..." })}
                               </span>
                             ) : modelList.length > 0 ? (
                               <select
@@ -328,9 +242,7 @@ export default function CliSettingsTab({
                                   color: "var(--th-text-heading)",
                                 }}
                               >
-                                <option value="">
-                                  {t({ ko: "기본값", en: "Default", ja: "デフォルト", zh: "Default", de: "Standard" })}
-                                </option>
+                                <option value="">{t({ en: "Default", de: "Standard" })}</option>
                                 {modelList.map((m) => (
                                   <option key={m.slug} value={m.slug}>
                                     {m.displayName || m.slug}
@@ -339,13 +251,7 @@ export default function CliSettingsTab({
                               </select>
                             ) : (
                               <span className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                                {t({
-                                  ko: "모델 목록 없음",
-                                  en: "No models",
-                                  ja: "モデル一覧なし",
-                                  zh: "No models",
-                                  de: "Keine Modelle",
-                                })}
+                                {t({ en: "No models", de: "Keine Modelle" })}
                               </span>
                             )}
                           </div>
@@ -362,13 +268,7 @@ export default function CliSettingsTab({
                                   className="w-auto shrink-0 text-xs sm:w-20"
                                   style={{ color: "var(--th-text-secondary)" }}
                                 >
-                                  {t({
-                                    ko: "알바 추론:",
-                                    en: "Sub reasoning:",
-                                    ja: "サブ推論:",
-                                    zh: "Sub reasoning:",
-                                    de: "Subagent-Schlussfolgerung:",
-                                  })}
+                                  {t({ en: "Sub reasoning:", de: "Subagent-Schlussfolgerung:" })}
                                 </span>
                                 <select
                                   value={currentSubRL || subDefault}
@@ -408,16 +308,13 @@ export default function CliSettingsTab({
         </div>
       ) : (
         <div className="text-center py-4 text-sm" style={{ color: "var(--th-text-muted)" }}>
-          {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+          {t({ en: "Loading...", de: "Laden..." })}
         </div>
       )}
 
       <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
         {t({
-          ko: "각 에이전트의 CLI 도구는 오피스에서 에이전트 클릭 후 변경할 수 있습니다. Copilot/Antigravity 모델은 OAuth 탭에서 설정합니다.",
           en: "Each agent's CLI tool can be changed in Office by clicking an agent. Configure Copilot/Antigravity models in OAuth tab.",
-          ja: "各エージェントの CLI ツールは Office でエージェントをクリックして変更できます。Copilot/Antigravity のモデルは OAuth タブで設定してください。",
-          zh: "Each agent's CLI tool can be changed in Office by clicking an agent. Configure Copilot/Antigravity models in OAuth tab.",
           de: "Das CLI-Tool jedes Agenten kann im Büro durch Klicken auf einen Agenten geändert werden. Copilot/Antigravity-Modelle werden im OAuth-Tab konfiguriert.",
         })}
       </p>

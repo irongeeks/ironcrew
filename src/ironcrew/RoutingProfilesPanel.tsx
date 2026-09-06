@@ -1,3 +1,5 @@
+import { useGovernanceI18n } from "./governance-i18n";
+import { ModelInput } from "./ModelInput";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, request } from "../api/core";
 import {
@@ -64,6 +66,7 @@ function TargetEditor({
   onChange: (target: RouteTarget | null) => void;
   controls?: React.ReactNode;
 }): React.JSX.Element {
+  const { tx, t } = useGovernanceI18n();
   const choose = (id: string) => {
     if (!id) {
       onChange(null);
@@ -94,7 +97,7 @@ function TargetEditor({
         <label>
           {title}: Vessel
           <select value={target?.vesselId ?? ""} onChange={(event) => choose(event.target.value)}>
-            <option value="">Kein Ziel konfiguriert</option>
+            <option value="">{tx("Kein Ziel konfiguriert")}</option>
             {vessels.map((vessel) => (
               <option
                 key={vessel.id}
@@ -109,11 +112,14 @@ function TargetEditor({
         {target && (
           <>
             <label>
-              {title}: Modell
-              <input
+              {title}
+              {tx(": Modell")}{" "}
+              <ModelInput
+                runtime={target.runtimeType}
+                aria-label={`${title}: ${t({ de: "Modell", en: "Model" })}`}
                 type="text"
                 value={target.model}
-                placeholder="Exakte Modell-ID oder CLI-Alias"
+                placeholder={tx("Exakte Modell-ID oder CLI-Alias")}
                 onChange={(event) =>
                   onChange({
                     ...target,
@@ -124,11 +130,12 @@ function TargetEditor({
               />
             </label>
             <label>
-              {title}: Vendor-Modell
+              {title}
+              {tx(": Vendor-Modell")}{" "}
               <input
                 type="text"
                 value={target.vendorModel}
-                placeholder="Anbieter/Modell für die Vendor-Policy"
+                placeholder={tx("Anbieter/Modell für die Vendor-Policy")}
                 onChange={(event) => onChange({ ...target, vendorModel: event.target.value })}
               />
             </label>
@@ -137,9 +144,9 @@ function TargetEditor({
       </div>
       {target && (
         <p className="routing-note">
-          Die Runtime erhält das Modell exakt als Argument. Bei Modell-IDs mit „/“ muss das Vendor-Modell identisch
-          sein. CLI-Aliase verwenden ausschließlich den festen Anbieterpräfix: Claude → anthropic/, Codex → openai/,
-          Google → google/.
+          {tx(
+            "Die Runtime erhält das Modell exakt als Argument. Bei Modell-IDs mit „/“ muss das Vendor-Modell identisch sein. CLI-Aliase verwenden ausschließlich den festen Anbieterpräfix: Claude → anthropic/, Codex → openai/, Google → google/.",
+          )}{" "}
         </p>
       )}
     </section>
@@ -151,6 +158,7 @@ export function RoutingProfilesPanel({
   canManage = false,
   refreshKey = 0,
 }: RoutingProfilesPanelProps): React.JSX.Element {
+  const { tx, t, locale } = useGovernanceI18n();
   const [snapshot, setSnapshot] = useState<RoutingSnapshot | null>(null);
   const [draft, setDraft] = useState<RoutingConfig | null>(null);
   const [baseRevision, setBaseRevision] = useState(0);
@@ -165,31 +173,34 @@ export function RoutingProfilesPanel({
   const [conflict, setConflict] = useState(false);
   const [bindingDrafts, setBindingDrafts] = useState<Record<string, string>>({});
 
-  const load = useCallback(async (discard = false) => {
-    const token = ++generation.current;
-    setLoading(true);
-    try {
-      const result = await request<RoutingSnapshot>("/api/crew/routing");
-      if (generation.current !== token) return;
-      setSnapshot(result);
-      if (!dirtyRef.current || discard) {
-        setDraft(structuredClone(result.config));
-        setBaseRevision(result.revision);
-        dirtyRef.current = false;
-        setDirty(false);
-        setConflict(false);
+  const load = useCallback(
+    async (discard = false) => {
+      const token = ++generation.current;
+      setLoading(true);
+      try {
+        const result = await request<RoutingSnapshot>("/api/crew/routing");
+        if (generation.current !== token) return;
+        setSnapshot(result);
+        if (!dirtyRef.current || discard) {
+          setDraft(structuredClone(result.config));
+          setBaseRevision(result.revision);
+          dirtyRef.current = false;
+          setDirty(false);
+          setConflict(false);
+        }
+        if (discard) {
+          setBindingDrafts({});
+          setError("");
+          setNotice(tx("Aktueller Serverstand geladen. Lokale Änderungen wurden verworfen."));
+        }
+      } catch (cause) {
+        if (generation.current === token) setError(tx(readableError(cause)));
+      } finally {
+        if (generation.current === token) setLoading(false);
       }
-      if (discard) {
-        setBindingDrafts({});
-        setError("");
-        setNotice("Aktueller Serverstand geladen. Lokale Änderungen wurden verworfen.");
-      }
-    } catch (cause) {
-      if (generation.current === token) setError(readableError(cause));
-    } finally {
-      if (generation.current === token) setLoading(false);
-    }
-  }, []);
+    },
+    [tx],
+  );
   const invalidateRequests = useCallback(() => {
     generation.current++;
   }, []);
@@ -231,15 +242,17 @@ export function RoutingProfilesPanel({
       dirtyRef.current = false;
       setDirty(false);
       setConflict(false);
-      setNotice("Routing-Profile gespeichert. Die neue Konfiguration gilt für folgende Runs.");
+      setNotice(tx("Routing-Profile gespeichert. Die neue Konfiguration gilt für folgende Runs."));
       await load();
     } catch (cause) {
       if (cause instanceof ApiRequestError && cause.status === 409) {
         setConflict(true);
         setError(
-          "Der Serverstand wurde zwischenzeitlich geändert. Dein Entwurf bleibt erhalten. Lade den aktuellen Stand, bevor du ihn erneut bearbeitest.",
+          tx(
+            "Der Serverstand wurde zwischenzeitlich geändert. Dein Entwurf bleibt erhalten. Lade den aktuellen Stand, bevor du ihn erneut bearbeitest.",
+          ),
         );
-      } else setError(readableError(cause));
+      } else setError(tx(readableError(cause)));
     } finally {
       setBusy(false);
     }
@@ -260,12 +273,12 @@ export function RoutingProfilesPanel({
       });
       setNotice(
         value
-          ? "Profil dem Agenten zugeordnet."
-          : "Profilzuordnung entfernt. Der Agent verwendet wieder sein bestehendes Vessel.",
+          ? tx("Profil dem Agenten zugeordnet.")
+          : tx("Profilzuordnung entfernt. Der Agent verwendet wieder sein bestehendes Vessel."),
       );
       await load();
     } catch (cause) {
-      setError(readableError(cause));
+      setError(tx(readableError(cause)));
     } finally {
       setBusy(false);
     }
@@ -273,24 +286,27 @@ export function RoutingProfilesPanel({
   const validDraft = draft ? routingConfigSchema.safeParse(draft).success : false;
 
   return (
-    <section className="routing-panel" aria-label="Modellprofile und Routing" aria-busy={busy || loading}>
+    <section className="routing-panel" aria-label={tx("Modellprofile und Routing")} aria-busy={busy || loading}>
       <header>
         <div>
-          <h2>Modellprofile &amp; Routing</h2>
+          <h2>{tx("Modellprofile &amp; Routing")}</h2>
           <p>
-            Runtimes und Modelle bewusst zuordnen. Fallbacks bleiben an Datenschutz, Fähigkeiten und Vendor-Policy
-            gebunden.
+            {tx(
+              "Runtimes und Modelle bewusst zuordnen. Fallbacks bleiben an Datenschutz, Fähigkeiten und Vendor-Policy gebunden.",
+            )}{" "}
           </p>
         </div>
         <div className="routing-toolbar">
           {snapshot && <span className="routing-revision">Revision {snapshot.revision}</span>}
           <button type="button" className="ic-btn" disabled={busy || loading} onClick={() => void load()}>
-            Serverstand prüfen
+            {tx("Serverstand prüfen")}{" "}
           </button>
         </div>
       </header>
-      {!canManage && <p className="routing-note">Leseansicht: Nur der Owner kann Profile und Zuordnungen ändern.</p>}
-      {loading && <p role="status">Routing-Konfiguration wird geladen …</p>}
+      {!canManage && (
+        <p className="routing-note">{tx("Leseansicht: Nur der Owner kann Profile und Zuordnungen ändern.")}</p>
+      )}
+      {loading && <p role="status">{tx("Routing-Konfiguration wird geladen …")}</p>}
       {error && <p role="alert">{error}</p>}
       {notice && (
         <p role="status" className="routing-notice">
@@ -299,17 +315,18 @@ export function RoutingProfilesPanel({
       )}
       {snapshot && dirty && snapshot.revision !== baseRevision && (
         <p role="alert">
-          Auf dem Server liegt Revision {snapshot.revision}; dein Entwurf basiert auf Revision {baseRevision}.
+          {tx("Auf dem Server liegt Revision")} {snapshot.revision}
+          {tx("; dein Entwurf basiert auf Revision")} {baseRevision}.
         </p>
       )}
       {!snapshot && !loading && (
         <p className="routing-empty">
-          Die Routing-Konfiguration ist noch nicht verfügbar. Über „Serverstand prüfen“ erneut laden.
+          {tx("Die Routing-Konfiguration ist noch nicht verfügbar. Über „Serverstand prüfen“ erneut laden.")}{" "}
         </p>
       )}
       {draft && snapshot && (
         <>
-          <nav className="routing-profile-navigation" aria-label="Routing-Profile">
+          <nav className="routing-profile-navigation" aria-label={tx("Routing-Profile")}>
             {draft.profiles.map((item) => (
               <button
                 key={item.key}
@@ -326,7 +343,7 @@ export function RoutingProfilesPanel({
             <fieldset className="routing-profile-form" disabled={busy || !canManage}>
               <legend>{profile.key}</legend>
               <label>
-                Profilbezeichnung
+                {tx("Profilbezeichnung")}{" "}
                 <input
                   type="text"
                   value={profile.label}
@@ -335,7 +352,7 @@ export function RoutingProfilesPanel({
                 />
               </label>
               <TargetEditor
-                title="Primärziel"
+                title={tx("Primärziel")}
                 target={profile.primary}
                 vessels={snapshot.vessels}
                 onChange={(primary) =>
@@ -344,7 +361,9 @@ export function RoutingProfilesPanel({
               />
               {!profile.primary && (
                 <p className="routing-note">
-                  Noch nicht konfiguriert. Dieses Profil startet keinen Run. Wähle ein Vessel und ein konkretes Modell.
+                  {tx(
+                    "Noch nicht konfiguriert. Dieses Profil startet keinen Run. Wähle ein Vessel und ein konkretes Modell.",
+                  )}{" "}
                 </p>
               )}
               <label className="routing-check">
@@ -354,11 +373,12 @@ export function RoutingProfilesPanel({
                   disabled={!profile.primary}
                   onChange={(event) => patchProfile({ allowFallback: event.target.checked })}
                 />
-                Automatischen Fallback ausdrücklich erlauben
+                {tx("Automatischen Fallback ausdrücklich erlauben")}{" "}
               </label>
               <p className="routing-note">
-                Gespeicherte Ersatzziele werden ausschließlich in dieser Reihenfolge und nach erneuter Policy-Prüfung
-                verwendet. Ohne Freigabe erfolgt kein automatischer Wechsel.
+                {tx(
+                  "Gespeicherte Ersatzziele werden ausschließlich in dieser Reihenfolge und nach erneuter Policy-Prüfung verwendet. Ohne Freigabe erfolgt kein automatischer Wechsel.",
+                )}{" "}
               </p>
               <ol className="routing-fallback-list">
                 {profile.fallbacks.map((target, index) => (
@@ -379,30 +399,39 @@ export function RoutingProfilesPanel({
                           <button
                             type="button"
                             className="ic-btn"
-                            aria-label={`Fallback ${index + 1} nach oben`}
+                            aria-label={t({
+                              de: `Fallback ${index + 1} nach oben`,
+                              en: `Move fallback ${index + 1} up`,
+                            })}
                             disabled={index === 0}
                             onClick={() => moveFallback(index, -1)}
                           >
-                            Nach oben
+                            {tx("Nach oben")}{" "}
                           </button>
                           <button
                             type="button"
                             className="ic-btn"
-                            aria-label={`Fallback ${index + 1} nach unten`}
+                            aria-label={t({
+                              de: `Fallback ${index + 1} nach unten`,
+                              en: `Move fallback ${index + 1} down`,
+                            })}
                             disabled={index === profile.fallbacks.length - 1}
                             onClick={() => moveFallback(index, 1)}
                           >
-                            Nach unten
+                            {tx("Nach unten")}{" "}
                           </button>
                           <button
                             type="button"
                             className="ic-btn"
-                            aria-label={`Fallback ${index + 1} entfernen`}
+                            aria-label={t({
+                              de: `Fallback ${index + 1} entfernen`,
+                              en: `Remove fallback ${index + 1}`,
+                            })}
                             onClick={() =>
                               patchProfile({ fallbacks: profile.fallbacks.filter((_item, at) => at !== index) })
                             }
                           >
-                            Entfernen
+                            {tx("Entfernen")}{" "}
                           </button>
                         </div>
                       }
@@ -416,11 +445,11 @@ export function RoutingProfilesPanel({
                 disabled={!profile.primary || profile.fallbacks.length >= 4}
                 onClick={() => patchProfile({ fallbacks: [...profile.fallbacks, blankTarget()] })}
               >
-                Fallback hinzufügen
+                {tx("Fallback hinzufügen")}{" "}
               </button>
               <div className="routing-policies">
                 <fieldset>
-                  <legend>Erlaubte Sensitivität</legend>
+                  <legend>{tx("Erlaubte Sensitivität")}</legend>
                   {(Object.entries(SENSITIVITY_LABEL) as [RoutingProfile["allowedSensitivity"][number], string][]).map(
                     ([value, label]) => (
                       <label className="routing-check" key={value}>
@@ -435,13 +464,13 @@ export function RoutingProfilesPanel({
                             })
                           }
                         />
-                        {label}
+                        {tx(label)}
                       </label>
                     ),
                   )}
                 </fieldset>
                 <fieldset>
-                  <legend>Erforderliche Fähigkeiten</legend>
+                  <legend>{tx("Erforderliche Fähigkeiten")}</legend>
                   {ROUTING_CAPABILITIES.map((value) => (
                     <label className="routing-check" key={value}>
                       <input
@@ -455,14 +484,15 @@ export function RoutingProfilesPanel({
                           })
                         }
                       />
-                      {CAPABILITY_LABEL[value]}
+                      {tx(CAPABILITY_LABEL[value])}
                     </label>
                   ))}
                 </fieldset>
               </div>
               <p className="routing-note">
-                Nicht gemeldete Fähigkeiten gelten als nicht verfügbar. Ein Ziel ohne alle geforderten Fähigkeiten wird
-                abgelehnt.
+                {tx(
+                  "Nicht gemeldete Fähigkeiten gelten als nicht verfügbar. Ein Ziel ohne alle geforderten Fähigkeiten wird abgelehnt.",
+                )}{" "}
               </p>
             </fieldset>
           )}
@@ -475,7 +505,7 @@ export function RoutingProfilesPanel({
                 disabled={busy || !dirty || !validDraft || conflict || snapshot.revision !== baseRevision}
                 onClick={() => void saveConfig()}
               >
-                Alle Routing-Profile speichern
+                {tx("Alle Routing-Profile speichern")}{" "}
               </button>
               {(dirty || conflict) && (
                 <button
@@ -487,21 +517,24 @@ export function RoutingProfilesPanel({
                     void load(true).finally(() => setBusy(false));
                   }}
                 >
-                  Serverstand laden und Entwurf verwerfen
+                  {tx("Serverstand laden und Entwurf verwerfen")}{" "}
                 </button>
               )}
               {dirty && !validDraft && (
                 <span className="routing-note">
-                  Mindestens ein Profil ist unvollständig: Ziele, Modelle, eindeutige Fallbacks und Sensitivität prüfen.
+                  {tx(
+                    "Mindestens ein Profil ist unvollständig: Ziele, Modelle, eindeutige Fallbacks und Sensitivität prüfen.",
+                  )}{" "}
                 </span>
               )}
             </div>
           )}
-          <section className="routing-bindings" aria-label="Profilzuordnung der Agents">
-            <h3>Profile den Agents zuordnen</h3>
+          <section className="routing-bindings" aria-label={tx("Profilzuordnung der Agents")}>
+            <h3>{tx("Profile den Agents zuordnen")}</h3>
             <p className="routing-note">
-              Ohne Profilzuordnung bleibt das bestehende Vessel des Agenten zuständig. Ein unkonfiguriertes Profil
-              erlaubt keine Ausführung.
+              {tx(
+                "Ohne Profilzuordnung bleibt das bestehende Vessel des Agenten zuständig. Ein unkonfiguriertes Profil erlaubt keine Ausführung.",
+              )}{" "}
             </p>
             <ul className="routing-binding-list">
               {agents.map((agent) => {
@@ -511,7 +544,7 @@ export function RoutingProfilesPanel({
                   <li key={agent.id}>
                     <strong>{agent.displayName}</strong>
                     <label>
-                      Routingprofil für {agent.displayName}
+                      {tx("Routingprofil für")} {agent.displayName}
                       <select
                         disabled={busy || !canManage}
                         value={selected}
@@ -519,11 +552,11 @@ export function RoutingProfilesPanel({
                           setBindingDrafts((previous) => ({ ...previous, [agent.id]: event.target.value }))
                         }
                       >
-                        <option value="">Bestehendes Vessel verwenden</option>
+                        <option value="">{tx("Bestehendes Vessel verwenden")}</option>
                         {snapshot.config.profiles.map((item) => (
                           <option key={item.key} value={item.key}>
                             {item.label}
-                            {item.primary ? "" : " · nicht konfiguriert"}
+                            {item.primary ? "" : tx(" · nicht konfiguriert")}
                           </option>
                         ))}
                       </select>
@@ -534,29 +567,35 @@ export function RoutingProfilesPanel({
                         className="ic-btn"
                         disabled={busy || selected === current}
                         onClick={() => void bindAgent(agent.id)}
-                        aria-label={`Zuordnung für ${agent.displayName} speichern`}
+                        aria-label={t({
+                          de: `Zuordnung für ${agent.displayName} speichern`,
+                          en: `Save assignment for ${agent.displayName}`,
+                        })}
                       >
-                        Zuordnung speichern
+                        {tx("Zuordnung speichern")}{" "}
                       </button>
                     )}
                   </li>
                 );
               })}
             </ul>
-            {agents.length === 0 && <p>Noch keine Agents vorhanden.</p>}
+            {agents.length === 0 && <p>{tx("Noch keine Agents vorhanden.")}</p>}
           </section>
           <details className="routing-history">
-            <summary>Versionshistorie ({snapshot.history.length})</summary>
+            <summary>
+              {tx("Versionshistorie (")}
+              {snapshot.history.length})
+            </summary>
             <ul>
               {snapshot.history.map((entry) => (
                 <li key={entry.revision}>
                   <strong>Revision {entry.revision}</strong>
-                  <span>{new Date(entry.createdAt).toLocaleString("de-DE")}</span>
+                  <span>{new Date(entry.createdAt).toLocaleString(locale)}</span>
                   <span>{entry.createdBy}</span>
                 </li>
               ))}
             </ul>
-            {snapshot.history.length === 0 && <p>Noch keine gespeicherten Änderungen.</p>}
+            {snapshot.history.length === 0 && <p>{tx("Noch keine gespeicherten Änderungen.")}</p>}
           </details>
         </>
       )}

@@ -138,10 +138,7 @@ export async function submitTaskWithProjectHandling(
       setFormFeedback({
         tone: "error",
         message: t({
-          ko: "업무 생성 중 오류가 발생했습니다.",
           en: "Failed to create task. Please try again.",
-          ja: "タスク作成中にエラーが発生しました。",
-          zh: "创建任务失败，请重试。",
           de: "Aufgabe konnte nicht erstellt werden. Bitte erneut versuchen.",
         }),
       });
@@ -175,10 +172,7 @@ export async function submitTaskWithProjectHandling(
     setFormFeedback({
       tone: "error",
       message: t({
-        ko: "선택한 프로젝트를 찾을 수 없습니다. 다시 선택해주세요.",
         en: "The selected project was not found. Please select again.",
-        ja: "選択したプロジェクトが見つかりません。再度選択してください。",
-        zh: "The selected project was not found. Please select again.",
         de: "Das ausgewählte Projekt wurde nicht gefunden. Bitte erneut auswählen.",
       }),
     });
@@ -189,10 +183,7 @@ export async function submitTaskWithProjectHandling(
     setFormFeedback({
       tone: "error",
       message: t({
-        ko: "입력한 프로젝트를 확정할 수 없습니다. 목록에서 선택하거나 비워두고 진행해주세요.",
         en: "Could not resolve the typed project. Pick from the list or clear it to continue.",
-        ja: "入力したプロジェクトを特定できません。リストから選択するか、空欄で続行してください。",
-        zh: "Could not resolve the typed project. Pick from the list or clear it to continue.",
         de: "Das eingegebene Projekt konnte nicht aufgelöst werden. Bitte aus der Liste auswählen oder leerlassen.",
       }),
     });
@@ -206,26 +197,14 @@ export async function submitTaskWithProjectHandling(
     if (!projectName) {
       setFormFeedback({
         tone: "error",
-        message: t({
-          ko: "신규 프로젝트명을 입력해주세요.",
-          en: "Please enter a new project name.",
-          ja: "新規プロジェクト名を入力してください。",
-          zh: "Please enter a new project name.",
-          de: "Bitte geben Sie einen neuen Projektnamen ein.",
-        }),
+        message: t({ en: "Please enter a new project name.", de: "Bitte geben Sie einen neuen Projektnamen ein." }),
       });
       return;
     }
     if (!newProjectPath.trim()) {
       setFormFeedback({
         tone: "error",
-        message: t({
-          ko: "신규 프로젝트 경로를 입력해주세요.",
-          en: "Please enter a new project path.",
-          ja: "新規プロジェクトのパスを入力してください。",
-          zh: "Please enter a new project path.",
-          de: "Bitte geben Sie einen neuen Projektpfad ein.",
-        }),
+        message: t({ en: "Please enter a new project path.", de: "Bitte geben Sie einen neuen Projektpfad ein." }),
       });
       return;
     }
@@ -233,10 +212,7 @@ export async function submitTaskWithProjectHandling(
       setFormFeedback({
         tone: "error",
         message: t({
-          ko: "신규 프로젝트 생성 시 설명은 필수이며, 프로젝트 핵심 목표로 저장됩니다.",
           en: "Description is required for new project creation and will be saved as the project core goal.",
-          ja: "新規プロジェクト作成時は説明が必須で、プロジェクトのコア目標として保存されます。",
-          zh: "Description is required for new project creation and will be saved as the project core goal.",
           de: "Beschreibung ist für neue Projekte erforderlich und wird als Kernziel gespeichert.",
         }),
       });
@@ -260,10 +236,7 @@ export async function submitTaskWithProjectHandling(
           setFormFeedback({
             tone: "error",
             message: t({
-              ko: "입력한 경로가 폴더가 아닙니다. 디렉터리 경로를 입력해주세요.",
               en: "The path is not a directory. Please enter a directory path.",
-              ja: "入力したパスはフォルダではありません。ディレクトリパスを指定してください。",
-              zh: "The path is not a directory. Please enter a directory path.",
               de: "Der Pfad ist kein Verzeichnis. Bitte einen Verzeichnispfad eingeben.",
             }),
           });
@@ -288,10 +261,7 @@ export async function submitTaskWithProjectHandling(
           setFormFeedback({
             tone: "error",
             message: resolvePathHelperErrorMessage(pathCheckError, {
-              ko: "프로젝트 경로 확인에 실패했습니다.",
               en: "Failed to verify project path.",
-              ja: "プロジェクトパスの確認に失敗しました。",
-              zh: "Failed to verify project path.",
               de: "Projektpfad konnte nicht verifiziert werden.",
             }),
           });
@@ -385,10 +355,7 @@ export async function submitTaskWithProjectHandling(
       setFormFeedback({
         tone: "error",
         message: resolvePathHelperErrorMessage(error, {
-          ko: "신규 프로젝트 생성에 실패했습니다. 프로젝트명/경로를 확인해주세요.",
           en: "Failed to create a new project. Please check name/path.",
-          ja: "新規プロジェクトの作成に失敗しました。名前/パスを確認してください。",
-          zh: "Failed to create a new project. Please check name/path.",
           de: "Neues Projekt konnte nicht erstellt werden. Bitte Name/Pfad prüfen.",
         }),
       });
@@ -426,10 +393,7 @@ export async function submitTaskWithProjectHandling(
     setFormFeedback({
       tone: "error",
       message: t({
-        ko: "업무 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
         en: "Failed to create task. Please try again shortly.",
-        ja: "タスク作成中にエラーが発生しました。しばらくしてから再試行してください。",
-        zh: "Failed to create task. Please try again shortly.",
         de: "Aufgabe konnte nicht erstellt werden. Bitte kurz warten und erneut versuchen.",
       }),
     });

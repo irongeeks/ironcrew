@@ -119,10 +119,7 @@ export default function GitHubImportPanel({ onComplete, onCancel }: GitHubImport
         } else if (message.includes("token_invalid")) {
           setBranchError(
             t({
-              ko: "PAT가 유효하지 않거나 만료되었습니다. 다시 확인해주세요.",
               en: "PAT is invalid or expired. Please check and try again.",
-              ja: "PAT が無効か期限切れです。確認して再試行してください。",
-              zh: "PAT is invalid or expired. Please check and try again.",
               de: "Das PAT ist ungültig oder abgelaufen. Bitte prüfen Sie es und versuchen Sie es erneut.",
             }),
           );
@@ -141,15 +138,7 @@ export default function GitHubImportPanel({ onComplete, onCancel }: GitHubImport
     const input = directInput.trim();
     const match = input.match(/(?:(?:https?:\/\/)?github\.com\/)?([^/\s]+)\/([^/\s#?]+)/);
     if (!match) {
-      setDirectInputError(
-        t({
-          ko: "형식: owner/repo 또는 GitHub URL",
-          en: "Format: owner/repo or GitHub URL",
-          ja: "形式: owner/repo または GitHub URL",
-          zh: "Format: owner/repo or GitHub URL",
-          de: "Format: owner/repo oder GitHub URL",
-        }),
-      );
+      setDirectInputError(t({ en: "Format: owner/repo or GitHub URL", de: "Format: owner/repo oder GitHub URL" }));
       return;
     }
     const [, owner, rawRepo] = match;
@@ -278,9 +267,7 @@ export default function GitHubImportPanel({ onComplete, onCancel }: GitHubImport
   if (statusLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <p className="text-sm text-[var(--text-secondary)]">
-          {t({ ko: "확인 중...", en: "Checking...", ja: "確認中...", zh: "Checking...", de: "Wird geprüft..." })}
-        </p>
+        <p className="text-sm text-[var(--text-secondary)]">{t({ en: "Checking...", de: "Wird geprüft..." })}</p>
       </div>
     );
   }

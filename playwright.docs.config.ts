@@ -19,8 +19,6 @@ export default defineConfig({
   webServer: {
     ...base.webServer,
     command: "pnpm dev:e2e",
-    url: "http://127.0.0.1:8810",
     reuseExistingServer: false,
-    env: { PORT: "8790", UPDATE_CHECK_ENABLED: "0", IRONCREW_INSTALL_TYPE: "source" },
   },
 });

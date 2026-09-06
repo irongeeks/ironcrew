@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import { createServer, getServer, getServers } from "../../api";
 import type { Agent, ServerAllocation, ServerNode, ServerType } from "../../types";
@@ -91,10 +92,7 @@ export default function ServersSettingsTab({ t, agents }: Props) {
     <div className="space-y-4">
       <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
         {t({
-          ko: "서버를 추가하고 SSH 연결, 상태, 할당을 관리합니다.",
           en: "Add servers and manage SSH connections, health, and allocations.",
-          ja: "サーバーを追加し、SSH接続、ステータス、割り当てを管理します。",
-          zh: "Add servers and manage SSH connections, health, and allocations.",
           de: "Server hinzufügen und SSH-Verbindungen, Status und Zuweisungen verwalten.",
         })}
       </p>
@@ -106,7 +104,7 @@ export default function ServersSettingsTab({ t, agents }: Props) {
       >
         <label className="flex-1">
           <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "서버 이름", en: "Server Name", ja: "サーバー名", zh: "Server Name", de: "Servername" })}
+            {t({ en: "Server Name", de: "Servername" })}
           </span>
           <input
             className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
@@ -123,7 +121,7 @@ export default function ServersSettingsTab({ t, agents }: Props) {
         </label>
         <label>
           <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "유형", en: "Type", ja: "種別", zh: "Type", de: "Typ" })}
+            {t({ en: "Type", de: "Typ" })}
           </span>
           <select
             className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
@@ -138,8 +136,12 @@ export default function ServersSettingsTab({ t, agents }: Props) {
             <option value="ssh_remote">SSH Remote</option>
             <option value="comfyui">ComfyUI</option>
             <option value="llm_api">LLM API</option>
-            <option value="database">Database</option>
-            <option value="file_storage">File Storage</option>
+            <option value="database">
+              <LocalizedText en="Database" de="Datenbank" />
+            </option>
+            <option value="file_storage">
+              <LocalizedText en="File Storage" de="Dateispeicher" />
+            </option>
           </select>
         </label>
         <button
@@ -148,26 +150,18 @@ export default function ServersSettingsTab({ t, agents }: Props) {
           className="rounded px-4 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
           style={{ background: "var(--th-accent)", color: "#fff" }}
         >
-          {creating
-            ? t({ ko: "추가 중...", en: "Adding...", ja: "追加中...", zh: "Adding...", de: "Wird hinzugefügt..." })
-            : t({ ko: "추가", en: "Add", ja: "追加", zh: "Add", de: "Hinzufügen" })}
+          {creating ? t({ en: "Adding...", de: "Wird hinzugefügt..." }) : t({ en: "Add", de: "Hinzufügen" })}
         </button>
       </div>
 
       {/* Server List */}
       {loading ? (
         <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-          {t({ ko: "로딩...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+          {t({ en: "Loading...", de: "Laden..." })}
         </p>
       ) : servers.length === 0 ? (
         <p className="text-xs py-6 text-center" style={{ color: "var(--th-text-secondary)" }}>
-          {t({
-            ko: "등록된 서버가 없습니다.",
-            en: "No servers registered yet.",
-            ja: "サーバーが登録されていません。",
-            zh: "No servers registered yet.",
-            de: "Noch keine Server registriert.",
-          })}
+          {t({ en: "No servers registered yet.", de: "Noch keine Server registriert." })}
         </p>
       ) : (
         <div className="space-y-1.5">

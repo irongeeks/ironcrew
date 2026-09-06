@@ -95,3 +95,19 @@ describe("stable IronCrew release discovery", () => {
     expect(releaseInstructions("source", "main").command).toBeNull();
   });
 });
+
+it.each(["docker", "native", "source"] as const)(
+  "provides complete paired instructions without changing %s commands",
+  (installType) => {
+    const english = releaseInstructions(installType, "v0.3.1", "en");
+    const german = releaseInstructions(installType, "v0.3.1", "de");
+    expect(english.command).toBe(german.command);
+    expect(english.documentation_url).toBe(german.documentation_url);
+    expect(english.steps).toHaveLength(4);
+    expect(german.steps).toHaveLength(4);
+    english.steps.forEach((step, index) => expect(step).not.toBe(german.steps[index]));
+    expect(english.steps[2]).toContain("--check");
+    expect(german.steps[2]).toContain("--check");
+    expect(releaseInstructions(installType, "v0.3.1").steps).toEqual(english.steps);
+  },
+);

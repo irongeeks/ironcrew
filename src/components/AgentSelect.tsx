@@ -15,10 +15,10 @@ interface AgentSelectProps {
 }
 
 const ROLE_LABELS: Record<string, LangText> = {
-  team_leader: { ko: "팀장", en: "Team Leader", ja: "チームリーダー", zh: "Team Leader", de: "Teamleiter" },
-  senior: { ko: "시니어", en: "Senior", ja: "シニア", zh: "Senior", de: "Senior" },
-  junior: { ko: "주니어", en: "Junior", ja: "ジュニア", zh: "Junior", de: "Junior" },
-  intern: { ko: "인턴", en: "Intern", ja: "インターン", zh: "Intern", de: "Praktikant" },
+  team_leader: { en: "Team Leader", de: "Teamleiter" },
+  senior: { en: "Senior", de: "Senior" },
+  junior: { en: "Junior", de: "Junior" },
+  intern: { en: "Intern", de: "Praktikant" },
 };
 
 export default function AgentSelect({

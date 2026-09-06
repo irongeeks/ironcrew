@@ -17,37 +17,13 @@ export function getDecisionEventLabel(
 ): string {
   switch (eventType) {
     case "planning_summary":
-      return t({
-        ko: "기획 요약",
-        en: "Planning Summary",
-        ja: "企画要約",
-        zh: "Planning Summary",
-        de: "Planungszusammenfassung",
-      });
+      return t({ en: "Planning Summary", de: "Planungszusammenfassung" });
     case "representative_pick":
-      return t({
-        ko: "대표 선택",
-        en: "Representative Pick",
-        ja: "代表選択",
-        zh: "Representative Pick",
-        de: "Wesentliche Auswahl",
-      });
+      return t({ en: "Representative Pick", de: "Wesentliche Auswahl" });
     case "followup_request":
-      return t({
-        ko: "추가 요청",
-        en: "Follow-up Request",
-        ja: "追加依頼",
-        zh: "Follow-up Request",
-        de: "Folgeanfrage",
-      });
+      return t({ en: "Follow-up Request", de: "Folgeanfrage" });
     case "start_review_meeting":
-      return t({
-        ko: "검토 회의 시작",
-        en: "Review Meeting Started",
-        ja: "レビュー会議開始",
-        zh: "Review Meeting Started",
-        de: "Überprüfungssitzung gestartet",
-      });
+      return t({ en: "Review Meeting Started", de: "Überprüfungssitzung gestartet" });
     default:
       return eventType;
   }

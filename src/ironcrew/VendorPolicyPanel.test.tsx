@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetApiRuntimeForTests, writeStoredCsrfToken } from "../api/core";
 import type { CompanyPolicySnapshot, SaveCompanyPolicyInput } from "../shared/company-policy";
@@ -253,3 +254,7 @@ describe("VendorPolicyPanel", () => {
     expect(writes).toHaveLength(2);
   });
 });
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });

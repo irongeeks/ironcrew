@@ -1,3 +1,5 @@
+import { useI18n } from "../../i18n";
+import LocalizedText from "../LocalizedText";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface CronPickerProps {
@@ -123,7 +125,7 @@ function computeNextRuns(cron: string, count: number, tz: string): Date[] {
   return results;
 }
 
-function cronToHuman(cron: string): string {
+function cronToHuman(cron: string, language: string = "en"): string {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
 
@@ -136,13 +138,15 @@ function cronToHuman(cron: string): string {
   const timeStr = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
   if (domPart === "*" && monPart === "*" && dowPart === "*") {
-    return `Every day at ${timeStr}`;
+    return language === "de" ? `Täglich um ${timeStr}` : `Every day at ${timeStr}`;
   }
   if (domPart === "*" && monPart === "*" && /^\d$/.test(dowPart)) {
-    return `Every ${WEEKDAYS[parseInt(dowPart, 10)] ?? dowPart} at ${timeStr}`;
+    return language === "de"
+      ? `Jeden ${["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"][parseInt(dowPart, 10)] ?? dowPart} um ${timeStr}`
+      : `Every ${WEEKDAYS[parseInt(dowPart, 10)] ?? dowPart} at ${timeStr}`;
   }
   if (/^\d{1,2}$/.test(domPart) && monPart === "*" && dowPart === "*") {
-    return `Monthly on day ${domPart} at ${timeStr}`;
+    return language === "de" ? `Monatlich am ${domPart}. um ${timeStr}` : `Monthly on day ${domPart} at ${timeStr}`;
   }
   return cron;
 }
@@ -150,6 +154,8 @@ function cronToHuman(cron: string): string {
 export { cronToHuman };
 
 export default function CronPicker({ value, onChange, timezone }: CronPickerProps) {
+  const { language, locale } = useI18n();
+  const weekdays = language === "de" ? ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] : WEEKDAYS;
   const detected = useMemo(() => detectPreset(value), [value]);
 
   const [preset, setPreset] = useState<Preset>(detected.preset);
@@ -269,21 +275,21 @@ export default function CronPicker({ value, onChange, timezone }: CronPickerProp
           style={presetBtnStyle(preset === "daily" && !advanced)}
           onClick={() => handlePreset("daily")}
         >
-          Daily
+          <LocalizedText en="Daily" de="Täglich" />
         </button>
         <button
           type="button"
           style={presetBtnStyle(preset === "weekly" && !advanced)}
           onClick={() => handlePreset("weekly")}
         >
-          Weekly
+          <LocalizedText en="Weekly" de="Wöchentlich" />
         </button>
         <button
           type="button"
           style={presetBtnStyle(preset === "monthly" && !advanced)}
           onClick={() => handlePreset("monthly")}
         >
-          Monthly
+          <LocalizedText en="Monthly" de="Monatlich" />
         </button>
         <button
           type="button"
@@ -293,7 +299,7 @@ export default function CronPicker({ value, onChange, timezone }: CronPickerProp
           }}
           onClick={handleAdvancedToggle}
         >
-          Advanced
+          <LocalizedText en="Advanced" de="Erweitert" />
         </button>
       </div>
 
@@ -301,7 +307,7 @@ export default function CronPicker({ value, onChange, timezone }: CronPickerProp
       {!advanced && preset && (
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <label style={{ color: "var(--th-text-secondary)", fontSize: 12 }}>
-            Time:
+            <LocalizedText en="Time:" de="Uhrzeit:" />
             <input
               type="number"
               min={0}
@@ -323,13 +329,13 @@ export default function CronPicker({ value, onChange, timezone }: CronPickerProp
 
           {preset === "weekly" && (
             <label style={{ color: "var(--th-text-secondary)", fontSize: 12 }}>
-              Day:
+              <LocalizedText en="Day:" de="Tag:" />
               <select
                 value={weekday}
                 onChange={(e) => handleWeekday(parseInt(e.target.value, 10))}
                 style={{ ...inputStyle, marginLeft: 6 }}
               >
-                {WEEKDAYS.map((d, i) => (
+                {weekdays.map((d, i) => (
                   <option key={i} value={i}>
                     {d}
                   </option>
@@ -340,7 +346,7 @@ export default function CronPicker({ value, onChange, timezone }: CronPickerProp
 
           {preset === "monthly" && (
             <label style={{ color: "var(--th-text-secondary)", fontSize: 12 }}>
-              Day of month:
+              <LocalizedText en="Day of month:" de="Tag im Monat:" />
               <input
                 type="number"
                 min={1}
@@ -358,7 +364,10 @@ export default function CronPicker({ value, onChange, timezone }: CronPickerProp
       {advanced && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ color: "var(--th-text-secondary)", fontSize: 11 }}>
-            Cron expression (min hour dom mon dow):
+            <LocalizedText
+              en="Cron expression (min hour dom mon dow):"
+              de="Cron-Ausdruck (Minute Stunde Monatstag Monat Wochentag):"
+            />
           </label>
           <input
             type="text"
@@ -374,7 +383,8 @@ export default function CronPicker({ value, onChange, timezone }: CronPickerProp
       {nextRuns.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <span style={{ color: "var(--th-text-tertiary)", fontSize: 10, fontWeight: 600, letterSpacing: "0.05em" }}>
-            NEXT 5 RUNS ({timezone})
+            <LocalizedText en="NEXT 5 RUNS (" de="NÄCHSTE 5 AUSFÜHRUNGEN (" />
+            {timezone})
           </span>
           {nextRuns.map((d, i) => (
             <span
@@ -385,7 +395,7 @@ export default function CronPicker({ value, onChange, timezone }: CronPickerProp
                 fontSize: 11,
               }}
             >
-              {d.toLocaleString(undefined, {
+              {d.toLocaleString(locale, {
                 timeZone: timezone,
                 weekday: "short",
                 month: "short",

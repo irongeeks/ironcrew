@@ -29,15 +29,20 @@ test.describe("Pack Editor Flow", () => {
       timeout: 5000,
     });
 
-    const modes = ["ansicht", "monitor", "bearbeiten", "builder"];
-    for (const mode of modes) {
-      const modeBtn = page.getByRole("button", { name: new RegExp(mode, "i") }).first();
-      const visible = await modeBtn.isVisible().catch(() => false);
-      test.skip(!visible, `Mode button "${mode}" not visible`);
-      await modeBtn.click();
-      // Verify the React Flow canvas is still rendered after mode switch
-      await expect(page.locator(".react-flow, [class*=react-flow], [class*=ReactFlow]").first()).toBeVisible();
-    }
+    // The product exposes View/Edit modes and a monitor toggle in View.
+    // Missing controls are regressions, never reasons to skip the test.
+    const view = page.getByRole("button", { name: "View", exact: true });
+    const edit = page.getByRole("button", { name: "Edit", exact: true });
+    const monitor = page.getByRole("button", { name: "Live Monitor", exact: true });
+    await expect(view).toBeVisible();
+    await expect(monitor).toBeVisible();
+    await monitor.click();
+    await edit.click();
+    await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+    await expect(monitor).toBeHidden();
+    await view.click();
+    await expect(monitor).toBeVisible();
+    await expect(page.locator(".react-flow").first()).toBeVisible();
   });
 
   test("builder mode: create new pack", async ({ page, request }) => {

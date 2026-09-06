@@ -26,24 +26,12 @@ export default function MissingPathPromptDialog({
       >
         <div className="border-b px-4 py-3" style={{ borderColor: "var(--th-border)" }}>
           <h3 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-            {t({
-              ko: "프로젝트 경로 확인",
-              en: "Confirm Project Path",
-              ja: "プロジェクトパス確認",
-              zh: "Confirm Project Path",
-              de: "Projektpfad bestätigen",
-            })}
+            {t({ en: "Confirm Project Path", de: "Projektpfad bestätigen" })}
           </h3>
         </div>
         <div className="space-y-2 px-4 py-4">
           <p className="text-sm text-[var(--th-text-primary)]">
-            {t({
-              ko: "해당 경로가 없습니다. 추가하시겠습니까?",
-              en: "This path does not exist. Create it now?",
-              ja: "このパスは存在しません。作成しますか？",
-              zh: "This path does not exist. Create it now?",
-              de: "Dieser Pfad existiert nicht. Jetzt erstellen?",
-            })}
+            {t({ en: "This path does not exist. Create it now?", de: "Dieser Pfad existiert nicht. Jetzt erstellen?" })}
           </p>
           <p
             className="break-all rounded-md border px-2.5 py-2 text-xs text-[var(--th-text-primary)]"
@@ -65,10 +53,7 @@ export default function MissingPathPromptDialog({
           {!prompt.canCreate && (
             <p className="text-xs text-amber-300">
               {t({
-                ko: "현재 권한으로 해당 경로를 생성할 수 없습니다. 다른 경로를 선택해주세요.",
                 en: "This path is not creatable with current permissions. Choose another path.",
-                ja: "現在の権限ではこのパスを作成できません。別のパスを指定してください。",
-                zh: "This path is not creatable with current permissions. Choose another path.",
                 de: "Dieser Pfad kann mit den aktuellen Berechtigungen nicht erstellt werden. Bitte anderen Pfad wählen.",
               })}
             </p>
@@ -81,7 +66,7 @@ export default function MissingPathPromptDialog({
             className="rounded-md border px-3 py-1.5 text-xs font-semibold text-[var(--th-text-primary)] transition hover:bg-[var(--th-bg-surface-hover)]"
             style={{ borderColor: "var(--th-border-strong)" }}
           >
-            {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+            {t({ en: "Cancel", de: "Abbrechen" })}
           </button>
           <button
             type="button"
@@ -89,7 +74,7 @@ export default function MissingPathPromptDialog({
             onClick={onConfirmCreate}
             className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {t({ ko: "예", en: "Yes", ja: "はい", zh: "Yes", de: "Ja" })}
+            {t({ en: "Yes", de: "Ja" })}
           </button>
         </div>
       </div>

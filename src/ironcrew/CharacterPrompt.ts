@@ -1,4 +1,5 @@
-export function buildCharacterPrompt(identity: string, style: string): string {
+export function buildCharacterPrompt(identity: string, style: string, language: "de" | "en" = "en"): string {
+  if (language === "de") return buildGermanCharacterPrompt(identity, style);
   return `Create a character asset for the IronCrew virtual office.
 
 CHARACTER / REFERENCE
@@ -20,4 +21,28 @@ If an animation is requested, keep identity, proportions, camera, frame size and
 
 OPTIONAL 3D EXPORT
 If a 3D version is requested, export a single untextured GLB 2 file below 5 MiB with embedded geometry, normals, material colours and optional named skeletal animation clips using the same status names. No external files, textures, extensions or decoder dependencies. The model is an optional interactive preview; IronCrew's office remains 2D.`;
+}
+
+function buildGermanCharacterPrompt(identity: string, style: string): string {
+  return `Erstelle eine Charakterdatei für das virtuelle Büro von IronCrew.
+
+FIGUR / REFERENZ
+${identity.trim() || "Eine eigenständige erwachsene Figur mit wiedererkennbarer Silhouette, markantem Gesicht und beruflicher Kleidung."}
+
+BILDSTIL
+${style.trim() || "Moderne filmische Illustration, klare abgerundete Formen, hochwertige Materialien und dezente Akzente in Graphit, Türkis und Bernstein. Keine Pixelgrafik oder Retrospiel-Darstellung."}
+
+ERGEBNIS
+Eine einzelne Ganzkörperfigur, leicht schräg zum Betrachter gewandt. Die Kamera liegt etwa 10–15 Grad erhöht. Neutrale stehende Pose; entspannte Arme mit etwas Abstand zum Oberkörper. Gewünschte Identität und markante Merkmale beibehalten. Kopf, Haare, Hände, Accessoires und Füße müssen vollständig im Bild liegen.
+
+Eine PNG-Datei mit 1024 × 1280 Pixeln und transparentem Hintergrund (Alphakanal) verwenden, kein gezeichnetes Schachbrettmuster. Figur horizontal zentrieren. Seitlich und oberhalb des Kopfes 6% freien Rand lassen; beide Fußsohlen auf einer gemeinsamen Grundlinie bei 92% der Bildhöhe ausrichten. Keine Landschaft, Bodenfläche, Schlagschatten, Schrift, Rahmen oder Benutzeroberfläche. Klare Kanten und lesbare Formen verwenden, die auch bei etwa 65 × 81 Pixeln erkennbar bleiben.
+
+OPTIONALES PORTRAIT
+Als separate Datei ein quadratisches Kopf-Schulter-Portrait derselben Figur mit 1024 × 1024 Pixeln erstellen, Gesicht zentriert, gleiche Beleuchtung und transparenter Hintergrund.
+
+OPTIONALE ANIMATION
+Bei einer Animation Identität, Proportionen, Kamera, Bildgröße und Fußgrundlinie unverändert lassen. Ein transparentes Animationsraster exportieren: ein Status je Zeile, aufeinanderfolgende Frames von links nach rechts, gleich große Zellen ohne Zwischenräume. In einer separaten Zuordnung exakt diese Statusnamen verwenden: idle, thinking, working, in_meeting, waiting_for_input, waiting_for_approval, rate_limited, paused, error, offline. Zellbreite, Zellhöhe, Spaltenzahl, Zeilenindex (ab null), Frameanzahl, FPS und Wiederholung angeben. Höchstens 64 Frames pro Status, 256 insgesamt, 30 FPS, 4096 Pixel je Bildkante und 5 MiB je Datei. Die Fehleranimation muss enden und darf sich nicht wiederholen. Statische Grundbilder bleiben unterstützt; die Anwendung ergänzt die aktuellen Systemstatus-Anzeigen.
+
+OPTIONALER 3D-EXPORT
+Bei einer 3D-Version eine einzelne GLB-2-Datei ohne Texturen unter 5 MiB exportieren, mit eingebetteter Geometrie, Normalen, Materialfarben und optional benannten Skelettanimationsclips mit denselben Statusnamen. Keine externen Dateien, Texturen, Erweiterungen oder Decoder-Abhängigkeiten. Das Modell dient als optionale interaktive Vorschau; das Büro von IronCrew bleibt zweidimensional.`;
 }

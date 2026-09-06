@@ -70,37 +70,13 @@ export function useAgentDetailState(
     (effort: string, fallback?: string) => {
       switch (effort) {
         case "low":
-          return t({
-            ko: "빠름, 낮은 깊이",
-            en: "Faster, lower depth",
-            ja: "高速・浅い推論",
-            zh: "Faster, lower depth",
-            de: "Schneller, geringere Tiefe",
-          });
+          return t({ en: "Faster, lower depth", de: "Schneller, geringere Tiefe" });
         case "medium":
-          return t({
-            ko: "균형 기본값",
-            en: "Balanced default",
-            ja: "バランス既定",
-            zh: "Balanced default",
-            de: "Ausgewogener Standard",
-          });
+          return t({ en: "Balanced default", de: "Ausgewogener Standard" });
         case "high":
-          return t({
-            ko: "높은 추론 깊이",
-            en: "Higher reasoning depth",
-            ja: "高い推論深度",
-            zh: "Higher reasoning depth",
-            de: "Höhere Argumentationstiefe",
-          });
+          return t({ en: "Higher reasoning depth", de: "Höhere Argumentationstiefe" });
         case "xhigh":
-          return t({
-            ko: "최대 추론 깊이",
-            en: "Maximum reasoning depth",
-            ja: "最大推論深度",
-            zh: "Maximum reasoning depth",
-            de: "Maximale Argumentationstiefe",
-          });
+          return t({ en: "Maximum reasoning depth", de: "Maximale Argumentationstiefe" });
         default:
           return fallback || "";
       }
@@ -243,23 +219,11 @@ export function useAgentDetailState(
     (packKey: WorkflowPackKey) => {
       switch (packKey) {
         case "development":
-          return t({ ko: "개발", en: "Development", ja: "開発", zh: "Development", de: "Entwicklung" });
+          return t({ en: "Development", de: "Entwicklung" });
         case "video_preprod":
-          return t({
-            ko: "영상 프리프로덕션",
-            en: "Video Pre-production",
-            ja: "動画プリプロ",
-            zh: "Video Pre-production",
-            de: "Video-Vorproduktion",
-          });
+          return t({ en: "Video Pre-production", de: "Video-Vorproduktion" });
         case "web_research_report":
-          return t({
-            ko: "웹 리서치 리포트",
-            en: "Web Research Report",
-            ja: "Webリサーチ",
-            zh: "Web Research Report",
-            de: "Web-Recherchebericht",
-          });
+          return t({ en: "Web Research Report", de: "Web-Recherchebericht" });
         default:
           return packKey;
       }
@@ -294,7 +258,7 @@ export function useAgentDetailState(
           const existingLeaderName = String(
             details.existing_leader?.name_ko ||
               details.existing_leader?.name ||
-              t({ ko: "기존 리더", en: "current leader", de: "aktueller Leiter" }),
+              t({ en: "current leader", de: "aktueller Leiter" }),
           ).trim();
           const packKey = details.pack_key ?? activeOfficeWorkflowPack;
           const packLabel = resolvePackLabel(packKey);

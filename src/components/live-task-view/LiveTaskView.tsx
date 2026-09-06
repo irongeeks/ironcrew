@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import type { Agent, SubTask, Task, WSEventType } from "../../types";
 import AgentTabs from "./AgentTabs";
@@ -115,7 +116,7 @@ export default function LiveTaskView({ agents, tasks, subtasks, socketOn }: Live
             opacity: 0.5,
           }}
         >
-          No active agents
+          <LocalizedText en="No active agents" de="Keine aktiven Agenten" />
         </span>
       </div>
     );

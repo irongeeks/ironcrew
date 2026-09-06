@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n";
 import { useState } from "react";
 import type { CliProvider, CliStatusMap } from "../../types";
 import CliAuthModal from "../cli-auth/CliAuthModal";
@@ -10,17 +11,54 @@ interface ProviderStepProps {
   onAuthSuccess?: () => void;
 }
 
-const PROVIDER_INFO: Array<{ key: CliProvider; label: string; icon: string; description: string }> = [
-  { key: "claude", label: "Claude Code", icon: "🟣", description: "Anthropic Claude — best reasoning" },
-  { key: "codex", label: "Codex CLI", icon: "🟢", description: "OpenAI Codex — fast & capable" },
-  { key: "gemini", label: "Gemini CLI", icon: "🔵", description: "Google Gemini — multimodal" },
-  { key: "openclaw", label: "OpenClaw", icon: "🦀", description: "OpenClaw — isolated profiles" },
-  { key: "opencode", label: "OpenCode", icon: "⚪", description: "OpenCode — flexible routing" },
-  { key: "copilot", label: "GitHub Copilot", icon: "🚀", description: "GitHub Copilot — code-focused" },
-  { key: "antigravity", label: "Antigravity", icon: "🌌", description: "Antigravity — Google OAuth" },
-];
+const PROVIDER_INFO: Array<{ key: CliProvider; label: string; icon: string; description: { en: string; de: string } }> =
+  [
+    {
+      key: "claude",
+      label: "Claude Code",
+      icon: "🟣",
+      description: { en: "Anthropic Claude — CLI agent", de: "Anthropic Claude — CLI-Agent" },
+    },
+    {
+      key: "codex",
+      label: "Codex CLI",
+      icon: "🟢",
+      description: { en: "OpenAI Codex — CLI agent", de: "OpenAI Codex — CLI-Agent" },
+    },
+    {
+      key: "gemini",
+      label: "Gemini CLI",
+      icon: "🔵",
+      description: { en: "Google Gemini — multimodal", de: "Google Gemini — multimodal" },
+    },
+    {
+      key: "openclaw",
+      label: "OpenClaw",
+      icon: "🦀",
+      description: { en: "OpenClaw — isolated profiles", de: "OpenClaw — isolierte Profile" },
+    },
+    {
+      key: "opencode",
+      label: "OpenCode",
+      icon: "⚪",
+      description: { en: "OpenCode — flexible routing", de: "OpenCode — flexibles Routing" },
+    },
+    {
+      key: "copilot",
+      label: "GitHub Copilot",
+      icon: "🚀",
+      description: { en: "GitHub Copilot — code-focused", de: "GitHub Copilot — für Code" },
+    },
+    {
+      key: "antigravity",
+      label: "Antigravity",
+      icon: "🌌",
+      description: { en: "Antigravity — Google OAuth", de: "Antigravity — Google OAuth" },
+    },
+  ];
 
 export default function ProviderStep({ defaultProvider, cliStatus, onNext, onBack, onAuthSuccess }: ProviderStepProps) {
+  const { t } = useI18n();
   const [selected, setSelected] = useState<CliProvider>(defaultProvider);
   const [authModalProvider, setAuthModalProvider] = useState<"claude" | "codex" | "gemini" | null>(null);
   const cliAuthProviders = ["claude", "codex", "gemini"];
@@ -37,7 +75,7 @@ export default function ProviderStep({ defaultProvider, cliStatus, onNext, onBac
             lineHeight: 1.5,
           }}
         >
-          Choose Your AI Provider
+          {t({ en: "Choose Your AI Provider", de: "KI-Anbieter auswählen" })}
         </h2>
         <p
           style={{
@@ -47,7 +85,10 @@ export default function ProviderStep({ defaultProvider, cliStatus, onNext, onBac
             lineHeight: 1.6,
           }}
         >
-          Select the default CLI provider for your agents. You can change this later in Settings.
+          {t({
+            en: "Select the default CLI provider for your agents. You can change this later in Settings.",
+            de: "Wähle den Standard-CLI-Anbieter für deine Agenten. Du kannst ihn später in den Einstellungen ändern.",
+          })}
         </p>
       </div>
 
@@ -100,7 +141,13 @@ export default function ProviderStep({ defaultProvider, cliStatus, onNext, onBac
                       color: isReady ? "var(--accent)" : isInstalled ? "#f59e0b" : "var(--text-muted)",
                     }}
                   >
-                    {cliStatus == null ? "..." : isReady ? "ready" : isInstalled ? "auth needed" : "not installed"}
+                    {cliStatus == null
+                      ? "..."
+                      : isReady
+                        ? t({ en: "ready", de: "bereit" })
+                        : isInstalled
+                          ? t({ en: "auth needed", de: "Anmeldung erforderlich" })
+                          : t({ en: "not installed", de: "nicht installiert" })}
                   </span>
                 </div>
                 <div
@@ -121,7 +168,7 @@ export default function ProviderStep({ defaultProvider, cliStatus, onNext, onBac
                     lineHeight: 1.4,
                   }}
                 >
-                  {description}
+                  {t(description)}
                 </div>
               </button>
               {cliAuthProviders.includes(key) && isInstalled && !isAuthenticated && (
@@ -138,7 +185,7 @@ export default function ProviderStep({ defaultProvider, cliStatus, onNext, onBac
                     color: "var(--accent)",
                   }}
                 >
-                  Authenticate
+                  {t({ en: "Authenticate", de: "Anmelden" })}
                 </button>
               )}
             </div>
@@ -160,7 +207,7 @@ export default function ProviderStep({ defaultProvider, cliStatus, onNext, onBac
             cursor: "pointer",
           }}
         >
-          ← Back
+          {t({ en: "← Back", de: "← Zurück" })}
         </button>
         <button
           onClick={() => onNext(selected)}
@@ -176,7 +223,7 @@ export default function ProviderStep({ defaultProvider, cliStatus, onNext, onBac
             letterSpacing: "0.05em",
           }}
         >
-          Next →
+          {t({ en: "Next →", de: "Weiter →" })}
         </button>
       </div>
       {authModalProvider && (

@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   I18nProvider,
@@ -10,118 +10,85 @@ import {
   normalizeLanguage,
   pickLang,
   useI18n,
-  type LangText,
+  LANGUAGE_STORAGE_KEY,
+  SUPPORTED_UI_LANGUAGES,
 } from "./i18n";
+import { mergeSettingsWithDefaults, syncClientLanguage } from "./app/utils";
 
 const ORIGINAL_LANGUAGE = window.navigator.language;
 const ORIGINAL_LANGUAGES = window.navigator.languages;
 
-describe("i18n helpers", () => {
+describe("English and German UI languages", () => {
   afterEach(() => {
-    Object.defineProperty(window.navigator, "language", {
-      configurable: true,
-      value: ORIGINAL_LANGUAGE,
-    });
-    Object.defineProperty(window.navigator, "languages", {
-      configurable: true,
-      value: ORIGINAL_LANGUAGES,
-    });
+    Object.defineProperty(window.navigator, "language", { configurable: true, value: ORIGINAL_LANGUAGE });
+    Object.defineProperty(window.navigator, "languages", { configurable: true, value: ORIGINAL_LANGUAGES });
+    localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+    document.documentElement.lang = "en";
   });
 
-  it("normalizeLanguage는 다양한 locale 코드를 표준 언어코드로 정규화한다", () => {
-    expect(normalizeLanguage("ko-KR")).toBe("ko");
+  it("only supports English and German and normalizes regional variants", () => {
+    expect(SUPPORTED_UI_LANGUAGES).toEqual(["en", "de"]);
+    expect(normalizeLanguage(" DE_at ")).toBe("de");
     expect(normalizeLanguage("en_US")).toBe("en");
-    expect(normalizeLanguage("ja-JP")).toBe("ja");
-    expect(normalizeLanguage("zh-CN")).toBe("zh");
-    expect(normalizeLanguage("fr-FR")).toBe("en");
-    expect(normalizeLanguage(undefined)).toBe("en");
+    for (const unsupported of ["ko-KR", "ja-JP", "zh-CN", "fr-FR", "", null, undefined]) {
+      expect(normalizeLanguage(unsupported)).toBe("en");
+    }
   });
 
-  it("detectBrowserLanguage는 navigator.languages 우선순위로 감지한다", () => {
-    Object.defineProperty(window.navigator, "languages", {
-      configurable: true,
-      value: ["ja-JP", "en-US"],
-    });
-    Object.defineProperty(window.navigator, "language", {
-      configurable: true,
-      value: "ko-KR",
-    });
-    expect(detectBrowserLanguage()).toBe("ja");
+  it("skips unsupported browser languages and finds the first supported preference", () => {
+    Object.defineProperty(window.navigator, "languages", { configurable: true, value: ["ja-JP", "de-DE", "en-US"] });
+    Object.defineProperty(window.navigator, "language", { configurable: true, value: "ko-KR" });
+    expect(detectBrowserLanguage()).toBe("de");
+    Object.defineProperty(window.navigator, "languages", { configurable: true, value: ["ja-JP"] });
+    expect(detectBrowserLanguage()).toBe("en");
   });
 
-  it("localeName/pickLang/localeFromLanguage가 fallback 규칙을 지킨다", () => {
-    const text: LangText = {
-      ko: "안녕하세요",
-      en: "hello",
-    };
-    expect(pickLang("ko", text)).toBe("안녕하세요");
-    expect(pickLang("ja", text)).toBe("hello");
-    expect(pickLang("zh", text)).toBe("hello");
-
-    expect(
-      localeName("ko", {
-        name: "Planning",
-        name_ko: "기획",
-      }),
-    ).toBe("기획");
-    expect(
-      localeName("ja", {
-        name: "Planning",
-        name_ja: "",
-      }),
-    ).toBe("Planning");
-
-    expect(localeFromLanguage("ko")).toBe("ko-KR");
+  it("selects German with English fallback without selecting legacy translations", () => {
+    const text = { en: "Hello", de: "Hallo", ko: "Legacy" };
+    expect(pickLang("de", text)).toBe("Hallo");
+    expect(pickLang("en", text)).toBe("Hello");
+    expect(pickLang("de", { en: "Model" })).toBe("Model");
+    const name = { name: "Planning", name_de: "Planung", name_ko: "Legacy" };
+    expect(localeName("de-DE", name)).toBe("Planung");
+    expect(localeName("ko", name)).toBe("Planning");
+    expect(localeFromLanguage("de")).toBe("de-DE");
     expect(localeFromLanguage("en")).toBe("en-US");
-    expect(localeFromLanguage("ja")).toBe("ja-JP");
-    expect(localeFromLanguage("zh")).toBe("zh-CN");
   });
 
-  it("useI18n은 override 언어가 있으면 Provider 언어보다 override를 우선한다", () => {
-    let result: I18nContextValue = {
-      language: "en",
-      locale: "en-US",
-      t: (text) => (typeof text === "string" ? text : text.en),
-    };
+  it("keeps provider language, formatting and the document language aligned", () => {
+    let result!: I18nContextValue;
     const Probe = ({ override }: { override?: string }) => {
       result = useI18n(override);
       return null;
     };
+    const { rerender } = render(createElement(I18nProvider, { language: "de", children: createElement(Probe) }));
+    expect(result.language).toBe("de");
+    expect(result.locale).toBe("de-DE");
+    expect(result.t({ en: "Save", de: "Speichern" })).toBe("Speichern");
+    expect(document.documentElement.lang).toBe("de");
+    rerender(createElement(I18nProvider, { language: "en", children: createElement(Probe) }));
+    expect(result.language).toBe("en");
+    expect(result.t({ en: "Save", de: "Speichern" })).toBe("Save");
+    expect(document.documentElement.lang).toBe("en");
+    rerender(createElement(I18nProvider, { language: "en", children: createElement(Probe, { override: "de-AT" }) }));
+    expect(result.language).toBe("de");
+  });
 
-    const { rerender } = render(
-      createElement(I18nProvider, {
-        language: "ko",
-        children: createElement(Probe, { override: "ja-JP" }),
-      }),
-    );
-
-    expect(result.language).toBe("ja");
-    expect(result.locale).toBe("ja-JP");
-    expect(
-      result.t({
-        ko: "안녕하세요",
-        en: "hello",
-        ja: "こんにちは",
-        zh: "hello",
-      }),
-    ).toBe("こんにちは");
-
-    rerender(
-      createElement(I18nProvider, {
-        language: "ko",
-        children: createElement(Probe, { override: undefined }),
-      }),
-    );
-
-    expect(result.language).toBe("ko");
-    expect(result.locale).toBe("ko-KR");
-    expect(
-      result.t({
-        ko: "안녕하세요",
-        en: "hello",
-        ja: "こんにちは",
-        zh: "hello",
-      }),
-    ).toBe("안녕하세요");
+  it("persists runtime changes and normalizes unsupported settings before rendering", () => {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, "en");
+    let result!: I18nContextValue;
+    const Probe = () => {
+      result = useI18n();
+      return null;
+    };
+    render(createElement(Probe));
+    act(() => syncClientLanguage("de-DE"));
+    expect(result.language).toBe("de");
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("de");
+    expect(document.documentElement.lang).toBe("de");
+    act(() => syncClientLanguage("ko"));
+    expect(result.language).toBe("en");
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("en");
+    expect(mergeSettingsWithDefaults({ language: "ja" as never }).language).toBe("en");
   });
 });

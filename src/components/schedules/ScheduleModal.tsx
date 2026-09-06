@@ -1,3 +1,5 @@
+import { useI18n } from "../../i18n";
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import CronPicker from "./CronPicker";
 import type { PackRegistryEntry } from "../../types";
@@ -14,6 +16,8 @@ interface ScheduleModalProps {
 const defaultTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export default function ScheduleModal({ schedule, packs, departments, onSave, onClose }: ScheduleModalProps) {
+  const translateUiCopy = useUiCopy();
+  const { language } = useI18n();
   const [title, setTitle] = useState(schedule?.title ?? "");
   const [description, setDescription] = useState(schedule?.description ?? "");
   const [cron, setCron] = useState(schedule?.cron_expression ?? "0 9 * * *");
@@ -36,7 +40,7 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
 
   const handleSave = useCallback(async () => {
     if (!title.trim()) {
-      setError("Title is required");
+      setError(translateUiCopy("Title is required", "Ein Titel ist erforderlich"));
       return;
     }
     setSaving(true);
@@ -54,11 +58,11 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
       });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(err instanceof Error ? err.message : translateUiCopy("Failed to save", "Speichern fehlgeschlagen"));
     } finally {
       setSaving(false);
     }
-  }, [title, description, cron, timezone, packKey, projectPath, deptId, priority, onSave, onClose]);
+  }, [translateUiCopy, title, description, cron, timezone, packKey, projectPath, deptId, priority, onSave, onClose]);
 
   const labelStyle: React.CSSProperties = {
     color: "var(--th-text-secondary)",
@@ -121,18 +125,22 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
             marginBottom: 20,
           }}
         >
-          {schedule ? "EDIT SCHEDULE" : "NEW SCHEDULE"}
+          {schedule
+            ? translateUiCopy("EDIT SCHEDULE", "ZEITPLAN BEARBEITEN")
+            : translateUiCopy("NEW SCHEDULE", "NEUER ZEITPLAN")}
         </h2>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Title */}
           <div>
-            <label style={labelStyle}>Title *</label>
+            <label style={labelStyle}>
+              <LocalizedText en="Title *" de="Titel *" />
+            </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Daily build & deploy"
+              placeholder={translateUiCopy("Daily build & deploy", "Tägliches Erstellen und Bereitstellen")}
               style={inputStyle}
               autoFocus
             />
@@ -140,11 +148,13 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
 
           {/* Description */}
           <div>
-            <label style={labelStyle}>Description</label>
+            <label style={labelStyle}>
+              <LocalizedText en="Description" de="Beschreibung" />
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional description..."
+              placeholder={translateUiCopy("Optional description...", "Optionale Beschreibung …")}
               rows={2}
               style={{ ...inputStyle, resize: "vertical" }}
             />
@@ -152,28 +162,36 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
 
           {/* Cron Picker */}
           <div>
-            <label style={labelStyle}>Schedule</label>
+            <label style={labelStyle}>
+              <LocalizedText en="Schedule" de="Zeitplan" />
+            </label>
             <CronPicker value={cron} onChange={setCron} timezone={timezone} />
           </div>
 
           {/* Timezone */}
           <div>
-            <label style={labelStyle}>Timezone</label>
+            <label style={labelStyle}>
+              <LocalizedText en="Timezone" de="Zeitzone" />
+            </label>
             <input type="text" value={timezone} onChange={(e) => setTimezone(e.target.value)} style={inputStyle} />
           </div>
 
           {/* Workflow Pack */}
           <div>
-            <label style={labelStyle}>Workflow Pack</label>
+            <label style={labelStyle}>
+              <LocalizedText en="Workflow Pack" de="Workflow-Paket" />
+            </label>
             <select
               value={packKey}
               onChange={(e) => setPackKey(e.target.value)}
               style={{ ...inputStyle, cursor: "pointer" }}
             >
-              <option value="">-- None --</option>
+              <option value="">
+                <LocalizedText en="-- None --" de="-- Keine --" />
+              </option>
               {packs.map((p) => (
                 <option key={p.key} value={p.key}>
-                  {p.name.en ?? p.key}
+                  {p.name[language] ?? p.name.en ?? p.key}
                 </option>
               ))}
             </select>
@@ -181,7 +199,9 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
 
           {/* Project Path */}
           <div>
-            <label style={labelStyle}>Project Path</label>
+            <label style={labelStyle}>
+              <LocalizedText en="Project Path" de="Projektpfad" />
+            </label>
             <input
               type="text"
               value={projectPath}
@@ -193,13 +213,17 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
 
           {/* Department */}
           <div>
-            <label style={labelStyle}>Department</label>
+            <label style={labelStyle}>
+              <LocalizedText en="Department" de="Abteilung" />
+            </label>
             <select
               value={deptId}
               onChange={(e) => setDeptId(e.target.value)}
               style={{ ...inputStyle, cursor: "pointer" }}
             >
-              <option value="">-- None --</option>
+              <option value="">
+                <LocalizedText en="-- None --" de="-- Keine --" />
+              </option>
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -210,7 +234,9 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
 
           {/* Priority */}
           <div>
-            <label style={labelStyle}>Priority (1-10)</label>
+            <label style={labelStyle}>
+              <LocalizedText en="Priority (1-10)" de="Priorität (1–10)" />
+            </label>
             <input
               type="number"
               min={1}
@@ -253,7 +279,7 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
                 cursor: "pointer",
               }}
             >
-              Cancel
+              <LocalizedText en="Cancel" de="Abbrechen" />
             </button>
             <button
               type="button"
@@ -273,7 +299,7 @@ export default function ScheduleModal({ schedule, packs, departments, onSave, on
                 transition: "background 120ms, opacity 120ms",
               }}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? translateUiCopy("Saving...", "Wird gespeichert …") : translateUiCopy("Save", "Speichern")}
             </button>
           </div>
         </div>

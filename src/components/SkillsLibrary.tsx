@@ -24,13 +24,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
           <div className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "skills.sh 데이터 로딩중...",
-              en: "Loading skills.sh data...",
-              ja: "skills.sh データを読み込み中...",
-              zh: "Loading skills.sh data...",
-              de: "skills.sh-Daten werden geladen...",
-            })}
+            {t({ en: "Loading skills.sh data...", de: "skills.sh-Daten werden geladen..." })}
           </div>
         </div>
       </div>
@@ -43,13 +37,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
         <div className="text-center">
           <div className="text-4xl mb-3">⚠️</div>
           <div className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "스킬 데이터를 불러올 수 없습니다",
-              en: "Unable to load skills data",
-              ja: "スキルデータを読み込めません",
-              zh: "Unable to load skills data",
-              de: "Skill-Daten konnten nicht geladen werden",
-            })}
+            {t({ en: "Unable to load skills data", de: "Skill-Daten konnten nicht geladen werden" })}
           </div>
           <div className="text-xs mt-1" style={{ color: "var(--th-text-muted)" }}>
             {vm.error}
@@ -58,7 +46,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
             onClick={vm.loadSkills}
             className="mt-4 px-4 py-2 text-sm bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-600/30 transition-all"
           >
-            {t({ ko: "다시 시도", en: "Retry", ja: "再試行", zh: "Retry", de: "Erneut versuchen" })}
+            {t({ en: "Retry", de: "Erneut versuchen" })}
           </button>
         </div>
       </div>
@@ -180,10 +168,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
 
       <div className="text-center text-xs py-4" style={{ color: "var(--th-text-muted)" }}>
         {t({
-          ko: "데이터 출처: skills.sh · 설치: npx skills add <owner/repo>",
           en: "Source: skills.sh · Install: npx skills add <owner/repo>",
-          ja: "データソース: skills.sh · インストール: npx skills add <owner/repo>",
-          zh: "Source: skills.sh · Install: npx skills add <owner/repo>",
           de: "Quelle: skills.sh · Installieren: npx skills add <owner/repo>",
         })}
       </div>

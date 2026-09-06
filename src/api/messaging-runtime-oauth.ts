@@ -1,5 +1,6 @@
 import { del, extractMessageId, makeIdempotencyKey, post, postWithIdempotency, put, request } from "./core";
 
+import type { UiLanguage } from "../shared/ui-language";
 import type {
   CliModelInfo,
   CliStatusMap,
@@ -253,8 +254,11 @@ export interface UpdateStatus {
   error: string | null;
 }
 
-export async function getUpdateStatus(refresh?: boolean): Promise<UpdateStatus> {
-  const q = refresh ? "?refresh=1" : "";
+export async function getUpdateStatus(refresh?: boolean, language?: UiLanguage): Promise<UpdateStatus> {
+  const params = new URLSearchParams();
+  if (refresh) params.set("refresh", "1");
+  if (language) params.set("language", language);
+  const q = params.size ? `?${params}` : "";
   const j = await request<UpdateStatus & { ok?: boolean }>(`/api/update-status${q}`);
   const { ok: _ok, ...status } = j;
   return status;

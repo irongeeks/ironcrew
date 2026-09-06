@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetApiRuntimeForTests, writeStoredCsrfToken } from "../api/core";
 import type { CareerSnapshot, RatingAggregate } from "../shared/career";
@@ -354,4 +355,33 @@ describe("PeoplePerformancePanel", () => {
     expect(screen.queryByText("Abteilungssteuerung gespeichert.")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Abteilungssteuerung speichern" })).toBeEnabled());
   });
+});
+
+function render(ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>,
+    ...options,
+  });
+}
+
+it("switches team controls and rating labels while keeping entered filter values", async () => {
+  const input = { agents, departments, canManage: true };
+  const view = rtlRender(
+    <I18nProvider language="en">
+      <PeoplePerformancePanel {...input} />
+    </I18nProvider>,
+  );
+  expect(await screen.findByRole("heading", { name: "Employees & model profiles" })).toBeVisible();
+  fireEvent.change(screen.getByRole("textbox", { name: "Model name (exact)" }), {
+    target: { value: "any-provider/user-model" },
+  });
+  expect(screen.getAllByRole("heading", { name: "Ratings by model" })).toHaveLength(1);
+  view.rerender(
+    <I18nProvider language="de">
+      <PeoplePerformancePanel {...input} />
+    </I18nProvider>,
+  );
+  expect(await screen.findByRole("heading", { name: "Mitarbeiter & Modellprofile" })).toBeVisible();
+  expect(screen.getByRole("textbox", { name: "Modellname (exakt)" })).toHaveValue("any-provider/user-model");
+  expect(screen.getByRole("heading", { name: "Bewertungen je Modell" })).toBeVisible();
 });

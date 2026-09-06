@@ -18,7 +18,7 @@ test("owner restrictions persist, block provider checks, and reject stale revisi
   request,
 }, testInfo) => {
   const headers = { "x-csrf-token": await establishSession(request) };
-  const before = await snapshot(request);
+  const original = await snapshot(request);
   cleanups.set(testInfo.testId, async (request) => {
     const current = await snapshot(request);
     await expectOkJson(
@@ -28,12 +28,24 @@ test("owner restrictions persist, block provider checks, and reject stale revisi
           baseRevision: current.revision,
           baselineFingerprint: current.baselineFingerprint,
           reason: "Restore original company policy after browser test",
-          restrictions: before.restrictions,
+          restrictions: original.restrictions,
         },
       }),
       "Restore policy",
     );
   });
+  const before = await expectOkJson<CompanyPolicySnapshot>(
+    await request.put(endpoint, {
+      headers,
+      data: {
+        baseRevision: original.revision,
+        baselineFingerprint: original.baselineFingerprint,
+        reason: "Set explicit provider choices for browser restriction test",
+        restrictions: { allowedFamilies: ["openai/*", "mistralai/*"], allowedProviders: ["OpenAI", "DeepInfra"] },
+      },
+    }),
+    "Prepare explicit owner restrictions",
+  );
   expect(before.restrictions.allowedProviders).toContain("DeepInfra");
   expect(before.restrictions.allowedFamilies).toContain("mistralai/*");
   await page.setViewportSize({ width: 1440, height: 1080 });
@@ -42,8 +54,8 @@ test("owner restrictions persist, block provider checks, and reject stale revisi
   await page.getByTestId("open-vendor-policy").click();
   const panel = page.getByRole("region", { name: "Vendor- und Provider-Freigaben", exact: true });
   await expect(panel).toBeVisible();
-  await panel.getByRole("checkbox", { name: "DeepInfra", exact: true }).uncheck();
-  await panel.getByRole("checkbox", { name: "mistralai/*", exact: true }).uncheck();
+  await panel.getByRole("checkbox", { name: "DeepInfra — gespeicherte Einschränkung", exact: true }).uncheck();
+  await panel.getByRole("checkbox", { name: "mistralai/* — gespeicherte Einschränkung", exact: true }).uncheck();
   const reason = "Provider und Modellfamilie für dokumentierten Browsertest einschränken";
   await panel.getByRole("textbox", { name: "Begründung der Änderung", exact: true }).fill(reason);
   const saveResponse = page.waitForResponse(
@@ -71,8 +83,12 @@ test("owner restrictions persist, block provider checks, and reject stale revisi
   expect((await snapshot(request)).revision).toBe(saved.revision);
   await page.reload();
   await page.getByTestId("open-vendor-policy").click();
-  await expect(panel.getByRole("checkbox", { name: "DeepInfra", exact: true })).not.toBeChecked();
-  await expect(panel.getByRole("checkbox", { name: "mistralai/*", exact: true })).not.toBeChecked();
+  await expect(
+    panel.getByRole("checkbox", { name: "DeepInfra — gespeicherte Einschränkung", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    panel.getByRole("checkbox", { name: "mistralai/* — gespeicherte Einschränkung", exact: true }),
+  ).toHaveCount(0);
   const heading = panel.getByRole("heading", { name: "Vendor- & Provider-Freigaben", exact: true });
   await heading.scrollIntoViewIfNeeded();
   await expect(heading).toBeInViewport();

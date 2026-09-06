@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CHARACTER_SKINS } from "../shared/character-skins";
@@ -149,9 +150,9 @@ describe("character appearance editor", () => {
       await waitFor(() => expect(writeText).toHaveBeenCalled());
       const prompt = writeText.mock.calls[0][0] as string;
       expect(prompt).toContain("Pamela Anderson, Captain America und ein eigenes Alien");
-      expect(prompt).toContain("transparent background (alpha channel)");
+      expect(prompt).toContain("transparentem Hintergrund (Alphakanal)");
       expect(prompt).toContain("92%");
-      expect(prompt).toContain("Static base images remain supported");
+      expect(prompt).toContain("Statische Grundbilder bleiben unterstützt");
       expect(buildCharacterPrompt("Captain America", "natural proportions")).toContain("natural proportions");
     } finally {
       if (original) Object.defineProperty(navigator, "clipboard", original);
@@ -174,4 +175,36 @@ describe("character appearance editor", () => {
     expect(screen.getByRole("img", { name: "Figur" })).toHaveAttribute("data-character-source", "preset");
     expect(resolveCharacterId("unrecognised", "crew1")).toBe(resolveCharacterId(null, "crew1"));
   });
+});
+
+function render(ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>,
+    ...options,
+  });
+}
+
+it("switches character preset descriptions and actions while preserving the selected character", async () => {
+  const input = { agent, onSave: vi.fn(), onUpload: vi.fn() };
+  const view = rtlRender(
+    <I18nProvider language="en">
+      <CharacterSkinEditor {...input} />
+    </I18nProvider>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: /^Engineer: Technician/ }));
+  expect(screen.getByRole("button", { name: /^Engineer: Technician/ })).toHaveAttribute("aria-pressed", "true");
+  view.rerender(
+    <I18nProvider language="de">
+      <CharacterSkinEditor {...input} />
+    </I18nProvider>,
+  );
+  expect(screen.getByRole("button", { name: /^Ingenieur: Techniker/ })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "Figur speichern" })).toBeVisible();
+  view.rerender(
+    <I18nProvider language="en">
+      <CharacterSkinEditor {...input} />
+    </I18nProvider>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Save character" }));
+  expect(input.onSave).toHaveBeenCalledWith(expect.objectContaining({ character_id: "engineer" }));
 });

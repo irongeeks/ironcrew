@@ -63,19 +63,13 @@ export default function BulkHideModal({ tasks, hiddenTaskIds, onClose, onApply }
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold" style={{ color: "var(--th-text-heading)" }}>
-            {t({
-              ko: "숨길 상태 선택",
-              en: "Select statuses to hide",
-              ja: "非表示にする状態を選択",
-              zh: "Select statuses to hide",
-              de: "Auszublendende Status auswählen",
-            })}
+            {t({ en: "Select statuses to hide", de: "Auszublendende Status auswählen" })}
           </h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 transition hover:text-white"
             style={{ color: "var(--th-text-secondary)" }}
-            title={t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "Close", de: "Schließen" })}
+            title={t({ en: "Close", de: "Schließen" })}
           >
             ✕
           </button>
@@ -83,10 +77,7 @@ export default function BulkHideModal({ tasks, hiddenTaskIds, onClose, onApply }
 
         <p className="mb-3 text-xs leading-relaxed" style={{ color: "var(--th-text-secondary)" }}>
           {t({
-            ko: "완료/보류/취소 중 선택한 상태의 업무를 한 번에 숨깁니다.",
             en: "Hide all tasks in the selected done/pending/cancelled statuses at once.",
-            ja: "選択した完了/保留/キャンセル状態のタスクを一括で非表示にします。",
-            zh: "Hide all tasks in the selected done/pending/cancelled statuses at once.",
             de: "Alle Aufgaben mit den ausgewählten Statuswerten (Erledigt/Ausstehend/Abgebrochen) auf einmal ausblenden.",
           })}
         </p>
@@ -137,7 +128,7 @@ export default function BulkHideModal({ tasks, hiddenTaskIds, onClose, onApply }
             className="rounded-lg border px-3 py-1.5 text-xs transition hover:text-white"
             style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
           >
-            {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+            {t({ en: "Cancel", de: "Abbrechen" })}
           </button>
           <button
             onClick={() => onApply(selectedStatuses)}
@@ -145,8 +136,7 @@ export default function BulkHideModal({ tasks, hiddenTaskIds, onClose, onApply }
             className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:text-slate-400"
             style={hideTargetCount <= 0 ? { background: "var(--th-bg-surface-hover)" } : undefined}
           >
-            {t({ ko: "숨김 적용", en: "Apply hide", ja: "非表示適用", zh: "Apply hide", de: "Ausblenden anwenden" })} (
-            {hideTargetCount})
+            {t({ en: "Apply hide", de: "Ausblenden anwenden" })} ({hideTargetCount})
           </button>
         </div>
       </div>

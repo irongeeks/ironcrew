@@ -1,5 +1,6 @@
+import { I18nProvider } from "../i18n";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SandboxAccessPanel, type SandboxAccessData } from "./SandboxAccessPanel";
 const tasks = [{ id: "task1", title: "Migration prüfen", project_id: "project1" }];
@@ -48,3 +49,7 @@ describe("SandboxAccessPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Owner-Anmeldung erforderlich");
   });
 });
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });

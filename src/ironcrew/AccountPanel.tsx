@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 /**
  * Your own account, and — for an owner — everyone else's.
  *
@@ -30,11 +31,12 @@ const ROLES: Array<{ value: CrewUser["role"]; label: string; hint: string }> = [
   { value: "owner", label: "Inhaber", hint: "entscheidet Freigaben" },
 ];
 
-function when(ts: number | null): string {
-  return ts ? new Date(ts).toLocaleString("de-DE") : "—";
+function when(ts: number | null, locale: string): string {
+  return ts ? new Date(ts).toLocaleString(locale) : "—";
 }
 
 export function AccountPanel({ user, onClose, client = api }: AccountPanelProps): React.JSX.Element {
+  const { tx, locale } = useGovernanceI18n();
   const [sessions, setSessions] = useState<CrewSession[]>([]);
   const [users, setUsers] = useState<CrewUser[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -74,11 +76,11 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
   };
 
   return (
-    <div className="ic-modal" role="dialog" aria-label="Konto">
+    <div className="ic-modal" role="dialog" aria-label={tx("Konto")}>
       <div className="ic-modal-body ic-account-panel">
         <header>
-          <h2>Konto</h2>
-          <button type="button" onClick={onClose} aria-label="Schließen">
+          <h2>{tx("Konto")}</h2>
+          <button type="button" onClick={onClose} aria-label={tx("Schließen")}>
             ×
           </button>
         </header>
@@ -87,7 +89,7 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
         {message && <p className="ic-identity-ok">{message}</p>}
 
         <section>
-          <h3>Passwort ändern</h3>
+          <h3>{tx("Passwort ändern")}</h3>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -95,12 +97,12 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
                 await client.changeOwnPassword(currentPassword, newPassword);
                 setCurrentPassword("");
                 setNewPassword("");
-              }, "Passwort geändert. Andere Sitzungen wurden beendet.");
+              }, tx("Passwort geändert. Andere Sitzungen wurden beendet."));
             }}
             className="ic-identity-form"
           >
             <label>
-              Aktuelles Passwort
+              {tx("Aktuelles Passwort")}{" "}
               <input
                 type="password"
                 value={currentPassword}
@@ -110,7 +112,7 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
               />
             </label>
             <label>
-              Neues Passwort
+              {tx("Neues Passwort")}{" "}
               <input
                 type="password"
                 value={newPassword}
@@ -119,24 +121,24 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
                 autoComplete="new-password"
               />
             </label>
-            <button type="submit">Ändern</button>
+            <button type="submit">{tx("Ändern")}</button>
           </form>
         </section>
 
         <section>
-          <h3>Angemeldete Geräte</h3>
+          <h3>{tx("Angemeldete Geräte")}</h3>
           <table>
             <tbody>
               {sessions.map((session) => (
                 <tr key={session.id}>
-                  <td>{session.current ? "dieses Gerät" : session.ip || "unbekannt"}</td>
-                  <td title={session.userAgent}>{when(session.lastSeenAt ?? session.createdAt)}</td>
+                  <td>{session.current ? tx("dieses Gerät") : session.ip || tx("unbekannt")}</td>
+                  <td title={session.userAgent}>{when(session.lastSeenAt ?? session.createdAt, locale)}</td>
                   <td>
                     <button
                       type="button"
-                      onClick={() => void act(() => client.revokeOwnSession(session.id), "Sitzung beendet.")}
+                      onClick={() => void act(() => client.revokeOwnSession(session.id), tx("Sitzung beendet."))}
                     >
-                      {session.current ? "Abmelden" : "Beenden"}
+                      {session.current ? tx("Abmelden") : tx("Beenden")}
                     </button>
                   </td>
                 </tr>
@@ -147,7 +149,7 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
 
         {isOwner && (
           <section>
-            <h3>Benutzer</h3>
+            <h3>{tx("Benutzer")}</h3>
             <table>
               <tbody>
                 {users.map((other) => (
@@ -163,18 +165,18 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
                         onChange={(e) =>
                           void act(
                             () => client.updateUser(other.id, { role: e.target.value as CrewUser["role"] }),
-                            "Rolle geändert.",
+                            tx("Rolle geändert."),
                           )
                         }
                       >
                         {ROLES.map((role) => (
                           <option key={role.value} value={role.value}>
-                            {role.label} — {role.hint}
+                            {tx(role.label)} — {tx(role.hint)}
                           </option>
                         ))}
                       </select>
                     </td>
-                    <td>{other.status === "active" ? when(other.lastLoginAt) : "gesperrt"}</td>
+                    <td>{other.status === "active" ? when(other.lastLoginAt, locale) : tx("gesperrt")}</td>
                     <td>
                       <button
                         type="button"
@@ -184,11 +186,11 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
                               client.updateUser(other.id, {
                                 status: other.status === "active" ? "disabled" : "active",
                               }),
-                            other.status === "active" ? "Konto gesperrt." : "Konto entsperrt.",
+                            other.status === "active" ? tx("Konto gesperrt.") : tx("Konto entsperrt."),
                           )
                         }
                       >
-                        {other.status === "active" ? "Sperren" : "Entsperren"}
+                        {other.status === "active" ? tx("Sperren") : tx("Entsperren")}
                       </button>
                     </td>
                   </tr>
@@ -196,7 +198,7 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
               </tbody>
             </table>
 
-            <h4>Neuen Benutzer anlegen</h4>
+            <h4>{tx("Neuen Benutzer anlegen")}</h4>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -210,12 +212,12 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
                   setNewEmail("");
                   setNewName("");
                   setNewUserPassword("");
-                }, "Benutzer angelegt.");
+                }, tx("Benutzer angelegt."));
               }}
               className="ic-identity-form"
             >
               <label>
-                E-Mail
+                {tx("E-Mail")}{" "}
                 <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
               </label>
               <label>
@@ -223,17 +225,17 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
                 <input value={newName} onChange={(e) => setNewName(e.target.value)} />
               </label>
               <label>
-                Rolle
+                {tx("Rolle")}{" "}
                 <select value={newRole} onChange={(e) => setNewRole(e.target.value as CrewUser["role"])}>
                   {ROLES.map((role) => (
                     <option key={role.value} value={role.value}>
-                      {role.label} — {role.hint}
+                      {tx(role.label)} — {tx(role.hint)}
                     </option>
                   ))}
                 </select>
               </label>
               <label>
-                Passwort
+                {tx("Passwort")}{" "}
                 <input
                   type="password"
                   value={newUserPassword}
@@ -242,7 +244,7 @@ export function AccountPanel({ user, onClose, client = api }: AccountPanelProps)
                   autoComplete="new-password"
                 />
               </label>
-              <button type="submit">Anlegen</button>
+              <button type="submit">{tx("Anlegen")}</button>
             </form>
           </section>
         )}

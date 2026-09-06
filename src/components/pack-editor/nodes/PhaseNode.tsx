@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../../LocalizedText";
 import React from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { PhaseNodeData } from "../pack-deserializer";
@@ -36,13 +37,14 @@ const STATUS_GLOW: Record<string, string> = {
 };
 
 function StatusBadge({ exec }: { exec?: PhaseExecutionState }) {
+  const copy = useUiCopy();
   if (!exec || exec.status === "pending" || exec.status === "blocked") return null;
 
   const labels: Record<string, string> = {
-    in_progress: "Running...",
-    done: "Done",
-    skipped: "Skipped",
-    awaiting_approval: "Awaiting Approval",
+    in_progress: copy("Running...", "Läuft …"),
+    done: copy("Done", "Erledigt"),
+    skipped: copy("Skipped", "Übersprungen"),
+    awaiting_approval: copy("Awaiting Approval", "Wartet auf Freigabe"),
   };
 
   const colors: Record<string, string> = {
@@ -67,6 +69,7 @@ function StatusBadge({ exec }: { exec?: PhaseExecutionState }) {
 }
 
 export const PhaseNode = React.memo(function PhaseNode({ data, selected }: NodeProps) {
+  const translateUiCopy = useUiCopy();
   const { phase } = data as unknown as PhaseNodeData;
   const exec = (data as Record<string, unknown>).executionState as PhaseExecutionState | undefined;
   const validationErrors = (data as Record<string, unknown>).validationErrors as ValidationError[] | undefined;
@@ -222,7 +225,8 @@ export const PhaseNode = React.memo(function PhaseNode({ data, selected }: NodeP
             }}
             title={validationErrors!.map((e) => e.message).join("\n")}
           >
-            {validationErrors!.length} error{validationErrors!.length > 1 ? "s" : ""}
+            {validationErrors!.length} <LocalizedText en="error" de="Fehler" />
+            {validationErrors!.length > 1 ? "s" : ""}
           </span>
         )}
         {requiresApproval && (
@@ -233,9 +237,12 @@ export const PhaseNode = React.memo(function PhaseNode({ data, selected }: NodeP
               color: "#facc15",
               border: "1px solid rgba(250, 204, 21, 0.3)",
             }}
-            title="Human approval required before next phase"
+            title={translateUiCopy(
+              "Human approval required before next phase",
+              "Menschliche Freigabe vor der nächsten Phase erforderlich",
+            )}
           >
-            ✋ Approval
+            <LocalizedText en="✋ Approval" de="Freigabe" />
           </span>
         )}
         <span
@@ -278,7 +285,7 @@ export const PhaseNode = React.memo(function PhaseNode({ data, selected }: NodeP
               className="rounded px-1 py-0.5 text-[7px]"
               style={{ background: "var(--bg-surface-hover)", color: "var(--text-muted)" }}
             >
-              Conditional
+              <LocalizedText en="Conditional" de="Bedingt" />
             </span>
           )}
         </div>

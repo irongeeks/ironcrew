@@ -153,19 +153,17 @@ all and the local file is the only copy — and it stops entirely under
 
 ### T-07 — Unwanted vendor exposure — **Medium**
 
-Company policy forbids Chinese-vendor models, SDKs and telemetry. A UI filter
-is not a control: the API, a config edit, or an OpenRouter fallback would
-bypass it.
+The shipped policy permits all model vendors and OpenRouter hosts. Operators
+may restrict them for a particular installation or company; UI filters alone
+would not enforce those choices.
 
-**Mitigation.** `server/ironcrew/policy/vendor-policy.ts` is enforced in the
-backend and is the only place that answers "may I use this model?". Deny by
-default; the blocklist always wins over the allowlist, so widening
-`allowed_families` cannot re-enable a blocked vendor. Matching normalises the
-id and also checks the resolved upstream provider, so re-hosted aliases
-(`openai/deepseek-v3-distill`, an allowed model routed through a blocked host)
-are caught. OpenRouter requests pin `only`/`order` to allowed providers and set
-`allow_fallbacks: false`. Talent-market and WeChat endpoints are blocked.
-Telemetry is off.
+**Mitigation.** `server/ironcrew/policy/vendor-policy.ts` enforces configured
+restrictions before model requests. An explicit `*` allows every model/host;
+empty lists deny all. Custom blocklists take precedence. Runner and company
+restrictions intersect, so request data cannot broaden a configured baseline.
+Unrestricted routing omits `only`/`order`; restricted provider lists pin them.
+Sensitive-task privacy controls, endpoint restrictions and disabled telemetry
+remain independent of model-vendor choice.
 
 ### T-08 — Budget exhaustion — **Medium**
 
@@ -759,7 +757,7 @@ stopping — the ceiling of five exists so a typo cannot create one silently.
 | --------------------------- | ---------------------------------------------------------------------------- |
 | CLI permission mode         | `restricted`                                                                 |
 | Tool access                 | deny by default, allowlist per agent                                         |
-| Vendor policy               | deny by default, blocklist wins                                              |
+| Vendor policy               | all models by default; explicit restrictions enforced, blocklist wins        |
 | `may_approve` for any agent | `false`, typed as a literal                                                  |
 | Telemetry                   | off                                                                          |
 | Secrets in the database     | references only, never values — except mailbox credentials, encrypted (T-11) |

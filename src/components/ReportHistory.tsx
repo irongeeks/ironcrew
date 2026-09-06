@@ -34,7 +34,7 @@ function projectNameFromSummary(report: TaskReportSummary): string {
 }
 
 export default function ReportHistory({ agents, departments, uiLanguage, onClose }: ReportHistoryProps) {
-  const t = (text: { ko: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
   const [reports, setReports] = useState<TaskReportSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<TaskReportDetail | null>(null);
@@ -117,13 +117,7 @@ export default function ReportHistory({ agents, departments, uiLanguage, onClose
           <div className="flex items-center gap-3">
             <span className="text-2xl">&#x1F4CA;</span>
             <h2 className="text-lg font-bold" style={{ color: "var(--th-text-heading)" }}>
-              {t({
-                ko: "작업 보고서 이력",
-                en: "Report History",
-                ja: "レポート履歴",
-                zh: "Report History",
-                de: "Berichtsverlauf",
-              })}
+              {t({ en: "Report History", de: "Berichtsverlauf" })}
             </h2>
           </div>
           <button
@@ -140,20 +134,14 @@ export default function ReportHistory({ agents, departments, uiLanguage, onClose
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-sm" style={{ color: "var(--th-text-muted)" }}>
-                {t({ ko: "불러오는 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+                {t({ en: "Loading...", de: "Laden..." })}
               </div>
             </div>
           ) : reports.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <span className="mb-2 text-3xl opacity-40">&#x1F4ED;</span>
               <p className="text-sm" style={{ color: "var(--th-text-muted)" }}>
-                {t({
-                  ko: "완료된 보고서가 없습니다",
-                  en: "No completed reports",
-                  ja: "完了レポートなし",
-                  zh: "No completed reports",
-                  de: "Keine abgeschlossenen Berichte",
-                })}
+                {t({ en: "No completed reports", de: "Keine abgeschlossenen Berichte" })}
               </p>
             </div>
           ) : (
@@ -185,8 +173,8 @@ export default function ReportHistory({ agents, departments, uiLanguage, onClose
                     <div className="divide-y" style={{ borderColor: "var(--th-border)" }}>
                       {visibleRows.map((r) => {
                         const agent = agents.find((a) => a.id === r.assigned_agent_id);
-                        const agentName = uiLanguage === "ko" ? r.agent_name_ko || r.agent_name : r.agent_name;
-                        const deptName = uiLanguage === "ko" ? r.dept_name_ko || r.dept_name : r.dept_name;
+                        const agentName = r.agent_name;
+                        const deptName = r.dept_name;
                         return (
                           <button
                             key={r.id}
@@ -234,7 +222,7 @@ export default function ReportHistory({ agents, departments, uiLanguage, onClose
                             className="rounded border px-2 py-0.5 text-[11px] transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                             style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
                           >
-                            {t({ ko: "이전", en: "Prev", ja: "前へ", zh: "Prev", de: "Zurück" })}
+                            {t({ en: "Prev", de: "Zurück" })}
                           </button>
                           <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
                             {groupCurrent + 1} / {groupTotal}
@@ -246,7 +234,7 @@ export default function ReportHistory({ agents, departments, uiLanguage, onClose
                             className="rounded border px-2 py-0.5 text-[11px] transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                             style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
                           >
-                            {t({ ko: "다음", en: "Next", ja: "次へ", zh: "Next", de: "Weiter" })}
+                            {t({ en: "Next", de: "Weiter" })}
                           </button>
                         </div>
                       </div>
@@ -280,7 +268,7 @@ export default function ReportHistory({ agents, departments, uiLanguage, onClose
                     className="rounded border px-2 py-0.5 text-[11px] transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                     style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
                   >
-                    {t({ ko: "이전", en: "Prev", ja: "前へ", zh: "Prev", de: "Zurück" })}
+                    {t({ en: "Prev", de: "Zurück" })}
                   </button>
                   <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
                     {currentPage + 1} / {totalPages}
@@ -292,7 +280,7 @@ export default function ReportHistory({ agents, departments, uiLanguage, onClose
                     className="rounded border px-2 py-0.5 text-[11px] transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                     style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
                   >
-                    {t({ ko: "다음", en: "Next", ja: "次へ", zh: "Next", de: "Weiter" })}
+                    {t({ en: "Next", de: "Weiter" })}
                   </button>
                 </div>
               )}
@@ -301,7 +289,7 @@ export default function ReportHistory({ agents, departments, uiLanguage, onClose
                 className="rounded-lg px-4 py-1.5 text-sm font-medium transition"
                 style={{ background: "var(--th-bg-surface-hover)", color: "var(--th-text-secondary)" }}
               >
-                {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "Close", de: "Schließen" })}
+                {t({ en: "Close", de: "Schließen" })}
               </button>
             </div>
           </div>

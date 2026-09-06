@@ -1,3 +1,4 @@
+import LocalizedText from "../../LocalizedText";
 import type { ComfyUiWorkflow } from "../../../api/comfyui-workflows";
 import type { TFunction } from "../types";
 
@@ -31,7 +32,7 @@ export function WorkflowList({
   if (loading) {
     return (
       <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-        Loading...
+        <LocalizedText en="Loading..." de="Wird geladen …" />
       </p>
     );
   }
@@ -39,13 +40,7 @@ export function WorkflowList({
   if (workflows.length === 0) {
     return (
       <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-        {t({
-          ko: "등록된 ComfyUI 워크플로우가 없습니다.",
-          en: "No ComfyUI workflows configured.",
-          ja: "ComfyUI ワークフローが登録されていません。",
-          zh: "No ComfyUI workflows configured.",
-          de: "Keine ComfyUI-Workflows konfiguriert.",
-        })}
+        {t({ en: "No ComfyUI workflows configured.", de: "Keine ComfyUI-Workflows konfiguriert." })}
       </p>
     );
   }
@@ -69,7 +64,7 @@ export function WorkflowList({
               </span>
               {!wf.enabled && (
                 <span className="rounded bg-yellow-900/40 px-1.5 py-0.5 text-[10px] text-yellow-400">
-                  {t({ ko: "비활성", en: "Disabled", ja: "無効", zh: "Disabled", de: "Deaktiviert" })}
+                  {t({ en: "Disabled", de: "Deaktiviert" })}
                 </span>
               )}
             </div>
@@ -92,20 +87,20 @@ export function WorkflowList({
               className="rounded border px-2 py-1 text-[10px] disabled:opacity-50"
               style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
             >
-              {testing === wf.id ? "..." : t({ ko: "테스트", en: "Test", ja: "テスト", zh: "Test", de: "Testen" })}
+              {testing === wf.id ? "..." : t({ en: "Test", de: "Testen" })}
             </button>
             <button
               onClick={() => onEdit(wf)}
               className="rounded border px-2 py-1 text-[10px]"
               style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
             >
-              {t({ ko: "편집", en: "Edit", ja: "編集", zh: "Edit", de: "Bearbeiten" })}
+              {t({ en: "Edit", de: "Bearbeiten" })}
             </button>
             <button
               onClick={() => onDelete(wf.id)}
               className="rounded border border-red-800 px-2 py-1 text-[10px] text-red-400 hover:bg-red-900/40"
             >
-              {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "Delete", de: "Löschen" })}
+              {t({ en: "Delete", de: "Löschen" })}
             </button>
           </div>
         </div>

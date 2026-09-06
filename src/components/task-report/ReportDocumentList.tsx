@@ -23,18 +23,12 @@ export default function ReportDocumentList({
   onToggleDoc,
   onSetPage,
 }: ReportDocumentListProps) {
-  const t = (text: { ko: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
 
   if (!documents.length) {
     return (
       <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-        {t({
-          ko: "문서가 없습니다",
-          en: "No documents",
-          ja: "ドキュメントなし",
-          zh: "No documents",
-          de: "Keine Dokumente",
-        })}
+        {t({ en: "No documents", de: "Keine Dokumente" })}
       </p>
     );
   }
@@ -70,9 +64,7 @@ export default function ReportDocumentList({
                 className="rounded-md border px-2 py-1 text-[11px]"
                 style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
               >
-                {isExpanded
-                  ? t({ ko: "접기", en: "Collapse", ja: "折りたたむ", zh: "Collapse", de: "Einklappen" })
-                  : t({ ko: "확장", en: "Expand", ja: "展開", zh: "Expand", de: "Ausklappen" })}
+                {isExpanded ? t({ en: "Collapse", de: "Einklappen" }) : t({ en: "Expand", de: "Ausklappen" })}
               </button>
             </div>
             <pre
@@ -97,7 +89,7 @@ export default function ReportDocumentList({
               currentPage <= 1 ? "cursor-not-allowed opacity-40" : "hover:opacity-80"
             }`}
           >
-            {t({ ko: "이전", en: "Prev", ja: "前へ", zh: "Prev", de: "Zurück" })}
+            {t({ en: "Prev", de: "Zurück" })}
           </button>
           <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
             {t({
@@ -116,7 +108,7 @@ export default function ReportDocumentList({
               currentPage >= totalPages ? "cursor-not-allowed opacity-40" : "hover:opacity-80"
             }`}
           >
-            {t({ ko: "다음", en: "Next", ja: "次へ", zh: "Next", de: "Weiter" })}
+            {t({ en: "Next", de: "Weiter" })}
           </button>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { e2eReadyPath } from "./config/e2e-isolation.ts";
 import { FleetHub } from "./ironcrew/runner/fleet/hub.ts";
 import { startFleetListener } from "./ironcrew/runner/fleet/listener.ts";
 import { registerFleetRoutes } from "./ironcrew/api/fleet-routes.ts";
@@ -143,6 +144,12 @@ const { dbPath, db, logsDir } = initializeDatabaseRuntime();
       logger.warn({ module: "startup" }, msg);
     }
   }
+}
+
+// This per-run identity endpoint exists only on a validated isolated test API.
+if (process.env.IRONCREW_E2E === "1") {
+  const runId = process.env.IRONCREW_E2E_RUN_ID!;
+  app.get(e2eReadyPath(runId), (_req, res) => res.json({ runId, dbPath }));
 }
 
 installSecurityMiddleware(app, db);

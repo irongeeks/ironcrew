@@ -1,4 +1,4 @@
-import { del, patch, post, request } from "./core";
+import { ApiRequestError, del, patch, post, request } from "./core";
 
 // ── Docs Provider Types ─────────────────────────────────────────────────────
 
@@ -59,7 +59,15 @@ export async function deleteDocsProvider(id: string): Promise<void> {
 }
 
 export async function testDocsProvider(id: string): Promise<DocsTestResult> {
-  return request<DocsTestResult>(`/api/knowledge/docs/providers/${id}/test`);
+  try {
+    return await request<DocsTestResult>(`/api/knowledge/docs/providers/${id}/test`);
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status === 400) {
+      const body = err.details as { message?: unknown } | null;
+      return { ok: false, reachable: false, error: typeof body?.message === "string" ? body.message : err.message };
+    }
+    throw err;
+  }
 }
 
 // ── Provider Bindings ───────────────────────────────────────────────────────

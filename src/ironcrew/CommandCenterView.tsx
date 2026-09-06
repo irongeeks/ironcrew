@@ -1,14 +1,9 @@
+import { useCommandText } from "./command-center-messages";
+import { useCrewLabel } from "./crew-labels";
+import { useI18n } from "../i18n";
+import { lazyFeature } from "../components/lazyFeature";
+import { ModelInput } from "./ModelInput";
 import { DetailDialog } from "./DetailDialog";
-import { BusinessDashboardPanel } from "./BusinessDashboardPanel";
-import { ObjectiveEvaluationsPanel } from "./ObjectiveEvaluationsPanel";
-import { PeoplePerformancePanel, PeopleAgentSummary } from "./PeoplePerformancePanel";
-import { RoutingProfilesPanel } from "./RoutingProfilesPanel";
-import { ConfigurationPanel } from "./ConfigurationPanel";
-import { VendorPolicyPanel } from "./VendorPolicyPanel";
-import { CoachingPanel } from "./CoachingPanel.tsx";
-import { ProjectPlanningPanel } from "./ProjectPlanningPanel.tsx";
-import { SandboxAccessPanel } from "./SandboxAccessPanel.tsx";
-import { FleetPanel } from "./FleetPanel.tsx";
 /**
  * IronCrew — Command Center.
  *
@@ -22,8 +17,6 @@ import { FleetPanel } from "./FleetPanel.tsx";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./command-center.css";
-import { CrewOffice } from "./CrewOffice.tsx";
-import { CharacterSkinEditor } from "./CharacterSkinEditor.tsx";
 import { CharacterAvatar } from "./CharacterAvatar.tsx";
 import { useCrewLiveUpdates } from "./useCrewLiveUpdates.ts";
 import { api, serverErrorCode, serverMessage } from "./api.ts";
@@ -118,9 +111,39 @@ import {
   MAX_QUORUM,
 } from "./types.ts";
 
-function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
+const BusinessDashboardPanel = lazyFeature(async () => ({
+  default: (await import("./BusinessDashboardPanel")).BusinessDashboardPanel,
+}));
+const ObjectiveEvaluationsPanel = lazyFeature(async () => ({
+  default: (await import("./ObjectiveEvaluationsPanel")).ObjectiveEvaluationsPanel,
+}));
+const PeoplePerformancePanel = lazyFeature(async () => ({
+  default: (await import("./PeoplePerformancePanel")).PeoplePerformancePanel,
+}));
+const PeopleAgentSummary = lazyFeature(async () => ({
+  default: (await import("./PeoplePerformancePanel")).PeopleAgentSummary,
+}));
+const RoutingProfilesPanel = lazyFeature(async () => ({
+  default: (await import("./RoutingProfilesPanel")).RoutingProfilesPanel,
+}));
+const ConfigurationPanel = lazyFeature(async () => ({
+  default: (await import("./ConfigurationPanel")).ConfigurationPanel,
+}));
+const VendorPolicyPanel = lazyFeature(async () => ({
+  default: (await import("./VendorPolicyPanel")).VendorPolicyPanel,
+}));
+const CoachingPanel = lazyFeature(async () => ({ default: (await import("./CoachingPanel.tsx")).CoachingPanel }));
+const ProjectPlanningPanel = lazyFeature(async () => ({
+  default: (await import("./ProjectPlanningPanel.tsx")).ProjectPlanningPanel,
+}));
+const SandboxAccessPanel = lazyFeature(async () => ({
+  default: (await import("./SandboxAccessPanel.tsx")).SandboxAccessPanel,
+}));
+const FleetPanel = lazyFeature(async () => ({ default: (await import("./FleetPanel.tsx")).FleetPanel }));
+const CrewOffice = lazyFeature(async () => ({ default: (await import("./CrewOffice.tsx")).CrewOffice }));
+const CharacterSkinEditor = lazyFeature(async () => ({
+  default: (await import("./CharacterSkinEditor.tsx")).CharacterSkinEditor,
+}));
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -233,6 +256,11 @@ export function CommandCenterView({
   newMissionRequest = 0,
   liveUpdates = client === api,
 }: CommandCenterViewProps): React.JSX.Element {
+  const ct = useCommandText();
+  const label = useCrewLabel();
+  const { locale, t: tr } = useI18n();
+  const formatTime = (ts: number) =>
+    new Date(ts).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const [stageView, setStageView] = useState(initialView);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
@@ -1361,7 +1389,10 @@ export function CommandCenterView({
             ...prev,
             [mailboxId]: {
               ok: true,
-              message: `${result.newMessages} neu, ${result.tasksCreated} Aufgabe${result.tasksCreated === 1 ? "" : "n"}`,
+              message: tr({
+                de: `${result.newMessages} neu, ${result.tasksCreated} Aufgabe${result.tasksCreated === 1 ? "" : "n"}`,
+                en: `${result.newMessages} new, ${result.tasksCreated} task${result.tasksCreated === 1 ? "" : "s"}`,
+              }),
             },
           }));
         },
@@ -1371,7 +1402,7 @@ export function CommandCenterView({
         },
       );
     },
-    [actWith, client, refreshMailboxes, refresh],
+    [actWith, client, refreshMailboxes, refresh, tr],
   );
 
   // --- marketplaces (skills and MCP servers from outside this machine) -----
@@ -1451,13 +1482,16 @@ export function CommandCenterView({
       // with an empty value that fails on first connect.
       const env: Record<string, string> = {};
       for (const key of Object.keys(entry.mcp?.env ?? {})) {
-        const value = window.prompt(`Wert für ${key} (${entry.title})`, "");
+        const value = window.prompt(
+          tr({ de: `Wert für ${key} (${entry.title})`, en: `Value for ${key} (${entry.title})` }),
+          "",
+        );
         if (value === null) return;
         env[key] = value;
       }
       void actWith(() => client.installFromMarketplace(marketplaceId, { entryId: entry.id, env }), refreshMarketplaces);
     },
-    [actWith, client, refreshMarketplaces],
+    [actWith, client, refreshMarketplaces, tr],
   );
 
   const uninstallEntry = useCallback(
@@ -1491,7 +1525,10 @@ export function CommandCenterView({
           const result = await client.pollMessengerChannel(kind);
           setMessengerPollResults((prev) => ({
             ...prev,
-            [kind]: `${result.received} empfangen · ${result.handled} bearbeitet · ${result.pairingPrompts} wartet auf Freigabe`,
+            [kind]: tr({
+              de: `${result.received} empfangen · ${result.handled} bearbeitet · ${result.pairingPrompts} wartet auf Freigabe`,
+              en: `${result.received} received · ${result.handled} handled · ${result.pairingPrompts} awaiting approval`,
+            }),
           }));
         },
         // A poll is what turns an unknown sender into a pending row with a
@@ -1500,7 +1537,7 @@ export function CommandCenterView({
         refreshMessenger,
       );
     },
-    [actWith, client, refreshMessenger],
+    [actWith, client, refreshMessenger, tr],
   );
 
   const acceptPairing = useCallback(
@@ -1995,7 +2032,10 @@ export function CommandCenterView({
       async () => {
         const result = await client.drainRunQueue();
         setDrainResult(
-          `${result.claimed} übernommen · ${result.completed} erledigt · ${result.failed} fehlgeschlagen · ${result.deferred} zurückgestellt`,
+          tr({
+            de: `${result.claimed} übernommen · ${result.completed} erledigt · ${result.failed} fehlgeschlagen · ${result.deferred} zurückgestellt`,
+            en: `${result.claimed} claimed · ${result.completed} completed · ${result.failed} failed · ${result.deferred} deferred`,
+          }),
         );
       },
       // Only the re-read is honest about what moved: a drain defers as well as
@@ -2005,7 +2045,7 @@ export function CommandCenterView({
         await refreshScheduler();
       },
     );
-  }, [actWith, client, refreshRunQueue, refreshScheduler, runQueueStatusFilter]);
+  }, [actWith, client, refreshRunQueue, refreshScheduler, runQueueStatusFilter, tr]);
 
   const runSchedulerJob = useCallback(
     (name: string) => {
@@ -2247,13 +2287,14 @@ export function CommandCenterView({
       {/* ------------------------------------------------------- top bar */}
       <header className="ic-topbar">
         <div className="ic-brand">
-          <span className="ic-brand-mark">IRONCREW</span>
+          <span className="ic-brand-mark">{ct("IRONCREW")}</span>
           <span className="ic-brand-sub">{companyName}</span>
         </div>
 
-        <nav className="ic-toolbar" aria-label="Firmenbereiche">
+        <nav className="ic-toolbar" aria-label={ct("Firmenbereiche")}>
           <button type="button" className="ic-btn" data-testid="open-projects" onClick={() => setShowProjectList(true)}>
-            Projekte ({projects.length})
+            {ct("Projekte (")}
+            {projects.length})
           </button>
 
           <button
@@ -2263,27 +2304,28 @@ export function CommandCenterView({
             data-testid="open-inbox"
             onClick={() => setShowInbox(true)}
           >
-            Postfach ({unreadCount})
+            {ct("Postfach (")}
+            {unreadCount})
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-org-chart" onClick={() => setShowOrgChart(true)}>
-            Organigramm
+            {ct("Organigramm")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-documents" onClick={openDocuments}>
-            Dokumente
+            {ct("Dokumente")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-secrets" onClick={openSecrets}>
-            Zugangsdaten
+            {ct("Zugangsdaten")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-network" onClick={openNetwork}>
-            Netzwerk
+            {ct("Netzwerk")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-meetings" onClick={openMeetings}>
-            Meetings
+            {ct("Meetings")}
           </button>
 
           <button
@@ -2292,7 +2334,7 @@ export function CommandCenterView({
             data-testid="open-project-plans"
             onClick={() => setCompanyPanel("planning")}
           >
-            Projektpläne
+            {ct("Projektpläne")}
           </button>
           <button
             type="button"
@@ -2300,10 +2342,10 @@ export function CommandCenterView({
             data-testid="open-routing"
             onClick={() => setCompanyPanel("routing")}
           >
-            Modell-Routing
+            {ct("Modell-Routing")}
           </button>
           <button type="button" className="ic-btn" data-testid="open-people" onClick={() => setCompanyPanel("people")}>
-            Team & Leistung
+            {ct("Team & Leistung")}
           </button>
           <button
             type="button"
@@ -2311,7 +2353,7 @@ export function CommandCenterView({
             data-testid="open-vendor-policy"
             onClick={() => setCompanyPanel("vendor-policy")}
           >
-            Provider-Freigaben
+            {ct("Provider-Freigaben")}
           </button>
           <button
             type="button"
@@ -2319,7 +2361,7 @@ export function CommandCenterView({
             data-testid="open-configuration"
             onClick={() => setCompanyPanel("configuration")}
           >
-            Firmenkonfiguration
+            {ct("Firmenkonfiguration")}
           </button>
           <button
             type="button"
@@ -2327,7 +2369,7 @@ export function CommandCenterView({
             data-testid="open-evaluations"
             onClick={() => setCompanyPanel("evaluations")}
           >
-            Objektive Tests
+            {ct("Objektive Tests")}
           </button>
           {(myRole === "owner" || singleOwnerBootstrap) && (
             <button
@@ -2336,7 +2378,7 @@ export function CommandCenterView({
               data-testid="open-business-dashboard"
               onClick={() => setCompanyPanel("business")}
             >
-              Geschäftsdaten
+              {ct("Geschäftsdaten")}
             </button>
           )}
           <button
@@ -2345,10 +2387,10 @@ export function CommandCenterView({
             data-testid="open-coaching"
             onClick={() => setCompanyPanel("coaching")}
           >
-            Coaching
+            {ct("Coaching")}
           </button>
           <button type="button" className="ic-btn" data-testid="open-fleet" onClick={() => setCompanyPanel("fleet")}>
-            Runner-Flotte
+            {ct("Runner-Flotte")}
           </button>
           {myRole === "owner" && (
             <button
@@ -2357,74 +2399,78 @@ export function CommandCenterView({
               data-testid="open-sandbox"
               onClick={() => setCompanyPanel("sandbox")}
             >
-              Sandbox-Freigaben
+              {ct("Sandbox-Freigaben")}
             </button>
           )}
           <button type="button" className="ic-btn" data-testid="open-memory" onClick={openMemory}>
-            Wissen
+            {ct("Wissen")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-channels" onClick={openChannels}>
-            Kanäle
+            {ct("Kanäle")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-mailboxes" onClick={openMailboxes}>
-            E-Mail
+            {ct("E-Mail")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-marketplaces" onClick={openMarketplaces}>
-            Marktplätze
+            {ct("Marktplätze")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-messenger" onClick={openMessenger}>
-            Messenger
+            {ct("Messenger")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-change-proposals" onClick={openChangeProposals}>
-            Änderungen
+            {ct("Änderungen")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-vessels" onClick={openVessels}>
-            Vessels &amp; Talente
+            {ct("Vessels & Talente")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-tools" onClick={openTools}>
-            Werkzeuge
+            {ct("Werkzeuge")}
           </button>
 
           <button type="button" className="ic-btn" data-testid="open-run-queue" onClick={openRunQueue}>
-            Warteschlange
+            {ct("Warteschlange")}
           </button>
 
           {/* Sits beside the "Audit" metric on purpose: that one says the local
             chain still verifies, this one says whether a copy of it exists
             anywhere the owner of this box cannot reach. */}
           <button type="button" className="ic-btn" data-testid="open-audit-shipping" onClick={openAuditShipping}>
-            Audit-Kopie
+            {ct("Audit-Kopie")}
           </button>
         </nav>
-        <div className="ic-metrics" role="group" aria-label="Systemkennzahlen">
-          <Metric label="Läuft" value={dashboard?.tasks.running ?? "—"} tone="accent" />
-          <Metric label="Review" value={dashboard?.tasks.review ?? "—"} />
-          <Metric label="Freigaben" value={dashboard?.approvalsPending ?? "—"} tone="decision" />
+        <div className="ic-metrics" role="group" aria-label={ct("Systemkennzahlen")}>
+          <Metric label={label("Läuft")} value={dashboard?.tasks.running ?? "—"} tone="accent" />
+          <Metric label={ct("Review")} value={dashboard?.tasks.review ?? "—"} />
           <Metric
-            label="Blockiert"
+            label={tr({ de: "Freigaben", en: "Approvals" })}
+            value={dashboard?.approvalsPending ?? "—"}
+            tone="decision"
+          />
+          <Metric
+            label={label("Blockiert")}
             value={dashboard?.tasks.blocked ?? "—"}
             tone={dashboard?.tasks.blocked ? "critical" : undefined}
           />
-          <Metric label="Agents aktiv" value={dashboard?.agents.working ?? "—"} />
+          <Metric label={tr({ de: "Aktive Agenten", en: "Active agents" })} value={dashboard?.agents.working ?? "—"} />
           <Metric
             label="Audit"
             value={
               loadState !== "ready"
                 ? loadState === "loading"
-                  ? "Lädt"
-                  : "Unbekannt"
+                  ? ct("Lädt")
+                  : ct("Unbekannt")
                 : dashboard?.auditChainValid === true
-                  ? "OK"
+                  ? ct("OK")
                   : dashboard?.auditChainValid === false
-                    ? "BRUCH"
-                    : "Unbekannt"
+                    ? ct("BRUCH")
+                    : ct("Unbekannt")
             }
             tone={dashboard?.auditChainValid === false ? "critical" : undefined}
           />
@@ -2433,8 +2479,8 @@ export function CommandCenterView({
 
       <div className="ic-main">
         {/* ------------------------------------------------- agent rail */}
-        <nav className="ic-rail" aria-label="Mannschaft">
-          <h2 className="ic-section-title">Mannschaft</h2>
+        <nav className="ic-rail" aria-label={ct("Mannschaft")}>
+          <h2 className="ic-section-title">{ct("Mannschaft")}</h2>
           <div className="ic-agent-list">
             {agents.map((agent) => (
               <button
@@ -2455,9 +2501,12 @@ export function CommandCenterView({
                   <br />
                   <span className="ic-agent-role">{agent.professionalRole}</span>
                   {/* Status is announced in text, not only by colour. */}
-                  <span className="ic-sr-only">Status: {AGENT_STATUS_LABEL[agent.status]}</span>
+                  <span className="ic-sr-only">
+                    {ct("Status: ")}
+                    {label(AGENT_STATUS_LABEL[agent.status])}
+                  </span>
                 </span>
-                {agent.isExecutiveAssistant ? <span className="ic-agent-ea">EA</span> : <span />}
+                {agent.isExecutiveAssistant ? <span className="ic-agent-ea">{ct("EA")}</span> : <span />}
               </button>
             ))}
           </div>
@@ -2466,14 +2515,14 @@ export function CommandCenterView({
         {/* ----------------------------------------------------- board */}
         <main className="ic-stage">
           <div className="ic-stage-toolbar">
-            <div className="ic-view-switch" role="group" aria-label="Firmenansicht">
+            <div className="ic-view-switch" role="group" aria-label={ct("Firmenansicht")}>
               <button
                 type="button"
                 className="ic-btn"
                 aria-pressed={stageView === "office"}
                 onClick={() => setStageView("office")}
               >
-                Office
+                {ct("Office")}
               </button>
               <button
                 type="button"
@@ -2481,24 +2530,24 @@ export function CommandCenterView({
                 aria-pressed={stageView === "tasks"}
                 onClick={() => setStageView("tasks")}
               >
-                Kanban
+                {ct("Kanban")}
               </button>
             </div>
             <span className="ic-sync-status" role="status" data-testid="crew-sync-status">
               {loadState === "loading"
-                ? "Firmenzustand wird geladen …"
+                ? ct("Firmenzustand wird geladen …")
                 : loadState === "error"
-                  ? "Aktualisierung fehlgeschlagen"
-                  : `${live.connection === "live" ? "Live · " : live.connection === "reconnecting" ? "Verbindung unterbrochen · " : live.connection === "connecting" ? "Live-Verbindung wird aufgebaut · " : liveUpdates ? "Live nicht verfügbar · " : ""}Stand ${lastRefreshedAt ? formatTime(lastRefreshedAt) : "unbekannt"}`}
+                  ? ct("Aktualisierung fehlgeschlagen")
+                  : `${live.connection === "live" ? ct("Live · ") : live.connection === "reconnecting" ? ct("Verbindung unterbrochen · ") : live.connection === "connecting" ? ct("Live-Verbindung wird aufgebaut · ") : liveUpdates ? ct("Live nicht verfügbar · ") : ""}Stand ${lastRefreshedAt ? formatTime(lastRefreshedAt) : ct("unbekannt")}`}
             </span>
             <button type="button" className="ic-btn" onClick={runNext} disabled={busy} data-testid="run-next">
-              Nächste Aufgabe ausführen
+              {ct("Nächste Aufgabe ausführen")}
             </button>
           </div>
 
           {error && (
             <div className="ic-approval" role="alert" data-testid="error-banner">
-              <div className="ic-approval-type">Fehler</div>
+              <div className="ic-approval-type">{ct("Fehler")}</div>
               <div className="ic-approval-summary">{error}</div>
             </div>
           )}
@@ -2538,7 +2587,7 @@ export function CommandCenterView({
                   }}
                 >
                   <h3 className="ic-column-head">
-                    <span>{TASK_STATUS_LABEL[status]}</span>
+                    <span>{label(TASK_STATUS_LABEL[status])}</span>
                     <span className="ic-column-count">{items.length}</span>
                   </h3>
                   <div className="ic-column-body">
@@ -2566,7 +2615,7 @@ export function CommandCenterView({
                         <span className="ic-card-title">{task.title}</span>
                         <span className="ic-card-meta">
                           <span>{agentById.get(task.assigned_agent_id ?? "")?.displayName ?? "—"}</span>
-                          {task.sensitive === 1 && <span className="ic-redacted">sensibel</span>}
+                          {task.sensitive === 1 && <span className="ic-redacted">{ct("sensibel")}</span>}
                         </span>
                       </button>
                     ))}
@@ -2578,10 +2627,10 @@ export function CommandCenterView({
         </main>
 
         {/* ------------------------------------------- CEO chat + inbox */}
-        <aside className="ic-side" aria-label="CEO-Kanal">
+        <aside className="ic-side" aria-label={ct("CEO-Kanal")}>
           {approvals.length > 0 && (
             <>
-              <h2 className="ic-section-title">Entscheidungen</h2>
+              <h2 className="ic-section-title">{ct("Entscheidungen")}</h2>
               {approvals.map((approval) => {
                 const tally = approval.tally;
                 // A quorum of one is the ordinary case and needs no words: an
@@ -2597,26 +2646,31 @@ export function CommandCenterView({
                     {quorum && (
                       <div className="ic-approval-quorum" data-testid={`quorum-${approval.id}`}>
                         <strong>
-                          {quorum.approvals} von {quorum.required} Zustimmungen
+                          {quorum.approvals}
+                          {ct(" von ")}
+                          {quorum.required}
+                          {ct(" Zustimmungen")}
                         </strong>
                         {quorum.blocked ? (
                           // Said plainly, and never together with an
                           // "outstanding" count: a rejection is terminal, and
                           // "es fehlt noch 1" next to it would read as though
                           // one more yes could still save the change.
-                          <span className="ic-approval-blocked"> — abgelehnt, das war’s</span>
+                          <span className="ic-approval-blocked">{ct(" — abgelehnt, das war’s")}</span>
                         ) : (
                           <span>
                             {" "}
-                            — es fehlt noch {quorum.outstanding}{" "}
-                            {quorum.outstanding === 1 ? "Zustimmung" : "Zustimmungen"}
+                            {ct("— es fehlt noch ")}
+                            {quorum.outstanding} {quorum.outstanding === 1 ? ct("Zustimmung") : ct("Zustimmungen")}
                           </span>
                         )}
                         <ul className="ic-approval-reviews">
                           {(approval.reviews ?? []).map((review) => (
                             <li key={review.id} data-verdict={review.verdict}>
                               {review.verdict === "approved" ? "✓" : "✕"}{" "}
-                              {review.reviewer_id === myUserId ? "du" : (review.reviewer_label ?? review.reviewer_id)}
+                              {review.reviewer_id === myUserId
+                                ? ct("du")
+                                : (review.reviewer_label ?? review.reviewer_id)}
                               {review.reason ? `: ${review.reason}` : ""}
                             </li>
                           ))}
@@ -2630,7 +2684,8 @@ export function CommandCenterView({
                         // click is not a second reviewer, and a greyed-out
                         // button invites the click that produces the 409.
                         <span className="ic-approval-voted" data-testid={`voted-${approval.id}`}>
-                          Deine Stimme ist abgegeben ({mine.verdict === "approved" ? "zugestimmt" : "abgelehnt"}).
+                          {ct("Deine Stimme ist abgegeben (")}
+                          {mine.verdict === "approved" ? ct("zugestimmt") : ct("abgelehnt")}).
                         </span>
                       ) : (
                         <>
@@ -2641,7 +2696,7 @@ export function CommandCenterView({
                             disabled={busy}
                             onClick={() => act(() => client.decide(approval.id, "approved"))}
                           >
-                            {quorum ? "Zustimmen" : "Freigeben"}
+                            {quorum ? ct("Zustimmen") : ct("Freigeben")}
                           </button>
                           <button
                             type="button"
@@ -2650,7 +2705,7 @@ export function CommandCenterView({
                             disabled={busy}
                             onClick={() => act(() => client.decide(approval.id, "rejected"))}
                           >
-                            Ablehnen
+                            {ct("Ablehnen")}
                           </button>
                         </>
                       )}
@@ -2670,7 +2725,7 @@ export function CommandCenterView({
                         // unreachable from here before.
                         <>
                           <label className="ic-quorum-pick">
-                            <span className="ic-quorum-pick-label">Zustimmungen</span>
+                            <span className="ic-quorum-pick-label">{ct("Zustimmungen")}</span>
                             <select
                               value={quorumChoice[approval.id] ?? 2}
                               disabled={busy}
@@ -2695,8 +2750,11 @@ export function CommandCenterView({
                             onClick={() => act(() => client.setQuorum(approval.id, quorumChoice[approval.id] ?? 2))}
                           >
                             {(quorumChoice[approval.id] ?? 2) === 2
-                              ? "Vier Augen verlangen"
-                              : `${quorumChoice[approval.id]} Zustimmungen verlangen`}
+                              ? ct("Vier Augen verlangen")
+                              : tr({
+                                  de: `${quorumChoice[approval.id]} Zustimmungen verlangen`,
+                                  en: `Require ${quorumChoice[approval.id]} approvals`,
+                                })}
                           </button>
                         </>
                       )}
@@ -2709,15 +2767,15 @@ export function CommandCenterView({
 
           {reviewable.length > 0 && (
             <>
-              <h2 className="ic-section-title">Zur Abnahme</h2>
+              <h2 className="ic-section-title">{ct("Zur Abnahme")}</h2>
               {reviewable.map((task) => (
                 <div key={task.id} className="ic-approval" data-testid={`review-${task.id}`}>
-                  <div className="ic-approval-type">Review</div>
+                  <div className="ic-approval-type">{ct("Review")}</div>
                   <div className="ic-approval-summary">{task.title}</div>
                   <label className="ic-revision-note">
-                    Was soll überarbeitet werden?
+                    {ct("Was soll überarbeitet werden?")}
                     <textarea
-                      aria-label={`Revision für ${task.title}`}
+                      aria-label={tr({ de: `Revision für ${task.title}`, en: `Revision for ${task.title}` })}
                       value={revisionNotes[task.id] ?? ""}
                       onChange={(event) =>
                         setRevisionNotes((previous) => ({ ...previous, [task.id]: event.target.value }))
@@ -2732,7 +2790,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => act(() => client.accept(task.id))}
                     >
-                      Abnehmen
+                      {ct("Abnehmen")}
                     </button>
                     <button
                       type="button"
@@ -2745,7 +2803,7 @@ export function CommandCenterView({
                         })
                       }
                     >
-                      Revision
+                      {ct("Revision")}
                     </button>
                   </div>
                 </div>
@@ -2753,12 +2811,13 @@ export function CommandCenterView({
             </>
           )}
 
-          <h2 className="ic-section-title">CEO-Kanal</h2>
+          <h2 className="ic-section-title">{ct("CEO-Kanal")}</h2>
           <div className="ic-chat-log" ref={logRef} data-testid="chat-log">
             {messages.length === 0 && (
               <p className="ic-note">
-                Ihr zentraler Ansprechpartner ist die Executive Assistant. Schreiben Sie, was zu tun ist — Triage,
-                Planung und Delegation übernimmt sie.
+                {ct(
+                  "Ihr zentraler Ansprechpartner ist die Executive Assistant. Schreiben Sie, was zu tun ist — Triage, Planung und Delegation übernimmt sie.",
+                )}
               </p>
             )}
             {messages.map((msg) => {
@@ -2775,7 +2834,10 @@ export function CommandCenterView({
                   <div className="ic-msg-body">{msg.body}</div>
                   {triage && msg.role === "ceo" && (
                     <div className="ic-triage">
-                      Triage: {triage.category} · Konfidenz {(triage.confidence * 100).toFixed(0)}%
+                      {ct("Triage: ")}
+                      {triage.category}
+                      {ct(" · Konfidenz ")}
+                      {(triage.confidence * 100).toFixed(0)}%
                     </div>
                   )}
                 </div>
@@ -2784,13 +2846,13 @@ export function CommandCenterView({
           </div>
 
           <label className="ic-note" style={{ padding: "0 16px" }}>
-            Projektkontext
+            {ct("Projektkontext")}
             <select
-              aria-label="Projektkontext im CEO-Chat"
+              aria-label={ct("Projektkontext im CEO-Chat")}
               value={chatProjectId}
               onChange={(e) => setChatProjectId(e.target.value)}
             >
-              <option value="">Allgemein / neues Projekt</option>
+              <option value="">{ct("Allgemein / neues Projekt")}</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.title}
@@ -2800,14 +2862,14 @@ export function CommandCenterView({
           </label>
           <div className="ic-composer">
             <label className="ic-sr-only" htmlFor="ic-composer-input">
-              Nachricht an die Executive Assistant
+              {ct("Nachricht an die Executive Assistant")}
             </label>
             <textarea
               id="ic-composer-input"
               ref={composerRef}
               data-testid="chat-input"
               value={draft}
-              placeholder="Auftrag an die Executive Assistant …"
+              placeholder={ct("Auftrag an die Executive Assistant …")}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
@@ -2821,27 +2883,27 @@ export function CommandCenterView({
               onClick={send}
               disabled={busy || draft.trim().length === 0}
             >
-              Senden
+              {ct("Senden")}
             </button>
           </div>
         </aside>
       </div>
 
       {/* --------------------------------------------------- event drawer */}
-      <section className="ic-drawer" aria-label="Ereignisverlauf">
+      <section className="ic-drawer" aria-label={ct("Ereignisverlauf")}>
         <div className="ic-drawer-head">
           <h2 className="ic-section-title" style={{ padding: 0 }}>
-            Run-Ereignisse
+            {ct("Run-Ereignisse")}
           </h2>
         </div>
         <div className="ic-event-log" data-testid="event-log">
-          {events.length === 0 && <p className="ic-empty">Noch keine Ereignisse.</p>}
+          {events.length === 0 && <p className="ic-empty">{ct("Noch keine Ereignisse.")}</p>}
           {events.slice(-60).map((ev) => (
             <div key={ev.eventId} className="ic-event" data-kind={eventKind(ev.type)}>
               <span className="ic-event-time">{formatTime(ev.timestamp)}</span>
               <span className="ic-event-type">{ev.type}</span>
               <span className="ic-event-body">
-                {ev.redaction.redacted && <span className="ic-redacted">redigiert</span>}{" "}
+                {ev.redaction.redacted && <span className="ic-redacted">{ct("redigiert")}</span>}{" "}
                 {JSON.stringify(ev.payload).slice(0, 160)}
               </span>
             </div>
@@ -2852,15 +2914,15 @@ export function CommandCenterView({
       {currentTask && (
         <DetailDialog title={currentTask.title} onClose={() => setSelectedTask(null)}>
           <dl>
-            <dt>Status</dt>
-            <dd>{TASK_STATUS_LABEL[currentTask.status]}</dd>
-            <dt>Priorität</dt>
+            <dt>{ct("Status")}</dt>
+            <dd>{label(TASK_STATUS_LABEL[currentTask.status])}</dd>
+            <dt>{ct("Priorität")}</dt>
             <dd>{currentTask.priority}</dd>
-            <dt>Risiko</dt>
+            <dt>{ct("Risiko")}</dt>
             <dd>{currentTask.risk_level}</dd>
-            <dt>Verantwortlich</dt>
-            <dd>{agentById.get(currentTask.assigned_agent_id ?? "")?.displayName ?? "nicht zugewiesen"}</dd>
-            <dt>Correlation</dt>
+            <dt>{ct("Verantwortlich")}</dt>
+            <dd>{agentById.get(currentTask.assigned_agent_id ?? "")?.displayName ?? ct("nicht zugewiesen")}</dd>
+            <dt>{ct("Correlation")}</dt>
             <dd>
               <code>{currentTask.correlation_id}</code>
             </dd>
@@ -2868,8 +2930,8 @@ export function CommandCenterView({
           <p className="ic-note">{currentTask.description}</p>
           {currentTask.result_summary && <p className="ic-note">{currentTask.result_summary}</p>}
           {taskDetailError && <p role="alert">{taskDetailError}</p>}
-          <h3 className="ic-section-title">Ausführungen</h3>
-          {taskRuns.length === 0 && <p className="ic-empty">Noch keine Ausführung.</p>}
+          <h3 className="ic-section-title">{ct("Ausführungen")}</h3>
+          {taskRuns.length === 0 && <p className="ic-empty">{ct("Noch keine Ausführung.")}</p>}
           <ul className="ic-milestone-list" data-testid="task-runs">
             {taskRuns.map((run) => (
               <li key={run.id}>
@@ -2885,14 +2947,19 @@ export function CommandCenterView({
                     setSelectedRunId(run.id);
                   }}
                 >
-                  Run {run.id} öffnen
+                  {ct("Run ")}
+                  {run.id}
+                  {ct(" öffnen")}
                 </button>
               </li>
             ))}
           </ul>
           {selectedRunId && (
-            <section aria-label="Run-Verlauf" data-testid="task-run-events">
-              <p className="ic-note">Run {selectedRunId}</p>
+            <section aria-label={ct("Run-Verlauf")} data-testid="task-run-events">
+              <p className="ic-note">
+                {ct("Run ")}
+                {selectedRunId}
+              </p>
               {taskRunEvents.map((event) => (
                 <div key={event.eventId} className="ic-event" data-kind={eventKind(event.type)}>
                   <span className="ic-event-time">{formatTime(event.timestamp)}</span>
@@ -2904,7 +2971,7 @@ export function CommandCenterView({
           )}
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Blockiert durch
+            {ct("Blockiert durch")}
           </h3>
           {taskBlockers.length === 0 && <p className="ic-empty">—</p>}
           <ul className="ic-milestone-list">
@@ -2912,7 +2979,7 @@ export function CommandCenterView({
               <li key={b.id}>
                 <span className="ic-milestone-title">{b.title}</span>
                 <span className="ic-tag" data-tone={b.status === "done" ? "policy" : "gate"}>
-                  {TASK_STATUS_LABEL[b.status]}
+                  {label(TASK_STATUS_LABEL[b.status])}
                 </span>
                 <button
                   type="button"
@@ -2925,14 +2992,16 @@ export function CommandCenterView({
                     })
                   }
                 >
-                  Entfernen
+                  {ct("Entfernen")}
                 </button>
               </li>
             ))}
           </ul>
           <div className="ic-composer" style={{ padding: 0 }}>
             <label className="ic-sr-only" htmlFor="ic-add-blocker-select">
-              Blocker für {currentTask.title} hinzufügen
+              {ct("Blocker für ")}
+              {currentTask.title}
+              {ct(" hinzufügen")}
             </label>
             <select
               id="ic-add-blocker-select"
@@ -2940,7 +3009,7 @@ export function CommandCenterView({
               value={addBlockerId}
               onChange={(e) => setAddBlockerId(e.target.value)}
             >
-              <option value="">Blocker wählen…</option>
+              <option value="">{ct("Blocker wählen…")}</option>
               {tasks
                 .filter((t) => t.id !== currentTask.id && !taskBlockers.some((b) => b.id === t.id))
                 .map((t) => (
@@ -2961,20 +3030,20 @@ export function CommandCenterView({
                 })
               }
             >
-              Hinzufügen
+              {ct("Hinzufügen")}
             </button>
           </div>
 
           {taskBlocking.length > 0 && (
             <>
               <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-                Blockiert
+                {ct("Blockiert")}
               </h3>
               <ul className="ic-milestone-list">
                 {taskBlocking.map((b) => (
                   <li key={b.id}>
                     <span className="ic-milestone-title">{b.title}</span>
-                    <span className="ic-tag">{TASK_STATUS_LABEL[b.status]}</span>
+                    <span className="ic-tag">{label(TASK_STATUS_LABEL[b.status])}</span>
                   </li>
                 ))}
               </ul>
@@ -2982,7 +3051,7 @@ export function CommandCenterView({
           )}
 
           <AttachmentSection
-            title="Anhänge"
+            title={ct("Anhänge")}
             attachments={taskAttachments}
             busy={busy}
             onUpload={(file) =>
@@ -3021,7 +3090,7 @@ export function CommandCenterView({
             data-testid="edit-agent-character"
             onClick={() => setEditingCharacter((value) => !value)}
           >
-            Figur gestalten
+            {ct("Figur gestalten")}
           </button>
           {editingCharacter && (
             <CharacterSkinEditor
@@ -3050,14 +3119,15 @@ export function CommandCenterView({
             />
           )}
           <dl>
-            <dt>Rolle</dt>
+            <dt>{ct("Rolle")}</dt>
             <dd>{currentAgent.professionalRole}</dd>
-            <dt>Status</dt>
-            <dd>{AGENT_STATUS_LABEL[currentAgent.status]}</dd>
-            <dt>Runtime</dt>
+            <dt>{ct("Status")}</dt>
+            <dd>{label(AGENT_STATUS_LABEL[currentAgent.status])}</dd>
+            <dt>{ct("Runtime")}</dt>
             <dd>
               <label className="ic-sr-only" htmlFor="ic-agent-runtime-select">
-                Runtime für {currentAgent.displayName}
+                {ct("Runtime für ")}
+                {currentAgent.displayName}
               </label>
               <select
                 id="ic-agent-runtime-select"
@@ -3073,12 +3143,13 @@ export function CommandCenterView({
                     different one selected. */}
                 {!runtimes.some((r) => r.type === currentAgent.runtimeProvider) && (
                   <option value={currentAgent.runtimeProvider}>
-                    {currentAgent.runtimeProvider} (nicht registriert)
+                    {currentAgent.runtimeProvider}
+                    {ct(" (nicht registriert)")}
                   </option>
                 )}
                 {runtimes.map((r) => (
                   <option key={r.type} value={r.type}>
-                    {r.type} {r.health.healthy ? "● bereit" : "○ nicht verfügbar"}
+                    {r.type} {r.health.healthy ? ct("● bereit") : ct("○ nicht verfügbar")}
                   </option>
                 ))}
               </select>
@@ -3089,16 +3160,16 @@ export function CommandCenterView({
                   <br />
                   <span className="ic-note" data-testid="agent-runtime-detail">
                     {currentRuntime.auth.verification === "unverified"
-                      ? "Anmeldung nicht geprüft"
+                      ? ct("Anmeldung nicht geprüft")
                       : currentRuntime.auth.authenticated
-                        ? "Angemeldet"
-                        : "Nicht angemeldet"}{" "}
+                        ? ct("Angemeldet")
+                        : ct("Nicht angemeldet")}{" "}
                     · {currentRuntime.health.detail}
                   </span>
                 </>
               )}
             </dd>
-            <dt>Aufgaben</dt>
+            <dt>{ct("Aufgaben")}</dt>
             <dd>
               {tasks
                 .filter(
@@ -3107,13 +3178,13 @@ export function CommandCenterView({
                 )
                 .map((task) => (
                   <button key={task.id} type="button" className="ic-btn" onClick={() => openTaskDetail(task)}>
-                    {task.title} · {TASK_STATUS_LABEL[task.status]}
+                    {task.title} · {label(TASK_STATUS_LABEL[task.status])}
                   </button>
                 ))}
             </dd>
-            <dt>Max. Risiko</dt>
+            <dt>{ct("Max. Risiko")}</dt>
             <dd>{currentAgent.policy.max_risk_level}</dd>
-            <dt>Werkzeuge</dt>
+            <dt>{ct("Werkzeuge")}</dt>
             <dd>
               {currentAgent.policy.allowed_tools.map((t) => (
                 <span key={t} className="ic-tag" data-tone="policy">
@@ -3121,7 +3192,7 @@ export function CommandCenterView({
                 </span>
               ))}
             </dd>
-            <dt>Freigabepflichtig</dt>
+            <dt>{ct("Freigabepflichtig")}</dt>
             <dd>
               {currentAgent.policy.requires_approval_for.length === 0
                 ? "—"
@@ -3135,25 +3206,26 @@ export function CommandCenterView({
                 scope it answered — a grant on the talent reaches every agent
                 in that role, so naming the scope is what makes the line
                 readable rather than surprising. */}
-            <dt>Freigegebene Werkzeuge</dt>
+            <dt>{ct("Freigegebene Werkzeuge")}</dt>
             <dd data-testid="agent-tools-line">
               {agentTools === null
-                ? "wird geladen…"
+                ? ct("wird geladen…")
                 : agentTools.length === 0
-                  ? "Kein Werkzeug freigegeben."
+                  ? ct("Kein Werkzeug freigegeben.")
                   : agentTools.map((entry) => (
                       <span key={entry.tool.id} className="ic-tag" data-tone="policy">
-                        {entry.tool.key} ({TOOL_VIA_LABEL[entry.via] ?? entry.via}
-                        {entry.requiresApproval ? ", Freigabe pro Nutzung" : ""})
+                        {entry.tool.key} ({label(TOOL_VIA_LABEL[entry.via]) ?? entry.via}
+                        {entry.requiresApproval ? ct(", Freigabe pro Nutzung") : ""})
                       </span>
                     ))}
             </dd>
-            <dt>Auftreten</dt>
+            <dt>{ct("Auftreten")}</dt>
             <dd>{currentAgent.persona.traits.join(", ") || "—"}</dd>
-            <dt>Vessel</dt>
+            <dt>{ct("Vessel")}</dt>
             <dd>
               <label className="ic-sr-only" htmlFor="ic-agent-vessel-select">
-                Vessel für {currentAgent.displayName}
+                {ct("Vessel für ")}
+                {currentAgent.displayName}
               </label>
               <select
                 id="ic-agent-vessel-select"
@@ -3163,7 +3235,7 @@ export function CommandCenterView({
                 disabled={busy}
                 onChange={(e) => setPairingVesselId(e.target.value)}
               >
-                <option value="">— nicht zugeordnet —</option>
+                <option value="">{ct("— nicht zugeordnet —")}</option>
                 {vessels.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.label || v.key} · {v.runtime_provider}
@@ -3172,10 +3244,11 @@ export function CommandCenterView({
                 ))}
               </select>
             </dd>
-            <dt>Talent</dt>
+            <dt>{ct("Talent")}</dt>
             <dd>
               <label className="ic-sr-only" htmlFor="ic-agent-talent-select">
-                Talent für {currentAgent.displayName}
+                {ct("Talent für ")}
+                {currentAgent.displayName}
               </label>
               <select
                 id="ic-agent-talent-select"
@@ -3185,7 +3258,7 @@ export function CommandCenterView({
                 disabled={busy}
                 onChange={(e) => setPairingTalentId(e.target.value)}
               >
-                <option value="">— nicht zugeordnet —</option>
+                <option value="">{ct("— nicht zugeordnet —")}</option>
                 {talents.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.professional_role}
@@ -3204,25 +3277,25 @@ export function CommandCenterView({
               disabled={busy || !pairingChanged}
               onClick={savePairing}
             >
-              Zuordnung übernehmen
+              {ct("Zuordnung übernehmen")}
             </button>
           </div>
           <p className="ic-note" data-testid="agent-pairing-note">
-            Ein Agent ist ein Vessel × Talent. Das Vessel bestimmt, worin gearbeitet wird — Runtime, Modell und die
-            Grenzen für Dauer, Wiederholung und Parallelität. Das Talent bestimmt, was der Agent kann: Rolle,
-            Seniorität, Policy, Auftreten, Skills. Berechtigungen kommen ausschliesslich aus dem Talent; ein Vessel kann
-            keine erteilen und keine entziehen.
+            {ct(
+              "Ein Agent ist ein Vessel × Talent. Das Vessel bestimmt, worin gearbeitet wird — Runtime, Modell und die Grenzen für Dauer, Wiederholung und Parallelität. Das Talent bestimmt, was der Agent kann: Rolle, Seniorität, Policy, Auftreten, Skills. Berechtigungen kommen ausschliesslich aus dem Talent; ein Vessel kann keine erteilen und keine entziehen.",
+            )}
           </p>
           <p className="ic-note">
-            Das Auftreten ist rein stilistisch. Es kann Berechtigungen, Werkzeuge oder Freigabepflichten nicht verändern
-            — Policy hat immer Vorrang.
+            {ct(
+              "Das Auftreten ist rein stilistisch. Es kann Berechtigungen, Werkzeuge oder Freigabepflichten nicht verändern — Policy hat immer Vorrang.",
+            )}
           </p>
         </DetailDialog>
       )}
 
       {showProjectList && !projectDetail && (
-        <DetailDialog title="Projekte" onClose={() => setShowProjectList(false)}>
-          {projects.length === 0 && <p className="ic-empty">Noch keine Projekte.</p>}
+        <DetailDialog title={ct("Projekte")} onClose={() => setShowProjectList(false)}>
+          {projects.length === 0 && <p className="ic-empty">{ct("Noch keine Projekte.")}</p>}
           <div className="ic-project-list">
             {projects.map((p) => (
               <button
@@ -3234,7 +3307,7 @@ export function CommandCenterView({
               >
                 <span className="ic-project-title">{p.title}</span>
                 <span className="ic-project-meta">
-                  {p.key} · {PROJECT_STATUS_LABEL[p.status]}
+                  {p.key} · {label(PROJECT_STATUS_LABEL[p.status])}
                 </span>
               </button>
             ))}
@@ -3245,28 +3318,28 @@ export function CommandCenterView({
       {projectDetail && (
         <DetailDialog title={projectDetail.project.title} onClose={closeProjectDetail}>
           <dl>
-            <dt>Schlüssel</dt>
+            <dt>{ct("Schlüssel")}</dt>
             <dd>
               <code>{projectDetail.project.key}</code>
             </dd>
-            <dt>Status</dt>
-            <dd>{PROJECT_STATUS_LABEL[projectDetail.project.status]}</dd>
+            <dt>{ct("Status")}</dt>
+            <dd>{label(PROJECT_STATUS_LABEL[projectDetail.project.status])}</dd>
             {projectGoalAncestry && projectGoalAncestry.length > 0 && (
               <>
-                <dt>Ziel</dt>
+                <dt>{ct("Ziel")}</dt>
                 <dd data-testid="project-goal-ancestry">{projectGoalAncestry.map((g) => g.title).join(" -> ")}</dd>
               </>
             )}
             {projectDetail.project.summary && (
               <>
-                <dt>Zusammenfassung</dt>
+                <dt>{ct("Zusammenfassung")}</dt>
                 <dd>{projectDetail.project.summary}</dd>
               </>
             )}
           </dl>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Meilensteine
+            {ct("Meilensteine")}
           </h3>
           {projectDetail.milestones.length === 0 && <p className="ic-empty">—</p>}
           <ul className="ic-milestone-list">
@@ -3274,7 +3347,7 @@ export function CommandCenterView({
               <li key={m.id} className="ic-milestone" data-status={m.status}>
                 <span className="ic-milestone-title">{m.title}</span>
                 <span className="ic-tag" data-tone={m.status === "missed" ? "gate" : "policy"}>
-                  {MILESTONE_STATUS_LABEL[m.status]}
+                  {label(MILESTONE_STATUS_LABEL[m.status])}
                 </span>
                 {m.status === "pending" && (
                   <button
@@ -3288,7 +3361,7 @@ export function CommandCenterView({
                       })
                     }
                   >
-                    Erledigt
+                    {ct("Erledigt")}
                   </button>
                 )}
               </li>
@@ -3296,19 +3369,19 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Aufgaben
+            {ct("Aufgaben")}
           </h3>
           {projectDetail.tasks.length === 0 && <p className="ic-empty">—</p>}
           <ul className="ic-milestone-list">
             {projectDetail.tasks.map((t) => (
               <li key={t.id}>
-                <span>{t.title}</span> <span className="ic-tag">{TASK_STATUS_LABEL[t.status]}</span>
+                <span>{t.title}</span> <span className="ic-tag">{label(TASK_STATUS_LABEL[t.status])}</span>
               </li>
             ))}
           </ul>
 
           <AttachmentSection
-            title="Anhänge"
+            title={ct("Anhänge")}
             attachments={projectAttachments}
             busy={busy}
             onUpload={(file) =>
@@ -3323,9 +3396,9 @@ export function CommandCenterView({
       )}
 
       {showInbox && (
-        <DetailDialog title="Postfach" onClose={() => setShowInbox(false)}>
+        <DetailDialog title={ct("Postfach")} onClose={() => setShowInbox(false)}>
           <h3 className="ic-section-title" style={{ padding: 0 }}>
-            Benachrichtigungen
+            {ct("Benachrichtigungen")}
           </h3>
           {notifications.length === 0 && <p className="ic-empty">—</p>}
           <ul className="ic-milestone-list">
@@ -3338,11 +3411,11 @@ export function CommandCenterView({
                   className="ic-tag"
                   data-tone={n.severity === "critical" ? "gate" : n.severity === "warning" ? "gate" : "policy"}
                 >
-                  {NOTIFICATION_SEVERITY_LABEL[n.severity]}
+                  {label(NOTIFICATION_SEVERITY_LABEL[n.severity])}
                 </span>
                 {!n.read_at && (
                   <button type="button" className="ic-btn" disabled={busy} onClick={() => markNotificationRead(n.id)}>
-                    Gelesen
+                    {ct("Gelesen")}
                   </button>
                 )}
               </li>
@@ -3350,7 +3423,7 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "10px 0 4px" }}>
-            Entscheidungsprotokoll
+            {ct("Entscheidungsprotokoll")}
           </h3>
           {decisions.length === 0 && <p className="ic-empty">—</p>}
           <ul className="ic-milestone-list">
@@ -3367,7 +3440,7 @@ export function CommandCenterView({
       )}
 
       {showOrgChart && (
-        <DetailDialog title="Organigramm" onClose={() => setShowOrgChart(false)}>
+        <DetailDialog title={ct("Organigramm")} onClose={() => setShowOrgChart(false)}>
           {departments.length === 0 && <p className="ic-empty">—</p>}
           {departments.map((dept) => {
             const deptAgents = agentsByDepartment.get(dept.id) ?? [];
@@ -3391,7 +3464,7 @@ export function CommandCenterView({
                         {a.isExecutiveAssistant ? " · EA" : ""}
                       </span>
                       <span className="ic-project-meta">
-                        {a.professionalRole} · {AGENT_STATUS_LABEL[a.status]}
+                        {a.professionalRole} · {label(AGENT_STATUS_LABEL[a.status])}
                       </span>
                     </button>
                   ))}
@@ -3402,7 +3475,7 @@ export function CommandCenterView({
           {(agentsByDepartment.get("") ?? []).length > 0 && (
             <>
               <h3 className="ic-section-title" style={{ padding: "6px 0 4px" }}>
-                Ohne Abteilung
+                {ct("Ohne Abteilung")}
               </h3>
               <div className="ic-project-list">
                 {(agentsByDepartment.get("") ?? []).map((a) => (
@@ -3418,12 +3491,14 @@ export function CommandCenterView({
       )}
 
       {showDocuments && (
-        <DetailDialog title="Dokumente" onClose={() => setShowDocuments(false)}>
+        <DetailDialog title={ct("Dokumente")} onClose={() => setShowDocuments(false)}>
           <p className="ic-note">
-            Allgemeiner, unternehmensweiter Dokumenten-Speicher — nicht an eine Aufgabe oder ein Projekt gebunden.
+            {ct(
+              "Allgemeiner, unternehmensweiter Dokumenten-Speicher — nicht an eine Aufgabe oder ein Projekt gebunden.",
+            )}
           </p>
           <AttachmentSection
-            title="Dateien"
+            title={ct("Dateien")}
             attachments={generalAttachments}
             busy={busy}
             onUpload={(file) => uploadAttachment(file, {}, refreshGeneralAttachments)}
@@ -3434,21 +3509,22 @@ export function CommandCenterView({
       )}
 
       {showSecrets && (
-        <DetailDialog title="Zugangsdaten" onClose={() => setShowSecrets(false)}>
+        <DetailDialog title={ct("Zugangsdaten")} onClose={() => setShowSecrets(false)}>
           <p className="ic-note">
-            Es wird nie ein Passwort gespeichert — nur ein Verweis (Anbieter + Eintrag), wo das Secret im
-            Passwort-Manager liegt. Aufgelöst wird der Wert erst im Moment der Nutzung, im Arbeitsspeicher.
+            {ct(
+              "Es wird nie ein Passwort gespeichert — nur ein Verweis (Anbieter + Eintrag), wo das Secret im Passwort-Manager liegt. Aufgelöst wird der Wert erst im Moment der Nutzung, im Arbeitsspeicher.",
+            )}
           </p>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Anbieter
+            {ct("Anbieter")}
           </h3>
           <ul className="ic-milestone-list">
             {secretProviders.map((p) => (
               <li key={p.kind} data-testid={`secret-provider-${p.kind}`}>
-                <span className="ic-milestone-title">{SECRET_PROVIDER_LABEL[p.kind]}</span>
+                <span className="ic-milestone-title">{label(SECRET_PROVIDER_LABEL[p.kind])}</span>
                 <span className="ic-tag" data-tone={p.registered && p.ok ? "policy" : "gate"}>
-                  {p.registered ? (p.ok ? "verbunden" : "nicht erreichbar") : "nicht registriert"}
+                  {p.registered ? (p.ok ? ct("verbunden") : ct("nicht erreichbar")) : ct("nicht registriert")}
                 </span>
                 <span className="ic-note">{p.message}</span>
               </li>
@@ -3456,7 +3532,7 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Gespeicherte Verweise
+            {ct("Gespeicherte Verweise")}
           </h3>
           {secrets.length === 0 && <p className="ic-empty">—</p>}
           <ul className="ic-milestone-list">
@@ -3464,14 +3540,14 @@ export function CommandCenterView({
               <li key={s.id} data-testid={`secret-${s.id}`}>
                 <span className="ic-milestone-title">{s.name}</span>
                 <span className="ic-tag" data-tone="policy">
-                  {SECRET_PROVIDER_LABEL[s.provider]}
+                  {label(SECRET_PROVIDER_LABEL[s.provider])}
                 </span>
                 <span className="ic-note">
                   {s.item_ref}
                   {s.field ? ` · ${s.field}` : ""}
                 </span>
                 <button type="button" className="ic-btn" disabled={busy} onClick={() => testSecret(s.id)}>
-                  Testen
+                  {ct("Testen")}
                 </button>
                 {secretTestResults[s.id] && (
                   <span
@@ -3489,28 +3565,28 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => deleteSecret(s.id)}
                 >
-                  Löschen
+                  {ct("Löschen")}
                 </button>
               </li>
             ))}
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Neuer Verweis
+            {ct("Neuer Verweis")}
           </h3>
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-new-secret-name">
-              Name
+              {ct("Name")}
             </label>
             <input
               id="ic-new-secret-name"
               data-testid="new-secret-name"
-              placeholder="Name (z. B. github-pat)"
+              placeholder={ct("Name (z. B. github-pat)")}
               value={newSecretName}
               onChange={(e) => setNewSecretName(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-secret-provider">
-              Anbieter
+              {ct("Anbieter")}
             </label>
             <select
               id="ic-new-secret-provider"
@@ -3519,26 +3595,26 @@ export function CommandCenterView({
               value={newSecretProvider}
               onChange={(e) => setNewSecretProvider(e.target.value as SecretProviderKind)}
             >
-              <option value="vaultwarden">Vaultwarden</option>
-              <option value="protonpass">Proton Pass</option>
+              <option value="vaultwarden">{ct("Vaultwarden")}</option>
+              <option value="protonpass">{ct("Proton Pass")}</option>
             </select>
             <label className="ic-sr-only" htmlFor="ic-new-secret-itemref">
-              Eintrag
+              {ct("Eintrag")}
             </label>
             <input
               id="ic-new-secret-itemref"
               data-testid="new-secret-itemref"
-              placeholder={newSecretProvider === "vaultwarden" ? "Item-Name in Vaultwarden" : "shareId:itemId"}
+              placeholder={newSecretProvider === "vaultwarden" ? ct("Item-Name in Vaultwarden") : "shareId:itemId"}
               value={newSecretItemRef}
               onChange={(e) => setNewSecretItemRef(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-secret-field">
-              Feld (optional)
+              {ct("Feld (optional)")}
             </label>
             <input
               id="ic-new-secret-field"
               data-testid="new-secret-field"
-              placeholder="Feld (optional, z. B. password)"
+              placeholder={ct("Feld (optional, z. B. password)")}
               value={newSecretField}
               onChange={(e) => setNewSecretField(e.target.value)}
             />
@@ -3550,21 +3626,22 @@ export function CommandCenterView({
               disabled={busy || !newSecretName.trim() || !newSecretItemRef.trim()}
               onClick={createSecret}
             >
-              Hinzufügen
+              {ct("Hinzufügen")}
             </button>
           </div>
         </DetailDialog>
       )}
 
       {showNetwork && (
-        <DetailDialog title="Netzwerk" onClose={() => setShowNetwork(false)}>
+        <DetailDialog title={ct("Netzwerk")} onClose={() => setShowNetwork(false)}>
           <p className="ic-note">
-            Tailscale (oder ein selbstgehosteter, protokollkompatibler Kontrollserver wie Headscale) verbindet diesen
-            Server mit entfernten Workern — Tier0-Umgebungen oder Kundennetzen — über SSH im Tailnet.
+            {ct(
+              "Tailscale (oder ein selbstgehosteter, protokollkompatibler Kontrollserver wie Headscale) verbindet diesen Server mit entfernten Workern — Tier0-Umgebungen oder Kundennetzen — über SSH im Tailnet.",
+            )}
           </p>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Dieser Knoten
+            {ct("Dieser Knoten")}
           </h3>
           {tailscaleInfo && (
             <ul className="ic-milestone-list">
@@ -3581,7 +3658,7 @@ export function CommandCenterView({
           {tailscaleInfo && tailscaleInfo.peers.length > 0 && (
             <>
               <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-                Tailnet-Peers
+                {ct("Tailnet-Peers")}
               </h3>
               <ul className="ic-milestone-list">
                 {tailscaleInfo.peers.map((p) => (
@@ -3598,7 +3675,7 @@ export function CommandCenterView({
           )}
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Remote Worker
+            {ct("Remote Worker")}
           </h3>
           {remoteWorkers.length === 0 && <p className="ic-empty">—</p>}
           <ul className="ic-milestone-list">
@@ -3610,7 +3687,7 @@ export function CommandCenterView({
                   {w.ssh_user}@{w.host}:{w.port}
                 </span>
                 <button type="button" className="ic-btn" disabled={busy} onClick={() => testRemoteWorker(w.id)}>
-                  Testen
+                  {ct("Testen")}
                 </button>
                 {remoteWorkerTestResults[w.id] && (
                   <span
@@ -3628,68 +3705,68 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => deleteRemoteWorker(w.id)}
                 >
-                  Entfernen
+                  {ct("Entfernen")}
                 </button>
               </li>
             ))}
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Neuer Remote Worker
+            {ct("Neuer Remote Worker")}
           </h3>
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-new-worker-label">
-              Label
+              {ct("Label")}
             </label>
             <input
               id="ic-new-worker-label"
               data-testid="new-worker-label"
-              placeholder="Label (z. B. tier0-acme)"
+              placeholder={ct("Label (z. B. tier0-acme)")}
               value={newWorkerLabel}
               onChange={(e) => setNewWorkerLabel(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-worker-environment">
-              Umgebung
+              {ct("Umgebung")}
             </label>
             <input
               id="ic-new-worker-environment"
               data-testid="new-worker-environment"
-              placeholder="Umgebung (z. B. customer:acme)"
+              placeholder={ct("Umgebung (z. B. customer:acme)")}
               value={newWorkerEnvironment}
               onChange={(e) => setNewWorkerEnvironment(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-worker-host">
-              Tailnet-Host
+              {ct("Tailnet-Host")}
             </label>
             <input
               id="ic-new-worker-host"
               data-testid="new-worker-host"
-              placeholder="Tailnet-IP oder Hostname"
+              placeholder={ct("Tailnet-IP oder Hostname")}
               value={newWorkerHost}
               onChange={(e) => setNewWorkerHost(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-worker-ssh-user">
-              SSH-Benutzer
+              {ct("SSH-Benutzer")}
             </label>
             <input
               id="ic-new-worker-ssh-user"
               data-testid="new-worker-ssh-user"
-              placeholder="SSH-Benutzer"
+              placeholder={ct("SSH-Benutzer")}
               value={newWorkerSshUser}
               onChange={(e) => setNewWorkerSshUser(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-worker-key-path">
-              Pfad zum privaten Schlüssel
+              {ct("Pfad zum privaten Schlüssel")}
             </label>
             <input
               id="ic-new-worker-key-path"
               data-testid="new-worker-key-path"
-              placeholder="Pfad zum privaten SSH-Schlüssel"
+              placeholder={ct("Pfad zum privaten SSH-Schlüssel")}
               value={newWorkerPrivateKeyPath}
               onChange={(e) => setNewWorkerPrivateKeyPath(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-worker-known-hosts">
-              Known-Hosts-Richtlinie
+              {ct("Known-Hosts-Richtlinie")}
             </label>
             <select
               id="ic-new-worker-known-hosts"
@@ -3698,8 +3775,8 @@ export function CommandCenterView({
               value={newWorkerKnownHosts}
               onChange={(e) => setNewWorkerKnownHosts(e.target.value as KnownHostsPolicy)}
             >
-              <option value="strict">strict</option>
-              <option value="accept">accept</option>
+              <option value="strict">{ct("strict")}</option>
+              <option value="accept">{ct("accept")}</option>
             </select>
             <button
               type="button"
@@ -3715,54 +3792,55 @@ export function CommandCenterView({
               }
               onClick={createRemoteWorker}
             >
-              Hinzufügen
+              {ct("Hinzufügen")}
             </button>
           </div>
         </DetailDialog>
       )}
 
       {showMeetings && (
-        <DetailDialog title="Meetings" onClose={() => setShowMeetings(false)}>
+        <DetailDialog title={ct("Meetings")} onClose={() => setShowMeetings(false)}>
           <p className="ic-note">
-            Eine Runde ist eine Wortmeldung — die Gesamtzahl der Runden ist durch die max. Rundenzahl begrenzt, nicht
-            durch Teilnehmerzahl × Runden. Ein Meeting schließt sich selbst, sobald die Rundenzahl oder das Budget
-            erreicht ist.
+            {ct(
+              "Eine Runde ist eine Wortmeldung — die Gesamtzahl der Runden ist durch die max. Rundenzahl begrenzt, nicht durch Teilnehmerzahl × Runden. Ein Meeting schließt sich selbst, sobald die Rundenzahl oder das Budget erreicht ist.",
+            )}
           </p>
 
-          {meetings.length === 0 && <p className="ic-empty">Noch keine Meetings.</p>}
+          {meetings.length === 0 && <p className="ic-empty">{ct("Noch keine Meetings.")}</p>}
           <ul className="ic-milestone-list">
             {meetings.map((m) => (
               <li key={m.id} data-testid={`meeting-${m.id}`}>
                 <span className="ic-milestone-title">{m.topic}</span>
                 <span className="ic-tag" data-tone={m.status === "cancelled" ? "gate" : "policy"}>
-                  {MEETING_STATUS_LABEL[m.status]}
+                  {label(MEETING_STATUS_LABEL[m.status])}
                 </span>
                 <span className="ic-note">
-                  Runde {m.current_round}/{m.max_rounds}
+                  {ct("Runde ")}
+                  {m.current_round}/{m.max_rounds}
                 </span>
                 <button type="button" className="ic-btn" onClick={() => void openMeetingDetail(m.id)}>
-                  Öffnen
+                  {ct("Öffnen")}
                 </button>
               </li>
             ))}
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Neues Meeting
+            {ct("Neues Meeting")}
           </h3>
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-new-meeting-topic">
-              Thema
+              {ct("Thema")}
             </label>
             <input
               id="ic-new-meeting-topic"
               data-testid="new-meeting-topic"
-              placeholder="Thema"
+              placeholder={ct("Thema")}
               value={newMeetingTopic}
               onChange={(e) => setNewMeetingTopic(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-meeting-moderator">
-              Moderator
+              {ct("Moderator")}
             </label>
             <select
               id="ic-new-meeting-moderator"
@@ -3771,7 +3849,7 @@ export function CommandCenterView({
               value={newMeetingModeratorId}
               onChange={(e) => setNewMeetingModeratorId(e.target.value)}
             >
-              <option value="">Moderator wählen…</option>
+              <option value="">{ct("Moderator wählen…")}</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.displayName}
@@ -3779,7 +3857,7 @@ export function CommandCenterView({
               ))}
             </select>
             <label className="ic-sr-only" htmlFor="ic-new-meeting-max-rounds">
-              Max. Rundenzahl
+              {ct("Max. Rundenzahl")}
             </label>
             <input
               id="ic-new-meeting-max-rounds"
@@ -3792,7 +3870,7 @@ export function CommandCenterView({
             />
           </div>
           <fieldset className="ic-milestone-list" style={{ border: "none", margin: 0, padding: "4px 0" }}>
-            <legend className="ic-note">Teilnehmer</legend>
+            <legend className="ic-note">{ct("Teilnehmer")}</legend>
             {agents.map((a) => (
               <label key={a.id} className="ic-note" style={{ display: "block" }}>
                 <input
@@ -3815,7 +3893,7 @@ export function CommandCenterView({
             }
             onClick={createMeeting}
           >
-            Anlegen
+            {ct("Anlegen")}
           </button>
         </DetailDialog>
       )}
@@ -3823,25 +3901,26 @@ export function CommandCenterView({
       {meetingDetail && (
         <DetailDialog title={meetingDetail.meeting.topic} onClose={closeMeetingDetail}>
           <dl>
-            <dt>Status</dt>
-            <dd data-testid="meeting-detail-status">{MEETING_STATUS_LABEL[meetingDetail.meeting.status]}</dd>
-            <dt>Runde</dt>
+            <dt>{ct("Status")}</dt>
+            <dd data-testid="meeting-detail-status">{label(MEETING_STATUS_LABEL[meetingDetail.meeting.status])}</dd>
+            <dt>{ct("Runde")}</dt>
             <dd>
               {meetingDetail.meeting.current_round}/{meetingDetail.meeting.max_rounds}
             </dd>
             {meetingDetail.meeting.budget_micros > 0 && (
               <>
-                <dt>Budget</dt>
+                <dt>{ct("Budget")}</dt>
                 <dd>
                   {(meetingDetail.meeting.spent_micros / 1_000_000).toFixed(2)} /{" "}
-                  {(meetingDetail.meeting.budget_micros / 1_000_000).toFixed(2)} USD
+                  {(meetingDetail.meeting.budget_micros / 1_000_000).toFixed(2)}
+                  {ct(" USD")}
                 </dd>
               </>
             )}
           </dl>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Teilnehmer
+            {ct("Teilnehmer")}
           </h3>
           <ul className="ic-milestone-list">
             {meetingDetail.participants.map((p) => (
@@ -3849,7 +3928,7 @@ export function CommandCenterView({
                 <span className="ic-milestone-title">{p.display_name}</span>
                 {p.agent_id === meetingDetail.meeting.moderator_agent_id && (
                   <span className="ic-tag" data-tone="policy">
-                    Moderator
+                    {ct("Moderator")}
                   </span>
                 )}
                 <span className="ic-note">{p.professional_role}</span>
@@ -3858,16 +3937,19 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Verlauf
+            {ct("Verlauf")}
           </h3>
-          {meetingDetail.turns.length === 0 && <p className="ic-empty">Noch keine Wortmeldungen.</p>}
+          {meetingDetail.turns.length === 0 && <p className="ic-empty">{ct("Noch keine Wortmeldungen.")}</p>}
           <ul className="ic-milestone-list" data-testid="meeting-turns">
             {meetingDetail.turns.map((t) => (
               <li key={t.id}>
                 <span className="ic-milestone-title">
                   {meetingDetail.participants.find((p) => p.agent_id === t.agent_id)?.display_name ?? t.agent_id}
                 </span>
-                <span className="ic-tag">Runde {t.round}</span>
+                <span className="ic-tag">
+                  {ct("Runde ")}
+                  {t.round}
+                </span>
                 <span className="ic-note">{t.contribution}</span>
               </li>
             ))}
@@ -3882,7 +3964,7 @@ export function CommandCenterView({
               disabled={busy}
               onClick={() => startMeeting(meetingDetail.meeting.id)}
             >
-              Starten
+              {ct("Starten")}
             </button>
           )}
 
@@ -3895,7 +3977,7 @@ export function CommandCenterView({
               disabled={busy}
               onClick={() => nextMeetingTurn(meetingDetail.meeting.id)}
             >
-              Nächste Wortmeldung
+              {ct("Nächste Wortmeldung")}
             </button>
           )}
 
@@ -3908,19 +3990,19 @@ export function CommandCenterView({
               disabled={busy}
               onClick={() => cancelMeeting(meetingDetail.meeting.id)}
             >
-              Abbrechen
+              {ct("Abbrechen")}
             </button>
           )}
 
           {meetingDetail.meeting.status === "in_progress" && (
             <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
               <label className="ic-sr-only" htmlFor="ic-meeting-minutes">
-                Protokoll
+                {ct("Protokoll")}
               </label>
               <input
                 id="ic-meeting-minutes"
                 data-testid="meeting-minutes"
-                placeholder="Protokoll / Ergebnis"
+                placeholder={ct("Protokoll / Ergebnis")}
                 value={meetingMinutesDraft}
                 onChange={(e) => setMeetingMinutesDraft(e.target.value)}
               />
@@ -3931,13 +4013,13 @@ export function CommandCenterView({
                 disabled={busy}
                 onClick={() => endMeeting(meetingDetail.meeting.id, meetingMinutesDraft)}
               >
-                Beenden
+                {ct("Beenden")}
               </button>
             </div>
           )}
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Aktionspunkte
+            {ct("Aktionspunkte")}
           </h3>
           {meetingDetail.actionItems.length === 0 && <p className="ic-empty">—</p>}
           <ul className="ic-milestone-list">
@@ -3946,11 +4028,11 @@ export function CommandCenterView({
                 <span className="ic-milestone-title">{item.description}</span>
                 {item.task_id ? (
                   <span className="ic-tag" data-tone="policy">
-                    Aufgabe angelegt
+                    {ct("Aufgabe angelegt")}
                   </span>
                 ) : (
                   <button type="button" className="ic-btn" disabled={busy} onClick={() => convertActionItem(item.id)}>
-                    Als Aufgabe anlegen
+                    {ct("Als Aufgabe anlegen")}
                   </button>
                 )}
               </li>
@@ -3958,17 +4040,17 @@ export function CommandCenterView({
           </ul>
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-new-action-item">
-              Neuer Aktionspunkt
+              {ct("Neuer Aktionspunkt")}
             </label>
             <input
               id="ic-new-action-item"
               data-testid="new-action-item-description"
-              placeholder="Neuer Aktionspunkt"
+              placeholder={ct("Neuer Aktionspunkt")}
               value={newActionItemDescription}
               onChange={(e) => setNewActionItemDescription(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-action-item-assignee">
-              Zuständig
+              {ct("Zuständig")}
             </label>
             <select
               id="ic-new-action-item-assignee"
@@ -3977,7 +4059,7 @@ export function CommandCenterView({
               value={newActionItemAssigneeId}
               onChange={(e) => setNewActionItemAssigneeId(e.target.value)}
             >
-              <option value="">Niemand zugewiesen</option>
+              <option value="">{ct("Niemand zugewiesen")}</option>
               {meetingDetail.participants.map((p) => (
                 <option key={p.agent_id} value={p.agent_id}>
                   {p.display_name}
@@ -3991,7 +4073,7 @@ export function CommandCenterView({
               disabled={busy || !newActionItemDescription.trim()}
               onClick={() => addMeetingActionItem(meetingDetail.meeting.id)}
             >
-              Hinzufügen
+              {ct("Hinzufügen")}
             </button>
           </div>
         </DetailDialog>
@@ -4001,16 +4083,16 @@ export function CommandCenterView({
         <DetailDialog
           title={
             {
-              coaching: "Coaching & Qualität",
-              planning: "Projektpläne",
-              sandbox: "Sandbox-Freigaben",
-              fleet: "Native Runner-Flotte",
-              routing: "Modell-Routing",
-              "vendor-policy": "Provider-Freigaben",
-              configuration: "Firmenkonfiguration",
-              business: "Geschäftsdaten",
-              evaluations: "Objektive Tests",
-              people: "Team & Leistung",
+              coaching: ct("Coaching & Qualität"),
+              planning: ct("Projektpläne"),
+              sandbox: ct("Sandbox-Freigaben"),
+              fleet: ct("Native Runner-Flotte"),
+              routing: ct("Modell-Routing"),
+              "vendor-policy": ct("Provider-Freigaben"),
+              configuration: ct("Firmenkonfiguration"),
+              business: ct("Geschäftsdaten"),
+              evaluations: ct("Objektive Tests"),
+              people: ct("Team & Leistung"),
             }[companyPanel]
           }
           onClose={() => setCompanyPanel(null)}
@@ -4083,28 +4165,34 @@ export function CommandCenterView({
         </DetailDialog>
       )}
       {showMemory && (
-        <DetailDialog title="Wissen" onClose={() => setShowMemory(false)}>
+        <DetailDialog title={ct("Wissen")} onClose={() => setShowMemory(false)}>
           <p className="ic-note">
-            Ein Obsidian-Vault ist ein Ordner voller Markdown-Dateien — jede Notiz hier ist eine echte .md-Datei mit
-            YAML-Frontmatter, direkt in Obsidian zu öffnen.
+            {ct(
+              "Ein Obsidian-Vault ist ein Ordner voller Markdown-Dateien — jede Notiz hier ist eine echte .md-Datei mit YAML-Frontmatter, direkt in Obsidian zu öffnen.",
+            )}
           </p>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Anbieter
+            {ct("Anbieter")}
           </h3>
-          {memoryProviders.length === 0 && <p className="ic-empty">Kein MemoryProvider registriert.</p>}
+          {memoryProviders.length === 0 && <p className="ic-empty">{ct("Kein MemoryProvider registriert.")}</p>}
           <ul className="ic-milestone-list">
             {memoryProviders.map((p) => (
               <li key={p.kind} data-testid={`memory-provider-${p.kind}`}>
                 <span className="ic-milestone-title">{p.kind}</span>
                 <span className="ic-tag" data-tone={p.ok ? "policy" : "gate"}>
-                  {p.ok ? "verbunden" : "nicht erreichbar"}
+                  {p.ok ? ct("verbunden") : ct("nicht erreichbar")}
                 </span>
                 <span className="ic-note">{p.message}</span>
                 {p.sync && (
                   <span className="ic-note" data-testid="memory-sync-status">
-                    Synchronisiert: {p.sync.synced} · Wartend: {p.sync.pending} · Fehler: {p.sync.failed} · Löschungen:{" "}
-                    {p.sync.pendingDeletion}
+                    {ct("Synchronisiert: ")}
+                    {p.sync.synced}
+                    {ct(" · Wartend: ")}
+                    {p.sync.pending}
+                    {ct(" · Fehler: ")}
+                    {p.sync.failed}
+                    {ct(" · Löschungen:")} {p.sync.pendingDeletion}
                   </span>
                 )}
               </li>
@@ -4112,7 +4200,7 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Suche
+            {ct("Suche")}
           </h3>
           {memoryProviders.some((p) => p.semanticAvailable) && (
             <>
@@ -4122,7 +4210,7 @@ export function CommandCenterView({
                   checked={semanticMemorySearch}
                   onChange={(event) => setSemanticMemorySearch(event.target.checked)}
                 />{" "}
-                Honcho-Suche: Diese Suchanfrage ist öffentlich und darf übertragen werden
+                {ct("Honcho-Suche: Diese Suchanfrage ist öffentlich und darf übertragen werden")}
               </label>
               <button
                 type="button"
@@ -4130,18 +4218,18 @@ export function CommandCenterView({
                 disabled={busy}
                 onClick={() => void actWith(() => client.syncMemory(), refreshMemory)}
               >
-                Synchronisierung starten
+                {ct("Synchronisierung starten")}
               </button>
             </>
           )}
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-memory-search">
-              Suche
+              {ct("Suche")}
             </label>
             <input
               id="ic-memory-search"
               data-testid="memory-search-input"
-              placeholder="Volltextsuche im Vault"
+              placeholder={ct("Volltextsuche im Vault")}
               value={memoryQuery}
               onChange={(e) => setMemoryQuery(e.target.value)}
             />
@@ -4152,12 +4240,12 @@ export function CommandCenterView({
               disabled={busy || !memoryQuery.trim() || memoryProviders.length === 0}
               onClick={searchMemory}
             >
-              Suchen
+              {ct("Suchen")}
             </button>
           </div>
           {memorySearchHits && (
             <ul className="ic-milestone-list" data-testid="memory-search-results">
-              {memorySearchHits.length === 0 && <p className="ic-empty">Keine Treffer.</p>}
+              {memorySearchHits.length === 0 && <p className="ic-empty">{ct("Keine Treffer.")}</p>}
               {memorySearchHits.map((hit) => (
                 <li key={hit.externalId}>
                   <span className="ic-milestone-title">{hit.title}</span>
@@ -4168,18 +4256,18 @@ export function CommandCenterView({
           )}
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Einträge
+            {ct("Einträge")}
           </h3>
-          {memories.length === 0 && <p className="ic-empty">Noch keine Einträge.</p>}
+          {memories.length === 0 && <p className="ic-empty">{ct("Noch keine Einträge.")}</p>}
           <ul className="ic-milestone-list">
             {memories.map((m) => (
               <li key={m.id} data-testid={`memory-${m.id}`}>
                 <span className="ic-milestone-title">{m.title}</span>
                 <span className="ic-tag" data-tone="policy">
-                  {MEMORY_KIND_LABEL[m.kind]}
+                  {label(MEMORY_KIND_LABEL[m.kind])}
                 </span>
                 <button type="button" className="ic-btn" disabled={busy} onClick={() => openMemoryDetail(m.id)}>
-                  Öffnen
+                  {ct("Öffnen")}
                 </button>
                 <button
                   type="button"
@@ -4188,7 +4276,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => deleteMemoryEntry(m.id)}
                 >
-                  Löschen
+                  {ct("Löschen")}
                 </button>
               </li>
             ))}
@@ -4203,17 +4291,17 @@ export function CommandCenterView({
                 {memoryDetail.content}
               </pre>
               <button type="button" className="ic-btn" onClick={() => setMemoryDetail(null)}>
-                Schließen
+                {ct("Schließen")}
               </button>
             </div>
           )}
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Neue Notiz
+            {ct("Neue Notiz")}
           </h3>
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-new-memory-kind">
-              Art
+              {ct("Art")}
             </label>
             <select
               id="ic-new-memory-kind"
@@ -4224,40 +4312,40 @@ export function CommandCenterView({
             >
               {(Object.keys(MEMORY_KIND_LABEL) as MemoryKind[]).map((k) => (
                 <option key={k} value={k}>
-                  {MEMORY_KIND_LABEL[k]}
+                  {label(MEMORY_KIND_LABEL[k])}
                 </option>
               ))}
             </select>
-            <label htmlFor="ic-new-memory-sensitivity">Vertraulichkeit</label>
+            <label htmlFor="ic-new-memory-sensitivity">{ct("Vertraulichkeit")}</label>
             <select
               id="ic-new-memory-sensitivity"
               className="ic-select"
               value={newMemorySensitivity}
               onChange={(event) => setNewMemorySensitivity(event.target.value)}
             >
-              <option value="internal">Intern</option>
-              <option value="public">Öffentlich</option>
-              <option value="confidential">Vertraulich</option>
+              <option value="internal">{ct("Intern")}</option>
+              <option value="public">{ct("Öffentlich")}</option>
+              <option value="confidential">{ct("Vertraulich")}</option>
             </select>
             <label className="ic-sr-only" htmlFor="ic-new-memory-title">
-              Titel
+              {ct("Titel")}
             </label>
             <input
               id="ic-new-memory-title"
               data-testid="new-memory-title"
-              placeholder="Titel"
+              placeholder={ct("Titel")}
               value={newMemoryTitle}
               onChange={(e) => setNewMemoryTitle(e.target.value)}
             />
           </div>
           <div className="ic-composer" style={{ padding: 0 }}>
             <label className="ic-sr-only" htmlFor="ic-new-memory-content">
-              Inhalt
+              {ct("Inhalt")}
             </label>
             <textarea
               id="ic-new-memory-content"
               data-testid="new-memory-content"
-              placeholder="Inhalt (Markdown)"
+              placeholder={ct("Inhalt (Markdown)")}
               rows={4}
               value={newMemoryContent}
               onChange={(e) => setNewMemoryContent(e.target.value)}
@@ -4270,33 +4358,33 @@ export function CommandCenterView({
               disabled={busy || !newMemoryTitle.trim() || !newMemoryContent.trim() || memoryProviders.length === 0}
               onClick={recordMemory}
             >
-              Speichern
+              {ct("Speichern")}
             </button>
           </div>
         </DetailDialog>
       )}
 
       {showChannels && (
-        <DetailDialog title="Kanäle" onClose={() => setShowChannels(false)}>
+        <DetailDialog title={ct("Kanäle")} onClose={() => setShowChannels(false)}>
           <p className="ic-note">
-            Fan-out für den Entscheidungs-Posteingang (aktuell: Freigabeanfragen) an Discord, Telegram und E-Mail. Ein
-            Kanal wird beim Serverstart aus Umgebungsvariablen registriert — hier lässt sich nur prüfen, ob er wirklich
-            funktioniert.
+            {ct(
+              "Fan-out für den Entscheidungs-Posteingang (aktuell: Freigabeanfragen) an Discord, Telegram und E-Mail. Ein Kanal wird beim Serverstart aus Umgebungsvariablen registriert — hier lässt sich nur prüfen, ob er wirklich funktioniert.",
+            )}
           </p>
-          {notificationChannels.length === 0 && <p className="ic-empty">Kein Kanal registriert.</p>}
+          {notificationChannels.length === 0 && <p className="ic-empty">{ct("Kein Kanal registriert.")}</p>}
           <ul className="ic-milestone-list">
             {notificationChannels.map((c) => (
               <li key={c.kind} data-testid={`channel-${c.kind}`}>
-                <span className="ic-milestone-title">{NOTIFICATION_CHANNEL_LABEL[c.kind] ?? c.kind}</span>
+                <span className="ic-milestone-title">{label(NOTIFICATION_CHANNEL_LABEL[c.kind]) ?? c.kind}</span>
                 <span className="ic-tag" data-tone={c.ok ? "policy" : "gate"}>
-                  {c.ok ? "verbunden" : "nicht erreichbar"}
+                  {c.ok ? ct("verbunden") : ct("nicht erreichbar")}
                 </span>
                 <span className="ic-note">{c.message}</span>
                 <button type="button" className="ic-btn" disabled={busy} onClick={() => testChannel(c.kind)}>
-                  Testen
+                  {ct("Testen")}
                 </button>
                 <button type="button" className="ic-btn" disabled={busy} onClick={() => sendTestNotification(c.kind)}>
-                  Testnachricht senden
+                  {ct("Testnachricht senden")}
                 </button>
                 {channelTestResults[c.kind] && (
                   <span
@@ -4314,38 +4402,37 @@ export function CommandCenterView({
       )}
 
       {showMailboxes && (
-        <DetailDialog title="E-Mail-Postfächer" onClose={() => setShowMailboxes(false)}>
+        <DetailDialog title={ct("E-Mail-Postfächer")} onClose={() => setShowMailboxes(false)}>
           <p className="ic-note">
-            Jedes Postfach lässt sich mehreren Agents zuweisen, und ein Agent kann mehrere Postfächer bearbeiten.
-            Zugangsdaten liegen verschlüsselt in der Datenbank und werden nie zurückgeliefert — auch hier nicht.
-            Eingehende Mails werden als Fremdinhalt behandelt: die Triage legt sie im Eingang ab, sie landen nie direkt
-            in der Arbeitswarteschlange.
+            {ct(
+              "Jedes Postfach lässt sich mehreren Agents zuweisen, und ein Agent kann mehrere Postfächer bearbeiten. Zugangsdaten liegen verschlüsselt in der Datenbank und werden nie zurückgeliefert — auch hier nicht. Eingehende Mails werden als Fremdinhalt behandelt: die Triage legt sie im Eingang ab, sie landen nie direkt in der Arbeitswarteschlange.",
+            )}
           </p>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Protokolle
+            {ct("Protokolle")}
           </h3>
           <ul className="ic-milestone-list">
             {mailProviders.map((p) => (
               <li key={p.kind} data-testid={`mail-provider-${p.kind}`}>
-                <span className="ic-milestone-title">{MAILBOX_KIND_LABEL[p.kind]}</span>
+                <span className="ic-milestone-title">{label(MAILBOX_KIND_LABEL[p.kind])}</span>
                 <span className="ic-tag" data-tone={p.registered ? "policy" : "gate"}>
-                  {p.registered ? "verfügbar" : "nicht registriert"}
+                  {p.registered ? ct("verfügbar") : ct("nicht registriert")}
                 </span>
               </li>
             ))}
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Postfächer
+            {ct("Postfächer")}
           </h3>
-          {mailboxes.length === 0 && <p className="ic-empty">Kein Postfach angebunden.</p>}
+          {mailboxes.length === 0 && <p className="ic-empty">{ct("Kein Postfach angebunden.")}</p>}
           <ul className="ic-milestone-list">
             {mailboxes.map((m) => (
               <li key={m.id} data-testid={`mailbox-${m.id}`}>
                 <span className="ic-milestone-title">{m.label}</span>
                 <span className="ic-tag" data-tone="policy">
-                  {MAILBOX_KIND_LABEL[m.kind]}
+                  {label(MAILBOX_KIND_LABEL[m.kind])}
                 </span>
                 <span className="ic-note">{m.email_address}</span>
                 {m.last_error !== "" && (
@@ -4369,7 +4456,7 @@ export function CommandCenterView({
                       })
                     }
                   />
-                  Abrufen
+                  {ct("Abrufen")}
                 </label>
                 <label className="ic-check">
                   <input
@@ -4379,11 +4466,11 @@ export function CommandCenterView({
                     disabled={busy || m.poll_enabled !== 1}
                     onChange={(e) => toggleMailboxSetting(m, { autoTriage: e.target.checked })}
                   />
-                  Auto-Triage
+                  {ct("Auto-Triage")}
                 </label>
 
                 <button type="button" className="ic-btn" disabled={busy} onClick={() => testMailbox(m.id)}>
-                  Testen
+                  {ct("Testen")}
                 </button>
                 <button
                   type="button"
@@ -4392,7 +4479,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => pollMailbox(m.id)}
                 >
-                  Jetzt abrufen
+                  {ct("Jetzt abrufen")}
                 </button>
                 <button
                   type="button"
@@ -4401,7 +4488,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => openMailboxInbox(m.id)}
                 >
-                  Nachrichten
+                  {ct("Nachrichten")}
                 </button>
                 {mailboxTestResults[m.id] && (
                   <span
@@ -4420,16 +4507,16 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => deleteMailbox(m.id)}
                 >
-                  Löschen
+                  {ct("Löschen")}
                 </button>
 
                 <div className="ic-note" style={{ width: "100%" }}>
                   {(m.agents ?? []).length === 0 ? (
-                    <span data-testid={`mailbox-agents-empty-${m.id}`}>Kein Agent freigeschaltet.</span>
+                    <span data-testid={`mailbox-agents-empty-${m.id}`}>{ct("Kein Agent freigeschaltet.")}</span>
                   ) : (
                     (m.agents ?? []).map((g) => (
                       <span key={g.agent_id} className="ic-tag" data-testid={`mailbox-agent-${m.id}-${g.agent_id}`}>
-                        {g.display_name} · {MAILBOX_ACCESS_LABEL[g.access]}
+                        {g.display_name} · {label(MAILBOX_ACCESS_LABEL[g.access])}
                         <button
                           type="button"
                           className="ic-btn"
@@ -4437,7 +4524,7 @@ export function CommandCenterView({
                           disabled={busy}
                           onClick={() => revokeMailboxAgent(m.id, g.agent_id)}
                         >
-                          Entziehen
+                          {ct("Entziehen")}
                         </button>
                       </span>
                     ))
@@ -4446,7 +4533,7 @@ export function CommandCenterView({
 
                 <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap", width: "100%" }}>
                   <label className="ic-sr-only" htmlFor={`ic-grant-agent-${m.id}`}>
-                    Agent
+                    {ct("Agent")}
                   </label>
                   <select
                     id={`ic-grant-agent-${m.id}`}
@@ -4460,7 +4547,7 @@ export function CommandCenterView({
                       }))
                     }
                   >
-                    <option value="">Agent wählen …</option>
+                    <option value="">{ct("Agent wählen …")}</option>
                     {agents.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.displayName}
@@ -4468,7 +4555,7 @@ export function CommandCenterView({
                     ))}
                   </select>
                   <label className="ic-sr-only" htmlFor={`ic-grant-access-${m.id}`}>
-                    Zugriff
+                    {ct("Zugriff")}
                   </label>
                   <select
                     id={`ic-grant-access-${m.id}`}
@@ -4482,8 +4569,8 @@ export function CommandCenterView({
                       }))
                     }
                   >
-                    <option value="read">{MAILBOX_ACCESS_LABEL.read}</option>
-                    <option value="send">{MAILBOX_ACCESS_LABEL.send}</option>
+                    <option value="read">{label(MAILBOX_ACCESS_LABEL.read)}</option>
+                    <option value="send">{label(MAILBOX_ACCESS_LABEL.send)}</option>
                   </select>
                   <button
                     type="button"
@@ -4492,19 +4579,19 @@ export function CommandCenterView({
                     disabled={busy || !grantDraft[m.id]?.agentId}
                     onClick={() => grantMailboxAgent(m.id)}
                   >
-                    Zuweisen
+                    {ct("Zuweisen")}
                   </button>
                 </div>
 
                 {mailboxInbox?.mailboxId === m.id && (
                   <ul className="ic-milestone-list" data-testid={`mailbox-inbox-${m.id}`} style={{ width: "100%" }}>
-                    {mailboxInbox.messages.length === 0 && <li className="ic-empty">Keine Nachrichten.</li>}
+                    {mailboxInbox.messages.length === 0 && <li className="ic-empty">{ct("Keine Nachrichten.")}</li>}
                     {mailboxInbox.messages.map((msg) => (
                       <li key={msg.externalId} data-testid={`mail-message-${msg.externalId}`}>
-                        <span className="ic-milestone-title">{msg.subject || "(kein Betreff)"}</span>
+                        <span className="ic-milestone-title">{msg.subject || ct("(kein Betreff)")}</span>
                         {msg.unread && (
                           <span className="ic-tag" data-tone="policy">
-                            ungelesen
+                            {ct("ungelesen")}
                           </span>
                         )}
                         <span className="ic-note">
@@ -4520,21 +4607,21 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Neues Postfach
+            {ct("Neues Postfach")}
           </h3>
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-new-mailbox-label">
-              Bezeichnung
+              {ct("Bezeichnung")}
             </label>
             <input
               id="ic-new-mailbox-label"
               data-testid="new-mailbox-label"
-              placeholder="Bezeichnung (z. B. Support)"
+              placeholder={ct("Bezeichnung (z. B. Support)")}
               value={newMailboxLabel}
               onChange={(e) => setNewMailboxLabel(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-mailbox-kind">
-              Protokoll
+              {ct("Protokoll")}
             </label>
             <select
               id="ic-new-mailbox-kind"
@@ -4543,18 +4630,18 @@ export function CommandCenterView({
               value={newMailboxKind}
               onChange={(e) => setNewMailboxKind(e.target.value as MailboxKind)}
             >
-              <option value="imap">{MAILBOX_KIND_LABEL.imap}</option>
-              <option value="jmap">{MAILBOX_KIND_LABEL.jmap}</option>
-              <option value="m365">{MAILBOX_KIND_LABEL.m365}</option>
-              <option value="gmail">{MAILBOX_KIND_LABEL.gmail}</option>
+              <option value="imap">{label(MAILBOX_KIND_LABEL.imap)}</option>
+              <option value="jmap">{label(MAILBOX_KIND_LABEL.jmap)}</option>
+              <option value="m365">{label(MAILBOX_KIND_LABEL.m365)}</option>
+              <option value="gmail">{label(MAILBOX_KIND_LABEL.gmail)}</option>
             </select>
             <label className="ic-sr-only" htmlFor="ic-new-mailbox-address">
-              E-Mail-Adresse
+              {ct("E-Mail-Adresse")}
             </label>
             <input
               id="ic-new-mailbox-address"
               data-testid="new-mailbox-address"
-              placeholder="E-Mail-Adresse"
+              placeholder={ct("E-Mail-Adresse")}
               value={newMailboxAddress}
               onChange={(e) => setNewMailboxAddress(e.target.value)}
             />
@@ -4564,32 +4651,32 @@ export function CommandCenterView({
             {newMailboxKind === "imap" && (
               <>
                 <label className="ic-sr-only" htmlFor="ic-new-mailbox-host">
-                  IMAP-Host
+                  {ct("IMAP-Host")}
                 </label>
                 <input
                   id="ic-new-mailbox-host"
                   data-testid="new-mailbox-host"
-                  placeholder="IMAP-Host"
+                  placeholder={ct("IMAP-Host")}
                   value={newMailboxHost}
                   onChange={(e) => setNewMailboxHost(e.target.value)}
                 />
                 <label className="ic-sr-only" htmlFor="ic-new-mailbox-username">
-                  Benutzername
+                  {ct("Benutzername")}
                 </label>
                 <input
                   id="ic-new-mailbox-username"
                   data-testid="new-mailbox-username"
-                  placeholder="Benutzername"
+                  placeholder={ct("Benutzername")}
                   value={newMailboxUsername}
                   onChange={(e) => setNewMailboxUsername(e.target.value)}
                 />
                 <label className="ic-sr-only" htmlFor="ic-new-mailbox-smtp">
-                  SMTP-Host (zum Senden)
+                  {ct("SMTP-Host (zum Senden)")}
                 </label>
                 <input
                   id="ic-new-mailbox-smtp"
                   data-testid="new-mailbox-smtp"
-                  placeholder="SMTP-Host (zum Senden)"
+                  placeholder={ct("SMTP-Host (zum Senden)")}
                   value={newMailboxSmtpHost}
                   onChange={(e) => setNewMailboxSmtpHost(e.target.value)}
                 />
@@ -4598,12 +4685,12 @@ export function CommandCenterView({
             {newMailboxKind === "jmap" && (
               <>
                 <label className="ic-sr-only" htmlFor="ic-new-mailbox-session">
-                  JMAP-Session-URL
+                  {ct("JMAP-Session-URL")}
                 </label>
                 <input
                   id="ic-new-mailbox-session"
                   data-testid="new-mailbox-session-url"
-                  placeholder="JMAP-Session-URL"
+                  placeholder={ct("JMAP-Session-URL")}
                   value={newMailboxSessionUrl}
                   onChange={(e) => setNewMailboxSessionUrl(e.target.value)}
                 />
@@ -4612,12 +4699,12 @@ export function CommandCenterView({
             {newMailboxKind === "m365" && (
               <>
                 <label className="ic-sr-only" htmlFor="ic-new-mailbox-tenant">
-                  Tenant-ID
+                  {ct("Tenant-ID")}
                 </label>
                 <input
                   id="ic-new-mailbox-tenant"
                   data-testid="new-mailbox-tenant-id"
-                  placeholder="Tenant-ID"
+                  placeholder={ct("Tenant-ID")}
                   value={newMailboxTenantId}
                   onChange={(e) => setNewMailboxTenantId(e.target.value)}
                 />
@@ -4626,23 +4713,23 @@ export function CommandCenterView({
             {(newMailboxKind === "m365" || newMailboxKind === "gmail") && (
               <>
                 <label className="ic-sr-only" htmlFor="ic-new-mailbox-client">
-                  Client-ID
+                  {ct("Client-ID")}
                 </label>
                 <input
                   id="ic-new-mailbox-client"
                   data-testid="new-mailbox-client-id"
-                  placeholder="Client-ID"
+                  placeholder={ct("Client-ID")}
                   value={newMailboxClientId}
                   onChange={(e) => setNewMailboxClientId(e.target.value)}
                 />
                 <label className="ic-sr-only" htmlFor="ic-new-mailbox-refresh">
-                  Refresh-Token
+                  {ct("Refresh-Token")}
                 </label>
                 <input
                   id="ic-new-mailbox-refresh"
                   type="password"
                   data-testid="new-mailbox-refresh-token"
-                  placeholder="Refresh-Token"
+                  placeholder={ct("Refresh-Token")}
                   value={newMailboxRefreshToken}
                   onChange={(e) => setNewMailboxRefreshToken(e.target.value)}
                 />
@@ -4650,14 +4737,22 @@ export function CommandCenterView({
             )}
 
             <label className="ic-sr-only" htmlFor="ic-new-mailbox-secret">
-              {newMailboxKind === "jmap" ? "Bearer-Token" : newMailboxKind === "imap" ? "Passwort" : "Client-Secret"}
+              {newMailboxKind === "jmap"
+                ? ct("Bearer-Token")
+                : newMailboxKind === "imap"
+                  ? ct("Passwort")
+                  : ct("Client-Secret")}
             </label>
             <input
               id="ic-new-mailbox-secret"
               type="password"
               data-testid="new-mailbox-secret"
               placeholder={
-                newMailboxKind === "jmap" ? "Bearer-Token" : newMailboxKind === "imap" ? "Passwort" : "Client-Secret"
+                newMailboxKind === "jmap"
+                  ? ct("Bearer-Token")
+                  : newMailboxKind === "imap"
+                    ? ct("Passwort")
+                    : ct("Client-Secret")
               }
               value={newMailboxSecret}
               onChange={(e) => setNewMailboxSecret(e.target.value)}
@@ -4673,7 +4768,7 @@ export function CommandCenterView({
                   if (!e.target.checked) setNewMailboxAutoTriage(false);
                 }}
               />
-              Regelmäßig abrufen
+              {ct("Regelmäßig abrufen")}
             </label>
             <label className="ic-check">
               <input
@@ -4683,7 +4778,7 @@ export function CommandCenterView({
                 disabled={!newMailboxPoll}
                 onChange={(e) => setNewMailboxAutoTriage(e.target.checked)}
               />
-              Eingang automatisch triagieren
+              {ct("Eingang automatisch triagieren")}
             </label>
 
             <button
@@ -4694,51 +4789,50 @@ export function CommandCenterView({
               disabled={busy || !newMailboxLabel.trim() || !newMailboxAddress.trim()}
               onClick={createMailbox}
             >
-              Anbinden
+              {ct("Anbinden")}
             </button>
           </div>
         </DetailDialog>
       )}
 
       {showMarketplaces && (
-        <DetailDialog title="Marktplätze" onClose={() => setShowMarketplaces(false)}>
+        <DetailDialog title={ct("Marktplätze")} onClose={() => setShowMarketplaces(false)}>
           <p className="ic-note">
-            Quellen für Skills und MCP-Server. Kataloge werden live gelesen und nie zwischengespeichert — gespeichert
-            wird nur, was tatsächlich installiert wurde, samt Herkunft. Installiert wird über die Eintrags-ID: der
-            Server holt den Eintrag erneut von der Quelle, statt einer mitgeschickten Beschreibung zu vertrauen. Ein
-            Skill wird als Markdown abgelegt, es wird dabei nichts ausgeführt; ein MCP-Server startet erst, wenn Sie ihn
-            in den MCP-Einstellungen verbinden.
+            {ct(
+              "Quellen für Skills und MCP-Server. Kataloge werden live gelesen und nie zwischengespeichert — gespeichert wird nur, was tatsächlich installiert wurde, samt Herkunft. Installiert wird über die Eintrags-ID: der Server holt den Eintrag erneut von der Quelle, statt einer mitgeschickten Beschreibung zu vertrauen. Ein Skill wird als Markdown abgelegt, es wird dabei nichts ausgeführt; ein MCP-Server startet erst, wenn Sie ihn in den MCP-Einstellungen verbinden.",
+            )}
           </p>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Quellenarten
+            {ct("Quellenarten")}
           </h3>
           <ul className="ic-milestone-list">
             {marketplaceKinds.map((k) => (
               <li key={k.kind} data-testid={`marketplace-kind-${k.kind}`}>
-                <span className="ic-milestone-title">{MARKETPLACE_KIND_LABEL[k.kind]}</span>
+                <span className="ic-milestone-title">{label(MARKETPLACE_KIND_LABEL[k.kind])}</span>
                 <span className="ic-tag" data-tone={k.registered ? "policy" : "gate"}>
-                  {k.registered ? "verfügbar" : "nicht registriert"}
+                  {k.registered ? ct("verfügbar") : ct("nicht registriert")}
                 </span>
               </li>
             ))}
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Quellen
+            {ct("Quellen")}
           </h3>
-          {marketplaces.length === 0 && <p className="ic-empty">Keine Quelle eingetragen.</p>}
+          {marketplaces.length === 0 && <p className="ic-empty">{ct("Keine Quelle eingetragen.")}</p>}
           <ul className="ic-milestone-list">
             {marketplaces.map((m) => (
               <li key={m.id} data-testid={`marketplace-${m.id}`}>
                 <span className="ic-milestone-title">{m.name}</span>
                 <span className="ic-tag" data-tone="policy">
-                  {MARKETPLACE_KIND_LABEL[m.kind]}
+                  {label(MARKETPLACE_KIND_LABEL[m.kind])}
                 </span>
                 <span className="ic-note">{m.url}</span>
                 {m.last_synced_at !== null && m.last_error === "" && (
                   <span className="ic-tag" data-testid={`marketplace-count-${m.id}`}>
-                    {m.entry_count} Einträge
+                    {m.entry_count}
+                    {ct(" Einträge")}
                   </span>
                 )}
                 {m.last_error !== "" && (
@@ -4755,7 +4849,7 @@ export function CommandCenterView({
                     disabled={busy}
                     onChange={() => toggleMarketplace(m)}
                   />
-                  Aktiv
+                  {ct("Aktiv")}
                 </label>
                 <button
                   type="button"
@@ -4764,7 +4858,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => browseMarketplace(m.id)}
                 >
-                  Durchsuchen
+                  {ct("Durchsuchen")}
                 </button>
                 <button
                   type="button"
@@ -4774,7 +4868,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => deleteMarketplace(m.id)}
                 >
-                  Entfernen
+                  {ct("Entfernen")}
                 </button>
 
                 {marketplaceEntries?.id === m.id && (
@@ -4783,12 +4877,14 @@ export function CommandCenterView({
                     data-testid={`marketplace-entries-${m.id}`}
                     style={{ width: "100%" }}
                   >
-                    {marketplaceEntries.entries.length === 0 && <li className="ic-empty">Nichts im Angebot.</li>}
+                    {marketplaceEntries.entries.length === 0 && (
+                      <li className="ic-empty">{ct("Nichts im Angebot.")}</li>
+                    )}
                     {marketplaceEntries.entries.map((entry) => (
                       <li key={entry.id} data-testid={`marketplace-entry-${entry.id}`}>
                         <span className="ic-milestone-title">{entry.title}</span>
                         <span className="ic-tag" data-tone="policy">
-                          {MARKETPLACE_ENTRY_TYPE_LABEL[entry.type]}
+                          {label(MARKETPLACE_ENTRY_TYPE_LABEL[entry.type])}
                         </span>
                         {entry.version !== "" && <span className="ic-tag">{entry.version}</span>}
                         <span className="ic-note">{entry.description}</span>
@@ -4805,7 +4901,7 @@ export function CommandCenterView({
                           disabled={busy}
                           onClick={() => installEntry(m.id, entry)}
                         >
-                          Installieren
+                          {ct("Installieren")}
                         </button>
                       </li>
                     ))}
@@ -4816,20 +4912,20 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Installiert
+            {ct("Installiert")}
           </h3>
-          {marketplaceInstalls.length === 0 && <p className="ic-empty">Nichts installiert.</p>}
+          {marketplaceInstalls.length === 0 && <p className="ic-empty">{ct("Nichts installiert.")}</p>}
           <ul className="ic-milestone-list">
             {marketplaceInstalls.map((install) => (
               <li key={install.id} data-testid={`marketplace-install-row-${install.name}`}>
                 <span className="ic-milestone-title">{install.name}</span>
                 <span className="ic-tag" data-tone="policy">
-                  {MARKETPLACE_ENTRY_TYPE_LABEL[install.entry_type]}
+                  {label(MARKETPLACE_ENTRY_TYPE_LABEL[install.entry_type])}
                 </span>
                 {install.version !== "" && <span className="ic-tag">{install.version}</span>}
                 <span className="ic-note">
                   {install.source_url || "—"}
-                  {install.marketplace_id === null ? " · Quelle entfernt" : ""}
+                  {install.marketplace_id === null ? ct(" · Quelle entfernt") : ""}
                 </span>
                 <button
                   type="button"
@@ -4839,28 +4935,28 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => uninstallEntry(install)}
                 >
-                  Deinstallieren
+                  {ct("Deinstallieren")}
                 </button>
               </li>
             ))}
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Neue Quelle
+            {ct("Neue Quelle")}
           </h3>
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-new-marketplace-name">
-              Name
+              {ct("Name")}
             </label>
             <input
               id="ic-new-marketplace-name"
               data-testid="new-marketplace-name"
-              placeholder="Name (z. B. acme-katalog)"
+              placeholder={ct("Name (z. B. acme-katalog)")}
               value={newMarketplaceName}
               onChange={(e) => setNewMarketplaceName(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-marketplace-kind">
-              Art
+              {ct("Art")}
             </label>
             <select
               id="ic-new-marketplace-kind"
@@ -4869,13 +4965,13 @@ export function CommandCenterView({
               value={newMarketplaceKind}
               onChange={(e) => setNewMarketplaceKind(e.target.value as MarketplaceKind)}
             >
-              <option value="catalog">{MARKETPLACE_KIND_LABEL.catalog}</option>
-              <option value="mcp-registry">{MARKETPLACE_KIND_LABEL["mcp-registry"]}</option>
-              <option value="claude-plugin">{MARKETPLACE_KIND_LABEL["claude-plugin"]}</option>
-              <option value="git">{MARKETPLACE_KIND_LABEL.git}</option>
+              <option value="catalog">{label(MARKETPLACE_KIND_LABEL.catalog)}</option>
+              <option value="mcp-registry">{label(MARKETPLACE_KIND_LABEL["mcp-registry"])}</option>
+              <option value="claude-plugin">{label(MARKETPLACE_KIND_LABEL["claude-plugin"])}</option>
+              <option value="git">{label(MARKETPLACE_KIND_LABEL.git)}</option>
             </select>
             <label className="ic-sr-only" htmlFor="ic-new-marketplace-url">
-              URL
+              {ct("URL")}
             </label>
             <input
               id="ic-new-marketplace-url"
@@ -4892,30 +4988,30 @@ export function CommandCenterView({
               disabled={busy || !newMarketplaceName.trim() || !newMarketplaceUrl.trim()}
               onClick={createMarketplace}
             >
-              Hinzufügen
+              {ct("Hinzufügen")}
             </button>
           </div>
         </DetailDialog>
       )}
 
       {showMessenger && (
-        <DetailDialog title="Messenger" onClose={() => setShowMessenger(false)}>
+        <DetailDialog title={ct("Messenger")} onClose={() => setShowMessenger(false)}>
           <p className="ic-note">
-            Wer über Telegram oder Discord schreibt, erreicht die Assistenz erst nach Ihrer Freigabe. Vorher entsteht
-            nur ein Eintrag mit Code — keine Aufgabe, keine Antwort. Danach entscheidet die Rolle über die Befugnis,
-            nicht der Kanal.
+            {ct(
+              "Wer über Telegram oder Discord schreibt, erreicht die Assistenz erst nach Ihrer Freigabe. Vorher entsteht nur ein Eintrag mit Code — keine Aufgabe, keine Antwort. Danach entscheidet die Rolle über die Befugnis, nicht der Kanal.",
+            )}
           </p>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Kanäle
+            {ct("Kanäle")}
           </h3>
-          {messengerChannels.length === 0 && <p className="ic-empty">Kein Messenger-Kanal registriert.</p>}
+          {messengerChannels.length === 0 && <p className="ic-empty">{ct("Kein Messenger-Kanal registriert.")}</p>}
           <ul className="ic-milestone-list">
             {messengerChannels.map((c) => (
               <li key={c.kind} data-testid={`messenger-channel-${c.kind}`}>
-                <span className="ic-milestone-title">{MESSENGER_CHANNEL_LABEL[c.kind] ?? c.kind}</span>
+                <span className="ic-milestone-title">{label(MESSENGER_CHANNEL_LABEL[c.kind]) ?? c.kind}</span>
                 <span className="ic-tag" data-tone={c.registered ? "policy" : "gate"}>
-                  {c.registered ? "verfügbar" : "nicht registriert"}
+                  {c.registered ? ct("verfügbar") : ct("nicht registriert")}
                 </span>
                 {c.message !== "" && (
                   <span
@@ -4933,7 +5029,7 @@ export function CommandCenterView({
                   disabled={busy || !c.registered}
                   onClick={() => pollMessengerChannel(c.kind)}
                 >
-                  Abrufen
+                  {ct("Abrufen")}
                 </button>
                 {messengerPollResults[c.kind] && (
                   <span className="ic-tag" data-testid={`messenger-poll-result-${c.kind}`}>
@@ -4945,9 +5041,9 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Absender
+            {ct("Absender")}
           </h3>
-          {pairings.length === 0 && <p className="ic-empty">Bisher hat niemand geschrieben.</p>}
+          {pairings.length === 0 && <p className="ic-empty">{ct("Bisher hat niemand geschrieben.")}</p>}
           <ul className="ic-milestone-list">
             {pairings.map((p) => (
               <li key={p.id} data-testid={`pairing-${p.id}`} style={{ flexWrap: "wrap" }}>
@@ -4955,14 +5051,14 @@ export function CommandCenterView({
                     only — never markup, never a link target. */}
                 <span className="ic-milestone-title">{p.display_name || p.sender_id}</span>
                 <span className="ic-tag" data-tone="policy">
-                  {MESSENGER_CHANNEL_LABEL[p.channel_kind] ?? p.channel_kind}
+                  {label(MESSENGER_CHANNEL_LABEL[p.channel_kind]) ?? p.channel_kind}
                 </span>
                 <span
                   className="ic-tag"
                   data-tone={p.status === "active" ? "policy" : "gate"}
                   data-testid={`pairing-status-${p.id}`}
                 >
-                  {PAIRING_STATUS_LABEL[p.status]}
+                  {label(PAIRING_STATUS_LABEL[p.status])}
                 </span>
                 {p.status === "active" && (
                   <span
@@ -4970,7 +5066,7 @@ export function CommandCenterView({
                     data-tone={p.role === "owner" ? "gate" : "policy"}
                     data-testid={`pairing-role-${p.id}`}
                   >
-                    {PAIRING_ROLE_LABEL[p.role]}
+                    {label(PAIRING_ROLE_LABEL[p.role])}
                   </span>
                 )}
 
@@ -4982,8 +5078,9 @@ export function CommandCenterView({
                       </span>
                     )}
                     <div className="ic-warn" style={{ width: "100%" }} data-testid={`pairing-role-hint-${p.id}`}>
-                      Als Chef freigeben heißt: diese Person spricht über den Chat als Sie und kann sofort Aufträge
-                      erteilen. Als Gast landet ihre Nachricht nur als Fremdinhalt im Eingang.
+                      {ct(
+                        "Als Chef freigeben heißt: diese Person spricht über den Chat als Sie und kann sofort Aufträge erteilen. Als Gast landet ihre Nachricht nur als Fremdinhalt im Eingang.",
+                      )}
                     </div>
                     <button
                       type="button"
@@ -4993,7 +5090,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => acceptPairing(p.id, "owner")}
                     >
-                      Als Chef freigeben
+                      {ct("Als Chef freigeben")}
                     </button>
                     <button
                       type="button"
@@ -5002,7 +5099,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => acceptPairing(p.id, "guest")}
                     >
-                      Als Gast freigeben
+                      {ct("Als Gast freigeben")}
                     </button>
                     <button
                       type="button"
@@ -5012,7 +5109,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => blockPairing(p.id)}
                     >
-                      Blockieren
+                      {ct("Blockieren")}
                     </button>
                   </>
                 )}
@@ -5026,7 +5123,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => revokePairing(p.id)}
                     >
-                      Freigabe entziehen
+                      {ct("Freigabe entziehen")}
                     </button>
                     <button
                       type="button"
@@ -5036,7 +5133,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => blockPairing(p.id)}
                     >
-                      Blockieren
+                      {ct("Blockieren")}
                     </button>
                   </>
                 )}
@@ -5049,7 +5146,7 @@ export function CommandCenterView({
                     disabled={busy}
                     onClick={() => unblockPairing(p.id)}
                   >
-                    Entsperren
+                    {ct("Entsperren")}
                   </button>
                 )}
               </li>
@@ -5059,16 +5156,16 @@ export function CommandCenterView({
       )}
 
       {showChangeProposals && (
-        <DetailDialog title="Änderungsfreigaben" onClose={() => setShowChangeProposals(false)}>
+        <DetailDialog title={ct("Änderungsfreigaben")} onClose={() => setShowChangeProposals(false)}>
           <p className="ic-note">
-            Ein Agent schlägt Dateiänderungen vor, geschrieben wird erst nach Ihrer Freigabe. Beim Anwenden gilt alles
-            oder nichts: hat sich eine Datei seit dem Vorschlag geändert, wird gar nichts geschrieben und der Konflikt
-            hier gemeldet.
+            {ct(
+              "Ein Agent schlägt Dateiänderungen vor, geschrieben wird erst nach Ihrer Freigabe. Beim Anwenden gilt alles oder nichts: hat sich eine Datei seit dem Vorschlag geändert, wird gar nichts geschrieben und der Konflikt hier gemeldet.",
+            )}
           </p>
 
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-proposal-status-filter">
-              Status
+              {ct("Status")}
             </label>
             <select
               id="ic-proposal-status-filter"
@@ -5078,17 +5175,17 @@ export function CommandCenterView({
               disabled={busy}
               onChange={(e) => filterChangeProposals(e.target.value as ChangeProposalStatus | "")}
             >
-              <option value="">Alle</option>
-              <option value="pending">{CHANGE_PROPOSAL_STATUS_LABEL.pending}</option>
-              <option value="approved">{CHANGE_PROPOSAL_STATUS_LABEL.approved}</option>
-              <option value="rejected">{CHANGE_PROPOSAL_STATUS_LABEL.rejected}</option>
-              <option value="applied">{CHANGE_PROPOSAL_STATUS_LABEL.applied}</option>
-              <option value="failed">{CHANGE_PROPOSAL_STATUS_LABEL.failed}</option>
-              <option value="superseded">{CHANGE_PROPOSAL_STATUS_LABEL.superseded}</option>
+              <option value="">{ct("Alle")}</option>
+              <option value="pending">{label(CHANGE_PROPOSAL_STATUS_LABEL.pending)}</option>
+              <option value="approved">{label(CHANGE_PROPOSAL_STATUS_LABEL.approved)}</option>
+              <option value="rejected">{label(CHANGE_PROPOSAL_STATUS_LABEL.rejected)}</option>
+              <option value="applied">{label(CHANGE_PROPOSAL_STATUS_LABEL.applied)}</option>
+              <option value="failed">{label(CHANGE_PROPOSAL_STATUS_LABEL.failed)}</option>
+              <option value="superseded">{label(CHANGE_PROPOSAL_STATUS_LABEL.superseded)}</option>
             </select>
           </div>
 
-          {sortedProposals.length === 0 && <p className="ic-empty">Kein Änderungsvorschlag.</p>}
+          {sortedProposals.length === 0 && <p className="ic-empty">{ct("Kein Änderungsvorschlag.")}</p>}
           <ul className="ic-milestone-list">
             {sortedProposals.map((p) => (
               <li key={p.id} data-testid={`proposal-${p.id}`} style={{ flexWrap: "wrap" }}>
@@ -5098,10 +5195,13 @@ export function CommandCenterView({
                   data-tone={p.status === "pending" ? "gate" : "policy"}
                   data-testid={`proposal-status-${p.id}`}
                 >
-                  {CHANGE_PROPOSAL_STATUS_LABEL[p.status]}
+                  {label(CHANGE_PROPOSAL_STATUS_LABEL[p.status])}
                 </span>
                 <span className="ic-tag">
-                  {p.file_count} Datei{p.file_count === 1 ? "" : "en"}
+                  {tr({
+                    de: `${p.file_count} Datei${p.file_count === 1 ? "" : "en"}`,
+                    en: `${p.file_count} file${p.file_count === 1 ? "" : "s"}`,
+                  })}
                 </span>
                 <span className="ic-note">{p.workspace_path}</span>
                 {p.summary !== "" && <span className="ic-note">{p.summary}</span>}
@@ -5113,18 +5213,18 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => openProposalDetail(p.id)}
                 >
-                  Dateien
+                  {ct("Dateien")}
                 </button>
 
                 {p.status === "pending" && (
                   <>
                     <label className="ic-sr-only" htmlFor={`ic-proposal-reason-${p.id}`}>
-                      Grund der Ablehnung
+                      {ct("Grund der Ablehnung")}
                     </label>
                     <input
                       id={`ic-proposal-reason-${p.id}`}
                       data-testid={`proposal-reason-${p.id}`}
-                      placeholder="Grund (bei Ablehnung)"
+                      placeholder={ct("Grund (bei Ablehnung)")}
                       value={proposalReason[p.id] ?? ""}
                       onChange={(e) => setProposalReason((prev) => ({ ...prev, [p.id]: e.target.value }))}
                     />
@@ -5136,7 +5236,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => decideProposal(p.id, "approved")}
                     >
-                      Freigeben
+                      {ct("Freigeben")}
                     </button>
                     <button
                       type="button"
@@ -5146,7 +5246,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => decideProposal(p.id, "rejected")}
                     >
-                      Ablehnen
+                      {ct("Ablehnen")}
                     </button>
                   </>
                 )}
@@ -5162,17 +5262,20 @@ export function CommandCenterView({
                     disabled={busy}
                     onClick={() => applyProposal(p.id)}
                   >
-                    Anwenden
+                    {ct("Anwenden")}
                   </button>
                 )}
 
                 {proposalApplyResults[p.id] && (
                   <div className="ic-note" style={{ width: "100%" }} data-testid={`proposal-apply-result-${p.id}`}>
                     {proposalApplyResults[p.id].conflicts.length === 0
-                      ? `${proposalApplyResults[p.id].applied.length} Datei${
-                          proposalApplyResults[p.id].applied.length === 1 ? "" : "en"
-                        } geschrieben.`
-                      : "Nichts geschrieben — der Arbeitsordner ist unverändert."}
+                      ? tr({
+                          de: `${proposalApplyResults[p.id].applied.length} Datei${
+                            proposalApplyResults[p.id].applied.length === 1 ? "" : "en"
+                          } geschrieben.`,
+                          en: `${proposalApplyResults[p.id].applied.length} file${proposalApplyResults[p.id].applied.length === 1 ? "" : "s"} written.`,
+                        })
+                      : ct("Nichts geschrieben — der Arbeitsordner ist unverändert.")}
                   </div>
                 )}
                 {(proposalApplyResults[p.id]?.conflicts.length ?? 0) > 0 && (
@@ -5187,12 +5290,14 @@ export function CommandCenterView({
 
                 {proposalDetail?.proposal.id === p.id && (
                   <ul className="ic-milestone-list" data-testid={`proposal-files-${p.id}`} style={{ width: "100%" }}>
-                    {proposalDetail.files.length === 0 && <li className="ic-empty">Keine Datei im Vorschlag.</li>}
+                    {proposalDetail.files.length === 0 && (
+                      <li className="ic-empty">{ct("Keine Datei im Vorschlag.")}</li>
+                    )}
                     {proposalDetail.files.map((file) => (
                       <li key={file.id} data-testid={`proposal-file-${file.id}`} style={{ flexWrap: "wrap" }}>
                         <span className="ic-milestone-title">{file.path}</span>
                         <span className="ic-tag" data-tone="policy">
-                          {CHANGE_OPERATION_LABEL[file.operation]}
+                          {label(CHANGE_OPERATION_LABEL[file.operation])}
                         </span>
                         {file.operation !== "delete" && (
                           <pre className="ic-pre" data-testid={`proposal-file-content-${file.id}`}>
@@ -5210,19 +5315,17 @@ export function CommandCenterView({
       )}
 
       {showVessels && (
-        <DetailDialog title="Vessels & Talente" onClose={() => setShowVessels(false)}>
+        <DetailDialog title={ct("Vessels & Talente")} onClose={() => setShowVessels(false)}>
           <p className="ic-note">
-            Ein Agent ist ein Vessel × Talent. Das Vessel ist der Ausführungsrahmen: welche Runtime, welches Modell und
-            wie lange, wie oft und wie parallel ein Lauf sein darf. Das Talent ist das Können: Rolle, Seniorität,
-            Policy, Auftreten, Skills. Genau deshalb kann dieselbe Rolle in einem anderen Vessel laufen — ein Vessel
-            regelt nur, wie lange und wie oft gearbeitet wird, nie was dabei erlaubt ist. Berechtigungen stehen
-            ausschliesslich im Talent.
+            {ct(
+              "Ein Agent ist ein Vessel × Talent. Das Vessel ist der Ausführungsrahmen: welche Runtime, welches Modell und wie lange, wie oft und wie parallel ein Lauf sein darf. Das Talent ist das Können: Rolle, Seniorität, Policy, Auftreten, Skills. Genau deshalb kann dieselbe Rolle in einem anderen Vessel laufen — ein Vessel regelt nur, wie lange und wie oft gearbeitet wird, nie was dabei erlaubt ist. Berechtigungen stehen ausschliesslich im Talent.",
+            )}
           </p>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Vessels
+            {ct("Vessels")}
           </h3>
-          {vessels.length === 0 && <p className="ic-empty">Kein Vessel angelegt.</p>}
+          {vessels.length === 0 && <p className="ic-empty">{ct("Kein Vessel angelegt.")}</p>}
           <ul className="ic-milestone-list">
             {vessels.map((v) => (
               <li key={v.id} data-testid={`vessel-${v.id}`} style={{ flexWrap: "wrap" }}>
@@ -5241,18 +5344,27 @@ export function CommandCenterView({
                 {/* The three limits are shown as what they mean for a run, not
                     as the columns they are stored in. */}
                 <span className="ic-tag" data-testid={`vessel-timeout-${v.id}`}>
-                  Zeitlimit {formatDurationMs(v.timeout_ms)}
+                  {ct("Zeitlimit ")}
+                  {formatDurationMs(v.timeout_ms)}
                 </span>
                 <span className="ic-tag" data-testid={`vessel-retries-${v.id}`}>
-                  {v.max_retries} Versuch{v.max_retries === 1 ? "" : "e"}
+                  {tr({
+                    de: `${v.max_retries} Versuch${v.max_retries === 1 ? "" : "e"}`,
+                    en: `${v.max_retries} attempt${v.max_retries === 1 ? "" : "s"}`,
+                  })}
                 </span>
                 <span className="ic-tag" data-testid={`vessel-concurrency-${v.id}`}>
-                  max. {v.max_concurrency} gleichzeitig
+                  {ct("max. ")}
+                  {v.max_concurrency}
+                  {ct(" gleichzeitig")}
                 </span>
                 <span className="ic-note" style={{ width: "100%" }} data-testid={`vessel-agents-${v.id}`}>
                   {v.agents.length === 0
-                    ? "Von keinem Agent genutzt."
-                    : `Genutzt von: ${v.agents.map((a) => a.display_name).join(", ")}`}
+                    ? ct("Von keinem Agent genutzt.")
+                    : tr({
+                        de: `Genutzt von: ${v.agents.map((a) => a.display_name).join(", ")}`,
+                        en: `Used by: ${v.agents.map((a) => a.display_name).join(", ")}`,
+                      })}
                 </span>
 
                 <button
@@ -5262,7 +5374,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => startEditVessel(v)}
                 >
-                  Bearbeiten
+                  {ct("Bearbeiten")}
                 </button>
                 <button
                   type="button"
@@ -5272,7 +5384,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => deleteVessel(v.id)}
                 >
-                  Entfernen
+                  {ct("Entfernen")}
                 </button>
 
                 {/* The server's own words: a 409 names the agents that still
@@ -5286,17 +5398,17 @@ export function CommandCenterView({
                 {editVesselId === v.id && (
                   <div className="ic-form-row" data-testid={`vessel-form-${v.id}`}>
                     <label className="ic-sr-only" htmlFor={`ic-vessel-label-${v.id}`}>
-                      Bezeichnung
+                      {ct("Bezeichnung")}
                     </label>
                     <input
                       id={`ic-vessel-label-${v.id}`}
                       data-testid={`vessel-edit-label-${v.id}`}
-                      placeholder="Bezeichnung"
+                      placeholder={ct("Bezeichnung")}
                       value={vesselDraft.label}
                       onChange={(e) => setVesselDraft((prev) => ({ ...prev, label: e.target.value }))}
                     />
                     <label className="ic-sr-only" htmlFor={`ic-vessel-runtime-${v.id}`}>
-                      Runtime
+                      {ct("Runtime")}
                     </label>
                     <select
                       id={`ic-vessel-runtime-${v.id}`}
@@ -5309,7 +5421,8 @@ export function CommandCenterView({
                           registers; say so instead of silently selecting another. */}
                       {!runtimes.some((r) => r.type === vesselDraft.runtimeProvider) && (
                         <option value={vesselDraft.runtimeProvider}>
-                          {vesselDraft.runtimeProvider} (nicht registriert)
+                          {vesselDraft.runtimeProvider}
+                          {ct(" (nicht registriert)")}
                         </option>
                       )}
                       {runtimes.map((r) => (
@@ -5319,16 +5432,17 @@ export function CommandCenterView({
                       ))}
                     </select>
                     <label className="ic-sr-only" htmlFor={`ic-vessel-model-${v.id}`}>
-                      Modell
+                      {ct("Modell")}
                     </label>
-                    <input
+                    <ModelInput
+                      runtime={vesselDraft.runtimeProvider}
                       id={`ic-vessel-model-${v.id}`}
                       data-testid={`vessel-edit-model-${v.id}`}
-                      placeholder="Modell"
+                      placeholder={ct("Modell")}
                       value={vesselDraft.model}
                       onChange={(e) => setVesselDraft((prev) => ({ ...prev, model: e.target.value }))}
                     />
-                    <label htmlFor={`ic-vessel-timeout-${v.id}`}>Zeitlimit (Min.)</label>
+                    <label htmlFor={`ic-vessel-timeout-${v.id}`}>{ct("Zeitlimit (Min.)")}</label>
                     <input
                       id={`ic-vessel-timeout-${v.id}`}
                       type="number"
@@ -5337,7 +5451,7 @@ export function CommandCenterView({
                       value={vesselDraft.timeoutMin}
                       onChange={(e) => setVesselDraft((prev) => ({ ...prev, timeoutMin: e.target.value }))}
                     />
-                    <label htmlFor={`ic-vessel-retries-${v.id}`}>Versuche</label>
+                    <label htmlFor={`ic-vessel-retries-${v.id}`}>{ct("Versuche")}</label>
                     <input
                       id={`ic-vessel-retries-${v.id}`}
                       type="number"
@@ -5346,7 +5460,7 @@ export function CommandCenterView({
                       value={vesselDraft.maxRetries}
                       onChange={(e) => setVesselDraft((prev) => ({ ...prev, maxRetries: e.target.value }))}
                     />
-                    <label htmlFor={`ic-vessel-concurrency-${v.id}`}>Gleichzeitig</label>
+                    <label htmlFor={`ic-vessel-concurrency-${v.id}`}>{ct("Gleichzeitig")}</label>
                     <input
                       id={`ic-vessel-concurrency-${v.id}`}
                       type="number"
@@ -5363,7 +5477,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => saveVessel(v.id)}
                     >
-                      Speichern
+                      {ct("Speichern")}
                     </button>
                     <button
                       type="button"
@@ -5372,7 +5486,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => setEditVesselId(null)}
                     >
-                      Abbrechen
+                      {ct("Abbrechen")}
                     </button>
                   </div>
                 )}
@@ -5381,31 +5495,31 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Neues Vessel
+            {ct("Neues Vessel")}
           </h3>
           <div className="ic-form-row">
             <label className="ic-sr-only" htmlFor="ic-new-vessel-key">
-              Schlüssel
+              {ct("Schlüssel")}
             </label>
             <input
               id="ic-new-vessel-key"
               data-testid="new-vessel-key"
-              placeholder="Schlüssel (z. B. claude-fast)"
+              placeholder={ct("Schlüssel (z. B. claude-fast)")}
               value={newVesselKey}
               onChange={(e) => setNewVesselKey(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-vessel-label">
-              Bezeichnung
+              {ct("Bezeichnung")}
             </label>
             <input
               id="ic-new-vessel-label"
               data-testid="new-vessel-label"
-              placeholder="Bezeichnung"
+              placeholder={ct("Bezeichnung")}
               value={newVesselLabel}
               onChange={(e) => setNewVesselLabel(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-vessel-runtime">
-              Runtime
+              {ct("Runtime")}
             </label>
             <select
               id="ic-new-vessel-runtime"
@@ -5414,24 +5528,25 @@ export function CommandCenterView({
               value={newVesselRuntime}
               onChange={(e) => setNewVesselRuntime(e.target.value)}
             >
-              <option value="">Runtime wählen…</option>
+              <option value="">{ct("Runtime wählen…")}</option>
               {runtimes.map((r) => (
                 <option key={r.type} value={r.type}>
-                  {r.type} {r.health.healthy ? "● bereit" : "○ nicht verfügbar"}
+                  {r.type} {r.health.healthy ? ct("● bereit") : ct("○ nicht verfügbar")}
                 </option>
               ))}
             </select>
             <label className="ic-sr-only" htmlFor="ic-new-vessel-model">
-              Modell
+              {ct("Modell")}
             </label>
-            <input
+            <ModelInput
+              runtime={newVesselRuntime}
               id="ic-new-vessel-model"
               data-testid="new-vessel-model"
-              placeholder="Modell (optional)"
+              placeholder={ct("Modell (optional)")}
               value={newVesselModel}
               onChange={(e) => setNewVesselModel(e.target.value)}
             />
-            <label htmlFor="ic-new-vessel-timeout">Zeitlimit (Min.)</label>
+            <label htmlFor="ic-new-vessel-timeout">{ct("Zeitlimit (Min.)")}</label>
             <input
               id="ic-new-vessel-timeout"
               type="number"
@@ -5440,7 +5555,7 @@ export function CommandCenterView({
               value={newVesselTimeoutMin}
               onChange={(e) => setNewVesselTimeoutMin(e.target.value)}
             />
-            <label htmlFor="ic-new-vessel-retries">Versuche</label>
+            <label htmlFor="ic-new-vessel-retries">{ct("Versuche")}</label>
             <input
               id="ic-new-vessel-retries"
               type="number"
@@ -5449,7 +5564,7 @@ export function CommandCenterView({
               value={newVesselRetries}
               onChange={(e) => setNewVesselRetries(e.target.value)}
             />
-            <label htmlFor="ic-new-vessel-concurrency">Gleichzeitig</label>
+            <label htmlFor="ic-new-vessel-concurrency">{ct("Gleichzeitig")}</label>
             <input
               id="ic-new-vessel-concurrency"
               type="number"
@@ -5466,14 +5581,14 @@ export function CommandCenterView({
               disabled={busy || !newVesselKey.trim() || !newVesselRuntime}
               onClick={createVessel}
             >
-              Anlegen
+              {ct("Anlegen")}
             </button>
           </div>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Talente
+            {ct("Talente")}
           </h3>
-          {talents.length === 0 && <p className="ic-empty">Kein Talent angelegt.</p>}
+          {talents.length === 0 && <p className="ic-empty">{ct("Kein Talent angelegt.")}</p>}
           <ul className="ic-milestone-list">
             {talents.map((t) => (
               <li key={t.id} data-testid={`talent-${t.id}`} style={{ flexWrap: "wrap" }}>
@@ -5498,8 +5613,11 @@ export function CommandCenterView({
                 )}
                 <span className="ic-note" style={{ width: "100%" }} data-testid={`talent-agents-${t.id}`}>
                   {t.agents.length === 0
-                    ? "Von keinem Agent genutzt."
-                    : `Genutzt von: ${t.agents.map((a) => a.display_name).join(", ")}`}
+                    ? ct("Von keinem Agent genutzt.")
+                    : tr({
+                        de: `Genutzt von: ${t.agents.map((a) => a.display_name).join(", ")}`,
+                        en: `Used by: ${t.agents.map((a) => a.display_name).join(", ")}`,
+                      })}
                 </span>
 
                 <button
@@ -5509,7 +5627,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => startEditTalent(t)}
                 >
-                  Bearbeiten
+                  {ct("Bearbeiten")}
                 </button>
                 <button
                   type="button"
@@ -5519,7 +5637,7 @@ export function CommandCenterView({
                   disabled={busy}
                   onClick={() => deleteTalent(t.id)}
                 >
-                  Entfernen
+                  {ct("Entfernen")}
                 </button>
 
                 {talentErrors[t.id] && (
@@ -5531,27 +5649,27 @@ export function CommandCenterView({
                 {editTalentId === t.id && (
                   <div className="ic-form-row" data-testid={`talent-form-${t.id}`}>
                     <label className="ic-sr-only" htmlFor={`ic-talent-role-${t.id}`}>
-                      Berufsrolle
+                      {ct("Berufsrolle")}
                     </label>
                     <input
                       id={`ic-talent-role-${t.id}`}
                       data-testid={`talent-edit-role-${t.id}`}
-                      placeholder="Berufsrolle"
+                      placeholder={ct("Berufsrolle")}
                       value={talentDraft.professionalRole}
                       onChange={(e) => setTalentDraft((prev) => ({ ...prev, professionalRole: e.target.value }))}
                     />
                     <label className="ic-sr-only" htmlFor={`ic-talent-summary-${t.id}`}>
-                      Kurzbeschreibung
+                      {ct("Kurzbeschreibung")}
                     </label>
                     <input
                       id={`ic-talent-summary-${t.id}`}
                       data-testid={`talent-edit-summary-${t.id}`}
-                      placeholder="Kurzbeschreibung"
+                      placeholder={ct("Kurzbeschreibung")}
                       value={talentDraft.roleSummary}
                       onChange={(e) => setTalentDraft((prev) => ({ ...prev, roleSummary: e.target.value }))}
                     />
                     <label className="ic-sr-only" htmlFor={`ic-talent-seniority-${t.id}`}>
-                      Seniorität
+                      {ct("Seniorität")}
                     </label>
                     <select
                       id={`ic-talent-seniority-${t.id}`}
@@ -5579,7 +5697,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => saveTalent(t.id)}
                     >
-                      Speichern
+                      {ct("Speichern")}
                     </button>
                     <button
                       type="button"
@@ -5588,7 +5706,7 @@ export function CommandCenterView({
                       disabled={busy}
                       onClick={() => setEditTalentId(null)}
                     >
-                      Abbrechen
+                      {ct("Abbrechen")}
                     </button>
                   </div>
                 )}
@@ -5597,41 +5715,41 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Neues Talent
+            {ct("Neues Talent")}
           </h3>
           <div className="ic-form-row">
             <label className="ic-sr-only" htmlFor="ic-new-talent-key">
-              Schlüssel
+              {ct("Schlüssel")}
             </label>
             <input
               id="ic-new-talent-key"
               data-testid="new-talent-key"
-              placeholder="Schlüssel (z. B. cto)"
+              placeholder={ct("Schlüssel (z. B. cto)")}
               value={newTalentKey}
               onChange={(e) => setNewTalentKey(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-talent-role">
-              Berufsrolle
+              {ct("Berufsrolle")}
             </label>
             <input
               id="ic-new-talent-role"
               data-testid="new-talent-role"
-              placeholder="Berufsrolle (z. B. chief_technology_officer)"
+              placeholder={ct("Berufsrolle (z. B. chief_technology_officer)")}
               value={newTalentRole}
               onChange={(e) => setNewTalentRole(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-talent-summary">
-              Kurzbeschreibung
+              {ct("Kurzbeschreibung")}
             </label>
             <input
               id="ic-new-talent-summary"
               data-testid="new-talent-summary"
-              placeholder="Kurzbeschreibung (optional)"
+              placeholder={ct("Kurzbeschreibung (optional)")}
               value={newTalentSummary}
               onChange={(e) => setNewTalentSummary(e.target.value)}
             />
             <label className="ic-sr-only" htmlFor="ic-new-talent-seniority">
-              Seniorität
+              {ct("Seniorität")}
             </label>
             <select
               id="ic-new-talent-seniority"
@@ -5640,7 +5758,7 @@ export function CommandCenterView({
               value={newTalentSeniority}
               onChange={(e) => setNewTalentSeniority(e.target.value)}
             >
-              <option value="">Seniorität wählen…</option>
+              <option value="">{ct("Seniorität wählen…")}</option>
               {seniorities.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -5655,25 +5773,28 @@ export function CommandCenterView({
               disabled={busy || !newTalentKey.trim() || !newTalentRole.trim()}
               onClick={createTalent}
             >
-              Anlegen
+              {ct("Anlegen")}
             </button>
           </div>
         </DetailDialog>
       )}
 
       {showTools && (
-        <DetailDialog title="Werkzeuge" onClose={() => setShowTools(false)}>
+        <DetailDialog title={ct("Werkzeuge")} onClose={() => setShowTools(false)}>
           <p className="ic-note">
-            Zwei Tabellen, zwei Aussagen: das Register sagt, was dieser Server ausführen <em>kann</em>, die Freigaben
-            sagen, wer es benutzen <em>darf</em>. Registrieren erteilt nichts. Eine Freigabe nennt genau einen
-            Geltungsbereich — einen Agenten (diesen Posten), ein Projekt (diesen Kontext) oder ein Talent (die Rolle
-            allgemein). Überschneiden sie sich, gewinnt das Spezifischere: Agent vor Projekt vor Talent.
+            {ct("Zwei Tabellen, zwei Aussagen: das Register sagt, was dieser Server ausführen ")}
+            <em>{ct("kann")}</em>
+            {ct(", die Freigaben sagen, wer es benutzen ")}
+            <em>{ct("darf")}</em>
+            {ct(
+              ". Registrieren erteilt nichts. Eine Freigabe nennt genau einen Geltungsbereich — einen Agenten (diesen Posten), ein Projekt (diesen Kontext) oder ein Talent (die Rolle allgemein). Überschneiden sie sich, gewinnt das Spezifischere: Agent vor Projekt vor Talent.",
+            )}
           </p>
           <p className="ic-warn" data-testid="tool-disabled-note">
-            Ein abgeschaltetes Werkzeug wird für alle verweigert — unabhängig von jeder Freigabe.
+            {ct("Ein abgeschaltetes Werkzeug wird für alle verweigert — unabhängig von jeder Freigabe.")}
           </p>
 
-          {tools.length === 0 && <p className="ic-empty">Kein Werkzeug registriert.</p>}
+          {tools.length === 0 && <p className="ic-empty">{ct("Kein Werkzeug registriert.")}</p>}
           <ul className="ic-milestone-list">
             {tools.map((tool) => {
               const kind = grantScopeKind[tool.id] ?? "agent";
@@ -5699,14 +5820,14 @@ export function CommandCenterView({
                     data-tone={tool.risk_class === "external" ? "gate" : "policy"}
                     data-testid={`tool-risk-${tool.id}`}
                   >
-                    {TOOL_RISK_CLASS_LABEL[tool.risk_class]}
+                    {label(TOOL_RISK_CLASS_LABEL[tool.risk_class])}
                   </span>
                   <span className="ic-tag" data-testid={`tool-origin-${tool.id}`}>
-                    {TOOL_ORIGIN_LABEL[tool.origin] ?? tool.origin}
+                    {label(TOOL_ORIGIN_LABEL[tool.origin]) ?? tool.origin}
                   </span>
                   {tool.enabled === 0 && (
                     <span className="ic-tag" data-tone="off" data-testid={`tool-off-${tool.id}`}>
-                      abgeschaltet
+                      {ct("abgeschaltet")}
                     </span>
                   )}
                   <button
@@ -5716,7 +5837,7 @@ export function CommandCenterView({
                     disabled={busy}
                     onClick={() => setToolEnabled(tool.id, tool.enabled === 0)}
                   >
-                    {tool.enabled === 0 ? "Einschalten" : "Abschalten"}
+                    {tool.enabled === 0 ? ct("Einschalten") : ct("Abschalten")}
                   </button>
                   {tool.description !== "" && (
                     <span className="ic-note" style={{ width: "100%" }} data-testid={`tool-description-${tool.id}`}>
@@ -5726,7 +5847,7 @@ export function CommandCenterView({
 
                   {tool.grants.length === 0 ? (
                     <span className="ic-note" style={{ width: "100%" }} data-testid={`tool-grants-empty-${tool.id}`}>
-                      Niemand darf dieses Werkzeug benutzen.
+                      {ct("Niemand darf dieses Werkzeug benutzen.")}
                     </span>
                   ) : (
                     <ul className="ic-milestone-list" style={{ width: "100%" }}>
@@ -5740,7 +5861,9 @@ export function CommandCenterView({
                             data-tone={grantRequiresApproval(tool, grant) ? "gate" : undefined}
                             data-testid={`tool-grant-approval-${grant.id}`}
                           >
-                            {grantRequiresApproval(tool, grant) ? "Freigabe pro Nutzung" : "keine Freigabe nötig"}
+                            {grantRequiresApproval(tool, grant)
+                              ? ct("Freigabe pro Nutzung")
+                              : ct("keine Freigabe nötig")}
                           </span>
                           <button
                             type="button"
@@ -5750,7 +5873,7 @@ export function CommandCenterView({
                             disabled={busy}
                             onClick={() => revokeToolGrant(grant.id)}
                           >
-                            Entziehen
+                            {ct("Entziehen")}
                           </button>
                         </li>
                       ))}
@@ -5759,7 +5882,8 @@ export function CommandCenterView({
 
                   <div className="ic-form-row" data-testid={`tool-grant-form-${tool.id}`}>
                     <label className="ic-sr-only" htmlFor={`ic-grant-kind-${tool.id}`}>
-                      Geltungsbereich für {tool.key}
+                      {ct("Geltungsbereich für ")}
+                      {tool.key}
                     </label>
                     <select
                       id={`ic-grant-kind-${tool.id}`}
@@ -5778,13 +5902,14 @@ export function CommandCenterView({
                     >
                       {(["agent", "project", "talent"] as const).map((value) => (
                         <option key={value} value={value}>
-                          {TOOL_GRANT_SCOPE_LABEL[value]}
+                          {label(TOOL_GRANT_SCOPE_LABEL[value])}
                         </option>
                       ))}
                     </select>
 
                     <label className="ic-sr-only" htmlFor={`ic-grant-target-${tool.id}`}>
-                      {TOOL_GRANT_SCOPE_LABEL[kind]} wählen
+                      {label(TOOL_GRANT_SCOPE_LABEL[kind])}
+                      {ct(" wählen")}
                     </label>
                     <select
                       id={`ic-grant-target-${tool.id}`}
@@ -5793,7 +5918,10 @@ export function CommandCenterView({
                       value={scopeId}
                       onChange={(e) => setGrantScopeId((prev) => ({ ...prev, [tool.id]: e.target.value }))}
                     >
-                      <option value="">— {TOOL_GRANT_SCOPE_LABEL[kind]} wählen —</option>
+                      <option value="">
+                        — {label(TOOL_GRANT_SCOPE_LABEL[kind])}
+                        {ct(" wählen —")}
+                      </option>
                       {kind === "agent" &&
                         agents.map((a) => (
                           <option key={a.id} value={a.id}>
@@ -5815,7 +5943,8 @@ export function CommandCenterView({
                     </select>
 
                     <label className="ic-sr-only" htmlFor={`ic-grant-approval-${tool.id}`}>
-                      Freigabepflicht für {tool.key}
+                      {ct("Freigabepflicht für ")}
+                      {tool.key}
                     </label>
                     <select
                       id={`ic-grant-approval-${tool.id}`}
@@ -5833,9 +5962,9 @@ export function CommandCenterView({
                       {/* "Standard" leaves the column NULL — that is what keeps
                           an external tool gated by omission rather than by
                           someone remembering to say so. */}
-                      <option value="default">Freigabe: wie die Risikoklasse</option>
-                      <option value="required">Freigabe pro Nutzung</option>
-                      <option value="none">keine Freigabe nötig</option>
+                      <option value="default">{ct("Freigabe: wie die Risikoklasse")}</option>
+                      <option value="required">{ct("Freigabe pro Nutzung")}</option>
+                      <option value="none">{ct("keine Freigabe nötig")}</option>
                     </select>
 
                     <button
@@ -5846,7 +5975,7 @@ export function CommandCenterView({
                       disabled={busy || scopeId === ""}
                       onClick={() => submitGrant(tool)}
                     >
-                      Freigeben
+                      {ct("Freigeben")}
                     </button>
                   </div>
 
@@ -5855,9 +5984,10 @@ export function CommandCenterView({
                   {waiverToolId === tool.id && (
                     <div className="ic-warn" style={{ width: "100%" }} data-testid={`tool-waiver-${tool.id}`}>
                       <p style={{ margin: "0 0 6px" }}>
-                        {tool.key} wirkt nach außen: Was damit geschieht, behandelt jemand draußen als echt. Ohne
-                        Freigabepflicht handelt dieser Geltungsbereich künftig ohne Rückfrage — auch dann, wenn dabei
-                        Geld ausgegeben oder etwas in deinem Namen abgeschickt wird.
+                        {tool.key}
+                        {ct(
+                          " wirkt nach außen: Was damit geschieht, behandelt jemand draußen als echt. Ohne Freigabepflicht handelt dieser Geltungsbereich künftig ohne Rückfrage — auch dann, wenn dabei Geld ausgegeben oder etwas in deinem Namen abgeschickt wird.",
+                        )}
                       </p>
                       <button
                         type="button"
@@ -5867,7 +5997,7 @@ export function CommandCenterView({
                         disabled={busy}
                         onClick={() => submitGrant(tool, true)}
                       >
-                        Freigabepflicht bewusst abschalten
+                        {ct("Freigabepflicht bewusst abschalten")}
                       </button>
                       <button
                         type="button"
@@ -5876,7 +6006,7 @@ export function CommandCenterView({
                         disabled={busy}
                         onClick={() => setWaiverToolId(null)}
                       >
-                        Abbrechen
+                        {ct("Abbrechen")}
                       </button>
                     </div>
                   )}
@@ -5894,20 +6024,22 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Suche
+            {ct("Suche")}
           </h3>
           <p className="ic-note">
-            Die Websuche gehört zum selben Register und geht durch dasselbe Gate: Ohne Freigabe für{" "}
-            {WEB_SEARCH_TOOL_KEY} sucht hier niemand. Treffer sind Text, den ein Fremder geschrieben hat — sie werden
-            als Text angezeigt, nie als Markup ausgeführt.
+            {ct("Die Websuche gehört zum selben Register und geht durch dasselbe Gate: Ohne Freigabe für")}{" "}
+            {WEB_SEARCH_TOOL_KEY}
+            {ct(
+              " sucht hier niemand. Treffer sind Text, den ein Fremder geschrieben hat — sie werden als Text angezeigt, nie als Markup ausgeführt.",
+            )}
           </p>
-          {searchProviders.length === 0 && <p className="ic-empty">Kein Suchanbieter konfiguriert.</p>}
+          {searchProviders.length === 0 && <p className="ic-empty">{ct("Kein Suchanbieter konfiguriert.")}</p>}
           <ul className="ic-milestone-list">
             {searchProviders.map((provider) => (
               <li key={provider.kind} data-testid={`search-provider-${provider.kind}`} style={{ flexWrap: "wrap" }}>
                 <span className="ic-milestone-title">{provider.kind}</span>
                 <span className="ic-tag" data-tone={provider.ok ? "policy" : "gate"}>
-                  {provider.ok ? "erreichbar" : "nicht erreichbar"}
+                  {provider.ok ? ct("erreichbar") : ct("nicht erreichbar")}
                 </span>
                 {provider.message !== "" && (
                   <span className="ic-note" style={{ width: "100%" }}>
@@ -5920,7 +6052,7 @@ export function CommandCenterView({
 
           <div className="ic-form-row">
             <label className="ic-sr-only" htmlFor="ic-search-agent">
-              Agent für die Probesuche
+              {ct("Agent für die Probesuche")}
             </label>
             <select
               id="ic-search-agent"
@@ -5929,7 +6061,7 @@ export function CommandCenterView({
               value={searchAgentId}
               onChange={(e) => setSearchAgentId(e.target.value)}
             >
-              <option value="">— Agent wählen —</option>
+              <option value="">{ct("— Agent wählen —")}</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.displayName}
@@ -5937,12 +6069,12 @@ export function CommandCenterView({
               ))}
             </select>
             <label className="ic-sr-only" htmlFor="ic-search-query">
-              Suchbegriff
+              {ct("Suchbegriff")}
             </label>
             <input
               id="ic-search-query"
               data-testid="search-query"
-              placeholder="Suchbegriff"
+              placeholder={ct("Suchbegriff")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -5954,7 +6086,7 @@ export function CommandCenterView({
               disabled={busy || searchAgentId === "" || searchQuery.trim() === ""}
               onClick={runSearch}
             >
-              Probesuche
+              {ct("Probesuche")}
             </button>
           </div>
 
@@ -5962,20 +6094,26 @@ export function CommandCenterView({
               not broken, it simply has no grant for this one. */}
           {searchDenied !== null && (
             <div className="ic-conflict" data-testid="search-denied">
-              Dieser Agent darf das nicht: {WEB_SEARCH_TOOL_KEY} ist für ihn nicht freigegeben. {searchDenied}
+              {ct("Dieser Agent darf das nicht: ")}
+              {WEB_SEARCH_TOOL_KEY}
+              {ct(" ist für ihn nicht freigegeben. ")}
+              {searchDenied}
             </div>
           )}
           {/* 202: nothing was searched. The approval id is what the operator
               looks for in the Freigaben list. */}
           {searchApprovalId !== null && (
             <div className="ic-warn" data-testid="search-approval">
-              Wartet auf deine Freigabe — Freigabe-ID {searchApprovalId}. Es wurde noch nichts gesucht.
+              {ct("Wartet auf deine Freigabe — Freigabe-ID ")}
+              {searchApprovalId}
+              {ct(". Es wurde noch nichts gesucht.")}
             </div>
           )}
           {/* 502: the request was fine, the provider on the other end was not. */}
           {searchUnreachable !== null && (
             <div className="ic-conflict" data-testid="search-unreachable">
-              Suchanbieter nicht erreichbar: {searchUnreachable}
+              {ct("Suchanbieter nicht erreichbar: ")}
+              {searchUnreachable}
             </div>
           )}
           {searchFailure !== null && (
@@ -5987,9 +6125,10 @@ export function CommandCenterView({
           {searchHits !== null && (
             <>
               <p className="ic-note" data-testid="search-provider-used">
-                Anbieter: {searchHits.provider}
+                {ct("Anbieter: ")}
+                {searchHits.provider}
               </p>
-              {searchHits.results.length === 0 && <p className="ic-empty">Keine Treffer.</p>}
+              {searchHits.results.length === 0 && <p className="ic-empty">{ct("Keine Treffer.")}</p>}
               <ul className="ic-milestone-list">
                 {searchHits.results.map((hit) => (
                   <li
@@ -6026,16 +6165,16 @@ export function CommandCenterView({
       )}
 
       {showRunQueue && (
-        <DetailDialog title="Warteschlange" onClose={() => setShowRunQueue(false)}>
+        <DetailDialog title={ct("Warteschlange")} onClose={() => setShowRunQueue(false)}>
           <p className="ic-note">
-            Die Warteschlange hält den Auftrag, eine Aufgabe auszuführen — dauerhaft, auch wenn niemand zusieht und auch
-            über einen Neustart hinweg. Ein Hintergrund-Scheduler arbeitet sie ab; „Jetzt abarbeiten“ macht denselben
-            Durchlauf von Hand.
+            {ct(
+              "Die Warteschlange hält den Auftrag, eine Aufgabe auszuführen — dauerhaft, auch wenn niemand zusieht und auch über einen Neustart hinweg. Ein Hintergrund-Scheduler arbeitet sie ab; „Jetzt abarbeiten“ macht denselben Durchlauf von Hand.",
+            )}
           </p>
 
           <div className="ic-composer" style={{ padding: 0, flexWrap: "wrap" }}>
             <label className="ic-sr-only" htmlFor="ic-run-queue-status-filter">
-              Status
+              {ct("Status")}
             </label>
             <select
               id="ic-run-queue-status-filter"
@@ -6045,13 +6184,13 @@ export function CommandCenterView({
               disabled={busy}
               onChange={(e) => filterRunQueue(e.target.value as RunRequestStatus | "")}
             >
-              <option value="">Alle</option>
-              <option value="queued">{RUN_REQUEST_STATUS_LABEL.queued}</option>
-              <option value="running">{RUN_REQUEST_STATUS_LABEL.running}</option>
-              <option value="done">{RUN_REQUEST_STATUS_LABEL.done}</option>
-              <option value="failed">{RUN_REQUEST_STATUS_LABEL.failed}</option>
-              <option value="dead">{RUN_REQUEST_STATUS_LABEL.dead}</option>
-              <option value="cancelled">{RUN_REQUEST_STATUS_LABEL.cancelled}</option>
+              <option value="">{ct("Alle")}</option>
+              <option value="queued">{label(RUN_REQUEST_STATUS_LABEL.queued)}</option>
+              <option value="running">{label(RUN_REQUEST_STATUS_LABEL.running)}</option>
+              <option value="done">{label(RUN_REQUEST_STATUS_LABEL.done)}</option>
+              <option value="failed">{label(RUN_REQUEST_STATUS_LABEL.failed)}</option>
+              <option value="dead">{label(RUN_REQUEST_STATUS_LABEL.dead)}</option>
+              <option value="cancelled">{label(RUN_REQUEST_STATUS_LABEL.cancelled)}</option>
             </select>
             <button
               type="button"
@@ -6061,7 +6200,7 @@ export function CommandCenterView({
               disabled={busy}
               onClick={drainRunQueue}
             >
-              Jetzt abarbeiten
+              {ct("Jetzt abarbeiten")}
             </button>
             {drainResult !== null && (
               <span className="ic-tag" data-testid="run-queue-drain-result">
@@ -6070,7 +6209,7 @@ export function CommandCenterView({
             )}
           </div>
 
-          {runQueue.length === 0 && <p className="ic-empty">Nichts in der Warteschlange.</p>}
+          {runQueue.length === 0 && <p className="ic-empty">{ct("Nichts in der Warteschlange.")}</p>}
           <ul className="ic-milestone-list">
             {runQueue.map((r) => (
               <li
@@ -6086,10 +6225,11 @@ export function CommandCenterView({
                   data-tone={r.status === "dead" || r.status === "failed" ? "gate" : "policy"}
                   data-testid={`run-request-status-${r.id}`}
                 >
-                  {RUN_REQUEST_STATUS_LABEL[r.status]}
+                  {label(RUN_REQUEST_STATUS_LABEL[r.status])}
                 </span>
                 <span className="ic-tag" data-testid={`run-request-attempts-${r.id}`}>
-                  {r.attempts}/{r.max_attempts} Versuche
+                  {r.attempts}/{r.max_attempts}
+                  {ct(" Versuche")}
                 </span>
                 <span className="ic-tag">{r.requested_by}</span>
 
@@ -6104,14 +6244,15 @@ export function CommandCenterView({
                     disabled={busy}
                     onClick={() => cancelRunRequest(r.id)}
                   >
-                    Abbrechen
+                    {ct("Abbrechen")}
                   </button>
                 )}
 
                 {r.status === "dead" && (
                   <div className="ic-warn" style={{ width: "100%" }} data-testid={`run-request-dead-hint-${r.id}`}>
-                    Aufgegeben: alle Versuche sind verbraucht. Diese Anfrage läuft von selbst nicht wieder an — hier
-                    muss ein Mensch entscheiden.
+                    {ct(
+                      "Aufgegeben: alle Versuche sind verbraucht. Diese Anfrage läuft von selbst nicht wieder an — hier muss ein Mensch entscheiden.",
+                    )}
                   </div>
                 )}
                 {(r.status === "failed" || r.status === "dead") && r.last_error !== "" && (
@@ -6124,36 +6265,42 @@ export function CommandCenterView({
           </ul>
 
           <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
-            Scheduler
+            {ct("Scheduler")}
           </h3>
           {scheduler !== null && !scheduler.enabled && (
             <div className="ic-warn" data-testid="scheduler-disabled">
-              Hintergrundarbeit ist ausgeschaltet — nichts in dieser Warteschlange wird von selbst abgearbeitet. Setzen
-              Sie die Umgebungsvariable IRONCREW_SCHEDULER und starten Sie den Server neu, oder arbeiten Sie hier von
-              Hand ab.
+              {ct(
+                "Hintergrundarbeit ist ausgeschaltet — nichts in dieser Warteschlange wird von selbst abgearbeitet. Setzen Sie die Umgebungsvariable IRONCREW_SCHEDULER und starten Sie den Server neu, oder arbeiten Sie hier von Hand ab.",
+              )}
             </div>
           )}
-          {scheduler !== null && scheduler.jobs.length === 0 && <p className="ic-empty">Kein Job registriert.</p>}
+          {scheduler !== null && scheduler.jobs.length === 0 && (
+            <p className="ic-empty">{ct("Kein Job registriert.")}</p>
+          )}
           <ul className="ic-milestone-list">
             {(scheduler?.jobs ?? []).map((job) => (
               <li key={job.name} data-testid={`scheduler-job-${job.name}`} style={{ flexWrap: "wrap" }}>
                 <span className="ic-milestone-title">{job.name}</span>
                 <span className="ic-tag" data-testid={`scheduler-job-interval-${job.name}`}>
-                  alle {formatDurationMs(job.intervalMs)}
+                  {ct("alle ")}
+                  {formatDurationMs(job.intervalMs)}
                 </span>
                 <span className="ic-tag" data-testid={`scheduler-job-last-${job.name}`}>
-                  {job.lastFinishedAt === null ? "noch nie gelaufen" : `zuletzt ${formatTime(job.lastFinishedAt)}`}
+                  {job.lastFinishedAt === null ? ct("noch nie gelaufen") : `zuletzt ${formatTime(job.lastFinishedAt)}`}
                 </span>
                 <span
                   className="ic-tag"
                   data-tone={job.failures > 0 ? "gate" : undefined}
                   data-testid={`scheduler-job-failures-${job.name}`}
                 >
-                  {job.failures} Fehlschläge / {job.runs} Läufe
+                  {job.failures}
+                  {ct(" Fehlschläge / ")}
+                  {job.runs}
+                  {ct(" Läufe")}
                 </span>
                 {job.running && (
                   <span className="ic-tag" data-tone="policy">
-                    läuft gerade
+                    {ct("läuft gerade")}
                   </span>
                 )}
                 <button
@@ -6163,7 +6310,7 @@ export function CommandCenterView({
                   disabled={busy || job.running}
                   onClick={() => runSchedulerJob(job.name)}
                 >
-                  Jetzt ausführen
+                  {ct("Jetzt ausführen")}
                 </button>
                 {job.lastError !== "" && (
                   <div
@@ -6181,12 +6328,15 @@ export function CommandCenterView({
       )}
 
       {showAuditShipping && (
-        <DetailDialog title="Audit-Kopie" onClose={() => setShowAuditShipping(false)}>
+        <DetailDialog title={ct("Audit-Kopie")} onClose={() => setShowAuditShipping(false)}>
           <p className="ic-note">
-            Die lokale Kette beweist, dass niemand Einträge <strong>geändert</strong> hat — jeder Eintrag trägt den Hash
-            des vorherigen. Dass niemand sie <strong>gelöscht</strong> hat, kann sie nicht beweisen: Wer diese Maschine
-            besitzt, kann die Tabelle kürzen und die Kette darüber lückenlos neu rechnen. Nur eine Kopie dort, wohin die
-            Zugangsdaten dieser Maschine nicht reichen, überlebt das.
+            {ct("Die lokale Kette beweist, dass niemand Einträge ")}
+            <strong>{ct("geändert")}</strong>
+            {ct(" hat — jeder Eintrag trägt den Hash des vorherigen. Dass niemand sie ")}
+            <strong>{ct("gelöscht")}</strong>
+            {ct(
+              " hat, kann sie nicht beweisen: Wer diese Maschine besitzt, kann die Tabelle kürzen und die Kette darüber lückenlos neu rechnen. Nur eine Kopie dort, wohin die Zugangsdaten dieser Maschine nicht reichen, überlebt das.",
+            )}
           </p>
 
           {auditShippingError !== null && (
@@ -6207,8 +6357,9 @@ export function CommandCenterView({
                 {auditShipping.message}
               </div>
               <p className="ic-note">
-                Einschalten über Umgebungsvariablen und Serverneustart — entweder eine Datei oder ein Collector, nicht
-                beides:
+                {ct(
+                  "Einschalten über Umgebungsvariablen und Serverneustart — entweder eine Datei oder ein Collector, nicht beides:",
+                )}
               </p>
               <pre className="ic-env-block" data-testid="audit-shipping-setup">
                 {`IRONCREW_AUDIT_SINK=file
@@ -6219,10 +6370,9 @@ IRONCREW_AUDIT_URL=https://collector.intern.example/ingest
 IRONCREW_AUDIT_TOKEN=…`}
               </pre>
               <p className="ic-note">
-                Das Ziel muss wirklich ausser Haus liegen. Eine Datei auf derselben Platte bringt nichts: Wer die
-                Tabelle löscht, löscht sie in derselben Bewegung mit. Ein gemountetes Volume ohne Löschrecht, ein Export
-                mit Append-Semantik, ein Collector auf einer anderen Maschine — das ist der Punkt. Ein halb
-                konfiguriertes Ziel lehnt der Server beim Start ab, statt still nichts zu übertragen.
+                {ct(
+                  "Das Ziel muss wirklich ausser Haus liegen. Eine Datei auf derselben Platte bringt nichts: Wer die Tabelle löscht, löscht sie in derselben Bewegung mit. Ein gemountetes Volume ohne Löschrecht, ein Export mit Append-Semantik, ein Collector auf einer anderen Maschine — das ist der Punkt. Ein halb konfiguriertes Ziel lehnt der Server beim Start ab, statt still nichts zu übertragen.",
+                )}
               </p>
             </>
           )}
@@ -6231,30 +6381,34 @@ IRONCREW_AUDIT_TOKEN=…`}
             <>
               <ul className="ic-milestone-list">
                 <li data-testid="audit-shipping-sink">
-                  <span className="ic-milestone-title">Ziel</span>
+                  <span className="ic-milestone-title">{ct("Ziel")}</span>
                   <span className="ic-tag" data-tone="policy">
-                    {AUDIT_SINK_LABEL[auditShipping.sink] ?? auditShipping.sink}
+                    {label(AUDIT_SINK_LABEL[auditShipping.sink]) ?? auditShipping.sink}
                   </span>
                 </li>
                 <li data-testid="audit-shipping-cursor">
-                  <span className="ic-milestone-title">Stand</span>
+                  <span className="ic-milestone-title">{ct("Stand")}</span>
                   <span className="ic-tag">
                     {auditShipping.cursor === 0
-                      ? "noch nichts übertragen"
-                      : `bis Eintrag ${auditShipping.cursor} ausser Haus`}
+                      ? ct("noch nichts übertragen")
+                      : tr({
+                          de: `bis Eintrag ${auditShipping.cursor} ausser Haus`,
+                          en: `through entry ${auditShipping.cursor} copied externally`,
+                        })}
                   </span>
                 </li>
                 <li data-testid="audit-shipping-pending">
-                  <span className="ic-milestone-title">Rückstand</span>
+                  <span className="ic-milestone-title">{ct("Rückstand")}</span>
                   <span className="ic-tag" data-tone={auditShipping.pending > 0 ? "gate" : "policy"}>
-                    {auditShipping.pending} wartend
+                    {auditShipping.pending}
+                    {ct(" wartend")}
                   </span>
                 </li>
               </ul>
               <p className="ic-note">
-                Der Rückstand ist die Zahl, auf die es ankommt. Der Scheduler überträgt alle 60 Sekunden; eine Zahl, die
-                über mehrere Aufrufe hinweg nur wächst, heisst: Das Ziel nimmt nichts mehr an. Jeder Eintrag, der nur
-                hier liegt, ist ein Eintrag, den eine Übernahme dieser Maschine spurlos entfernen kann.
+                {ct(
+                  "Der Rückstand ist die Zahl, auf die es ankommt. Der Scheduler überträgt alle 60 Sekunden; eine Zahl, die über mehrere Aufrufe hinweg nur wächst, heisst: Das Ziel nimmt nichts mehr an. Jeder Eintrag, der nur hier liegt, ist ein Eintrag, den eine Übernahme dieser Maschine spurlos entfernen kann.",
+                )}
               </p>
 
               {/*
@@ -6272,45 +6426,53 @@ IRONCREW_AUDIT_TOKEN=…`}
                 (auditShipping.health?.lastError !== undefined ? (
                   <div className="ic-warn" data-testid="audit-shipping-health">
                     <strong>
-                      Das Ziel nimmt nichts an
+                      {ct("Das Ziel nimmt nichts an")}
                       {(auditShipping.health.consecutiveFailures ?? 0) > 1
-                        ? ` — ${auditShipping.health.consecutiveFailures} Versuche in Folge`
+                        ? tr({
+                            de: ` — ${auditShipping.health.consecutiveFailures} Versuche in Folge`,
+                            en: ` — ${auditShipping.health.consecutiveFailures} consecutive attempts`,
+                          })
                         : ""}
                       .
                     </strong>{" "}
                     {auditShipping.health.lastError}
                     {auditShipping.health.lastErrorAt !== undefined && (
-                      <> (zuletzt {new Date(auditShipping.health.lastErrorAt).toLocaleString("de-DE")})</>
+                      <>
+                        {ct(" (zuletzt ")}
+                        {new Date(auditShipping.health.lastErrorAt).toLocaleString(locale)})
+                      </>
                     )}
                     {auditShipping.health.lastSuccessAt !== undefined ? (
                       <>
                         {" "}
-                        Zuletzt erfolgreich übertragen:{" "}
-                        {new Date(auditShipping.health.lastSuccessAt).toLocaleString("de-DE")}.
+                        {ct("Zuletzt erfolgreich übertragen:")}{" "}
+                        {new Date(auditShipping.health.lastSuccessAt).toLocaleString(locale)}.
                       </>
                     ) : (
-                      <> Es wurde noch nie etwas übertragen.</>
+                      <>{ct(" Es wurde noch nie etwas übertragen.")}</>
                     )}
                   </div>
                 ) : auditShipping.health?.lastSuccessAt !== undefined ? (
                   <p className="ic-note" data-testid="audit-shipping-health">
-                    Zuletzt übertragen: {new Date(auditShipping.health.lastSuccessAt).toLocaleString("de-DE")}.
+                    {ct("Zuletzt übertragen: ")}
+                    {new Date(auditShipping.health.lastSuccessAt).toLocaleString(locale)}.
                   </p>
                 ) : auditShipping.health?.lastAttemptAt !== undefined ? (
                   <p className="ic-note" data-testid="audit-shipping-health">
-                    Der letzte Lauf hatte nichts zu übertragen.
+                    {ct("Der letzte Lauf hatte nichts zu übertragen.")}
                   </p>
                 ) : (
                   <p className="ic-note" data-testid="audit-shipping-health">
-                    Noch kein Übertragungslauf. Der Scheduler startet den ersten innerhalb einer Minute.
+                    {ct("Noch kein Übertragungslauf. Der Scheduler startet den ersten innerhalb einer Minute.")}
                   </p>
                 ))}
 
               {auditShipping?.configured === true && auditShipping.gapDetected === true && (
                 <div className="ic-conflict" data-testid="audit-shipping-gap-status">
-                  <strong>Lücke in der Audit-Kette.</strong> Zwischen dem zuletzt übertragenen Eintrag und dem nächsten
-                  wartenden fehlen Zeilen. Das kann ein importierter Stand sein — oder genau das, wogegen diese Kopie
-                  existiert. Prüf die Kette unter „Audit" und vergleich sie mit dem, was ausser Haus liegt.
+                  <strong>{ct("Lücke in der Audit-Kette.")}</strong>
+                  {ct(
+                    ' Zwischen dem zuletzt übertragenen Eintrag und dem nächsten wartenden fehlen Zeilen. Das kann ein importierter Stand sein — oder genau das, wogegen diese Kopie existiert. Prüf die Kette unter „Audit" und vergleich sie mit dem, was ausser Haus liegt.',
+                  )}
                 </div>
               )}
 
@@ -6322,7 +6484,7 @@ IRONCREW_AUDIT_TOKEN=…`}
                   disabled={busy}
                   onClick={testAuditShipping}
                 >
-                  Verbindung prüfen
+                  {ct("Verbindung prüfen")}
                 </button>
                 <button
                   type="button"
@@ -6332,7 +6494,7 @@ IRONCREW_AUDIT_TOKEN=…`}
                   disabled={busy}
                   onClick={runAuditShipping}
                 >
-                  Jetzt übertragen
+                  {ct("Jetzt übertragen")}
                 </button>
               </div>
 
@@ -6345,28 +6507,33 @@ IRONCREW_AUDIT_TOKEN=…`}
                   data-testid="audit-shipping-probe"
                   data-ok={auditProbe.ok ? "true" : "false"}
                 >
-                  {auditProbe.ok ? "Ziel erreichbar" : "Ziel nicht erreichbar"} — {auditProbe.message}
+                  {auditProbe.ok ? ct("Ziel erreichbar") : ct("Ziel nicht erreichbar")} — {auditProbe.message}
                 </div>
               )}
 
               {auditShipResult !== null && (
                 <div className="ic-note" data-testid="audit-shipping-run-result">
-                  {auditShipResult.shipped} übertragen · {auditShipResult.pending} weiterhin wartend · Stand jetzt
-                  Eintrag {auditShipResult.cursorSeq}
+                  {auditShipResult.shipped}
+                  {ct(" übertragen · ")}
+                  {auditShipResult.pending}
+                  {ct(" weiterhin wartend · Stand jetzt Eintrag ")}
+                  {auditShipResult.cursorSeq}
                 </div>
               )}
               {auditShipResult !== null && !auditShipResult.ok && (
                 <div className="ic-warn" data-testid="audit-shipping-run-error">
-                  Nicht alles ist durchgegangen: {auditShipResult.error ?? "Das Ziel hat den Rest abgelehnt."} Der Rest
-                  wird beim nächsten Durchlauf erneut versucht — der Stand rückt nur über angenommene Einträge vor, nie
-                  darüber hinaus.
+                  {ct("Nicht alles ist durchgegangen: ")}
+                  {auditShipResult.error ?? ct("Das Ziel hat den Rest abgelehnt.")}
+                  {ct(
+                    " Der Rest wird beim nächsten Durchlauf erneut versucht — der Stand rückt nur über angenommene Einträge vor, nie darüber hinaus.",
+                  )}
                 </div>
               )}
               {auditShipResult?.gapDetected === true && (
                 <div className="ic-conflict" data-testid="audit-shipping-gap">
-                  Lücke erkannt: Unterhalb des Stands fehlen Zeilen in der Audit-Tabelle. Die Übertragung läuft weiter,
-                  aber genau so sieht ein Löschversuch aus. Jetzt die lokale Kette prüfen und gegen die Kopie ausser
-                  Haus halten — was hier fehlt, steht dort noch.
+                  {ct(
+                    "Lücke erkannt: Unterhalb des Stands fehlen Zeilen in der Audit-Tabelle. Die Übertragung läuft weiter, aber genau so sieht ein Löschversuch aus. Jetzt die lokale Kette prüfen und gegen die Kopie ausser Haus halten — was hier fehlt, steht dort noch.",
+                  )}
                 </div>
               )}
             </>
@@ -6392,6 +6559,7 @@ function AttachmentSection({
   onDelete: (id: string) => void;
   downloadUrl: (id: string) => string;
 }): React.JSX.Element {
+  const ct = useCommandText();
   return (
     <>
       <h3 className="ic-section-title" style={{ padding: "8px 0 4px" }}>
@@ -6412,14 +6580,15 @@ function AttachmentSection({
               disabled={busy}
               onClick={() => onDelete(a.id)}
             >
-              Entfernen
+              {ct("Entfernen")}
             </button>
           </li>
         ))}
       </ul>
       <div className="ic-composer" style={{ padding: 0 }}>
         <label className="ic-sr-only" htmlFor={`ic-upload-${title}`}>
-          Datei hochladen für {title}
+          {ct("Datei hochladen für ")}
+          {title}
         </label>
         <input
           id={`ic-upload-${title}`}

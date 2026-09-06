@@ -1,14 +1,5 @@
+import { lazyFeature } from "../components/lazyFeature";
 import type { TaskReportDetail } from "../api";
-import { ChatPanel } from "../components/ChatPanel";
-import DecisionInboxModal from "../components/DecisionInboxModal";
-import AgentDetail from "../components/AgentDetail";
-import DepartmentDetail from "../components/DepartmentDetail";
-import TerminalPanel from "../components/TerminalPanel";
-import TaskReportPopup from "../components/TaskReportPopup";
-import ReportHistory from "../components/ReportHistory";
-import AgentStatusPanel from "../components/AgentStatusPanel";
-import OfficeRoomManager from "../components/OfficeRoomManager";
-import ServerConfigPanel from "../components/ServerConfigPanel";
 import type { DecisionInboxItem } from "../components/chat/decision-inbox";
 import type {
   Agent,
@@ -24,6 +15,17 @@ import type {
 } from "../types";
 import type { UiLanguage } from "../i18n";
 import type { ProjectMetaPayload, RoomThemeMap, TaskPanelTab } from "./types";
+
+const ChatPanel = lazyFeature(async () => ({ default: (await import("../components/ChatPanel")).ChatPanel }));
+const DecisionInboxModal = lazyFeature(() => import("../components/DecisionInboxModal"));
+const AgentDetail = lazyFeature(() => import("../components/AgentDetail"));
+const DepartmentDetail = lazyFeature(() => import("../components/DepartmentDetail"));
+const TerminalPanel = lazyFeature(() => import("../components/TerminalPanel"));
+const TaskReportPopup = lazyFeature(() => import("../components/TaskReportPopup"));
+const ReportHistory = lazyFeature(() => import("../components/ReportHistory"));
+const AgentStatusPanel = lazyFeature(() => import("../components/AgentStatusPanel"));
+const OfficeRoomManager = lazyFeature(() => import("../components/OfficeRoomManager"));
+const ServerConfigPanel = lazyFeature(() => import("../components/ServerConfigPanel"));
 
 interface AppOverlaysProps {
   /** When true, ChatPanel is rendered inline elsewhere — skip overlay rendering */

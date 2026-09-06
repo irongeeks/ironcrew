@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useState, useCallback } from "react";
 import { createPack } from "../../api/workflow-packs";
 
@@ -7,6 +8,7 @@ interface CreatePackDialogProps {
 }
 
 export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) {
+  const translateUiCopy = useUiCopy();
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -14,7 +16,12 @@ export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) 
   const [creating, setCreating] = useState(false);
 
   const keyError =
-    key && !/^[a-z][a-z0-9_]{0,63}$/.test(key) ? "Only lowercase letters, digits, underscores (max 64 chars)" : null;
+    key && !/^[a-z][a-z0-9_]{0,63}$/.test(key)
+      ? translateUiCopy(
+          "Only lowercase letters, digits, underscores (max 64 chars)",
+          "Nur Kleinbuchstaben, Zahlen und Unterstriche (max. 64 Zeichen)",
+        )
+      : null;
 
   const handleCreate = useCallback(async () => {
     if (!key || !name || keyError) return;
@@ -62,7 +69,7 @@ export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) 
       style={{ background: "rgba(0,0,0,0.6)" }}
       role="dialog"
       aria-modal="true"
-      aria-label="Create New Pack"
+      aria-label={translateUiCopy("Create New Pack", "Neues Paket erstellen")}
       onKeyDown={handleKeyDown}
       onClick={onClose}
     >
@@ -72,7 +79,7 @@ export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) 
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-4 text-base font-semibold" style={{ color: "var(--text-primary)" }}>
-          Create New Pack
+          <LocalizedText en="Create New Pack" de="Neues Paket erstellen" />
         </h3>
 
         <div className="flex flex-col gap-3">
@@ -81,7 +88,7 @@ export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) 
               className="mb-1 block text-[10px] font-medium uppercase tracking-wider"
               style={{ color: "var(--text-muted)" }}
             >
-              Pack Key
+              <LocalizedText en="Pack Key" de="Paketkennung" />
             </label>
             <input
               value={key}
@@ -109,7 +116,7 @@ export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) 
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. My Custom Workflow"
+              placeholder={translateUiCopy("e.g. My Custom Workflow", "z. B. Mein eigener Workflow")}
               className="w-full rounded border px-3 py-2 text-sm"
               style={{ background: "var(--bg-base)", borderColor: "var(--border)", color: "var(--text-primary)" }}
             />
@@ -120,12 +127,12 @@ export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) 
               className="mb-1 block text-[10px] font-medium uppercase tracking-wider"
               style={{ color: "var(--text-muted)" }}
             >
-              Description
+              <LocalizedText en="Description" de="Beschreibung" />
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this workflow do?"
+              placeholder={translateUiCopy("What does this workflow do?", "Was macht dieser Workflow?")}
               rows={2}
               className="w-full resize-y rounded border px-3 py-2 text-sm"
               style={{ background: "var(--bg-base)", borderColor: "var(--border)", color: "var(--text-primary)" }}
@@ -144,7 +151,7 @@ export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) 
               className="rounded-lg border px-4 py-2 text-sm"
               style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)" }}
             >
-              Cancel
+              <LocalizedText en="Cancel" de="Abbrechen" />
             </button>
             <button
               onClick={() => void handleCreate()}
@@ -152,7 +159,9 @@ export function CreatePackDialog({ onCreated, onClose }: CreatePackDialogProps) 
               className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               style={{ background: "var(--accent)" }}
             >
-              {creating ? "Creating..." : "Create Pack"}
+              {creating
+                ? translateUiCopy("Creating...", "Wird erstellt …")
+                : translateUiCopy("Create Pack", "Paket erstellen")}
             </button>
           </div>
         </div>

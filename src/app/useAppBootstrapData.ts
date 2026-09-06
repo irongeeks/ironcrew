@@ -16,7 +16,6 @@ import type {
   SubTask,
   Task,
 } from "../types";
-import { DEFAULT_SETTINGS } from "../types";
 import { ROOM_THEMES_STORAGE_KEY } from "./constants";
 import { writeStoredValue } from "../storage";
 import { mapWorkflowDecisionItemsRaw } from "./decision-inbox";
@@ -124,8 +123,7 @@ export function useAppBootstrapData({
       const mergedSettings = mergeSettingsWithDefaults(sett);
       const autoDetectedLanguage = detectBrowserLanguage();
       const storedClientLanguage = readStoredClientLanguage();
-      const shouldAutoAssignLanguage =
-        !isUserLanguagePinned() && !storedClientLanguage && mergedSettings.language === DEFAULT_SETTINGS.language;
+      const shouldAutoAssignLanguage = !isUserLanguagePinned() && !storedClientLanguage && !sett?.language;
       const nextSettings = shouldAutoAssignLanguage
         ? { ...mergedSettings, language: autoDetectedLanguage }
         : mergedSettings;

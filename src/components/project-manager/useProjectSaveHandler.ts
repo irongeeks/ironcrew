@@ -72,10 +72,8 @@ export function useProjectSaveHandler({
             pathTools.setFormFeedback({
               tone: "error",
               message: t({
-                ko: "해당 경로는 폴더가 아닙니다. 디렉터리 경로를 입력해주세요.",
                 en: "This path is not a directory. Please enter a directory path.",
-                ja: "このパスはフォルダではありません。ディレクトリパスを入力してください。",
-                zh: "This path is not a directory. Please enter a directory path.",
+                de: "Dieser Pfad ist kein Verzeichnis. Bitte einen Verzeichnispfad eingeben.",
               }),
             });
             return;
@@ -99,10 +97,8 @@ export function useProjectSaveHandler({
             pathTools.setFormFeedback({
               tone: "error",
               message: pathTools.resolvePathHelperErrorMessage(err, {
-                ko: "프로젝트 경로 확인에 실패했습니다.",
                 en: "Failed to verify project path.",
-                ja: "プロジェクトパスの確認に失敗しました。",
-                zh: "Failed to verify project path.",
+                de: "Der Projektpfad konnte nicht geprüft werden.",
               }),
             });
             return;
@@ -165,6 +161,9 @@ export function useProjectSaveHandler({
               zh: existingProjectName
                 ? `该路径已被‘${existingProjectName}’注册。(${existingProjectPath || "path"})`
                 : "该路径已被其他项目注册。",
+              de: existingProjectName
+                ? `Dieser Pfad ist bereits für „${existingProjectName}“ registriert. (${existingProjectPath || "Pfad"})`
+                : "Dieser Pfad ist bereits für ein anderes Projekt registriert.",
             }),
           });
           return;
@@ -187,10 +186,8 @@ export function useProjectSaveHandler({
         pathTools.setFormFeedback({
           tone: "error",
           message: pathTools.resolvePathHelperErrorMessage(err, {
-            ko: "프로젝트 저장에 실패했습니다. 입력값을 확인해주세요.",
             en: "Failed to save project. Please check your inputs.",
-            ja: "プロジェクト保存に失敗しました。入力値を確認してください。",
-            zh: "Failed to save project. Please check your inputs.",
+            de: "Das Projekt konnte nicht gespeichert werden. Bitte die Eingaben prüfen.",
           }),
         });
       } finally {

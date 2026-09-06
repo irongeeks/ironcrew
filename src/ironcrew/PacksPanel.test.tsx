@@ -1,3 +1,4 @@
+import { I18nProvider } from "../i18n";
 /**
  * The panel exists to tell the truth about integrations.
  *
@@ -8,7 +9,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PacksPanel } from "./PacksPanel";
 import type { BusinessPackSummary } from "./types";
@@ -123,3 +124,7 @@ describe("PacksPanel", () => {
     expect(screen.getByText(/Nimmt Störungen auf/)).toBeTruthy();
   });
 });
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });

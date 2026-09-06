@@ -6,13 +6,14 @@ import path from "node:path";
 import { createTestDb, seedCompany } from "../domain/test-db.ts";
 import { CompanyPolicyStore } from "./company-policy-store.ts";
 import { getVendorPolicy, type VendorPolicy } from "./vendor-policy.ts";
+import { restrictiveVendorPolicy } from "./test-vendor-policy.ts";
 import { verifyAuditChain } from "../domain/audit.ts";
 import { UserStore } from "../auth/user-store.ts";
 let db: DatabaseSync, companyId: string, store: CompanyPolicyStore, baseline: VendorPolicy;
 beforeEach(() => {
   db = createTestDb();
   companyId = seedCompany(db);
-  baseline = structuredClone(getVendorPolicy());
+  baseline = restrictiveVendorPolicy();
   store = new CompanyPolicyStore(db, () => structuredClone(baseline));
 });
 afterEach(() => db.close());
@@ -35,7 +36,7 @@ it("persists scoped restrictions and linked audit without weakening immutable po
   expect(saved.effectivePolicy.blocked_endpoints).toEqual(baseline.blocked_endpoints);
   expect(saved.effectivePolicy.openrouter.sensitive_defaults).toEqual(baseline.openrouter.sensitive_defaults);
   expect(saved.effectivePolicy.telemetry).toEqual(baseline.telemetry);
-  expect(new CompanyPolicyStore(db).effective(companyId).allowed_families).toEqual(
+  expect(new CompanyPolicyStore(db, () => structuredClone(baseline)).effective(companyId).allowed_families).toEqual(
     input().restrictions.allowedFamilies,
   );
   const other = seedCompany(db, "other");
@@ -136,4 +137,29 @@ it("survives reopening the SQLite file and rejects a second connection's stale r
     secondDb?.close();
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+it("allows custom owner choices under a wildcard baseline and preserves them when the baseline opens", () => {
+  baseline = structuredClone(getVendorPolicy());
+  const restrictions = { allowedFamilies: ["minimax/*", "future/model:free"], allowedProviders: ["FutureHost"] };
+  const saved = store.save(companyId, { ...input(), restrictions }, "ceo");
+  expect(saved.effectivePolicy.allowed_families).toEqual(restrictions.allowedFamilies);
+  expect(saved.effectivePolicy.openrouter.allowed_providers).toEqual(restrictions.allowedProviders);
+  baseline.allowed_families = ["minimax/*"];
+  baseline.openrouter.allowed_providers = ["FutureHost", "SecondHost"];
+  expect(store.effective(companyId).allowed_families).toEqual(["minimax/*"]);
+  expect(store.effective(companyId).openrouter.allowed_providers).toEqual(["FutureHost"]);
+  baseline = structuredClone(getVendorPolicy());
+  expect(store.effective(companyId).allowed_families).toEqual(restrictions.allowedFamilies);
+});
+
+it("intersects persisted universal owner choices with a newly restricted operator baseline", () => {
+  baseline = structuredClone(getVendorPolicy());
+  store.save(companyId, input(), "ceo");
+  baseline = restrictiveVendorPolicy();
+  expect(store.effective(companyId).allowed_families).toEqual(baseline.allowed_families);
+  expect(store.effective(companyId).openrouter.allowed_providers).toEqual(baseline.openrouter.allowed_providers);
+  expect(() =>
+    store.save(companyId, { ...input(), restrictions: { allowedFamilies: ["*"], allowedProviders: ["*"] } }, "ceo"),
+  ).toThrow("nicht erweitern");
 });

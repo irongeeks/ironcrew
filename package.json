@@ -31,13 +31,12 @@
     "migrate:custom-skills": "node scripts/migrate-custom-skills-canonical.mjs",
     "predev": "node scripts/auto-apply-v1.0.5.mjs",
     "predev:local": "node scripts/auto-apply-v1.0.5.mjs",
-    "predev:e2e": "node scripts/auto-apply-v1.0.5.mjs",
     "predev:tailscale": "node scripts/auto-apply-v1.0.5.mjs",
     "prestart": "node scripts/auto-apply-v1.0.5.mjs && node scripts/ensure-remotion-runtime.mjs",
     "prestart:tailscale": "node scripts/auto-apply-v1.0.5.mjs && node scripts/ensure-remotion-runtime.mjs",
     "dev": "concurrently -n web,api -c cyan,magenta \"cross-env VITE_DEV=1 vite --host 0.0.0.0 --port 8800\" \"cross-env VITE_DEV=1 HOST=0.0.0.0 nodemon --watch server --ext ts --exec tsx server/index.ts\"",
     "dev:local": "concurrently -n web,api -c cyan,magenta \"cross-env VITE_DEV=1 vite --host 127.0.0.1 --port 8800\" \"cross-env VITE_DEV=1 HOST=127.0.0.1 nodemon --watch server --ext ts --exec tsx server/index.ts\"",
-    "dev:e2e": "node scripts/prepare-e2e-runtime.mjs && cross-env VITE_DEV=1 HOST=127.0.0.1 DB_PATH=.tmp/e2e-runtime/ironcrew.e2e.sqlite LOGS_DIR=.tmp/e2e-runtime/logs concurrently -n web,api -c cyan,magenta \"vite --host 127.0.0.1 --port 8810\" \"nodemon --watch server --ext ts --exec tsx server/index.ts\"",
+    "dev:e2e": "node --import tsx scripts/start-e2e.ts",
     "dev:docker": "concurrently -n web,api -c cyan,magenta \"cross-env VITE_DEV=1 vite --host 0.0.0.0 --port 8800\" \"cross-env VITE_DEV=1 HOST=0.0.0.0 nodemon --legacy-watch --watch server --ext ts --exec tsx server/index.ts\"",
     "dev:tailscale": "concurrently -n web,api -c cyan,magenta \"cross-env VITE_DEV=1 vite --host 0.0.0.0 --port 8800\" \"cross-env VITE_DEV=1 HOST=0.0.0.0 nodemon --watch server --ext ts --exec tsx server/index.ts\"",
     "start": "tsx server/index.ts",
@@ -156,41 +155,6 @@
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,scss,html}": "prettier --write",
     "{src/api,server/config}/**/*.ts": "eslint --fix --max-warnings=0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "node-pty"
-    ],
-    "overrides": {
-      "esbuild@>=0.17.0 <0.28.1": ">=0.28.1",
-      "ws@>=8.0.0 <8.21.0": ">=8.21.0",
-      "minimatch@<3.1.4": ">=3.1.4",
-      "minimatch@>=9.0.0 <9.0.7": ">=9.0.7",
-      "rollup@>=4.0.0 <4.59.0": ">=4.59.0",
-      "flatted@<=3.4.1": ">=3.4.2",
-      "picomatch@>=4.0.0 <4.0.4": "4.0.4",
-      "readdirp>picomatch": "4.0.4",
-      "yaml@>=2.0.0 <2.8.3": ">=2.8.3",
-      "path-to-regexp@>=8.0.0 <8.4.0": ">=8.4.0",
-      "serialize-javascript@<7.0.5": ">=7.0.5",
-      "brace-expansion@<1.1.13": ">=1.1.13",
-      "brace-expansion@>=2.0.0 <2.0.3": ">=2.0.3",
-      "brace-expansion@>=4.0.0 <5.0.5": ">=5.0.5",
-      "@xmldom/xmldom@<0.8.13": ">=0.8.13",
-      "hono@<4.12.21": ">=4.12.21",
-      "hono": ">=4.12.21",
-      "@hono/node-server@<1.19.13": ">=1.19.13",
-      "protobufjs@<7.5.5": ">=7.5.5",
-      "postcss@<8.5.18": ">=8.5.18",
-      "ip-address": ">=10.3.1",
-      "fast-uri": ">=4.1.4",
-      "qs@>=6.11.1 <=6.15.1": ">=6.15.2",
-      "js-yaml@<4.3.1": ">=4.3.1 <5",
-      "browserslist@<4.28.7": ">=4.28.7",
-      "nanoid@<3.3.18": ">=3.3.18",
-      "undici@8": ">=8.9.0"
-    }
   },
   "packageManager": "pnpm@10.30.1+sha512.3590e550d5384caa39bd5c7c739f72270234b2f6059e13018f975c313b1eb9fefcc09714048765d4d9efe961382c312e624572c0420762bdc5d5940cdf9be73a"
 }

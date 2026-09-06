@@ -69,13 +69,7 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
             </select>
             {cliModelsLoading ? (
               <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
-                {t({
-                  ko: "모델 로딩...",
-                  en: "Loading models...",
-                  ja: "モデル読み込み中...",
-                  zh: "Loading models...",
-                  de: "Modelle werden geladen...",
-                })}
+                {t({ en: "Loading models...", de: "Modelle werden geladen..." })}
               </span>
             ) : selectedCliModelOptions.length > 0 ? (
               <>
@@ -96,15 +90,7 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
                     borderStyle: "solid",
                   }}
                 >
-                  <option value="">
-                    {t({
-                      ko: "기본값(설정창 모델)",
-                      en: "Default (Settings model)",
-                      ja: "デフォルト（設定モデル）",
-                      zh: "Default (Settings model)",
-                      de: "Standard (Einstellungsmodell)",
-                    })}
-                  </option>
+                  <option value="">{t({ en: "Default (Settings model)", de: "Standard (Einstellungsmodell)" })}</option>
                   {selectedCliModelOptions.map((model) => (
                     <option key={model.slug} value={model.slug}>
                       {model.displayName || model.slug}
@@ -125,13 +111,7 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
                     }}
                   >
                     <option value="">
-                      {t({
-                        ko: "기본값(설정창 추론)",
-                        en: "Default (Settings reasoning)",
-                        ja: "デフォルト（設定推論）",
-                        zh: "Default (Settings reasoning)",
-                        de: "Standard (Einstellungsargumentation)",
-                      })}
+                      {t({ en: "Default (Settings reasoning)", de: "Standard (Einstellungsargumentation)" })}
                     </option>
                     {codexReasoningOptions.map((level) => (
                       <option key={level.effort} value={level.effort}>
@@ -146,25 +126,13 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
               </>
             ) : (
               <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
-                {t({
-                  ko: "모델 목록이 없습니다",
-                  en: "No model list available",
-                  ja: "モデル一覧がありません",
-                  zh: "No model list available",
-                  de: "Keine Modellliste verfügbar",
-                })}
+                {t({ en: "No model list available", de: "Keine Modellliste verfügbar" })}
               </span>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-1">
             <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "알바생 모델은 설정창 값을 따릅니다",
-                en: "Sub-agent model follows Settings",
-                ja: "サブエージェントモデルは設定値を使用",
-                zh: "Sub-agent model follows Settings",
-                de: "Unteragenten-Modell folgt den Einstellungen",
-              })}
+              {t({ en: "Sub-agent model follows Settings", de: "Unteragenten-Modell folgt den Einstellungen" })}
             </span>
             <button
               disabled={savingCli || !canSaveCli}
@@ -173,14 +141,14 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
               }}
               className="text-[10px] px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50"
             >
-              {savingCli ? "..." : t({ ko: "저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })}
+              {savingCli ? "..." : t({ en: "Save", de: "Speichern" })}
             </button>
             <button
               onClick={handleCancelCliEdit}
               className="text-[10px] px-1.5 py-0.5 rounded transition-colors"
               style={{ background: "var(--th-bg-surface-hover)", color: "var(--th-text-secondary)" }}
             >
-              {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+              {t({ en: "Cancel", de: "Abbrechen" })}
             </button>
           </div>
         </div>
@@ -215,13 +183,7 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
         {requiresOAuthAccount &&
           (oauthLoading ? (
             <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "계정 로딩...",
-                en: "Loading accounts...",
-                ja: "アカウント読み込み中...",
-                zh: "Loading accounts...",
-                de: "Konten werden geladen...",
-              })}
+              {t({ en: "Loading accounts...", de: "Konten werden geladen..." })}
             </span>
           ) : activeOAuthAccounts.length > 0 ? (
             <select
@@ -244,24 +206,12 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
             </select>
           ) : (
             <span className="text-[10px] text-amber-300">
-              {t({
-                ko: "활성 OAuth 계정 없음",
-                en: "No active OAuth account",
-                ja: "有効な OAuth アカウントなし",
-                zh: "No active OAuth account",
-                de: "Kein aktives OAuth-Konto",
-              })}
+              {t({ en: "No active OAuth account", de: "Kein aktives OAuth-Konto" })}
             </span>
           ))}
         {requiresApiProvider && (
           <span className="text-[10px] text-amber-300">
-            {t({
-              ko: "⚙️ 설정 > API 탭에서 모델을 배정하세요",
-              en: "⚙️ Assign models in Settings > API tab",
-              ja: "⚙️ 設定 > API タブでモデルを割り当ててください",
-              zh: "⚙️ Assign models in Settings > API tab",
-              de: "⚙️ Modelle in Einstellungen > API-Tab zuweisen",
-            })}
+            {t({ en: "⚙️ Assign models in Settings > API tab", de: "⚙️ Modelle in Einstellungen > API-Tab zuweisen" })}
           </span>
         )}
         {selectedCli === "openclaw" && (
@@ -269,13 +219,7 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
             type="text"
             value={selectedCliProfile}
             onChange={(event) => setSelectedCliProfile(event.target.value)}
-            placeholder={t({
-              ko: "프로필 (예: qwen)",
-              en: "Profile (e.g. qwen)",
-              ja: "プロファイル（例: qwen）",
-              zh: "Profile (e.g. qwen)",
-              de: "Profil (z. B. qwen)",
-            })}
+            placeholder={t({ en: "Profile (e.g. qwen)", de: "Profil (z. B. qwen)" })}
             className="text-xs rounded px-1.5 py-0.5 focus:outline-none focus:border-blue-500 max-w-[130px]"
             style={{
               background: "var(--th-input-bg)",
@@ -289,13 +233,7 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
         {supportsCliModelOverride &&
           (cliModelsLoading ? (
             <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "모델 로딩...",
-                en: "Loading models...",
-                ja: "モデル読み込み中...",
-                zh: "Loading models...",
-                de: "Modelle werden geladen...",
-              })}
+              {t({ en: "Loading models...", de: "Modelle werden geladen..." })}
             </span>
           ) : selectedCliModelOptions.length > 0 ? (
             <>
@@ -314,15 +252,7 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
                   borderStyle: "solid",
                 }}
               >
-                <option value="">
-                  {t({
-                    ko: "기본값(설정창 모델)",
-                    en: "Default (Settings model)",
-                    ja: "デフォルト（設定モデル）",
-                    zh: "Default (Settings model)",
-                    de: "Standard (Einstellungsmodell)",
-                  })}
-                </option>
+                <option value="">{t({ en: "Default (Settings model)", de: "Standard (Einstellungsmodell)" })}</option>
                 {selectedCliModelOptions.map((model) => (
                   <option key={model.slug} value={model.slug}>
                     {model.displayName || model.slug}
@@ -330,24 +260,12 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
                 ))}
               </select>
               <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
-                {t({
-                  ko: "알바생 모델은 설정창 값을 따릅니다",
-                  en: "Sub-agent model follows Settings",
-                  ja: "サブエージェントモデルは設定値を使用",
-                  zh: "Sub-agent model follows Settings",
-                  de: "Unteragenten-Modell folgt den Einstellungen",
-                })}
+                {t({ en: "Sub-agent model follows Settings", de: "Unteragenten-Modell folgt den Einstellungen" })}
               </span>
             </>
           ) : (
             <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "모델 목록이 없습니다",
-                en: "No model list available",
-                ja: "モデル一覧がありません",
-                zh: "No model list available",
-                de: "Keine Modellliste verfügbar",
-              })}
+              {t({ en: "No model list available", de: "Keine Modellliste verfügbar" })}
             </span>
           ))}
         <button
@@ -357,14 +275,14 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
           }}
           className="text-[10px] px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50"
         >
-          {savingCli ? "..." : t({ ko: "저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })}
+          {savingCli ? "..." : t({ en: "Save", de: "Speichern" })}
         </button>
         <button
           onClick={handleCancelCliEdit}
           className="text-[10px] px-1.5 py-0.5 rounded transition-colors"
           style={{ background: "var(--th-bg-surface-hover)", color: "var(--th-text-secondary)" }}
         >
-          {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+          {t({ en: "Cancel", de: "Abbrechen" })}
         </button>
       </div>
     );
@@ -375,13 +293,7 @@ export default function CliEditorInline({ agent, state, t }: CliEditorInlineProp
     <button
       onClick={() => setEditingCli(true)}
       className="flex items-center gap-1 transition-colors hover:opacity-80"
-      title={t({
-        ko: "클릭하여 CLI 변경",
-        en: "Click to change CLI",
-        ja: "クリックして CLI を変更",
-        zh: "Click to change CLI",
-        de: "Klicken zum CLI-Wechsel",
-      })}
+      title={t({ en: "Click to change CLI", de: "Klicken zum CLI-Wechsel" })}
     >
       🔧{" "}
       {agent.cli_provider === "api" && agent.api_model

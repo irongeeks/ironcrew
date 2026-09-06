@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useState, useCallback } from "react";
 import { savePackDefinition, validatePackDefinition } from "../../api/workflow-packs";
 import type { ValidationResult } from "../../api/workflow-packs";
@@ -11,6 +12,7 @@ interface PreviewPanelProps {
 }
 
 export function PreviewPanel({ packKey, definition, readOnly, onSaved, onClose }: PreviewPanelProps) {
+  const translateUiCopy = useUiCopy();
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function PreviewPanel({ packKey, definition, readOnly, onSaved, onClose }
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
         <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-          Pack Definition (JSON)
+          <LocalizedText en="Pack Definition (JSON)" de="Paketdefinition (JSON)" />
         </span>
         <div className="flex items-center gap-2">
           <button
@@ -55,7 +57,7 @@ export function PreviewPanel({ packKey, definition, readOnly, onSaved, onClose }
             className="rounded border px-2 py-1 text-[10px] font-medium"
             style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)" }}
           >
-            Validate
+            <LocalizedText en="Validate" de="Prüfen" />
           </button>
           {!readOnly && (
             <button
@@ -64,7 +66,11 @@ export function PreviewPanel({ packKey, definition, readOnly, onSaved, onClose }
               className="rounded px-2 py-1 text-[10px] font-medium text-white"
               style={{ background: saving ? "var(--text-muted)" : "var(--accent)" }}
             >
-              {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save"}
+              {saving
+                ? translateUiCopy("Saving...", "Wird gespeichert …")
+                : saveSuccess
+                  ? translateUiCopy("Saved!", "Gespeichert!")
+                  : translateUiCopy("Save", "Speichern")}
             </button>
           )}
           <button
@@ -91,7 +97,9 @@ export function PreviewPanel({ packKey, definition, readOnly, onSaved, onClose }
             "✓ Valid — no errors found"
           ) : (
             <div>
-              <div className="mb-1 font-medium">Validation Errors:</div>
+              <div className="mb-1 font-medium">
+                <LocalizedText en="Validation Errors:" de="Prüffehler:" />
+              </div>
               {validationResult.errors.map((err, i) => (
                 <div key={i} className="ml-2">
                   <span style={{ color: "var(--text-muted)" }}>{err.path}:</span> {err.message}
@@ -108,7 +116,7 @@ export function PreviewPanel({ packKey, definition, readOnly, onSaved, onClose }
           className="px-4 py-2 text-xs"
           style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", borderBottom: "1px solid var(--border)" }}
         >
-          Save failed: {saveError}
+          <LocalizedText en="Save failed:" de="Speichern fehlgeschlagen:" /> {saveError}
         </div>
       )}
 

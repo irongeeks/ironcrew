@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { useCallback, useEffect, useState } from "react";
 import type { CharacterAsset } from "./types";
 
@@ -14,13 +15,6 @@ export interface CharacterAssetManagerProps {
   refreshKey: number;
 }
 
-const KIND_LABEL: Record<CharacterAsset["kind"], string> = {
-  portrait: "Portrait",
-  full_body: "Bürofigur",
-  animation: "Animation",
-  model_3d: "3D-Modell",
-};
-
 export function CharacterAssetManager({
   onList,
   onDelete,
@@ -28,6 +22,13 @@ export function CharacterAssetManager({
   onRemoved,
   refreshKey,
 }: CharacterAssetManagerProps): React.JSX.Element {
+  const { t } = useI18n();
+  const KIND_LABEL: Record<CharacterAsset["kind"], string> = {
+    portrait: "Portrait",
+    full_body: t({ de: "Bürofigur", en: "Office character" }),
+    animation: "Animation",
+    model_3d: t({ de: "3D-Modell", en: "3D model" }),
+  };
   const [assets, setAssets] = useState<CharacterAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -46,7 +47,12 @@ export function CharacterAssetManager({
         if (active) setAssets(result);
       })
       .catch((cause: unknown) => {
-        if (active) setError(cause instanceof Error ? cause.message : "Dateiliste konnte nicht geladen werden.");
+        if (active)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : t({ de: "Dateiliste konnte nicht geladen werden.", en: "Could not load the file list." }),
+          );
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -54,7 +60,7 @@ export function CharacterAssetManager({
     return () => {
       active = false;
     };
-  }, [onList, refreshKey]);
+  }, [onList, refreshKey, t]);
   const remove = async (asset: CharacterAsset) => {
     setBusyId(asset.id);
     setError(null);
@@ -64,23 +70,33 @@ export function CharacterAssetManager({
       if (result.deleted || result.pending) onRemoved(asset);
       setNotice(
         result.pending
-          ? "Verknüpfungen entfernt. Die physische Löschung ist noch ausstehend; Status erneut prüfen."
+          ? t({
+              de: "Verknüpfungen entfernt. Die physische Löschung ist noch ausstehend; Status erneut prüfen.",
+              en: "Assignments removed. Physical deletion is still pending; check the status again.",
+            })
           : result.deleted
-            ? "Datei physisch gelöscht."
-            : "Die Datei wurde nicht gelöscht.",
+            ? t({ de: "Datei physisch gelöscht.", en: "File physically deleted." })
+            : t({ de: "Die Datei wurde nicht gelöscht.", en: "The file was not deleted." }),
       );
       setConfirmId(null);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Die Datei konnte nicht gelöscht werden.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t({ de: "Die Datei konnte nicht gelöscht werden.", en: "Could not delete the file." }),
+      );
     } finally {
       setBusyId(null);
     }
   };
   return (
-    <section className="character-asset-manager" aria-label="Private Figurdateien">
+    <section
+      className="character-asset-manager"
+      aria-label={t({ de: "Private Figurdateien", en: "Private character files" })}
+    >
       <header>
-        <h4>Private Figurdateien</h4>
+        <h4>{t({ de: "Private Figurdateien", en: "Private character files" })}</h4>
         <button
           type="button"
           className="ic-btn"
@@ -90,22 +106,30 @@ export function CharacterAssetManager({
             setError(null);
             void refresh()
               .catch((cause: unknown) =>
-                setError(cause instanceof Error ? cause.message : "Dateiliste konnte nicht geladen werden."),
+                setError(
+                  cause instanceof Error
+                    ? cause.message
+                    : t({ de: "Dateiliste konnte nicht geladen werden.", en: "Could not load the file list." }),
+                ),
               )
               .finally(() => setLoading(false));
           }}
         >
-          Dateiliste aktualisieren
+          {t({ de: "Dateiliste aktualisieren", en: "Refresh file list" })}{" "}
         </button>
       </header>
-      {loading && <p role="status">Dateien werden geladen …</p>}
+      {loading && <p role="status">{t({ de: "Dateien werden geladen …", en: "Loading files …" })}</p>}
       {error && (
         <p role="alert" className="character-editor-error">
           {error}
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
-      {!loading && !error && assets.length === 0 && <p>Noch keine eigenen Figurdateien hochgeladen.</p>}
+      {!loading && !error && assets.length === 0 && (
+        <p>
+          {t({ de: "Noch keine eigenen Figurdateien hochgeladen.", en: "No custom character files uploaded yet." })}
+        </p>
+      )}
       <ul>
         {assets.map((asset) => (
           <li key={asset.id}>
@@ -124,10 +148,13 @@ export function CharacterAssetManager({
               </span>
               <span>
                 {asset.status === "deleting"
-                  ? "Löschung ausstehend"
+                  ? t({ de: "Löschung ausstehend", en: "Deletion pending" })
                   : asset.inUseBy?.length
-                    ? `Bei ${asset.inUseBy.length} Mitarbeitenden verwendet`
-                    : "Nicht zugeordnet"}
+                    ? t({
+                        de: `Bei ${asset.inUseBy.length} Mitarbeitenden verwendet`,
+                        en: `Used by ${asset.inUseBy.length} employees`,
+                      })
+                    : t({ de: "Nicht zugeordnet", en: "Not assigned" })}
               </span>
             </div>
             <div className="character-asset-actions">
@@ -136,26 +163,40 @@ export function CharacterAssetManager({
                 className="ic-btn"
                 disabled={!!busyId || asset.status === "deleting"}
                 onClick={() => onUse(asset)}
-                aria-label={`${KIND_LABEL[asset.kind]} ${asset.id} auswählen`}
+                aria-label={t({
+                  de: `${KIND_LABEL[asset.kind]} ${asset.id} auswählen`,
+                  en: `Select ${KIND_LABEL[asset.kind]} ${asset.id}`,
+                })}
               >
-                Auswählen
+                {t({ de: "Auswählen", en: "Select" })}{" "}
               </button>
               <button
                 type="button"
                 className="ic-btn"
                 disabled={!!busyId}
                 onClick={() => setConfirmId(asset.id)}
-                aria-label={`${KIND_LABEL[asset.kind]} ${asset.id} löschen`}
+                aria-label={t({
+                  de: `${KIND_LABEL[asset.kind]} ${asset.id} löschen`,
+                  en: `Delete ${KIND_LABEL[asset.kind]} ${asset.id}`,
+                })}
               >
-                {asset.status === "deleting" ? "Löschung erneut versuchen" : "Datei löschen"}
+                {asset.status === "deleting"
+                  ? t({ de: "Löschung erneut versuchen", en: "Retry deletion" })
+                  : t({ de: "Datei löschen", en: "Delete file" })}
               </button>
             </div>
             {confirmId === asset.id && (
               <div className="character-asset-confirm">
                 <p>
                   {asset.inUseBy?.length
-                    ? `Diese Datei ist bei ${asset.inUseBy.length} Mitarbeitenden zugeordnet. Beim Löschen werden diese Verknüpfungen entfernt.`
-                    : "Diese Datei endgültig aus dem privaten Dateispeicher löschen?"}
+                    ? t({
+                        de: `Diese Datei ist bei ${asset.inUseBy.length} Mitarbeitenden zugeordnet. Beim Löschen werden diese Verknüpfungen entfernt.`,
+                        en: `This file is assigned to ${asset.inUseBy.length} employees. Deleting it removes these assignments.`,
+                      })
+                    : t({
+                        de: "Diese Datei endgültig aus dem privaten Dateispeicher löschen?",
+                        en: "Permanently delete this file from private storage?",
+                      })}
                 </p>
                 <button
                   type="button"
@@ -164,10 +205,12 @@ export function CharacterAssetManager({
                   disabled={!!busyId}
                   onClick={() => void remove(asset)}
                 >
-                  {asset.inUseBy?.length ? "Verknüpfungen lösen und Datei löschen" : "Endgültig löschen"}
+                  {asset.inUseBy?.length
+                    ? t({ de: "Verknüpfungen lösen und Datei löschen", en: "Remove assignments and delete file" })
+                    : t({ de: "Endgültig löschen", en: "Delete permanently" })}
                 </button>
                 <button type="button" className="ic-btn" disabled={!!busyId} onClick={() => setConfirmId(null)}>
-                  Abbrechen
+                  {t({ de: "Abbrechen", en: "Cancel" })}{" "}
                 </button>
               </div>
             )}

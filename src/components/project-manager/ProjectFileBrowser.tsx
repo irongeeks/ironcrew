@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import { request } from "../../api/core";
 
@@ -41,6 +42,7 @@ function formatSize(bytes: number): string {
 }
 
 export default function ProjectFileBrowser({ projectPath }: Props) {
+  const translateUiCopy = useUiCopy();
   const [relativePath, setRelativePath] = useState("/");
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,13 +67,17 @@ export default function ProjectFileBrowser({ projectPath }: Props) {
         setEntries(resp.entries);
         setRelativePath(resp.relativePath);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to load directory");
+        setError(
+          err instanceof Error
+            ? err.message
+            : translateUiCopy("Failed to load directory", "Verzeichnis konnte nicht geladen werden"),
+        );
         setEntries([]);
       } finally {
         setLoading(false);
       }
     },
-    [projectPath],
+    [translateUiCopy, projectPath],
   );
 
   useEffect(() => {
@@ -115,12 +121,16 @@ export default function ProjectFileBrowser({ projectPath }: Props) {
           setFileError("Binary or unsupported file type");
         }
       } catch (err: unknown) {
-        setFileError(err instanceof Error ? err.message : "Failed to load file");
+        setFileError(
+          err instanceof Error
+            ? err.message
+            : translateUiCopy("Failed to load file", "Datei konnte nicht geladen werden"),
+        );
       } finally {
         setFileLoading(false);
       }
     },
-    [projectPath, relativePath],
+    [translateUiCopy, projectPath, relativePath],
   );
 
   const breadcrumbParts = relativePath === "/" ? [] : relativePath.split("/").filter(Boolean);
@@ -178,7 +188,7 @@ export default function ProjectFileBrowser({ projectPath }: Props) {
           className="rounded-md border px-2.5 py-1 text-xs font-semibold transition hover:bg-[var(--th-bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
           style={{ borderColor: "var(--th-border)", color: "var(--th-text-primary)" }}
         >
-          Refresh
+          <LocalizedText en="Refresh" de="Aktualisieren" />
         </button>
       </div>
 
@@ -189,13 +199,13 @@ export default function ProjectFileBrowser({ projectPath }: Props) {
       >
         {loading ? (
           <p className="px-3 py-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
-            Loading...
+            <LocalizedText en="Loading..." de="Wird geladen …" />
           </p>
         ) : error ? (
           <p className="px-3 py-2 text-xs text-rose-400">{error}</p>
         ) : entries.length === 0 ? (
           <p className="px-3 py-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
-            Empty directory
+            <LocalizedText en="Empty directory" de="Leeres Verzeichnis" />
           </p>
         ) : (
           entries.map((entry) => (
@@ -251,13 +261,13 @@ export default function ProjectFileBrowser({ projectPath }: Props) {
               className="shrink-0 rounded-md px-2 py-0.5 text-xs transition hover:bg-[var(--th-bg-hover)]"
               style={{ color: "var(--th-text-muted)" }}
             >
-              Close
+              <LocalizedText en="Close" de="Schließen" />
             </button>
           </div>
           <div className="max-h-[40dvh] overflow-auto p-3">
             {fileLoading ? (
               <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                Loading file...
+                <LocalizedText en="Loading file..." de="Datei wird geladen …" />
               </p>
             ) : fileError ? (
               <p className="text-xs text-rose-400">{fileError}</p>

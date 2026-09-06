@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { request } from "../api/core";
@@ -132,3 +133,7 @@ describe("ProjectPlanningPanel", () => {
     expect(screen.queryByRole("button", { name: "Plan freigeben" })).not.toBeInTheDocument();
   });
 });
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });

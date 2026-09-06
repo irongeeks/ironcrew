@@ -14,72 +14,58 @@ const TAB_ITEMS: Array<{ key: SettingsTab; icon: string; label: (t: TFunction) =
   {
     key: "general",
     icon: "⚙️",
-    label: (t) => t({ ko: "일반 설정", en: "General", ja: "一般設定", zh: "General", de: "Allgemein" }),
+    label: (t) => t({ en: "General", de: "Allgemein" }),
   },
   {
     key: "cli",
     icon: "🔧",
-    label: (t) => t({ ko: "CLI 도구", en: "CLI Tools", ja: "CLI ツール", zh: "CLI Tools", de: "CLI-Tools" }),
+    label: (t) => t({ en: "CLI Tools", de: "CLI-Tools" }),
   },
   {
     key: "oauth",
     icon: "🔑",
-    label: (t) => t({ ko: "OAuth 인증", en: "OAuth", ja: "OAuth 認証", zh: "OAuth", de: "OAuth" }),
+    label: (t) => t({ en: "OAuth", de: "OAuth" }),
   },
-  { key: "api", icon: "🔌", label: (t) => t({ ko: "API 연동", en: "API", ja: "API 連携", zh: "API", de: "API" }) },
+  { key: "api", icon: "🔌", label: (t) => t({ en: "API", de: "API" }) },
   {
     key: "gateway",
     icon: "📡",
-    label: (t) => t({ ko: "채널 메시지", en: "Channel", ja: "チャネル", zh: "Channel", de: "Kanal" }),
+    label: (t) => t({ en: "Channel", de: "Kanal" }),
   },
   {
     key: "knowledge",
     icon: "📚",
-    label: (t) => t({ ko: "지식 베이스", en: "Knowledge", ja: "ナレッジ", zh: "Knowledge", de: "Wissen" }),
+    label: (t) => t({ en: "Knowledge", de: "Wissen" }),
   },
   {
     key: "comfyui",
     icon: "🎬",
-    label: (t) => t({ ko: "ComfyUI", en: "ComfyUI", ja: "ComfyUI", zh: "ComfyUI", de: "ComfyUI" }),
+    label: (t) => t({ en: "ComfyUI", de: "ComfyUI" }),
   },
   {
     key: "connectors",
     icon: "🔗",
-    label: (t) => t({ ko: "커넥터", en: "Connectors", ja: "コネクター", zh: "Connectors", de: "Connectors" }),
+    label: (t) => t({ en: "Connectors", de: "Connectors" }),
   },
   {
     key: "mcp",
     icon: "🧩",
-    label: (t) => t({ ko: "MCP", en: "MCP", ja: "MCP", zh: "MCP", de: "MCP" }),
+    label: (t) => t({ en: "MCP", de: "MCP" }),
   },
   {
     key: "servers",
     icon: "🖥️",
-    label: (t) => t({ ko: "서버", en: "Servers", ja: "サーバー", zh: "Servers", de: "Server" }),
+    label: (t) => t({ en: "Servers", de: "Server" }),
   },
   {
     key: "workflow_packs",
     icon: "📦",
-    label: (t) =>
-      t({
-        ko: "워크플로우 팩",
-        en: "Workflow Packs",
-        ja: "ワークフロー パック",
-        zh: "Workflow Packs",
-        de: "Workflow-Packs",
-      }),
+    label: (t) => t({ en: "Workflow Packs", de: "Workflow-Packs" }),
   },
   {
     key: "observability",
     icon: "📊",
-    label: (t) =>
-      t({
-        ko: "관찰 가능성",
-        en: "Observability",
-        ja: "オブザーバビリティ",
-        zh: "Observability",
-        de: "Observability",
-      }),
+    label: (t) => t({ en: "Observability", de: "Observability" }),
   },
 ];
 
@@ -154,13 +140,7 @@ export default function SettingsTabNav({ tab, setTab, t, isMobile, drawerOpen, o
       <button
         onClick={onToggleDrawer}
         aria-expanded={drawerOpen}
-        aria-label={t({
-          ko: "설정 메뉴",
-          en: "Settings menu",
-          ja: "設定メニュー",
-          zh: "设置菜单",
-          de: "Einstellungsmenü",
-        })}
+        aria-label={t({ en: "Settings menu", de: "Einstellungsmenü" })}
         className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
         style={{
           backgroundColor: "var(--th-card-bg)",

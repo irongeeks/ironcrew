@@ -1,3 +1,4 @@
+import { useUiCopy } from "../LocalizedText";
 import { useEffect, useRef, useState } from "react";
 import type { Department, WorkflowPackKey } from "../../types";
 import { useI18n } from "../../i18n";
@@ -42,6 +43,7 @@ export default function DepartmentFormModal({
   onDeleteDepartment?: (departmentId: string) => Promise<void>;
   workflowPackKey?: WorkflowPackKey;
 }) {
+  const translateUiCopy = useUiCopy();
   const { t } = useI18n();
   const isEdit = !!department;
   const [form, setForm] = useState<DeptForm>(() => {
@@ -283,7 +285,7 @@ export default function DepartmentFormModal({
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Development"
+                placeholder={translateUiCopy("Development", "Entwicklung")}
                 className={inputCls}
                 style={inputStyle}
               />
@@ -331,13 +333,7 @@ export default function DepartmentFormModal({
           {locale.startsWith("ja") && (
             <div>
               <label className="block text-xs mb-1.5 font-medium" style={{ color: "var(--th-text-secondary)" }}>
-                {t({
-                  ko: "일본어 이름",
-                  en: "Japanese Name",
-                  ja: "日本語名",
-                  zh: "Japanese Name",
-                  de: "Japanischer Name",
-                })}
+                {t({ en: "Japanese Name", de: "Japanischer Name" })}
               </label>
               <input
                 type="text"
@@ -352,13 +348,7 @@ export default function DepartmentFormModal({
           {locale.startsWith("zh") && (
             <div>
               <label className="block text-xs mb-1.5 font-medium" style={{ color: "var(--th-text-secondary)" }}>
-                {t({
-                  ko: "중국어 이름",
-                  en: "Chinese Name",
-                  ja: "中国語名",
-                  zh: "Chinese Name",
-                  de: "Chinesischer Name",
-                })}
+                {t({ en: "Chinese Name", de: "Chinesischer Name" })}
               </label>
               <input
                 type="text"

@@ -1,3 +1,4 @@
+import { I18nProvider } from "../i18n";
 /**
  * The gate decides what a person sees before they are anybody.
  *
@@ -7,7 +8,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IdentityGate } from "./IdentityGate";
 import type { AuthStatus, CrewUser } from "./types";
@@ -234,4 +235,22 @@ describe("the directory login, next to the password login", () => {
     expect(shown.textContent).toMatch(/fehlgeschlagen/);
     expect(shown.textContent).not.toContain("id_token_audience_mismatch");
   });
+});
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });
+
+it("shows English identity controls while preserving the account name", async () => {
+  const gate = client({}, { bootstrap: false, authenticated: true, user: OWNER });
+  rtlRender(
+    <I18nProvider language="en">
+      <IdentityGate client={gate}>
+        <div>Command Center</div>
+      </IdentityGate>
+    </I18nProvider>,
+  );
+  expect(await screen.findByRole("button", { name: "Account" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  expect(screen.getByText("Robert · Owner")).toBeInTheDocument();
 });

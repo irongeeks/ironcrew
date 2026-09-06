@@ -66,7 +66,7 @@ export function MetricsSegment({ t }: { t: TFunction }) {
       {/* Time range selector */}
       <div className="flex items-center gap-2">
         <span className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-          {t({ ko: "기간", en: "Range", ja: "期間", zh: "Range", de: "Zeitraum" })}:
+          {t({ en: "Range", de: "Zeitraum" })}:
         </span>
         {TIME_RANGES.map((r) => (
           <button
@@ -87,35 +87,17 @@ export function MetricsSegment({ t }: { t: TFunction }) {
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard
-          label={t({
-            ko: "워크플로우 시작",
-            en: "Workflows Started",
-            ja: "ワークフロー開始",
-            zh: "Workflows Started",
-            de: "Workflows gestartet",
-          })}
+          label={t({ en: "Workflows Started", de: "Workflows gestartet" })}
           value={summary["workflow.started"] ?? 0}
           loading={loading}
         />
         <SummaryCard
-          label={t({
-            ko: "워크플로우 완료",
-            en: "Workflows Completed",
-            ja: "ワークフロー完了",
-            zh: "Workflows Completed",
-            de: "Workflows abgeschlossen",
-          })}
+          label={t({ en: "Workflows Completed", de: "Workflows abgeschlossen" })}
           value={summary["workflow.completed"] ?? 0}
           loading={loading}
         />
         <SummaryCard
-          label={t({
-            ko: "에이전트 생성",
-            en: "Agent Spawns",
-            ja: "エージェント生成",
-            zh: "Agent Spawns",
-            de: "Agent-Starts",
-          })}
+          label={t({ en: "Agent Spawns", de: "Agent-Starts" })}
           value={summary["agent.spawn"] ?? 0}
           loading={loading}
         />
@@ -130,13 +112,7 @@ export function MetricsSegment({ t }: { t: TFunction }) {
             style={{ borderColor: "var(--th-border)", background: "var(--th-bg-secondary)" }}
           >
             <h4 className="mb-2 text-xs font-semibold" style={{ color: "var(--th-text-primary)" }}>
-              {t({
-                ko: "워크플로우 시작/완료",
-                en: "Workflow Started / Completed",
-                ja: "ワークフロー 開始/完了",
-                zh: "Workflow Started / Completed",
-                de: "Workflow gestartet / abgeschlossen",
-              })}
+              {t({ en: "Workflow Started / Completed", de: "Workflow gestartet / abgeschlossen" })}
             </h4>
             {workflowData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -162,7 +138,7 @@ export function MetricsSegment({ t }: { t: TFunction }) {
                 className="flex h-[200px] items-center justify-center text-xs"
                 style={{ color: "var(--th-text-secondary)" }}
               >
-                {t({ ko: "데이터 없음", en: "No data", ja: "データなし", zh: "No data", de: "Keine Daten" })}
+                {t({ en: "No data", de: "Keine Daten" })}
               </div>
             )}
           </div>
@@ -173,13 +149,7 @@ export function MetricsSegment({ t }: { t: TFunction }) {
             style={{ borderColor: "var(--th-border)", background: "var(--th-bg-secondary)" }}
           >
             <h4 className="mb-2 text-xs font-semibold" style={{ color: "var(--th-text-primary)" }}>
-              {t({
-                ko: "에이전트 생성률",
-                en: "Agent Spawn Rate",
-                ja: "エージェント生成率",
-                zh: "Agent Spawn Rate",
-                de: "Agent-Start-Rate",
-              })}
+              {t({ en: "Agent Spawn Rate", de: "Agent-Start-Rate" })}
             </h4>
             {spawnData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -203,7 +173,7 @@ export function MetricsSegment({ t }: { t: TFunction }) {
                 className="flex h-[200px] items-center justify-center text-xs"
                 style={{ color: "var(--th-text-secondary)" }}
               >
-                {t({ ko: "데이터 없음", en: "No data", ja: "データなし", zh: "No data", de: "Keine Daten" })}
+                {t({ en: "No data", de: "Keine Daten" })}
               </div>
             )}
           </div>

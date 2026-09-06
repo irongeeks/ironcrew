@@ -93,6 +93,41 @@ export class RunStore {
     return (this.db.prepare("SELECT * FROM crew_runs WHERE id = ?").get(id) as RunRow | undefined) ?? null;
   }
 
+  /** Reuse only an untouched, stateless attempt with the same execution identity.
+   * Sessions or partial output get a new run so their history and resume rules remain intact.
+   */
+  reusableRateLimited(id: string, input: CreateRunInput, workspacePath: string): RunRow | null {
+    if ((input.permissionMode ?? "restricted") !== "restricted" || input.sandboxGrantId) return null;
+    const row = this.db
+      .prepare(
+        `SELECT * FROM crew_runs r
+      WHERE id = ? AND status = 'rate_limited' AND session_ref IS NULL
+        AND company_id = ? AND task_id = ? AND agent_id IS ? AND project_id IS ?
+        AND runtime_type = ? AND model IS ? AND workspace_path = ?
+        AND permission_mode = 'restricted' AND sandbox_grant_id IS NULL
+        AND routing_vessel_id IS ? AND routing_origin_vessel_id IS ?
+        AND routing_profile_key IS ? AND routing_revision IS ?
+        AND input_tokens = 0 AND output_tokens = 0 AND cost_micros = 0
+        AND NOT EXISTS (SELECT 1 FROM crew_run_events e WHERE e.run_id = r.id
+          AND e.type NOT IN ('run.started', 'rate_limit.detected', 'run.waiting'))`,
+      )
+      .get(
+        id,
+        input.companyId,
+        input.taskId,
+        input.agentId ?? null,
+        input.projectId ?? null,
+        input.runtimeType,
+        input.model ?? null,
+        workspacePath,
+        input.routingVesselId ?? null,
+        input.routingOriginVesselId ?? null,
+        input.routingProfileKey ?? null,
+        input.routingRevision ?? null,
+      ) as RunRow | undefined;
+    return row ?? null;
+  }
+
   listForTask(taskId: string): RunRow[] {
     return this.db
       .prepare("SELECT * FROM crew_runs WHERE task_id = ? ORDER BY created_at ASC")

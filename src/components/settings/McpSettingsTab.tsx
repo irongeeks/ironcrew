@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import type { TFunction } from "./types";
 import {
@@ -75,6 +76,7 @@ export function credentialsToMap(rows: CredentialRow[]): Record<string, McpConfi
 }
 
 export default function McpSettingsTab({ t }: McpSettingsTabProps) {
+  const translateUiCopy = useUiCopy();
   const [servers, setServers] = useState<McpServerStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [addMode, setAddMode] = useState(false);
@@ -198,7 +200,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12" style={{ color: "var(--th-text-secondary)" }}>
-        {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+        {t({ en: "Loading...", de: "Laden..." })}
       </div>
     );
   }
@@ -209,14 +211,11 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-semibold" style={{ color: "var(--th-text-primary)" }}>
-            {t({ ko: "MCP 서버", en: "MCP Servers", ja: "MCP サーバー", zh: "MCP Servers", de: "MCP-Server" })}
+            {t({ en: "MCP Servers", de: "MCP-Server" })}
           </h3>
           <p className="mt-0.5 text-xs" style={{ color: "var(--th-text-secondary)" }}>
             {t({
-              ko: "외부 MCP 서버에 연결하여 도구를 워크플로우에 사용할 수 있습니다",
               en: "Connect to external MCP servers to use their tools in workflows",
-              ja: "外部 MCP サーバーに接続してワークフローでツールを使用",
-              zh: "Connect to external MCP servers to use their tools in workflows",
               de: "Externe MCP-Server verbinden um deren Tools in Workflows zu nutzen",
             })}
           </p>
@@ -226,9 +225,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
           className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors"
           style={{ background: "var(--th-accent, #3b82f6)" }}
         >
-          {addMode
-            ? t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })
-            : t({ ko: "추가", en: "Add Server", ja: "追加", zh: "Add Server", de: "Server hinzufügen" })}
+          {addMode ? t({ en: "Cancel", de: "Abbrechen" }) : t({ en: "Add Server", de: "Server hinzufügen" })}
         </button>
       </div>
 
@@ -241,7 +238,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-                {t({ ko: "이름", en: "Name", ja: "名前", zh: "Name", de: "Name" })}
+                {t({ en: "Name", de: "Name" })}
               </label>
               <input
                 className="w-full rounded border px-2 py-1.5 text-sm"
@@ -259,7 +256,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
             </div>
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-                {t({ ko: "레이블", en: "Label", ja: "ラベル", zh: "Label", de: "Label" })}
+                {t({ en: "Label", de: "Label" })}
               </label>
               <input
                 className="w-full rounded border px-2 py-1.5 text-sm"
@@ -268,7 +265,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
                   background: "var(--th-bg-primary)",
                   color: "var(--th-text-primary)",
                 }}
-                placeholder="My MCP Server"
+                placeholder={translateUiCopy("My MCP Server", "Mein MCP-Server")}
                 value={draft.label ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))}
               />
@@ -277,7 +274,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
 
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-              {t({ ko: "전송 방식", en: "Transport", ja: "トランスポート", zh: "Transport", de: "Transport" })}
+              {t({ en: "Transport", de: "Transport" })}
             </label>
             <select
               className="rounded border px-2 py-1.5 text-sm"
@@ -290,8 +287,12 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
               onChange={(e) => setDraft((d) => ({ ...d, transport: e.target.value as McpServerConfig["transport"] }))}
             >
               <option value="stdio">stdio</option>
-              <option value="http">HTTP (streamable)</option>
-              <option value="sse">SSE (älter)</option>
+              <option value="http">
+                <LocalizedText en="HTTP (streamable)" de="HTTP (streambar)" />
+              </option>
+              <option value="sse">
+                <LocalizedText en="SSE (legacy)" de="SSE (älter)" />
+              </option>
             </select>
           </div>
 
@@ -299,7 +300,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
             <div className="space-y-2">
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-                  {t({ ko: "명령어", en: "Command", ja: "コマンド", zh: "Command", de: "Befehl" })}
+                  {t({ en: "Command", de: "Befehl" })}
                 </label>
                 <input
                   className="w-full rounded border px-2 py-1.5 text-sm font-mono"
@@ -315,13 +316,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-                  {t({
-                    ko: "인수 (줄 단위)",
-                    en: "Arguments (one per line)",
-                    ja: "引数 (1行ずつ)",
-                    zh: "Arguments (one per line)",
-                    de: "Argumente (pro Zeile)",
-                  })}
+                  {t({ en: "Arguments (one per line)", de: "Argumente (pro Zeile)" })}
                 </label>
                 <textarea
                   className="w-full rounded border px-2 py-1.5 text-sm font-mono"
@@ -361,14 +356,8 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
             <div className="flex items-center justify-between">
               <label className="block text-xs font-medium" style={{ color: "var(--th-text-secondary)" }}>
                 {draft.transport === "stdio"
-                  ? t({
-                      ko: "환경 변수",
-                      en: "Environment variables",
-                      ja: "環境変数",
-                      zh: "Environment variables",
-                      de: "Umgebungsvariablen",
-                    })
-                  : t({ ko: "헤더", en: "Headers", ja: "ヘッダー", zh: "Headers", de: "Header" })}
+                  ? t({ en: "Environment variables", de: "Umgebungsvariablen" })
+                  : t({ en: "Headers", de: "Header" })}
               </label>
               <button
                 onClick={() => setCredentials((rows) => [...rows, { ...EMPTY_CREDENTIAL }])}
@@ -406,10 +395,8 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
                     value={row.mode}
                     onChange={(e) => update({ mode: e.target.value as CredentialRow["mode"] })}
                   >
-                    <option value="secret">
-                      {t({ ko: "금고", en: "Vault", ja: "金庫", zh: "Vault", de: "Tresor" })}
-                    </option>
-                    <option value="literal">{t({ ko: "값", en: "Value", ja: "値", zh: "Value", de: "Wert" })}</option>
+                    <option value="secret">{t({ en: "Vault", de: "Tresor" })}</option>
+                    <option value="literal">{t({ en: "Value", de: "Wert" })}</option>
                   </select>
 
                   {row.mode === "literal" ? (
@@ -448,13 +435,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
                           color: "var(--th-text-primary)",
                           minWidth: "8rem",
                         }}
-                        placeholder={t({
-                          ko: "항목",
-                          en: "Item",
-                          ja: "アイテム",
-                          zh: "Item",
-                          de: "Eintrag im Tresor",
-                        })}
+                        placeholder={t({ en: "Item", de: "Eintrag im Tresor" })}
                         value={row.itemRef}
                         onChange={(e) => update({ itemRef: e.target.value })}
                       />
@@ -486,10 +467,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
             {credentials.some((row) => row.mode === "secret") && (
               <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
                 {t({
-                  ko: "금고 참조를 사용하는 서버는 러너에서 시작됩니다.",
                   en: "A server that references the vault is started by the runner — the control plane never sees the value.",
-                  ja: "金庫を参照するサーバーはランナーで起動します。",
-                  zh: "A server that references the vault is started by the runner.",
                   de: "Ein Server mit Tresor-Verweis wird vom Runner gestartet — die Steuerebene sieht den Wert nie.",
                 })}
               </p>
@@ -508,9 +486,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
             className="rounded-lg px-4 py-1.5 text-xs font-medium text-white transition-colors disabled:opacity-50"
             style={{ background: "var(--th-accent, #3b82f6)" }}
           >
-            {saving
-              ? t({ ko: "저장 중...", en: "Saving...", ja: "保存中...", zh: "Saving...", de: "Speichern..." })
-              : t({ ko: "저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })}
+            {saving ? t({ en: "Saving...", de: "Speichern..." }) : t({ en: "Save", de: "Speichern" })}
           </button>
         </div>
       )}
@@ -526,13 +502,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
       {servers.length === 0 && !addMode && (
         <div className="rounded-lg border p-6 text-center" style={{ borderColor: "var(--th-border)" }}>
           <p className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "구성된 MCP 서버가 없습니다",
-              en: "No MCP servers configured",
-              ja: "MCP サーバーが設定されていません",
-              zh: "No MCP servers configured",
-              de: "Keine MCP-Server konfiguriert",
-            })}
+            {t({ en: "No MCP servers configured", de: "Keine MCP-Server konfiguriert" })}
           </p>
         </div>
       )}
@@ -560,10 +530,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
                   className="rounded px-1.5 py-0.5 text-xs"
                   style={{ background: "rgba(59,130,246,0.12)", color: "var(--th-accent, #3b82f6)" }}
                   title={t({
-                    ko: "이 서버는 러너에서 실행됩니다",
                     en: "Credentials come from the vault, so this server runs on the runner",
-                    ja: "このサーバーはランナーで動作します",
-                    zh: "This server runs on the runner",
                     de: "Zugangsdaten kommen aus dem Tresor — dieser Server läuft auf dem Runner",
                   })}
                 >
@@ -572,7 +539,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
               )}
               {server.tools.length > 0 && (
                 <span className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                  ({server.tools.length} tools)
+                  ({server.tools.length} <LocalizedText en="tools)" de="Tools)" />
                 </span>
               )}
             </div>
@@ -583,21 +550,21 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
                 className="rounded px-2 py-1 text-xs transition-colors hover:opacity-80"
                 style={{ color: "var(--th-text-secondary)" }}
               >
-                {testingServer === server.name ? "..." : "Test"}
+                {testingServer === server.name ? "..." : translateUiCopy("Test", "Testen")}
               </button>
               {server.connected ? (
                 <button
                   onClick={() => handleDisconnect(server.name)}
                   className="rounded px-2 py-1 text-xs text-orange-400 transition-colors hover:opacity-80"
                 >
-                  {t({ ko: "연결 해제", en: "Disconnect", ja: "切断", zh: "Disconnect", de: "Trennen" })}
+                  {t({ en: "Disconnect", de: "Trennen" })}
                 </button>
               ) : (
                 <button
                   onClick={() => handleConnect(server.name)}
                   className="rounded px-2 py-1 text-xs text-green-400 transition-colors hover:opacity-80"
                 >
-                  {t({ ko: "연결", en: "Connect", ja: "接続", zh: "Connect", de: "Verbinden" })}
+                  {t({ en: "Connect", de: "Verbinden" })}
                 </button>
               )}
               <button
@@ -611,7 +578,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
                 onClick={() => handleDelete(server.name)}
                 className="rounded px-2 py-1 text-xs text-red-400 transition-colors hover:opacity-80"
               >
-                {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "Delete", de: "Löschen" })}
+                {t({ en: "Delete", de: "Löschen" })}
               </button>
             </div>
           </div>
@@ -643,7 +610,7 @@ export default function McpSettingsTab({ t }: McpSettingsTabProps) {
           {expandedServer === server.name && server.tools.length > 0 && (
             <div className="mt-2 space-y-1">
               <div className="text-xs font-medium" style={{ color: "var(--th-text-secondary)" }}>
-                {t({ ko: "도구", en: "Tools", ja: "ツール", zh: "Tools", de: "Tools" })}:
+                {t({ en: "Tools", de: "Tools" })}:
               </div>
               {server.tools.map((tool) => (
                 <div key={tool.name} className="flex items-start gap-2 pl-2">

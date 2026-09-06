@@ -1,3 +1,4 @@
+import { useUiCopy } from "../LocalizedText";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getTerminal } from "../../api";
 import type { OperationsSession } from "../../types";
@@ -50,6 +51,7 @@ export default function SessionStream({
   noLogsLabel,
   logPathLabel,
 }: SessionStreamProps) {
+  const translateUiCopy = useUiCopy();
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [terminalByTaskId, setTerminalByTaskId] = useState<Record<string, SessionTerminalState>>({});
 
@@ -195,7 +197,7 @@ export default function SessionStream({
                 >
                   <p>
                     <span style={{ color: "var(--th-text-muted)" }}>{taskLabel}:</span>{" "}
-                    {session.running ? "RUN" : "WAIT"}
+                    {session.running ? translateUiCopy("RUN", "LÄUFT") : translateUiCopy("WAIT", "WARTET")}
                   </p>
                   <p>
                     <span style={{ color: "var(--th-text-muted)" }}>{statusLabel}:</span> {session.status}

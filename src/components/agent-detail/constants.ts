@@ -7,13 +7,13 @@ export type TFunction = (messages: LangText) => string;
 export function roleLabel(role: string, t: TFunction) {
   switch (role) {
     case "team_leader":
-      return t({ ko: "팀장", en: "Team Leader", ja: "チームリーダー", zh: "Team Leader", de: "Teamleiter" });
+      return t({ en: "Team Leader", de: "Teamleiter" });
     case "senior":
-      return t({ ko: "시니어", en: "Senior", ja: "シニア", zh: "Senior", de: "Senior" });
+      return t({ en: "Senior", de: "Senior" });
     case "junior":
-      return t({ ko: "주니어", en: "Junior", ja: "ジュニア", zh: "Junior", de: "Junior" });
+      return t({ en: "Junior", de: "Junior" });
     case "intern":
-      return t({ ko: "인턴", en: "Intern", ja: "インターン", zh: "Intern", de: "Praktikant" });
+      return t({ en: "Intern", de: "Praktikant" });
     default:
       return role;
   }
@@ -69,13 +69,13 @@ export function oauthAccountLabel(account: OAuthAccountInfo): string {
 export function statusLabel(status: string, t: TFunction) {
   switch (status) {
     case "idle":
-      return t({ ko: "대기중", en: "Idle", ja: "待機中", zh: "Idle", de: "Inaktiv" });
+      return t({ en: "Idle", de: "Inaktiv" });
     case "working":
-      return t({ ko: "근무중", en: "Working", ja: "作業中", zh: "Working", de: "Aktiv" });
+      return t({ en: "Working", de: "Aktiv" });
     case "break":
-      return t({ ko: "휴식중", en: "Break", ja: "休憩中", zh: "Break", de: "Pause" });
+      return t({ en: "Break", de: "Pause" });
     case "offline":
-      return t({ ko: "오프라인", en: "Offline", ja: "オフライン", zh: "Offline", de: "Offline" });
+      return t({ en: "Offline", de: "Offline" });
     default:
       return status;
   }
@@ -84,19 +84,19 @@ export function statusLabel(status: string, t: TFunction) {
 export function taskStatusLabel(status: string, t: TFunction) {
   switch (status) {
     case "inbox":
-      return t({ ko: "수신함", en: "Inbox", ja: "受信箱", zh: "Inbox", de: "Posteingang" });
+      return t({ en: "Inbox", de: "Posteingang" });
     case "planned":
-      return t({ ko: "계획됨", en: "Planned", ja: "計画済み", zh: "Planned", de: "Geplant" });
+      return t({ en: "Planned", de: "Geplant" });
     case "in_progress":
-      return t({ ko: "진행 중", en: "In Progress", ja: "進行中", zh: "In Progress", de: "In Arbeit" });
+      return t({ en: "In Progress", de: "In Arbeit" });
     case "review":
-      return t({ ko: "검토", en: "Review", ja: "レビュー", zh: "Review", de: "Überprüfung" });
+      return t({ en: "Review", de: "Überprüfung" });
     case "done":
-      return t({ ko: "완료", en: "Done", ja: "完了", zh: "Done", de: "Erledigt" });
+      return t({ en: "Done", de: "Erledigt" });
     case "pending":
-      return t({ ko: "보류", en: "Pending", ja: "保留", zh: "Pending", de: "Ausstehend" });
+      return t({ en: "Pending", de: "Ausstehend" });
     case "cancelled":
-      return t({ ko: "취소", en: "Cancelled", ja: "キャンセル", zh: "Cancelled", de: "Abgebrochen" });
+      return t({ en: "Cancelled", de: "Abgebrochen" });
     default:
       return status;
   }
@@ -105,17 +105,17 @@ export function taskStatusLabel(status: string, t: TFunction) {
 export function taskTypeLabel(type: string, t: TFunction) {
   switch (type) {
     case "general":
-      return t({ ko: "일반", en: "General", ja: "一般", zh: "General", de: "Allgemein" });
+      return t({ en: "General", de: "Allgemein" });
     case "development":
-      return t({ ko: "개발", en: "Development", ja: "開発", zh: "Development", de: "Entwicklung" });
+      return t({ en: "Development", de: "Entwicklung" });
     case "design":
-      return t({ ko: "디자인", en: "Design", ja: "デザイン", zh: "Design", de: "Design" });
+      return t({ en: "Design", de: "Design" });
     case "analysis":
-      return t({ ko: "분석", en: "Analysis", ja: "分析", zh: "Analysis", de: "Analyse" });
+      return t({ en: "Analysis", de: "Analyse" });
     case "presentation":
-      return t({ ko: "발표", en: "Presentation", ja: "プレゼン", zh: "Presentation", de: "Präsentation" });
+      return t({ en: "Presentation", de: "Präsentation" });
     case "documentation":
-      return t({ ko: "문서화", en: "Documentation", ja: "ドキュメント", zh: "Documentation", de: "Dokumentation" });
+      return t({ en: "Documentation", de: "Dokumentation" });
     default:
       return type;
   }

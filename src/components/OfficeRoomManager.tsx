@@ -1,3 +1,4 @@
+import LocalizedText from "./LocalizedText";
 import { useState, useCallback, useEffect } from "react";
 import type { UiLanguage } from "../i18n";
 
@@ -34,19 +35,13 @@ const DEFAULT_THEMES: Record<string, DeptTheme> = {
 const DEFAULT_TONE = 50;
 
 const labels = {
-  title: { ko: "사무실 관리", en: "Office Manager", ja: "オフィス管理", zh: "Office Manager", de: "Office Manager" },
-  accent: { ko: "메인 색상", en: "Main Color", ja: "メインカラー", zh: "Main Color", de: "Main Color" },
-  tone: {
-    ko: "톤 (밝기)",
-    en: "Tone (Brightness)",
-    ja: "トーン（明るさ）",
-    zh: "Tone (Brightness)",
-    de: "Tone (Brightness)",
-  },
-  reset: { ko: "초기화", en: "Reset", ja: "リセット", zh: "Reset", de: "Reset" },
-  resetAll: { ko: "전체 초기화", en: "Reset All", ja: "全てリセット", zh: "Reset All", de: "Reset All" },
-  close: { ko: "닫기", en: "Close", ja: "閉じる", zh: "Close", de: "Close" },
-  presets: { ko: "프리셋", en: "Presets", ja: "プリセット", zh: "Presets", de: "Presets" },
+  title: { en: "Office Manager", de: "Büroverwaltung" },
+  accent: { en: "Main Color", de: "Hauptfarbe" },
+  tone: { en: "Tone (Brightness)", de: "Farbton (Helligkeit)" },
+  reset: { en: "Reset", de: "Zurücksetzen" },
+  resetAll: { en: "Reset All", de: "Alles zurücksetzen" },
+  close: { en: "Close", de: "Schließen" },
+  presets: { en: "Presets", de: "Vorlagen" },
 };
 
 /* ================================================================== */
@@ -238,7 +233,7 @@ function DeptCard({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-            Light
+            <LocalizedText en="Light" de="Hell" />
           </span>
           <input
             type="range"
@@ -256,7 +251,7 @@ function DeptCard({
             className="flex-1 accent-slate-400 h-1.5 cursor-pointer"
           />
           <span className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-            Dark
+            <LocalizedText en="Dark" de="Dunkel" />
           </span>
         </div>
       </div>

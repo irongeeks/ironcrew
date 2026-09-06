@@ -24,14 +24,11 @@ export default function TeamReportTab({
   onToggleDoc,
   onSetPage,
 }: TeamReportTabProps) {
-  const t = (text: { ko: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
 
   const teamDeptFromMap = team.department_id ? departmentById.get(team.department_id) : undefined;
-  const teamName =
-    uiLanguage === "ko"
-      ? teamDeptFromMap?.name_ko || team.department_name_ko || team.department_name
-      : teamDeptFromMap?.name || team.department_name || team.department_name_ko;
-  const teamAgent = uiLanguage === "ko" ? team.agent_name_ko || team.agent_name : team.agent_name;
+  const teamName = teamDeptFromMap?.name || team.department_name || team.department_name_ko;
+  const teamAgent = team.agent_name;
   const logs = team.logs ?? [];
   const keyLogs = logs.filter((lg) => lg.kind === "system" || lg.message.includes("Status")).slice(-20);
 
@@ -51,8 +48,7 @@ export default function TeamReportTab({
           {teamName} · {teamAgent || "-"}
         </p>
         <p className="mt-1 text-xs" style={{ color: "var(--th-text-muted)" }}>
-          {t({ ko: "완료", en: "Completed", ja: "完了", zh: "Completed", de: "Abgeschlossen" })}:{" "}
-          {fmtTime(team.completed_at)}
+          {t({ en: "Completed", de: "Abgeschlossen" })}: {fmtTime(team.completed_at)}
         </p>
         <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed" style={{ color: "var(--th-text-secondary)" }}>
           {team.summary || "-"}
@@ -65,13 +61,7 @@ export default function TeamReportTab({
           style={{ borderColor: "var(--th-border)", background: "var(--th-bg-secondary)" }}
         >
           <p className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "연결된 서브태스크",
-              en: "Linked Subtasks",
-              ja: "関連サブタスク",
-              zh: "Linked Subtasks",
-              de: "Verknüpfte Unteraufgaben",
-            })}
+            {t({ en: "Linked Subtasks", de: "Verknüpfte Unteraufgaben" })}
           </p>
           <div className="space-y-1.5">
             {team.linked_subtasks.map((st) => (
@@ -92,7 +82,7 @@ export default function TeamReportTab({
 
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: "var(--th-text-muted)" }}>
-          {t({ ko: "팀 문서", en: "Team Documents", ja: "チーム文書", zh: "Team Documents", de: "Teamdokumente" })}
+          {t({ en: "Team Documents", de: "Teamdokumente" })}
         </p>
         <ReportDocumentList
           documents={team.documents ?? []}
@@ -111,13 +101,7 @@ export default function TeamReportTab({
           style={{ borderColor: "var(--th-border)", background: "var(--th-bg-secondary)" }}
         >
           <p className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "진행 로그",
-              en: "Progress Logs",
-              ja: "進行ログ",
-              zh: "Progress Logs",
-              de: "Fortschrittsprotokolle",
-            })}
+            {t({ en: "Progress Logs", de: "Fortschrittsprotokolle" })}
           </p>
           <div className="space-y-1">
             {keyLogs.map((lg, idx) => (

@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson as request } from "./panel-api";
 import type { ProjectPlanRecord } from "../shared/project-planning";
@@ -18,6 +19,7 @@ interface Props {
   onTaskOpen?: (taskId: string) => void;
 }
 function Items({ title, items, empty = "Keine angegeben." }: { title: string; items: string[]; empty?: string }) {
+  const { tx } = useGovernanceI18n();
   return (
     <section className="project-plan-section">
       <h4>{title}</h4>
@@ -28,7 +30,7 @@ function Items({ title, items, empty = "Keine angegeben." }: { title: string; it
           ))}
         </ul>
       ) : (
-        <p>{empty}</p>
+        <p>{tx(empty)}</p>
       )}
     </section>
   );
@@ -39,6 +41,7 @@ export function ProjectPlanningPanel({
   refreshKey,
   onTaskOpen,
 }: Props): React.JSX.Element {
+  const { tx, locale } = useGovernanceI18n();
   const [plans, setPlans] = useState<ProjectPlanRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<string | null>(null);
@@ -54,11 +57,11 @@ export function ProjectPlanningPanel({
       if (seq === generation.current) setPlans(result.plans);
     } catch (cause) {
       if (seq === generation.current)
-        setError(cause instanceof Error ? cause.message : "Projektpläne konnten nicht geladen werden.");
+        setError(cause instanceof Error ? cause.message : tx("Projektpläne konnten nicht geladen werden."));
     } finally {
       if (seq === generation.current) setLoading(false);
     }
-  }, []);
+  }, [tx]);
   const invalidate = useCallback(() => {
     generation.current++;
   }, []);
@@ -77,90 +80,109 @@ export function ProjectPlanningPanel({
       });
       setNotice(
         decision === "approved"
-          ? "Plan freigegeben. Die genehmigten Aufgaben und Abhängigkeiten wurden angelegt."
-          : "Plan abgelehnt. Die geplanten Teilaufgaben werden nicht ausgeführt.",
+          ? tx("Plan freigegeben. Die genehmigten Aufgaben und Abhängigkeiten wurden angelegt.")
+          : tx("Plan abgelehnt. Die geplanten Teilaufgaben werden nicht ausgeführt."),
       );
       await load();
       await onChanged?.();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Die Entscheidung konnte nicht gespeichert werden.");
+      setError(cause instanceof Error ? cause.message : tx("Die Entscheidung konnte nicht gespeichert werden."));
     } finally {
       setPending(null);
     }
   };
   return (
-    <section className="project-planning" aria-label="Projektplanung" aria-busy={loading || pending !== null}>
+    <section className="project-planning" aria-label={tx("Projektplanung")} aria-busy={loading || pending !== null}>
       <header>
-        <h2>Projektpläne</h2>
-        <p>Ziel, Umfang und Aufgaben prüfen. Die Crew beginnt die geplante Projektarbeit nach deiner Freigabe.</p>
+        <h2>{tx("Projektpläne")}</h2>
+        <p>
+          {tx("Ziel, Umfang und Aufgaben prüfen. Die Crew beginnt die geplante Projektarbeit nach deiner Freigabe.")}
+        </p>
       </header>
-      {loading && <p role="status">Projektpläne werden geladen …</p>}
+      {loading && <p role="status">{tx("Projektpläne werden geladen …")}</p>}
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       <button className="ic-btn" type="button" disabled={loading || pending !== null} onClick={() => void load()}>
-        Pläne aktualisieren
+        {tx("Pläne aktualisieren")}{" "}
       </button>
       {!loading && !error && plans.length === 0 && (
         <p>
-          Noch keine Projektpläne. Beschreibe im CEO-Chat ein Projekt; der Executive Assistant erstellt zuerst einen
-          Plan zur Prüfung.
+          {tx(
+            "Noch keine Projektpläne. Beschreibe im CEO-Chat ein Projekt; der Executive Assistant erstellt zuerst einen Plan zur Prüfung.",
+          )}{" "}
         </p>
       )}
       {plans.map((record) => (
         <article key={record.id} className="project-plan" data-status={record.status}>
           <header>
-            <h3>{record.plan?.goal ?? "Projekt wird vorbereitet"}</h3>
+            <h3>{record.plan?.goal ?? tx("Projekt wird vorbereitet")}</h3>
             <p className="project-plan-status">
-              {STATUS[record.status]} · {new Date(record.updated_at).toLocaleString("de-DE")}
+              {tx(STATUS[record.status])} · {new Date(record.updated_at).toLocaleString(locale)}
             </p>
           </header>
           <details className="project-plan-source">
-            <summary>Quelle und Verlauf</summary>
-            <p>Projekt: {record.project_id}</p>
-            <p>Planungsaufgabe: {record.task_id}</p>
-            {record.run_id && <p>Planungs-Run: {record.run_id}</p>}
-            {record.reviewed_by && <p>Entschieden von: {record.reviewed_by}</p>}
+            <summary>{tx("Quelle und Verlauf")}</summary>
+            <p>
+              {tx("Projekt:")} {record.project_id}
+            </p>
+            <p>
+              {tx("Planungsaufgabe:")} {record.task_id}
+            </p>
+            {record.run_id && (
+              <p>
+                {tx("Planungs-Run:")} {record.run_id}
+              </p>
+            )}
+            {record.reviewed_by && (
+              <p>
+                {tx("Entschieden von:")} {record.reviewed_by}
+              </p>
+            )}
             {onTaskOpen && (
               <button className="ic-btn" type="button" onClick={() => onTaskOpen(record.task_id)}>
-                Planungsaufgabe öffnen
+                {tx("Planungsaufgabe öffnen")}{" "}
               </button>
             )}
           </details>
           {record.status === "planning" && (
-            <p>Der Planungs-Run darf den Auftrag strukturieren. Noch keine geplanten Teilaufgaben freigegeben.</p>
+            <p>
+              {tx("Der Planungs-Run darf den Auftrag strukturieren. Noch keine geplanten Teilaufgaben freigegeben.")}
+            </p>
           )}
           {record.error && <p className="project-plan-error">{record.error}</p>}
           {record.plan && (
             <>
               <div className="project-plan-columns">
-                <Items title="Umfang" items={record.plan.scope} />
-                <Items title="Nicht-Ziele" items={record.plan.nonGoals} />
-                <Items title="Annahmen" items={record.plan.assumptions} />
-                <Items title="Risiken" items={record.plan.risks} />
+                <Items title={tx("Umfang")} items={record.plan.scope} />
+                <Items title={tx("Nicht-Ziele")} items={record.plan.nonGoals} />
+                <Items title={tx("Annahmen")} items={record.plan.assumptions} />
+                <Items title={tx("Risiken")} items={record.plan.risks} />
               </div>
               <section className="project-plan-section">
-                <h4>Geplantes Budget</h4>
+                <h4>{tx("Geplantes Budget")}</h4>
                 <p>
                   {record.plan.budgetMicros > 0
-                    ? new Intl.NumberFormat("de-DE", {
+                    ? new Intl.NumberFormat(locale, {
                         style: "currency",
                         currency: "USD",
                         maximumFractionDigits: 6,
                       }).format(record.plan.budgetMicros / 1_000_000)
-                    : "0 USD angegeben – Annahmen und Freigabepunkte prüfen; kein Nachweis kostenloser Ausführung."}
+                    : tx("0 USD angegeben – Annahmen und Freigabepunkte prüfen; kein Nachweis kostenloser Ausführung.")}
                 </p>
                 <p className="project-plan-help">
-                  Planwert, keine bereits angefallenen Kosten. Firmen-, Projekt- und Runtime-Limits gelten weiterhin.
+                  {tx(
+                    "Planwert, keine bereits angefallenen Kosten. Firmen-, Projekt- und Runtime-Limits gelten weiterhin.",
+                  )}{" "}
                 </p>
               </section>
-              <Items title="Erwartete Ergebnisse" items={record.plan.deliverables} />
+              <Items title={tx("Erwartete Ergebnisse")} items={record.plan.deliverables} />
               <Items
-                title="Freigabepunkte"
+                title={tx("Freigabepunkte")}
                 items={record.plan.approvalPoints}
-                empty="Keine zusätzlichen Freigabepunkte angegeben. Die Sicherheitsrichtlinien gelten weiterhin."
+                empty={tx("Keine zusätzlichen Freigabepunkte angegeben. Die Sicherheitsrichtlinien gelten weiterhin.")}
               />
               <section className="project-plan-section">
-                <h4>Aufgaben und Abhängigkeiten</h4>
+                <h4>{tx("Aufgaben und Abhängigkeiten")}</h4>
                 <ol className="project-plan-tasks">
                   {record.plan.tasks.map((task) => (
                     <li key={task.key}>
@@ -172,19 +194,19 @@ export function ProjectPlanningPanel({
                           <dd>{task.agentKey}</dd>
                         </div>
                         <div>
-                          <dt>Aufgabenschlüssel</dt>
+                          <dt>{tx("Aufgabenschlüssel")}</dt>
                           <dd>{task.key}</dd>
                         </div>
                         <div>
-                          <dt>Abhängig von</dt>
-                          <dd>{task.dependsOn.join(", ") || "Keine Abhängigkeit"}</dd>
+                          <dt>{tx("Abhängig von")}</dt>
+                          <dd>{task.dependsOn.join(", ") || tx("Keine Abhängigkeit")}</dd>
                         </div>
                         <div>
-                          <dt>Risiko</dt>
-                          <dd>{RISK[task.riskLevel]}</dd>
+                          <dt>{tx("Risiko")}</dt>
+                          <dd>{tx(RISK[task.riskLevel])}</dd>
                         </div>
                       </dl>
-                      <h6>Abnahmekriterien</h6>
+                      <h6>{tx("Abnahmekriterien")}</h6>
                       <ul>
                         {task.acceptanceCriteria.map((criterion, index) => (
                           <li key={index}>{criterion}</li>
@@ -197,8 +219,9 @@ export function ProjectPlanningPanel({
               {record.status === "review" && (
                 <div className="project-plan-review">
                   <p>
-                    Die Freigabe übernimmt diesen Plan in den Task-Baum. Risikoreiche Einzelaktionen benötigen weiterhin
-                    ihre eigenen Freigaben.
+                    {tx(
+                      "Die Freigabe übernimmt diesen Plan in den Task-Baum. Risikoreiche Einzelaktionen benötigen weiterhin ihre eigenen Freigaben.",
+                    )}{" "}
                   </p>
                   {canReview ? (
                     <div>
@@ -208,7 +231,7 @@ export function ProjectPlanningPanel({
                         disabled={pending !== null}
                         onClick={() => void review(record, "approved")}
                       >
-                        Plan freigeben
+                        {tx("Plan freigeben")}{" "}
                       </button>
                       <button
                         className="ic-btn"
@@ -216,11 +239,11 @@ export function ProjectPlanningPanel({
                         disabled={pending !== null}
                         onClick={() => void review(record, "rejected")}
                       >
-                        Plan ablehnen
+                        {tx("Plan ablehnen")}{" "}
                       </button>
                     </div>
                   ) : (
-                    <p>Die Entscheidung benötigt die Owner-Rolle.</p>
+                    <p>{tx("Die Entscheidung benötigt die Owner-Rolle.")}</p>
                   )}
                 </div>
               )}

@@ -93,7 +93,7 @@ import { ExternalEventStore } from "../domain/external-event-store.ts";
 import { MessengerPairingStore, type PairingRole } from "../domain/messenger-pairing-store.ts";
 import { VesselStore, VesselMutationError } from "../domain/vessel-store.ts";
 import { TalentStore, TalentMutationError } from "../domain/talent-store.ts";
-import { RunRequestStore, type RunRequestRow } from "../domain/run-request-store.ts";
+import { RunRequestStore, backoffMs, type RunRequestRow } from "../domain/run-request-store.ts";
 import { ToolStore, type ToolDecision } from "../domain/tool-store.ts";
 import { RoutineStore, type RoutineRow } from "../domain/routine-store.ts";
 import {
@@ -3414,9 +3414,9 @@ export class CompanyOrchestrator {
    *   completed  the run finished; the task moved to review or approval waiting
    *   failed     the run happened and went wrong — that spends an attempt,
    *              and enough of them dead-letter the request for a human
-   *   deferred   the run never started because the agent or the vessel was
-   *              busy. Nothing was attempted, so nothing is spent; it goes
-   *              back on the queue with a short delay.
+   *   deferred   capacity was unavailable (no attempt spent), or an actual
+   *              provider call was rate-limited (attempt spent). Both wait
+   *              on the queue; provider retries have a bounded budget.
    */
   async drainRunQueue(
     companyId: string,
@@ -3481,7 +3481,7 @@ export class CompanyOrchestrator {
           continue;
         }
 
-        result[this.settleRunRequest(request, executed)]++;
+        result[this.settleRunRequest(request, executed, opts)]++;
       } catch (err) {
         // An exception here is the drain's own failure, not the runtime's —
         // executeTask already catches those. Spending an attempt is right:
@@ -3515,6 +3515,7 @@ export class CompanyOrchestrator {
   private settleRunRequest(
     request: RunRequestRow,
     executed: { task: TaskRow; runId: string; events: RunEvent[] },
+    opts: ExecuteOptions = {},
   ): "completed" | "failed" | "deferred" {
     if (executed.task.status === "failed") {
       // The run's own summary is the useful text here; the queue records
@@ -3546,15 +3547,60 @@ export class CompanyOrchestrator {
     } else if (executed.task.status === "waiting" && this.runs.get(executed.runId)?.status === "rate_limited") {
       const rateLimit = [...executed.events].reverse().find((event) => event.type === "rate_limit.detected");
       const resetAt = rateLimit?.payload.resetAt;
+      const retryAfterMs = rateLimit?.payload.retryAfterMs;
       const now = Date.now();
-      const delayMs =
-        typeof resetAt === "number" && Number.isFinite(resetAt) ? Math.max(30_000, resetAt - now) : 60_000;
-      this.runRequests.defer(request.id, "Provider-Limit: Fortsetzung nach Cooldown.", {
-        delayMs,
-        now,
-        runId: executed.runId,
-        leaseOwner: request.lease_owner!,
-      });
+      // A provider was actually called: unlike a busy worker, 429 spends an
+      // attempt. Keep Retry-After as a lower bound, even beyond the backoff cap.
+      const minimumDelayMs = Math.max(
+        backoffMs(request.attempts + 1),
+        typeof resetAt === "number" && Number.isFinite(resetAt) ? resetAt - now : 0,
+        typeof retryAfterMs === "number" && Number.isFinite(retryAfterMs) ? retryAfterMs : 0,
+      );
+      const message =
+        "Provider-Rate-Limit: automatische Wiederholungen ausgeschöpft. Modell oder Kontingent prüfen und die Aufgabe bei Bedarf erneut starten.";
+      const settled = this.runRequests.fail(
+        request.id,
+        request.attempts >= request.max_attempts ? message : "Provider-Limit: Wiederholung nach Cooldown und Backoff.",
+        {
+          minimumDelayMs,
+          now,
+          runId: executed.runId,
+          leaseOwner: request.lease_owner!,
+        },
+      );
+      if (settled?.status === "dead") {
+        const current = this.tasks.get(executed.task.id);
+        if (current?.status === "waiting" && current.status_version === executed.task.status_version) {
+          const event = this.runs.appendEvent({
+            companyId: current.company_id,
+            taskId: current.id,
+            runId: executed.runId,
+            projectId: current.project_id,
+            agentId: current.assigned_agent_id,
+            correlationId: current.correlation_id,
+            type: "run.failed",
+            payload: {
+              message,
+              reason: "rate_limit_retries_exhausted",
+              attempts: request.attempts,
+              maxAttempts: request.max_attempts,
+            },
+          });
+          executed.events.push(event);
+          this.tasks.transition(current.id, "failed", {
+            expectedVersion: current.status_version,
+            reason: message,
+            resultSummary: message,
+            actorType: "system",
+            actorId: "scheduler",
+            correlationId: current.correlation_id,
+          });
+          executed.task = this.tasks.get(current.id)!;
+          this.syncAgentStatuses(current.company_id);
+          opts.onEvent?.(event);
+        }
+        return "failed";
+      }
       return "deferred";
     } else {
       this.runRequests.complete(request.id, { runId: executed.runId, leaseOwner: request.lease_owner! });
@@ -3576,7 +3622,7 @@ export class CompanyOrchestrator {
     if (!request) return null;
     try {
       const executed = await this.withRunRequestLease(request, () => this.executeTask(companyId, candidate, opts));
-      if (executed) this.settleRunRequest(request, executed);
+      if (executed) this.settleRunRequest(request, executed, opts);
       else this.runRequests.defer(request.id, "Nicht startbereit: Agent oder Vessel belegt.", { leaseOwner });
       return executed;
     } catch (error) {
@@ -3780,7 +3826,7 @@ export class CompanyOrchestrator {
     // in a way that looks like a broken account rather than a blank field.
     const model = agent.vessel_model.trim() || undefined;
 
-    const run = this.runs.create({
+    const runInput = {
       companyId,
       taskId: candidate.id,
       agentId,
@@ -3794,7 +3840,19 @@ export class CompanyOrchestrator {
       routingOriginVesselId: originalAgent.vessel_id,
       routingProfileKey: route?.profileKey,
       routingRevision: route?.revision,
-    });
+    };
+    const liveRequest = this.runRequests.liveForTask(candidate.id);
+    const requestedWorkspace =
+      opts.workspacePath ?? (candidate.project_id ? this.projects.get(candidate.project_id)?.workspace_path : null);
+    const reusableRun =
+      liveRequest?.status === "running" && liveRequest.run_id
+        ? this.runs.reusableRateLimited(
+            liveRequest.run_id,
+            runInput,
+            requestedWorkspace ? path.normalize(requestedWorkspace) : "",
+          )
+        : null;
+    const run = reusableRun ?? this.runs.create(runInput);
 
     const claimed = this.tasks.claim({
       taskId: candidate.id,
@@ -3804,7 +3862,7 @@ export class CompanyOrchestrator {
       correlationId: candidate.correlation_id,
     });
     if (!claimed) {
-      this.runs.setStatus(run.id, "cancelled");
+      if (!reusableRun) this.runs.setStatus(run.id, "cancelled");
       return null;
     }
 
@@ -3825,7 +3883,7 @@ export class CompanyOrchestrator {
         actorId: "scheduler",
         correlationId: claimed.correlation_id,
       });
-      this.runs.setStatus(run.id, "cancelled");
+      if (!reusableRun) this.runs.setStatus(run.id, "cancelled");
       return null;
     }
 
@@ -3849,7 +3907,7 @@ export class CompanyOrchestrator {
         actorId: "scheduler",
         correlationId: claimed.correlation_id,
       });
-      this.runs.setStatus(run.id, "cancelled");
+      if (!reusableRun) this.runs.setStatus(run.id, "cancelled");
       return null;
     }
 

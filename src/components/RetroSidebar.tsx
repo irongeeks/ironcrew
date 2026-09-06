@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n";
+import { NAVIGATION_LABELS } from "../app/navigation-labels";
 import { useState } from "react";
 import type { View } from "../app/types";
 
@@ -7,10 +9,9 @@ interface LeftNavProps {
   connected: boolean;
 }
 
-const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
+const NAV_ITEMS: { key: keyof typeof NAVIGATION_LABELS; icon: React.ReactNode }[] = [
   {
     key: "office",
-    label: "OFFICE",
     icon: (
       <svg
         width="20"
@@ -31,7 +32,6 @@ const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "operations",
-    label: "OPS",
     icon: (
       <svg
         width="20"
@@ -54,7 +54,6 @@ const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "tasks",
-    label: "TASKS",
     icon: (
       <svg
         width="20"
@@ -74,7 +73,6 @@ const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "agents",
-    label: "ROSTER",
     icon: (
       <svg
         width="20"
@@ -95,7 +93,6 @@ const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "skills",
-    label: "LIBRARY",
     icon: (
       <svg
         width="20"
@@ -118,7 +115,6 @@ const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "projects",
-    label: "PROJECTS",
     icon: (
       <svg
         width="20"
@@ -137,7 +133,6 @@ const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "schedules",
-    label: "SCHEDULES",
     icon: (
       <svg
         width="20"
@@ -156,7 +151,6 @@ const NAV_ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "settings",
-    label: "CONFIG",
     icon: (
       <svg
         width="20"
@@ -190,6 +184,7 @@ function LogoIcon() {
 }
 
 export default function RetroSidebar({ view, onChangeView, connected }: LeftNavProps) {
+  const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -271,7 +266,7 @@ export default function RetroSidebar({ view, onChangeView, connected }: LeftNavP
 
       {/* Nav items */}
       <nav
-        aria-label="Main navigation"
+        aria-label={t({ en: "Main navigation", de: "Hauptnavigation" })}
         className="flex flex-col flex-1"
         style={{
           padding: "0 12px",
@@ -285,7 +280,7 @@ export default function RetroSidebar({ view, onChangeView, connected }: LeftNavP
           return (
             <button
               key={item.key}
-              aria-label={`Navigate to ${item.label}`}
+              aria-label={t(NAVIGATION_LABELS[item.key])}
               aria-current={isActive ? "page" : undefined}
               onClick={() => onChangeView(item.key)}
               className="flex items-center text-left w-full"
@@ -356,7 +351,7 @@ export default function RetroSidebar({ view, onChangeView, connected }: LeftNavP
                   transitionDelay: expanded ? "80ms" : "0ms",
                 }}
               >
-                {item.label}
+                {t(NAVIGATION_LABELS[item.key]).toLocaleUpperCase(locale)}
               </span>
             </button>
           );
@@ -366,7 +361,11 @@ export default function RetroSidebar({ view, onChangeView, connected }: LeftNavP
       {/* Collapse toggle */}
       <button
         type="button"
-        aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+        aria-label={
+          expanded
+            ? t({ en: "Collapse sidebar", de: "Seitenleiste einklappen" })
+            : t({ en: "Expand sidebar", de: "Seitenleiste ausklappen" })
+        }
         onClick={() => setExpanded((prev) => !prev)}
         style={{
           display: "flex",
@@ -415,7 +414,7 @@ export default function RetroSidebar({ view, onChangeView, connected }: LeftNavP
             transitionDelay: expanded ? "80ms" : "0ms",
           }}
         >
-          COLLAPSE
+          {t({ en: "COLLAPSE", de: "EINKLAPPEN" })}
         </span>
       </button>
 
@@ -459,7 +458,7 @@ export default function RetroSidebar({ view, onChangeView, connected }: LeftNavP
             transitionDelay: expanded ? "80ms" : "0ms",
           }}
         >
-          {connected ? "ONLINE" : "OFFLINE"}
+          {connected ? t({ en: "ONLINE", de: "VERBUNDEN" }) : t({ en: "OFFLINE", de: "GETRENNT" })}
         </span>
       </div>
     </nav>

@@ -53,13 +53,13 @@ describe("buildOfficePackStarterAgents", () => {
     });
     expect(startersEn.some((agent) => (agent.personality ?? "").includes("source credibility"))).toBe(true);
 
-    const startersJa = buildOfficePackStarterAgents({
+    const startersDe = buildOfficePackStarterAgents({
       packKey: "web_research_report",
       departments: [makeDepartment("planning"), makeDepartment("dev"), makeDepartment("design"), makeDepartment("qa")],
       targetCount: 4,
-      locale: "ja",
+      locale: "de",
     });
-    expect(startersJa.some((agent) => (agent.personality ?? "").includes("信頼性"))).toBe(true);
+    expect(startersDe.some((agent) => (agent.personality ?? "").includes("Quellenglaubwürdigkeit"))).toBe(true);
   });
 
   it("starter 초안은 부서 내 순번(seed_order_in_department)을 기록한다", () => {
@@ -164,14 +164,14 @@ describe("buildOfficePackPresentation", () => {
     expect(presentationEn.departments[0]?.description).toContain("team");
     expect(presentationEn.departments[0]?.prompt).toContain("[Department Role]");
 
-    const presentationKo = buildOfficePackPresentation({
+    const presentationDe = buildOfficePackPresentation({
       packKey: "web_research_report",
-      locale: "ko",
+      locale: "de",
       departments: [makeDepartment("planning")],
       agents: [],
       customRoomThemes: {},
     });
-    expect(presentationKo.departments[0]?.description).toContain("협업");
-    expect(presentationKo.departments[0]?.prompt).toContain("[부서 역할]");
+    expect(presentationDe.departments[0]?.description).toContain("gemeinsam");
+    expect(presentationDe.departments[0]?.prompt).toContain("[Abteilungsrolle]");
   });
 });

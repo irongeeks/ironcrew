@@ -23,8 +23,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Native runner, migration, persistence and recovery tests
-        run: pnpm exec vitest run --config server/vitest.config.ts server/ironcrew/runner server/ironcrew/backup server/ironcrew/memory server/ironcrew/domain/run-request-store.test.ts server/modules/bootstrap/migrations server/test/bootstrap/migrations
+      - name: Full API suite including native runner, paths and character storage
+        run: pnpm test:api
         env:
           LOG_LEVEL: error
       - name: Portable installation and backup CLI tests

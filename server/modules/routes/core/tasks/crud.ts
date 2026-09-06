@@ -75,7 +75,7 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     return path.normalize(absolute);
   }
 
-  function isAllowedProjectPath(candidate: string): boolean {
+  function canonicalizeProjectPath(candidate: string): string {
     // Resolve symlinks to prevent bypass via symlink indirection.
     // When the full path doesn't exist yet, walk up to the deepest existing
     // ancestor, resolve symlinks on that, then re-append the remaining segments.
@@ -106,6 +106,11 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       // If nothing resolved (shouldn't happen — root always exists), fall back
       resolved ??= absolute;
     }
+    return resolved;
+  }
+
+  function isAllowedProjectPath(candidate: string): boolean {
+    const resolved = canonicalizeProjectPath(candidate);
     const allowedRoots = [process.cwd(), path.join(os.homedir(), "Projects"), path.join(os.homedir(), "projects")];
     const registeredPaths = db.prepare("SELECT project_path FROM projects WHERE project_path IS NOT NULL").all() as {
       project_path: string;
@@ -113,14 +118,8 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     for (const row of registeredPaths) {
       if (row.project_path) allowedRoots.push(path.resolve(row.project_path));
     }
-    // Resolve symlinks for allowed roots too
-    const resolvedRoots = allowedRoots.map((root) => {
-      try {
-        return fs.realpathSync(root);
-      } catch {
-        return path.resolve(root);
-      }
-    });
+    // Nonexistent roots must resolve their ancestors exactly like candidates.
+    const resolvedRoots = allowedRoots.map(canonicalizeProjectPath);
     return resolvedRoots.some((root) => resolved === root || resolved.startsWith(root + path.sep));
   }
 
@@ -250,6 +249,15 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       return res.status(400).json({ error: "title_required", detail: parsed.error });
     }
     const body = parsed.data;
+    if (
+      body.assigned_agent_id != null &&
+      !db.prepare("SELECT id FROM agents WHERE id = ?").get(body.assigned_agent_id)
+    ) {
+      return res.status(400).json({
+        error: "agent_not_found",
+        detail: "assigned_agent_id must reference /api/agents. Use /api/crew/tasks for Crew assignments.",
+      });
+    }
     const id = randomUUID();
     const t = nowMs();
 
@@ -494,6 +502,15 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       return res.status(400).json({ error: "invalid_body", detail: parsed.error });
     }
     const body = parsed.data;
+    if (
+      body.assigned_agent_id != null &&
+      !db.prepare("SELECT id FROM agents WHERE id = ?").get(body.assigned_agent_id)
+    ) {
+      return res.status(400).json({
+        error: "agent_not_found",
+        detail: "assigned_agent_id must reference /api/agents. Use /api/crew/tasks for Crew assignments.",
+      });
+    }
     if ("workflow_pack_key" in body) {
       const workflowPackKey = normalizeTextField(body.workflow_pack_key);
       if (!workflowPackKey || !isWorkflowPackKey(workflowPackKey)) {

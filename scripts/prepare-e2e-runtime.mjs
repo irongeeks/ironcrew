@@ -2,28 +2,15 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { assertE2EPathsSafe, e2ePaths } from "../server/config/e2e-isolation.ts";
 
-const runtimeDir = path.resolve(process.cwd(), ".tmp", "e2e-runtime");
-const logsDir = path.join(runtimeDir, "logs");
-const dbPath = path.join(runtimeDir, "ironcrew.e2e.sqlite");
-// The pre-rename name, so a checkout that ran E2E before the rename does not
-// keep a stale scratch database sitting in .tmp/ forever. This file is
-// recreated from scratch on every run, so removing it loses nothing.
-const legacyDbPath = path.join(runtimeDir, "octooffice.e2e.sqlite");
-
-fs.mkdirSync(runtimeDir, { recursive: true });
-
-for (const base of [dbPath, legacyDbPath]) {
-  for (const suffix of ["", "-wal", "-shm"]) {
-    const target = `${base}${suffix}`;
-    if (!fs.existsSync(target)) continue;
-    fs.rmSync(target, { force: true });
-  }
+// A new directory per invocation avoids deleting another running test's DB.
+// Called by start-e2e.ts only after both dedicated ports have been checked.
+export function prepareE2ERuntime(runId) {
+  assertE2EPathsSafe(runId);
+  const paths = e2ePaths(runId);
+  fs.mkdirSync(path.dirname(paths.runtimeDir), { recursive: true });
+  fs.mkdirSync(paths.runtimeDir); // Refuse reuse, including stale run IDs.
+  fs.mkdirSync(paths.logsDir);
+  return paths;
 }
-
-fs.rmSync(logsDir, { recursive: true, force: true });
-fs.mkdirSync(logsDir, { recursive: true });
-
-console.log(`[e2e] prepared isolated runtime`);
-console.log(`[e2e] DB_PATH=${dbPath}`);
-console.log(`[e2e] LOGS_DIR=${logsDir}`);

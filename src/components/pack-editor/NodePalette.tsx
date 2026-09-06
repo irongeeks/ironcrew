@@ -1,19 +1,26 @@
+import { localizeNodeType } from "./node-type-labels";
+import { useI18n } from "../../i18n";
+import LocalizedText from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import type { PhaseDefinition } from "./types";
 import { fetchNodeTypes, type NodeTypeInfoResponse as NodeTypeInfo } from "../../api/workflow-packs";
 
 interface Template {
   label: string;
+  labelDe: string;
   icon: string;
   description: string;
+  descriptionDe: string;
   phase: Omit<PhaseDefinition, "id">;
 }
 
 const TEMPLATES: Template[] = [
   {
     label: "Agent Phase",
+    labelDe: "Agentenphase",
     icon: "\u{1F916}",
     description: "Standard dev agent phase",
+    descriptionDe: "Standardphase für einen Entwicklungsagenten",
     phase: {
       department: "dev",
       guidance: "",
@@ -23,8 +30,10 @@ const TEMPLATES: Template[] = [
   },
   {
     label: "Planning Phase",
+    labelDe: "Planungsphase",
     icon: "\u{1F4CB}",
     description: "Planning department, JSON output",
+    descriptionDe: "Planungsabteilung mit JSON-Ausgabe",
     phase: {
       department: "planning",
       guidance: "",
@@ -34,8 +43,10 @@ const TEMPLATES: Template[] = [
   },
   {
     label: "QA Gate",
+    labelDe: "Qualitätsfreigabe",
     icon: "\u2705",
     description: "User approval gate",
+    descriptionDe: "Freigabe durch den Benutzer",
     phase: {
       department: "qa",
       guidance: "",
@@ -46,8 +57,10 @@ const TEMPLATES: Template[] = [
   },
   {
     label: "Fan-out Crawler",
+    labelDe: "Paralleler Crawler",
     icon: "\u{1F578}",
     description: "Parallel fan-out execution",
+    descriptionDe: "Parallele Ausführung mehrerer Zweige",
     phase: {
       department: "dev",
       guidance: "",
@@ -58,8 +71,10 @@ const TEMPLATES: Template[] = [
   },
   {
     label: "Blank Phase",
+    labelDe: "Leere Phase",
     icon: "\u25CB",
     description: "Empty phase, configure manually",
+    descriptionDe: "Leere Phase zur manuellen Konfiguration",
     phase: {
       department: "dev",
       guidance: "",
@@ -91,6 +106,7 @@ interface NodePaletteProps {
 }
 
 export function NodePalette({ onAddPhase }: NodePaletteProps) {
+  const { language } = useI18n();
   const [nodeTypes, setNodeTypes] = useState<NodeTypeInfo[]>([]);
 
   useEffect(() => {
@@ -158,14 +174,14 @@ export function NodePalette({ onAddPhase }: NodePaletteProps) {
     >
       {/* Standard templates */}
       <span className="mb-0.5 text-[9px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-        Templates
+        <LocalizedText en="Templates" de="Vorlagen" />
       </span>
       {TEMPLATES.map((t) => (
         <PaletteButton
           key={t.label}
           icon={t.icon}
-          label={t.label}
-          description={t.description}
+          label={language === "de" ? t.labelDe : t.label}
+          description={language === "de" ? t.descriptionDe : t.description}
           onClick={() => handleAddTemplate(t)}
         />
       ))}
@@ -178,14 +194,26 @@ export function NodePalette({ onAddPhase }: NodePaletteProps) {
               className="mb-0.5 mt-2 block text-[9px] font-medium uppercase tracking-wider"
               style={{ color: "var(--text-muted)" }}
             >
-              {CATEGORY_LABELS[cat] ?? cat}
+              <LocalizedText
+                en={CATEGORY_LABELS[cat] ?? cat}
+                de={
+                  (
+                    {
+                      collaboration: "Zusammenarbeit",
+                      connector: "Anbindungen",
+                      control: "Steuerung",
+                      custom: "Benutzerdefiniert",
+                    } as Record<string, string>
+                  )[cat] ?? cat
+                }
+              />
             </span>
             {grouped.get(cat)!.map((nt) => (
               <PaletteButton
                 key={nt.key}
                 icon={nt.meta.icon}
-                label={nt.meta.label}
-                description={nt.meta.description}
+                label={localizeNodeType(nt, language).meta.label}
+                description={localizeNodeType(nt, language).meta.description}
                 color={nt.meta.color}
                 onClick={() => handleAddNodeType(nt)}
               />

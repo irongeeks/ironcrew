@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n";
 import { useState } from "react";
 
 interface WelcomeStepProps {
@@ -7,6 +8,7 @@ interface WelcomeStepProps {
 }
 
 export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeStepProps) {
+  const { t } = useI18n();
   const [localCompanyName, setLocalCompanyName] = useState(companyName);
   const [localCeoName, setLocalCeoName] = useState(ceoName);
 
@@ -36,15 +38,7 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
       <div style={{ textAlign: "center" }}>
-        <div
-          style={{
-            fontSize: 48,
-            marginBottom: 16,
-            filter: "drop-shadow(0 0 12px rgba(52, 211, 153, 0.4))",
-          }}
-        >
-          🐙
-        </div>
+        <img src="/assets/ironcrew-favicon.svg" alt="" width={48} height={48} style={{ margin: "0 auto 16px" }} />
         <h1
           style={{
             fontFamily: "'Press Start 2P', monospace",
@@ -54,7 +48,7 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
             lineHeight: 1.4,
           }}
         >
-          Welcome to IronCrew
+          {t({ en: "Welcome to IronCrew", de: "Willkommen bei IronCrew" })}
         </h1>
         <p
           style={{
@@ -66,7 +60,10 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
             margin: "0 auto",
           }}
         >
-          Let&apos;s get your AI agent office set up. This will only take a minute.
+          {t({
+            en: "Let's get your AI agent office set up. This will only take a minute.",
+            de: "Richte dein Büro für KI-Agenten in wenigen Schritten ein.",
+          })}
         </p>
       </div>
 
@@ -75,14 +72,14 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
       >
         <div>
           <label htmlFor="wizard-company-name" style={labelStyle}>
-            Company Name
+            {t({ en: "Company Name", de: "Firmenname" })}
           </label>
           <input
             id="wizard-company-name"
             type="text"
             value={localCompanyName}
             onChange={(e) => setLocalCompanyName(e.target.value)}
-            placeholder="e.g. IronCrew Corp"
+            placeholder={t({ en: "e.g. IronCrew Corp", de: "z. B. IronCrew GmbH" })}
             style={inputStyle}
             autoFocus
           />
@@ -90,14 +87,14 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
 
         <div>
           <label htmlFor="wizard-ceo-name" style={labelStyle}>
-            Your Name (CEO)
+            {t({ en: "Your Name (CEO)", de: "Dein Name (CEO)" })}
           </label>
           <input
             id="wizard-ceo-name"
             type="text"
             value={localCeoName}
             onChange={(e) => setLocalCeoName(e.target.value)}
-            placeholder="e.g. Alex"
+            placeholder={t({ en: "e.g. Alex", de: "z. B. Alex" })}
             style={inputStyle}
           />
         </div>
@@ -120,7 +117,7 @@ export default function WelcomeStep({ companyName, ceoName, onNext }: WelcomeSte
             letterSpacing: "0.05em",
           }}
         >
-          Next →
+          {t({ en: "Next →", de: "Weiter →" })}
         </button>
       </div>
     </div>

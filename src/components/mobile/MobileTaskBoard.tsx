@@ -102,13 +102,13 @@ export function MobileTaskBoard({
             textTransform: "uppercase",
           }}
         >
-          {t({ ko: "업무 보드", en: "Task Board", ja: "タスクボード", zh: "Task Board", de: "Aufgaben-Board" })}
+          {t({ en: "Task Board", de: "Aufgaben-Board" })}
         </h1>
         <button
           onClick={handleCreateClick}
           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow active:scale-95"
         >
-          + {t({ ko: "새 작업", en: "New Task", ja: "新規タスク", zh: "New Task", de: "Neue Aufgabe" })}
+          + {t({ en: "New Task", de: "Neue Aufgabe" })}
         </button>
       </div>
 
@@ -159,20 +159,11 @@ export function MobileTaskBoard({
                 letterSpacing: "0.04em",
               }}
             >
-              {t({
-                ko: "아직 작업이 없습니다",
-                en: "No tasks yet",
-                ja: "タスクがありません",
-                zh: "暂无任务",
-                de: "Noch keine Aufgaben",
-              })}
+              {t({ en: "No tasks yet", de: "Noch keine Aufgaben" })}
             </span>
             <span style={{ fontSize: 12, maxWidth: 260, lineHeight: 1.5 }}>
               {t({
-                ko: "첫 작업을 만들어 AI 에이전트 팀에 위임하세요.",
                 en: "Create your first task and delegate it to your AI agent team.",
-                ja: "最初のタスクを作成してAIエージェントチームに委任しましょう。",
-                zh: "创建您的第一个任务,并将其委托给 AI 代理团队。",
                 de: "Erstelle deine erste Aufgabe und übergib sie an dein KI-Agenten-Team.",
               })}
             </span>
@@ -181,7 +172,7 @@ export function MobileTaskBoard({
               className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow active:scale-95"
               style={{ minHeight: 44 }}
             >
-              + {t({ ko: "새 작업", en: "New Task", ja: "新規タスク", zh: "New Task", de: "Neue Aufgabe" })}
+              + {t({ en: "New Task", de: "Neue Aufgabe" })}
             </button>
           </div>
         ) : (
@@ -280,13 +271,7 @@ export function MobileTaskBoard({
                             }}
                           >
                             {approvingPhase === phaseId
-                              ? t({
-                                  ko: "승인 중...",
-                                  en: "Approving...",
-                                  ja: "承認中...",
-                                  zh: "审批中...",
-                                  de: "Genehmige...",
-                                })
+                              ? t({ en: "Approving...", de: "Genehmige..." })
                               : t({
                                   ko: `✅ ${phaseId} 승인`,
                                   en: `✅ Approve ${phaseId}`,

@@ -41,7 +41,10 @@ interface ProjectEditorPanelProps {
   setManualPathPickerOpen: Dispatch<SetStateAction<boolean>>;
   loadManualPathEntries: (targetPath?: string) => Promise<void>;
   unsupportedPathApiMessage: string;
-  resolvePathHelperErrorMessage: (err: unknown, fallback: { ko: string; en: string; ja: string; zh: string }) => string;
+  resolvePathHelperErrorMessage: (
+    err: unknown,
+    fallback: { ko?: string; en: string; ja?: string; zh?: string; de?: string },
+  ) => string;
   formFeedback: FormFeedback | null;
   setFormFeedback: Dispatch<SetStateAction<FormFeedback | null>>;
   assignmentMode: AssignmentMode;
@@ -117,7 +120,7 @@ export default function ProjectEditorPanel({
       style={{ borderColor: "var(--th-border)", background: "var(--th-card-bg)" }}
     >
       <label className="block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-        {t({ ko: "프로젝트 이름", en: "Project Name", ja: "プロジェクト名", zh: "Project Name", de: "Projektname" })}
+        {t({ en: "Project Name", de: "Projektname" })}
         <input
           type="text"
           value={name}
@@ -135,7 +138,7 @@ export default function ProjectEditorPanel({
         />
       </label>
       <label className="block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-        {t({ ko: "프로젝트 경로", en: "Project Path", ja: "プロジェクトパス", zh: "Project Path", de: "Projektpfad" })}
+        {t({ en: "Project Path", de: "Projektpfad" })}
         <input
           type="text"
           value={projectPath}
@@ -167,13 +170,7 @@ export default function ProjectEditorPanel({
               className="rounded-md border px-2.5 py-1 text-xs font-semibold text-[var(--th-text-primary)] transition hover:bg-[var(--th-bg-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               style={{ borderColor: "var(--th-border-strong)" }}
             >
-              {t({
-                ko: "앱 내 폴더 탐색",
-                en: "In-App Folder Browser",
-                ja: "アプリ内フォルダ閲覧",
-                zh: "In-App Folder Browser",
-                de: "Ordner-Browser",
-              })}
+              {t({ en: "In-App Folder Browser", de: "Ordner-Browser" })}
             </button>
             <button
               type="button"
@@ -186,20 +183,8 @@ export default function ProjectEditorPanel({
               style={{ borderColor: "var(--th-border-strong)" }}
             >
               {pathSuggestionsOpen
-                ? t({
-                    ko: "자동 경로찾기 닫기",
-                    en: "Close Auto Finder",
-                    ja: "自動候補を閉じる",
-                    zh: "Close Auto Finder",
-                    de: "Automatische Suche schließen",
-                  })
-                : t({
-                    ko: "자동 경로찾기",
-                    en: "Auto Path Finder",
-                    ja: "自動パス検索",
-                    zh: "Auto Path Finder",
-                    de: "Automatische Pfadsuche",
-                  })}
+                ? t({ en: "Close Auto Finder", de: "Automatische Suche schließen" })
+                : t({ en: "Auto Path Finder", de: "Automatische Pfadsuche" })}
             </button>
             <button
               type="button"
@@ -221,10 +206,8 @@ export default function ProjectEditorPanel({
                     setFormFeedback({ tone: "info", message: unsupportedPathApiMessage });
                   } else {
                     const message = resolvePathHelperErrorMessage(err, {
-                      ko: "운영체제 폴더 선택기를 열지 못했습니다.",
                       en: "Failed to open OS folder picker.",
-                      ja: "OSフォルダ選択を開けませんでした。",
-                      zh: "Failed to open OS folder picker.",
+                      de: "Die Ordnerauswahl des Betriebssystems konnte nicht geöffnet werden.",
                     });
                     if (
                       isApiRequestError(err) &&
@@ -246,28 +229,10 @@ export default function ProjectEditorPanel({
               style={{ borderColor: "var(--th-border-strong)" }}
             >
               {nativePathPicking
-                ? t({
-                    ko: "수동 경로찾기 여는 중...",
-                    en: "Opening Manual Picker...",
-                    ja: "手動パス選択を開いています...",
-                    zh: "Opening Manual Picker...",
-                    de: "Manuellen Pfad-Browser öffnen...",
-                  })
+                ? t({ en: "Opening Manual Picker...", de: "Manuellen Pfad-Browser öffnen..." })
                 : nativePickerUnsupported
-                  ? t({
-                      ko: "수동 경로찾기(사용불가)",
-                      en: "Manual Path Finder (Unavailable)",
-                      ja: "手動パス選択（利用不可）",
-                      zh: "Manual Path Finder (Unavailable)",
-                      de: "Manueller Pfad-Browser (nicht verfügbar)",
-                    })
-                  : t({
-                      ko: "수동 경로찾기",
-                      en: "Manual Path Finder",
-                      ja: "手動パス選択",
-                      zh: "Manual Path Finder",
-                      de: "Manueller Pfad-Browser",
-                    })}
+                  ? t({ en: "Manual Path Finder (Unavailable)", de: "Manueller Pfad-Browser (nicht verfügbar)" })
+                  : t({ en: "Manual Path Finder", de: "Manueller Pfad-Browser" })}
             </button>
           </div>
           {pathSuggestionsOpen && (
@@ -277,21 +242,12 @@ export default function ProjectEditorPanel({
             >
               {pathSuggestionsLoading ? (
                 <p className="px-3 py-2 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                  {t({
-                    ko: "경로 후보를 불러오는 중...",
-                    en: "Loading path suggestions...",
-                    ja: "パス候補を読み込み中...",
-                    zh: "Loading path suggestions...",
-                    de: "Pfadvorschläge werden geladen...",
-                  })}
+                  {t({ en: "Loading path suggestions...", de: "Pfadvorschläge werden geladen..." })}
                 </p>
               ) : pathSuggestions.length === 0 ? (
                 <p className="px-3 py-2 text-xs" style={{ color: "var(--th-text-secondary)" }}>
                   {t({
-                    ko: "추천 경로가 없습니다. 직접 입력해주세요.",
                     en: "No suggested path. Enter one manually.",
-                    ja: "候補パスがありません。手入力してください。",
-                    zh: "No suggested path. Enter one manually.",
                     de: "Kein Pfadvorschlag. Bitte manuell eingeben.",
                   })}
                 </p>
@@ -317,10 +273,7 @@ export default function ProjectEditorPanel({
           {missingPathPrompt && (
             <p className="text-xs text-amber-300">
               {t({
-                ko: "해당 경로가 아직 존재하지 않습니다. 저장 시 생성 여부를 확인합니다.",
                 en: "This path does not exist yet. Save will ask whether to create it.",
-                ja: "このパスはまだ存在しません。保存時に作成確認を行います。",
-                zh: "This path does not exist yet. Save will ask whether to create it.",
                 de: "Dieser Pfad existiert noch nicht. Beim Speichern wird gefragt, ob er erstellt werden soll.",
               })}
             </p>
@@ -339,13 +292,7 @@ export default function ProjectEditorPanel({
         </div>
       )}
       <label className="block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-        {t({
-          ko: "프로젝트 설명",
-          en: "Project Description",
-          ja: "プロジェクト説明",
-          zh: "Project Description",
-          de: "Projektbeschreibung",
-        })}
+        {t({ en: "Project Description", de: "Projektbeschreibung" })}
         <textarea
           rows={3}
           value={coreGoal}
@@ -357,9 +304,6 @@ export default function ProjectEditorPanel({
           placeholder={t({
             en: "Brief project description (detailed context managed in CLAUDE.md editor)",
             de: "Kurze Projektbeschreibung (Details im CLAUDE.md Editor)",
-            ko: "간단한 프로젝트 설명 (상세 컨텍스트는 CLAUDE.md 에디터에서 관리)",
-            ja: "簡単なプロジェクト説明（詳細はCLAUDE.mdエディタで管理）",
-            zh: "Brief description (details in CLAUDE.md editor)",
           })}
           className="mt-1 w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none focus:border-blue-500"
           style={{
@@ -400,9 +344,7 @@ export default function ProjectEditorPanel({
             disabled={!canSave || saving}
             className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-40"
           >
-            {editingProjectId
-              ? t({ ko: "수정 저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })
-              : t({ ko: "프로젝트 등록", en: "Create", ja: "作成", zh: "Create", de: "Erstellen" })}
+            {editingProjectId ? t({ en: "Save", de: "Speichern" }) : t({ en: "Create", de: "Erstellen" })}
           </button>
         )}
         {(isCreating || !!editingProjectId) && (
@@ -412,7 +354,7 @@ export default function ProjectEditorPanel({
             className="rounded-lg border px-3 py-1.5 text-xs"
             style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
           >
-            {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+            {t({ en: "Cancel", de: "Abbrechen" })}
           </button>
         )}
         <button
@@ -422,13 +364,7 @@ export default function ProjectEditorPanel({
           className="rounded-lg border px-3 py-1.5 text-xs disabled:opacity-40"
           style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
         >
-          {t({
-            ko: "선택 프로젝트 편집",
-            en: "Edit Selected",
-            ja: "選択編集",
-            zh: "Edit Selected",
-            de: "Auswahl bearbeiten",
-          })}
+          {t({ en: "Edit Selected", de: "Auswahl bearbeiten" })}
         </button>
         <button
           type="button"
@@ -436,7 +372,7 @@ export default function ProjectEditorPanel({
           disabled={!selectedProject}
           className="rounded-lg border border-red-700/70 px-3 py-1.5 text-xs text-red-300 disabled:opacity-40"
         >
-          {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "Delete", de: "Löschen" })}
+          {t({ en: "Delete", de: "Löschen" })}
         </button>
       </div>
     </div>

@@ -1,3 +1,5 @@
+import { migrateCompanyIdentity } from "../domain/company-identity.ts";
+import { registerOpenRouterModelRoutes } from "./openrouter-model-routes.ts";
 import { registerBusinessDashboardRoutes } from "./business-dashboard-routes.ts";
 import { BusinessDashboardService } from "../packs/business-dashboard.ts";
 import { registerObjectiveEvaluationRoutes } from "./objective-evaluation-routes.ts";
@@ -34,7 +36,7 @@ import { CrewLiveEvents } from "./live-events.ts";
 import type { OidcProvider } from "../auth/oidc-provider.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { listAuditEvents, verifyAuditChain } from "../domain/audit.ts";
-import { evaluateModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
+import { evaluateModel, evaluateRuntimeModel, filterModelCatalogue } from "../policy/vendor-policy.ts";
 import { ApprovalRequiredError } from "../policy/approval-policy.ts";
 import { ApprovalReviewError, MAX_REQUIRED_APPROVALS } from "../domain/approval-review-store.ts";
 import { BudgetExceededError } from "../policy/budget-engine.ts";
@@ -614,6 +616,10 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     slug: opts.companySlug ?? "iron-crew",
   });
 
+  migrateCompanyIdentity(db, companyId);
+  app.locals.ironCrewCompanyId = companyId;
+  app.locals.ironCrewRuntimes = () => orchestrator.listRuntimes();
+
   const live = new CrewLiveEvents(companyId);
   const broadcast: Broadcast = (type, payload) => {
     live.publish(type, payload);
@@ -684,6 +690,7 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     base,
     onChanged: () => broadcast("crew_state_changed", { policy: true }),
   });
+  registerOpenRouterModelRoutes(app, { base });
   registerCharacterRoutes(app, { db, companyId, auth, base });
   registerRoutingRoutes(app, {
     store: orchestrator.routing,
@@ -2366,6 +2373,15 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
     `${base}/vessels`,
     wrap((req, res) => {
       const input = createVesselSchema.parse(req.body ?? {});
+      const decision = evaluateRuntimeModel(
+        companyPolicyStore.effective(companyId),
+        input.runtimeProvider,
+        input.model,
+      );
+      if (!decision.allowed) {
+        res.status(400).json({ error: "model_not_allowed", message: decision.reason, decision });
+        return;
+      }
       const vessel = orchestrator.vessels.create({ companyId, ...input }, actorOf(req));
       broadcast("crew_vessel_changed", { vesselId: vessel.id });
       res.status(201).json({ vessel });
@@ -2381,6 +2397,17 @@ export function registerIronCrewRoutes(app: Express, opts: IronCrewApiOptions): 
         return;
       }
       const patch = updateVesselSchema.parse(req.body ?? {});
+      if (patch.model !== undefined || patch.runtimeProvider !== undefined) {
+        const decision = evaluateRuntimeModel(
+          companyPolicyStore.effective(companyId),
+          patch.runtimeProvider ?? existing.runtime_provider,
+          patch.model ?? existing.model,
+        );
+        if (!decision.allowed) {
+          res.status(400).json({ error: "model_not_allowed", message: decision.reason, decision });
+          return;
+        }
+      }
       const vessel = orchestrator.vessels.update(existing.id, patch, actorOf(req));
       broadcast("crew_vessel_changed", { vesselId: existing.id });
       res.json({ vessel });

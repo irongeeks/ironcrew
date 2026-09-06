@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 import { useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import "./detail-dialog.css";
 
@@ -49,6 +50,7 @@ export function DetailDialog({
   onClose: () => void;
   children: ReactNode;
 }): React.JSX.Element {
+  const { tx } = useGovernanceI18n();
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -114,7 +116,7 @@ export function DetailDialog({
         </h2>
         {children}
         <button type="button" className="ic-btn" onClick={onClose}>
-          Schliessen
+          {tx("Schließen")}{" "}
         </button>
       </div>
     </dialog>

@@ -238,13 +238,7 @@ export default function SettingsPanel({
             setDeviceStatus("expired");
             setDeviceCode(null);
             setDeviceError(
-              t({
-                ko: "코드가 만료되었습니다. 다시 시도하세요.",
-                en: "Code expired. Please try again.",
-                ja: "コードの有効期限が切れました。再試行してください。",
-                zh: "Code expired. Please try again.",
-                de: "Code abgelaufen. Bitte erneut versuchen.",
-              }),
+              t({ en: "Code expired. Please try again.", de: "Code abgelaufen. Bitte erneut versuchen." }),
             );
             return;
           }
@@ -264,20 +258,8 @@ export default function SettingsPanel({
               setDeviceStatus(result.status);
               setDeviceError(
                 result.status === "expired"
-                  ? t({
-                      ko: "코드가 만료되었습니다",
-                      en: "Code expired",
-                      ja: "コードの期限切れ",
-                      zh: "Code expired",
-                      de: "Code abgelaufen",
-                    })
-                  : t({
-                      ko: "인증이 거부되었습니다",
-                      en: "Authentication denied",
-                      ja: "認証が拒否されました",
-                      zh: "Authentication denied",
-                      de: "Authentifizierung verweigert",
-                    }),
+                  ? t({ en: "Code expired", de: "Code abgelaufen" })
+                  : t({ en: "Authentication denied", de: "Authentifizierung verweigert" }),
               );
               return;
             } else if (result.status === "slow_down") {
@@ -286,16 +268,7 @@ export default function SettingsPanel({
               stopped = true;
               pollTimerRef.current = null;
               setDeviceStatus("error");
-              setDeviceError(
-                result.error ||
-                  t({
-                    ko: "알 수 없는 오류",
-                    en: "Unknown error",
-                    ja: "不明なエラー",
-                    zh: "Unknown error",
-                    de: "Unbekannter Fehler",
-                  }),
-              );
+              setDeviceError(result.error || t({ en: "Unknown error", de: "Unbekannter Fehler" }));
               return;
             }
           } catch {
@@ -413,17 +386,7 @@ export default function SettingsPanel({
 
   const handleDeleteAccount = useCallback(
     async (provider: OAuthConnectProvider, accountId: string) => {
-      if (
-        !window.confirm(
-          t({
-            ko: "이 OAuth 계정을 삭제하시겠습니까?",
-            en: "Delete this OAuth account?",
-            ja: "この OAuth アカウントを削除しますか？",
-            zh: "Delete this OAuth account?",
-            de: "Dieses OAuth-Konto löschen?",
-          }),
-        )
-      ) {
+      if (!window.confirm(t({ en: "Delete this OAuth account?", de: "Dieses OAuth-Konto löschen?" }))) {
         return;
       }
 
@@ -446,7 +409,7 @@ export default function SettingsPanel({
         className="text-[9px] uppercase tracking-[0.05em]"
         style={{ fontFamily: "'Press Start 2P', monospace", color: "var(--text-muted, #71717a)" }}
       >
-        {t({ ko: "설정", en: "Settings", ja: "設정", zh: "Settings", de: "Einstellungen" })}
+        {t({ en: "Settings", de: "Einstellungen" })}
       </h2>
 
       <div className={isMobile ? "" : "flex gap-6"}>

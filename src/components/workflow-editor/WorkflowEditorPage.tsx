@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { fetchPackDefinition, savePackDefinition, invalidateEditorCaches } from "../../api/workflow-packs";
 import { usePackEditorState } from "../pack-editor/hooks/usePackEditorState";
@@ -129,7 +130,10 @@ export function WorkflowEditorPage({ subtasks, activePackKey }: WorkflowEditorPa
           WORKFLOWS
         </span>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Select a workflow pack to visualize or edit
+          <LocalizedText
+            en="Select a workflow pack to visualize or edit"
+            de="Wähle ein Workflow-Paket zum Anzeigen oder Bearbeiten"
+          />
         </p>
         <WorkflowPackSelector activePackKey={null} onSelect={setSelectedPackKey} />
       </div>
@@ -161,7 +165,7 @@ export function WorkflowEditorPage({ subtasks, activePackKey }: WorkflowEditorPa
               color: showPackMeta ? "var(--accent)" : "var(--text-muted)",
             }}
           >
-            Pack Settings
+            <LocalizedText en="Pack Settings" de="Paketeinstellungen" />
           </button>
         )}
 
@@ -175,7 +179,7 @@ export function WorkflowEditorPage({ subtasks, activePackKey }: WorkflowEditorPa
               color: "var(--status-working)",
             }}
           >
-            + New Pack
+            <LocalizedText en="+ New Pack" de="+ Neues Paket" />
           </button>
         )}
       </div>
@@ -206,7 +210,10 @@ export function WorkflowEditorPage({ subtasks, activePackKey }: WorkflowEditorPa
             borderBottom: "1px solid rgba(250,204,21,0.2)",
           }}
         >
-          Built-in pack (read-only). Duplicate to community to edit.
+          <LocalizedText
+            en="Built-in pack (read-only). Duplicate to community to edit."
+            de="Integriertes Paket (schreibgeschützt). Zum Bearbeiten als Community-Paket duplizieren."
+          />
         </div>
       )}
 
@@ -218,7 +225,7 @@ export function WorkflowEditorPage({ subtasks, activePackKey }: WorkflowEditorPa
             <Suspense
               fallback={
                 <div className="flex h-full items-center justify-center text-xs" style={{ color: "var(--text-muted)" }}>
-                  Loading graph...
+                  <LocalizedText en="Loading graph..." de="Diagramm wird geladen …" />
                 </div>
               }
             >

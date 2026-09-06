@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useState } from "react";
 import type { PackEditorState } from "./hooks/usePackEditorState";
 import type { PackInputField } from "./types";
@@ -48,6 +49,7 @@ interface InputFieldRowProps {
 }
 
 function InputFieldRow({ field, onChange, onRemove, inputStyle: style }: InputFieldRowProps) {
+  const translateUiCopy = useUiCopy();
   return (
     <div className="flex flex-col gap-1 rounded border p-2" style={{ borderColor: "var(--border)" }}>
       <div className="flex gap-1">
@@ -79,14 +81,14 @@ function InputFieldRow({ field, onChange, onRemove, inputStyle: style }: InputFi
       <input
         className="w-full rounded border px-1.5 py-0.5 text-[10px]"
         style={style}
-        placeholder="label (EN)"
+        placeholder={translateUiCopy("label (EN)", "Bezeichnung (EN)")}
         value={field.label?.en ?? ""}
         onChange={(e) => onChange({ ...field, label: { ...field.label, en: e.target.value } })}
       />
       <input
         className="w-full rounded border px-1.5 py-0.5 text-[10px]"
         style={style}
-        placeholder="default value"
+        placeholder={translateUiCopy("default value", "Standardwert")}
         value={field.default !== undefined ? String(field.default) : ""}
         onChange={(e) => {
           const val = e.target.value;
@@ -97,7 +99,7 @@ function InputFieldRow({ field, onChange, onRemove, inputStyle: style }: InputFi
         <input
           className="w-full rounded border px-1.5 py-0.5 text-[10px]"
           style={style}
-          placeholder="enum values (comma-separated)"
+          placeholder={translateUiCopy("enum values (comma-separated)", "Auswahlwerte (kommagetrennt)")}
           value={field.enum?.join(", ") ?? ""}
           onChange={(e) => {
             const raw = e.target.value.trim();
@@ -116,6 +118,7 @@ function InputFieldRow({ field, onChange, onRemove, inputStyle: style }: InputFi
 }
 
 export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPanelProps) {
+  const translateUiCopy = useUiCopy();
   const [tab, setTab] = useState<Tab>("general");
 
   const style = inputStyle(readOnly);
@@ -128,7 +131,7 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
         <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-          Pack Settings
+          <LocalizedText en="Pack Settings" de="Paketeinstellungen" />
         </span>
         <button
           onClick={onClose}
@@ -152,7 +155,7 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
               borderBottom: tab === t ? "2px solid var(--accent)" : "2px solid transparent",
             }}
           >
-            {t}
+            {translateUiCopy(t, { general: "Allgemein", inputs: "Eingaben", cost: "Kosten", staff: "Personal" }[t])}
           </button>
         ))}
       </div>
@@ -160,7 +163,7 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
       <div className="flex flex-col gap-3 p-3">
         {tab === "general" && (
           <>
-            <Field label="Pack Key">
+            <Field label={translateUiCopy("Pack Key", "Paketkennung")}>
               <input
                 value={state.packMeta.key}
                 disabled
@@ -188,7 +191,7 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
                 style={style}
               />
             </Field>
-            <Field label="Description (EN)">
+            <Field label={translateUiCopy("Description (EN)", "Beschreibung (EN)")}>
               <textarea
                 value={state.packMeta.description.en ?? ""}
                 disabled={readOnly}
@@ -205,7 +208,7 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
                 rows={3}
               />
             </Field>
-            <Field label="Icon">
+            <Field label={translateUiCopy("Icon", "Symbol")}>
               <input
                 value={state.packMeta.icon ?? ""}
                 disabled={readOnly}
@@ -221,7 +224,10 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
         {tab === "inputs" && (
           <>
             <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              Required and optional input fields for this pack. These define what users provide when creating a task.
+              <LocalizedText
+                en="Required and optional input fields for this pack. These define what users provide when creating a task."
+                de="Pflichtfelder und optionale Eingaben für dieses Paket. Sie legen fest, welche Angaben beim Erstellen einer Aufgabe benötigt werden."
+              />
             </div>
 
             {/* Required inputs */}
@@ -229,7 +235,8 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
               className="text-[10px] font-semibold uppercase tracking-wide"
               style={{ color: "var(--text-secondary)" }}
             >
-              Required ({state.input.required.length})
+              <LocalizedText en="Required (" de="Pflichtfelder (" />
+              {state.input.required.length})
             </div>
             {state.input.required.map((f, i) =>
               readOnly ? (
@@ -270,12 +277,12 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
                 className="w-full rounded border border-dashed py-1 text-[10px] hover:opacity-80"
                 style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
               >
-                + Add Required
+                <LocalizedText en="+ Add Required" de="+ Pflichtfeld hinzufügen" />
               </button>
             )}
             {state.input.required.length === 0 && readOnly && (
               <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-                No required inputs
+                <LocalizedText en="No required inputs" de="Keine Pflichtfelder" />
               </div>
             )}
 
@@ -284,7 +291,8 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
               className="text-[10px] font-semibold uppercase tracking-wide"
               style={{ color: "var(--text-secondary)" }}
             >
-              Optional ({state.input.optional.length})
+              <LocalizedText en="Optional (" de="Optionale Felder (" />
+              {state.input.optional.length})
             </div>
             {state.input.optional.map((f, i) =>
               readOnly ? (
@@ -326,12 +334,12 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
                 className="w-full rounded border border-dashed py-1 text-[10px] hover:opacity-80"
                 style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
               >
-                + Add Optional
+                <LocalizedText en="+ Add Optional" de="+ Optionales Feld hinzufügen" />
               </button>
             )}
             {state.input.optional.length === 0 && readOnly && (
               <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-                No optional inputs
+                <LocalizedText en="No optional inputs" de="Keine optionalen Eingaben" />
               </div>
             )}
           </>
@@ -343,7 +351,7 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
             const qa = (state.qaRules ?? {}) as QaRules;
             return (
               <>
-                <Field label="Max Rounds">
+                <Field label={translateUiCopy("Max Rounds", "Maximale Runden")}>
                   <input
                     type="number"
                     min={1}
@@ -361,7 +369,7 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
                     style={style}
                   />
                 </Field>
-                <Field label="Default Reasoning">
+                <Field label={translateUiCopy("Default Reasoning", "Standard-Denktiefe")}>
                   <select
                     value={cost.default_reasoning ?? "medium"}
                     disabled={readOnly}
@@ -376,12 +384,18 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
                     className="w-full rounded border px-2 py-1 text-xs"
                     style={style}
                   >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
+                    <option value="low">
+                      <LocalizedText en="Low" de="Niedrig" />
+                    </option>
+                    <option value="medium">
+                      <LocalizedText en="Medium" de="Mittel" />
+                    </option>
+                    <option value="high">
+                      <LocalizedText en="High" de="Hoch" />
+                    </option>
                   </select>
                 </Field>
-                <Field label="Require Test Evidence">
+                <Field label={translateUiCopy("Require Test Evidence", "Testnachweise erforderlich")}>
                   <select
                     value={String(qa.require_test_evidence ?? false)}
                     disabled={readOnly}
@@ -396,11 +410,15 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
                     className="w-full rounded border px-2 py-1 text-xs"
                     style={style}
                   >
-                    <option value="false">No</option>
-                    <option value="true">Yes</option>
+                    <option value="false">
+                      <LocalizedText en="No" de="Nein" />
+                    </option>
+                    <option value="true">
+                      <LocalizedText en="Yes" de="Ja" />
+                    </option>
                   </select>
                 </Field>
-                <Field label="Max Auto-Fix Passes">
+                <Field label={translateUiCopy("Max Auto-Fix Passes", "Maximale automatische Korrekturdurchläufe")}>
                   <input
                     type="number"
                     min={1}
@@ -429,10 +447,13 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
             return (
               <>
                 <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                  Agent name pool and room theme. These define the agents and visual appearance for this pack.
+                  <LocalizedText
+                    en="Agent name pool and room theme. These define the agents and visual appearance for this pack."
+                    de="Agentennamen und Raumgestaltung. Sie bestimmen die Agenten und das Erscheinungsbild dieses Pakets."
+                  />
                 </div>
                 {staff ? (
-                  <Field label="Name Pool">
+                  <Field label={translateUiCopy("Name Pool", "Namenspool")}>
                     {namePool.map((s, i) => (
                       <div
                         key={i}
@@ -448,13 +469,13 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
                     ))}
                     {namePool.length === 0 && (
                       <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-                        No agents in name pool
+                        <LocalizedText en="No agents in name pool" de="Keine Agenten im Namenspool" />
                       </div>
                     )}
                   </Field>
                 ) : (
                   <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-                    No staff configuration
+                    <LocalizedText en="No staff configuration" de="Keine Personalkonfiguration" />
                   </div>
                 )}
               </>
@@ -466,7 +487,7 @@ export function PackMetaPanel({ state, readOnly, onUpdate, onClose }: PackMetaPa
             className="mt-2 rounded px-3 py-2 text-center text-[10px]"
             style={{ background: "var(--bg-surface-hover)", color: "var(--text-muted)" }}
           >
-            Read-only mode
+            <LocalizedText en="Read-only mode" de="Schreibgeschützt" />
           </div>
         )}
       </div>

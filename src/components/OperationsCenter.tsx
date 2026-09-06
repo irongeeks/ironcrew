@@ -1,3 +1,4 @@
+import LocalizedText from "./LocalizedText";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   drainOperationNode,
@@ -13,69 +14,45 @@ import NodeGrid from "./operations/NodeGrid";
 import SessionStream from "./operations/SessionStream";
 
 type SocketOn = (event: WSEventType, handler: (payload: unknown) => void) => () => void;
-type LocaleKey = "en" | "de" | "ko" | "ja";
+type LocaleKey = "en" | "de";
 
 const I18N = {
-  title: {
-    en: "Unified Operations Center",
-    de: "Vereinheitlichtes Operations Center",
-    ko: "통합 운영 센터",
-    ja: "統合オペレーションセンター",
-  },
+  title: { en: "Unified Operations Center", de: "Vereinheitlichtes Operations Center" },
   subtitle: {
     en: "Live sessions, nodes, and operational alerts.",
     de: "Live-Sessions, Nodes und operative Warnungen.",
-    ko: "실시간 세션, 노드, 운영 알림을 한 화면에서 봅니다.",
-    ja: "ライブセッション・ノード・運用アラートを一画面で確認します。",
   },
-  refresh: { en: "Refresh", de: "Aktualisieren", ko: "새로고침", ja: "更新" },
-  refreshing: { en: "Refreshing...", de: "Aktualisiere...", ko: "갱신 중...", ja: "更新中..." },
-  sessionStream: { en: "Session Stream", de: "Session-Stream", ko: "세션 스트림", ja: "セッションストリーム" },
-  nodes: { en: "Node Grid", de: "Node-Grid", ko: "노드 그리드", ja: "ノードグリッド" },
-  alerts: { en: "Alert Feed", de: "Alarm-Feed", ko: "알림 피드", ja: "アラートフィード" },
-  emptySessions: {
-    en: "No active sessions",
-    de: "Keine aktiven Sessions",
-    ko: "활성 세션이 없습니다",
-    ja: "アクティブなセッションはありません",
-  },
-  emptyNodes: { en: "No nodes found", de: "Keine Nodes gefunden", ko: "노드가 없습니다", ja: "ノードがありません" },
-  emptyAlerts: {
-    en: "No operational alerts",
-    de: "Keine operativen Warnungen",
-    ko: "운영 알림이 없습니다",
-    ja: "運用アラートはありません",
-  },
-  kill: { en: "Kill", de: "Beenden", ko: "강제종료", ja: "強制終了" },
-  killing: { en: "Killing...", de: "Beende...", ko: "종료 중...", ja: "終了中..." },
-  edit: { en: "Edit", de: "Bearbeiten", ko: "편집", ja: "編集" },
-  drain: { en: "Drain", de: "Drain", ko: "드레인", ja: "ドレイン" },
-  draining: { en: "Draining...", de: "Drain...", ko: "드레인 중...", ja: "ドレイン中..." },
-  status: { en: "Status", de: "Status", ko: "상태", ja: "状態" },
-  task: { en: "Task", de: "Task", ko: "태스크", ja: "タスク" },
-  subtasks: { en: "Subtasks", de: "Subtasks", ko: "서브태스크", ja: "サブタスク" },
-  allocations: { en: "Alloc", de: "Allok", ko: "할당", ja: "割当" },
-  updated: { en: "Updated", de: "Aktualisiert", ko: "업데이트", ja: "更新" },
-  showLogs: { en: "Show logs", de: "Logs zeigen", ko: "로그 보기", ja: "ログ表示" },
-  hideLogs: { en: "Hide logs", de: "Logs ausblenden", ko: "로그 숨기기", ja: "ログ非表示" },
-  loadingLogs: { en: "Loading logs...", de: "Lade Logs...", ko: "로그 불러오는 중...", ja: "ログ読み込み中..." },
-  noLogs: {
-    en: "No terminal output yet",
-    de: "Noch keine Terminal-Ausgabe",
-    ko: "아직 터미널 출력이 없습니다",
-    ja: "端末出力はまだありません",
-  },
-  logPath: { en: "Log path", de: "Log-Pfad", ko: "로그 경로", ja: "ログパス" },
-  capacity: { en: "Capacity", de: "Kapazität", ko: "용량", ja: "容量" },
-  queue: { en: "Queue", de: "Warteschlange", ko: "대기열", ja: "キュー" },
-  health: { en: "Health", de: "Gesundheit", ko: "헬스", ja: "ヘルス" },
-  source: { en: "Source", de: "Quelle", ko: "소스", ja: "ソース" },
+  refresh: { en: "Refresh", de: "Aktualisieren" },
+  refreshing: { en: "Refreshing...", de: "Aktualisiere..." },
+  sessionStream: { en: "Session Stream", de: "Session-Stream" },
+  nodes: { en: "Node Grid", de: "Node-Grid" },
+  alerts: { en: "Alert Feed", de: "Alarm-Feed" },
+  emptySessions: { en: "No active sessions", de: "Keine aktiven Sessions" },
+  emptyNodes: { en: "No nodes found", de: "Keine Nodes gefunden" },
+  emptyAlerts: { en: "No operational alerts", de: "Keine operativen Warnungen" },
+  kill: { en: "Kill", de: "Beenden" },
+  killing: { en: "Killing...", de: "Beende..." },
+  edit: { en: "Edit", de: "Bearbeiten" },
+  drain: { en: "Drain", de: "Auslaufen lassen" },
+  draining: { en: "Draining...", de: "Drain..." },
+  status: { en: "Status", de: "Status" },
+  task: { en: "Task", de: "Aufgabe" },
+  subtasks: { en: "Subtasks", de: "Teilaufgaben" },
+  allocations: { en: "Alloc", de: "Allok" },
+  updated: { en: "Updated", de: "Aktualisiert" },
+  showLogs: { en: "Show logs", de: "Logs zeigen" },
+  hideLogs: { en: "Hide logs", de: "Logs ausblenden" },
+  loadingLogs: { en: "Loading logs...", de: "Lade Logs..." },
+  noLogs: { en: "No terminal output yet", de: "Noch keine Terminal-Ausgabe" },
+  logPath: { en: "Log path", de: "Log-Pfad" },
+  capacity: { en: "Capacity", de: "Kapazität" },
+  queue: { en: "Queue", de: "Warteschlange" },
+  health: { en: "Health", de: "Gesundheit" },
+  source: { en: "Source", de: "Quelle" },
 } as const;
 
 function resolveLocale(language: string, locale: string): LocaleKey {
   const langCode = (language || "").toLowerCase();
-  if (langCode === "ko") return "ko";
-  if (langCode === "ja") return "ja";
   if (langCode === "de") return "de";
   const localeCode = (locale || "").toLowerCase();
   if (localeCode.startsWith("de")) return "de";
@@ -201,7 +178,7 @@ export default function OperationsCenter({ socketOn, onNavigateToServerSettings 
                 color: "var(--text-muted, #71717a)",
               }}
             >
-              operations
+              <LocalizedText en="operations" de="Vorgänge" />
             </p>
             <h1 className="mt-2 text-xl font-semibold tracking-tight" style={{ color: "var(--text-primary, #e4e4e7)" }}>
               {tx("title")}

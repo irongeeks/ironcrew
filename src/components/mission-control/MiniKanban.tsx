@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import React, { useEffect, useState } from "react";
 import type { Task, Agent, TaskStatus } from "../../types";
 
@@ -22,6 +23,14 @@ function useIsMobile(breakpoint = 640) {
 // TODO(theme): No CSS tokens exist yet for task-status colors (inbox/planned/review/done).
 // Only --status-working/--status-idle exist in index.part01.css, which are for agent status,
 // not task status. Leaving hex values until a task-status token palette is introduced.
+const BOARD_LABELS_DE: Record<string, string> = {
+  Inbox: "Eingang",
+  Planned: "Geplant",
+  "In Progress": "In Arbeit",
+  Review: "Prüfung",
+  Done: "Erledigt",
+};
+
 const COLUMNS: { status: TaskStatus; label: string; color: string; bg: string; maxCards: number }[] = [
   { status: "inbox", label: "Inbox", color: "#94A3B8", bg: "rgba(148,163,184,0.08)", maxCards: 5 },
   { status: "planned", label: "Planned", color: "#60A5FA", bg: "rgba(96,165,250,0.08)", maxCards: 5 },
@@ -175,7 +184,7 @@ const KanbanColumn = React.memo(function KanbanColumn({
               letterSpacing: "0.05em",
             }}
           >
-            {label}
+            <LocalizedText en={label} de={BOARD_LABELS_DE[label] ?? label} />
           </span>
         </div>
         <span
@@ -217,7 +226,7 @@ const KanbanColumn = React.memo(function KanbanColumn({
               opacity: 0.5,
             }}
           >
-            empty
+            <LocalizedText en="empty" de="leer" />
           </div>
         )}
         {visible.map((task) => (
@@ -239,7 +248,7 @@ const KanbanColumn = React.memo(function KanbanColumn({
               padding: "4px 0",
             }}
           >
-            +{overflow} more
+            +{overflow} <LocalizedText en="more" de="weitere" />
           </div>
         )}
       </div>
@@ -315,7 +324,7 @@ const MobileSection = React.memo(function MobileSection({
               letterSpacing: "0.05em",
             }}
           >
-            {label}
+            <LocalizedText en={label} de={BOARD_LABELS_DE[label] ?? label} />
           </span>
           <span
             style={{
@@ -370,7 +379,7 @@ const MobileSection = React.memo(function MobileSection({
                 opacity: 0.5,
               }}
             >
-              empty
+              <LocalizedText en="empty" de="leer" />
             </div>
           )}
           {visible.map((task) => (
@@ -393,7 +402,7 @@ const MobileSection = React.memo(function MobileSection({
                 padding: "4px 0",
               }}
             >
-              +{overflow} more
+              +{overflow} <LocalizedText en="more" de="weitere" />
             </div>
           )}
         </div>
@@ -435,7 +444,7 @@ export default function MiniKanban({ tasks, agents, onTaskClick, onNewTask, onFu
             letterSpacing: "0.05em",
           }}
         >
-          TASK BOARD
+          <LocalizedText en="TASK BOARD" de="AUFGABENBOARD" />
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 10 }}>
           {onFullBoard && (
@@ -457,7 +466,9 @@ export default function MiniKanban({ tasks, agents, onTaskClick, onNewTask, onFu
               }}
             >
               <span>↗</span>
-              <span>Full Board</span>
+              <span>
+                <LocalizedText en="Full Board" de="Gesamtes Board" />
+              </span>
             </button>
           )}
           {onNewTask && (
@@ -476,7 +487,7 @@ export default function MiniKanban({ tasks, agents, onTaskClick, onNewTask, onFu
                 minHeight: isMobile ? 44 : undefined,
               }}
             >
-              + New Task
+              <LocalizedText en="+ New Task" de="+ Neue Aufgabe" />
             </button>
           )}
         </div>

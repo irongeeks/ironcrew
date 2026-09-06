@@ -393,7 +393,8 @@ export function applyDefaultSeeds(db: DbLike): void {
   const setupConfig: { company_name?: string; ceo_name?: string; default_provider?: string } = {};
   const setupJsonPath = path.resolve("setup.json");
   try {
-    const raw = fs.readFileSync(setupJsonPath, "utf8");
+    // Isolated E2E startup must never consume the operator's installation file.
+    const raw = process.env.IRONCREW_E2E === "1" ? "{}" : fs.readFileSync(setupJsonPath, "utf8");
     const parsed = JSON.parse(raw);
     if (typeof parsed === "object" && parsed !== null) {
       if (typeof parsed.company_name === "string" && parsed.company_name.length <= 50) {
@@ -407,7 +408,7 @@ export function applyDefaultSeeds(db: DbLike): void {
       }
     }
     try {
-      fs.unlinkSync(setupJsonPath);
+      if (process.env.IRONCREW_E2E !== "1") fs.unlinkSync(setupJsonPath);
       log.info("consumed setup.json");
     } catch {
       log.warn("could not delete setup.json");

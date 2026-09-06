@@ -54,7 +54,7 @@ function PackCard({ pack, t }: { pack: LoadedPackEntry; t: TFunction }) {
                 className="rounded px-1.5 py-0.5 text-[10px] text-amber-400"
                 style={{ background: "rgba(251,191,36,0.1)" }}
               >
-                {t({ ko: "비활성화", en: "disabled", ja: "無効", zh: "disabled", de: "deaktiviert" })}
+                {t({ en: "disabled", de: "deaktiviert" })}
               </span>
             )}
           </div>
@@ -74,13 +74,7 @@ function PackCard({ pack, t }: { pack: LoadedPackEntry; t: TFunction }) {
                     zh: `${pack.phaseCount}-phase pipeline`,
                     de: `${pack.phaseCount}-Phasen-Pipeline`,
                   })
-                : t({
-                    ko: "단일 실행",
-                    en: "single-phase",
-                    ja: "シングルフェーズ",
-                    zh: "single-phase",
-                    de: "Einzelphase",
-                  })}
+                : t({ en: "single-phase", de: "Einzelphase" })}
             </span>
           </div>
         </div>
@@ -90,15 +84,7 @@ function PackCard({ pack, t }: { pack: LoadedPackEntry; t: TFunction }) {
             className="shrink-0 rounded border px-2 py-1 text-[10px] transition-opacity hover:opacity-80"
             style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
           >
-            {expanded
-              ? t({
-                  ko: "그래프 숨기기",
-                  en: "Hide Graph",
-                  ja: "グラフを隠す",
-                  zh: "Hide Graph",
-                  de: "Graph ausblenden",
-                })
-              : t({ ko: "그래프 보기", en: "View Graph", ja: "グラフを表示", zh: "View Graph", de: "Graph anzeigen" })}
+            {expanded ? t({ en: "Hide Graph", de: "Graph ausblenden" }) : t({ en: "View Graph", de: "Graph anzeigen" })}
           </button>
         )}
       </div>
@@ -162,30 +148,14 @@ export default function WorkflowPackSettingsTab({ t }: WorkflowPackSettingsTabPr
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold" style={{ color: "var(--th-text-heading)" }}>
-          {t({
-            ko: "워크플로우 팩 설정",
-            en: "Workflow Pack Settings",
-            ja: "ワークフロー パック設定",
-            zh: "Workflow Pack Settings",
-            de: "Workflow-Pack-Einstellungen",
-          })}
+          {t({ en: "Workflow Pack Settings", de: "Workflow-Pack-Einstellungen" })}
         </h3>
         <button
           onClick={() => void handleReload()}
           disabled={reloading || loading}
           className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50"
         >
-          {reloading
-            ? "..."
-            : reloadMsg
-              ? reloadMsg
-              : t({
-                  ko: "팩 리로드",
-                  en: "Reload Packs",
-                  ja: "パックを再読み込み",
-                  zh: "Reload Packs",
-                  de: "Packs neu laden",
-                })}
+          {reloading ? "..." : reloadMsg ? reloadMsg : t({ en: "Reload Packs", de: "Packs neu laden" })}
         </button>
       </div>
 
@@ -200,30 +170,18 @@ export default function WorkflowPackSettingsTab({ t }: WorkflowPackSettingsTabPr
 
       {loading ? (
         <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-          {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+          {t({ en: "Loading...", de: "Laden..." })}
         </p>
       ) : (
         <>
           {/* ── Built-in Packs ── */}
           <section>
             <h4 className="mb-3 text-sm font-medium" style={{ color: "var(--th-text-heading)" }}>
-              {t({
-                ko: "내장 팩",
-                en: "Built-in Packs",
-                ja: "組み込みパック",
-                zh: "Built-in Packs",
-                de: "Integrierte Packs",
-              })}
+              {t({ en: "Built-in Packs", de: "Integrierte Packs" })}
             </h4>
             {builtinPacks.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                {t({
-                  ko: "내장 팩 없음",
-                  en: "No built-in packs",
-                  ja: "組み込みパックなし",
-                  zh: "No built-in packs",
-                  de: "Keine integrierten Packs",
-                })}
+                {t({ en: "No built-in packs", de: "Keine integrierten Packs" })}
               </p>
             ) : (
               <div className="space-y-2">
@@ -237,23 +195,11 @@ export default function WorkflowPackSettingsTab({ t }: WorkflowPackSettingsTabPr
           {/* ── Community Packs ── */}
           <section>
             <h4 className="mb-3 text-sm font-medium" style={{ color: "var(--th-text-heading)" }}>
-              {t({
-                ko: "커뮤니티 팩",
-                en: "Community Packs",
-                ja: "コミュニティ パック",
-                zh: "Community Packs",
-                de: "Community-Packs",
-              })}
+              {t({ en: "Community Packs", de: "Community-Packs" })}
             </h4>
             {communityPacks.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                {t({
-                  ko: "(설치된 커뮤니티 팩 없음)",
-                  en: "(none installed)",
-                  ja: "(インストール済みなし)",
-                  zh: "(none installed)",
-                  de: "(keine installiert)",
-                })}
+                {t({ en: "(none installed)", de: "(keine installiert)" })}
               </p>
             ) : (
               <div className="space-y-2">

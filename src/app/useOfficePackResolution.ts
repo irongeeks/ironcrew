@@ -102,26 +102,8 @@ export function useOfficePackResolution({
     () => listOfficePackOptions(uiLanguage, activePresets),
     [uiLanguage, activePresets],
   );
-  const officePackLabel =
-    uiLanguage === "ko"
-      ? "오피스 팩"
-      : uiLanguage === "ja"
-        ? "オフィスパック"
-        : uiLanguage === "zh"
-          ? "办公室包"
-          : uiLanguage === "de"
-            ? "Office-Paket"
-            : "Office Pack";
-  const languageLabel =
-    uiLanguage === "ko"
-      ? "언어"
-      : uiLanguage === "ja"
-        ? "言語"
-        : uiLanguage === "zh"
-          ? "语言"
-          : uiLanguage === "de"
-            ? "Sprache"
-            : "Language";
+  const officePackLabel = uiLanguage === "de" ? "Office-Paket" : "Office Pack";
+  const languageLabel = uiLanguage === "de" ? "Sprache" : "Language";
   const generatedOfficePresentation = useMemo(
     () =>
       buildOfficePackPresentation({

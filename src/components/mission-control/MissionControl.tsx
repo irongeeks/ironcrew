@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { useState } from "react";
 import type {
   Agent,
@@ -177,7 +178,7 @@ export default function MissionControl(props: MissionControlProps) {
                 (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
               }}
             >
-              ↗ Expand
+              <LocalizedText en="↗ Expand" de="Vergrößern" />
             </button>
 
             {/* Pixi.js canvas fills the full office area */}

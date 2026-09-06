@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 import { useCallback, useEffect, useState } from "react";
 import { requestJson as request } from "./panel-api";
 interface Worker {
@@ -25,6 +26,7 @@ export function FleetPanel({
   canManage?: boolean;
   refreshKey?: number;
 }) {
+  const { tx, t, locale } = useGovernanceI18n();
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [label, setLabel] = useState("");
   const [workspace, setWorkspace] = useState("");
@@ -39,9 +41,9 @@ export function FleetPanel({
       const data = await request<{ workers: Worker[] }>("/api/crew/fleet/workers");
       setWorkers(data.workers);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Runner konnten nicht geladen werden");
+      setError(e instanceof Error ? e.message : tx("Runner konnten nicht geladen werden"));
     }
-  }, []);
+  }, [tx]);
   useEffect(() => {
     void refresh();
   }, [refresh, refreshKey]);
@@ -52,16 +54,17 @@ export function FleetPanel({
       await action();
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Runner-Änderung fehlgeschlagen");
+      setError(e instanceof Error ? e.message : tx("Runner-Änderung fehlgeschlagen"));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <section className="ic-form" aria-label="Native Runner-Flotte">
+    <section className="ic-form" aria-label={tx("Native Runner-Flotte")}>
       <p>
-        Runner verbinden sich ausgehend per TLS. Projektordner und Runtime sind fest zugewiesen. CLI-Anmeldungen bleiben
-        beim Runner-Benutzer.
+        {tx(
+          "Runner verbinden sich ausgehend per TLS. Projektordner und Runtime sind fest zugewiesen. CLI-Anmeldungen bleiben beim Runner-Benutzer.",
+        )}{" "}
       </p>
       {error && <p role="alert">{error}</p>}
       {canManage && (
@@ -87,11 +90,11 @@ export function FleetPanel({
           }}
         >
           <label>
-            Runner-Name
+            {tx("Runner-Name")}{" "}
             <input value={label} onChange={(e) => setLabel(e.target.value)} required maxLength={120} />
           </label>
           <label>
-            Workspace auf dem Runner
+            {tx("Workspace auf dem Runner")}{" "}
             <input
               value={workspace}
               onChange={(e) => setWorkspace(e.target.value)}
@@ -100,9 +103,9 @@ export function FleetPanel({
             />
           </label>
           <label>
-            Projekt
+            {tx("Projekt")}{" "}
             <select value={projectId} onChange={(e) => setProjectId(e.target.value)} required>
-              <option value="">Projekt auswählen</option>
+              <option value="">{tx("Projekt auswählen")}</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title}
@@ -119,7 +122,7 @@ export function FleetPanel({
             </select>
           </label>
           <label>
-            Parallele Runs
+            {tx("Parallele Runs")}{" "}
             <input
               type="number"
               min={1}
@@ -129,21 +132,23 @@ export function FleetPanel({
             />
           </label>
           <button className="ic-btn" disabled={busy || !projectId}>
-            Einmalige Anmeldung erstellen
+            {tx("Einmalige Anmeldung erstellen")}{" "}
           </button>
         </form>
       )}
       {enrollment && (
         <div role="status">
-          <h3>Anmeldung für {enrollment.worker.label}</h3>
+          <h3>
+            {tx("Anmeldung für")} {enrollment.worker.label}
+          </h3>
           <p>
-            Einmaliger Token, gültig bis {new Date(enrollment.enrollment.expiresAt).toLocaleString("de-DE")}. Im lokalen
-            Runner-Setup verwenden. Er wird hier nur bis zum Schließen angezeigt.
+            {tx("Einmaliger Token, gültig bis")} {new Date(enrollment.enrollment.expiresAt).toLocaleString(locale)}
+            {tx(". Im lokalen Runner-Setup verwenden. Er wird hier nur bis zum Schließen angezeigt.")}{" "}
           </p>
           <code style={{ overflowWrap: "anywhere" }}>{enrollment.enrollment.token}</code>
           <p>Setup: docs/RUNNER_FLEET.md</p>
           <button className="ic-btn" onClick={() => setEnrollment(null)}>
-            Token ausblenden
+            {tx("Token ausblenden")}{" "}
           </button>
         </div>
       )}
@@ -152,18 +157,36 @@ export function FleetPanel({
           <li key={worker.id}>
             <strong>{worker.label}</strong>
             <span>
-              {worker.state} · {worker.activeLeases}/{worker.maxConcurrent} Runs · {worker.runtimeTypes.join(", ")}
+              {t({
+                de:
+                  (
+                    { online: "Online", offline: "Offline", enrolled: "Angemeldet", revoked: "Widerrufen" } as Record<
+                      string,
+                      string
+                    >
+                  )[worker.state] ?? worker.state,
+                en: worker.state,
+              })}{" "}
+              · {worker.activeLeases}/{worker.maxConcurrent} Runs · {worker.runtimeTypes.join(", ")}
             </span>
             <code>{worker.workspaceRoot}</code>
             <span>
-              Letztes Signal: {worker.lastSeenAt ? new Date(worker.lastSeenAt).toLocaleString("de-DE") : "noch keines"}
+              {tx("Letztes Signal:")}{" "}
+              {worker.lastSeenAt ? new Date(worker.lastSeenAt).toLocaleString(locale) : tx("noch keines")}
             </span>
             {canManage && worker.state !== "revoked" && (
               <button
                 className="ic-btn"
                 disabled={busy}
                 onClick={() => {
-                  if (window.confirm(`Runner „${worker.label}“ widerrufen und aktive Runs abbrechen?`))
+                  if (
+                    window.confirm(
+                      t({
+                        de: `Runner „${worker.label}“ widerrufen und aktive Runs abbrechen?`,
+                        en: `Revoke runner “${worker.label}” and cancel active runs?`,
+                      }),
+                    )
+                  )
                     void mutate(async () => {
                       await request(`/api/crew/fleet/workers/${encodeURIComponent(worker.id)}/revoke`, {
                         method: "POST",
@@ -172,13 +195,13 @@ export function FleetPanel({
                     });
                 }}
               >
-                Zugriff widerrufen
+                {tx("Zugriff widerrufen")}{" "}
               </button>
             )}
           </li>
         ))}
       </ul>
-      {!workers.length && <p>Noch kein Runner angemeldet.</p>}
+      {!workers.length && <p>{tx("Noch kein Runner angemeldet.")}</p>}
     </section>
   );
 }

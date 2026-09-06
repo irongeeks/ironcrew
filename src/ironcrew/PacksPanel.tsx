@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 /**
  * Gewerke — what this company does, and what it would need to do it.
  *
@@ -24,6 +25,7 @@ interface PacksPanelProps {
 }
 
 export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JSX.Element {
+  const { tx, t } = useGovernanceI18n();
   const [packs, setPacks] = useState<BusinessPackSummary[]>([]);
   const [detail, setDetail] = useState<PackDetail | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -59,8 +61,10 @@ export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JS
     try {
       const result = await client.installPack(key);
       setMessage(
-        `Installiert: ${result.created.agents} Posten, ${result.created.tools} Werkzeuge, ` +
-          `${result.created.routines} Routinen (aus). Die Routinen laufen erst, wenn du sie einschaltest.`,
+        t({
+          de: `Installiert: ${result.created.agents} Posten, ${result.created.tools} Werkzeuge, ${result.created.routines} Routinen (aus). Die Routinen laufen erst, wenn du sie einschaltest.`,
+          en: `Installed: ${result.created.agents} positions, ${result.created.tools} tools, ${result.created.routines} routines (off). Routines run only after you enable them.`,
+        }),
       );
       await load();
     } catch (err) {
@@ -79,10 +83,17 @@ export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JS
       // What stayed behind matters more than what went: an operator who is
       // not told is an operator who finds it by accident later.
       const kept =
-        result.kept.length > 0 ? ` Behalten: ${result.kept.map((k) => `${k.key} (${k.reason})`).join(", ")}` : "";
+        result.kept.length > 0
+          ? t({
+              de: ` Behalten: ${result.kept.map((k) => `${k.key} (${k.reason})`).join(", ")}`,
+              en: ` Kept: ${result.kept.map((k) => `${k.key} (${k.reason})`).join(", ")}`,
+            })
+          : "";
       setMessage(
-        `Entfernt: ${result.removed.agents} Posten, ${result.removed.routines} Routinen; ` +
-          `${result.disabledTools} Werkzeuge abgeschaltet statt gelöscht.${kept}`,
+        t({
+          de: `Entfernt: ${result.removed.agents} Posten, ${result.removed.routines} Routinen; ${result.disabledTools} Werkzeuge abgeschaltet statt gelöscht.${kept}`,
+          en: `Removed: ${result.removed.agents} positions, ${result.removed.routines} routines; ${result.disabledTools} tools disabled instead of deleted.${kept}`,
+        }),
       );
       await load();
     } catch (err) {
@@ -93,7 +104,7 @@ export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JS
   };
 
   const probe = async (packKey: string, integrationKey: string) => {
-    setProbes((prev) => ({ ...prev, [integrationKey]: { ok: false, message: "prüfe …" } }));
+    setProbes((prev) => ({ ...prev, [integrationKey]: { ok: false, message: tx("prüfe …") } }));
     try {
       const result = await client.testPackIntegration(packKey, integrationKey);
       setProbes((prev) => ({ ...prev, [integrationKey]: result }));
@@ -103,11 +114,11 @@ export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JS
   };
 
   return (
-    <div className="ic-modal" role="dialog" aria-label="Gewerke">
+    <div className="ic-modal" role="dialog" aria-label={tx("Gewerke")}>
       <div className="ic-modal-body ic-packs-panel">
         <header>
-          <h2>Gewerke</h2>
-          <button type="button" onClick={onClose} aria-label="Schließen">
+          <h2>{tx("Gewerke")}</h2>
+          <button type="button" onClick={onClose} aria-label={tx("Schließen")}>
             ×
           </button>
         </header>
@@ -123,23 +134,23 @@ export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JS
               </h3>
               <div>
                 <button type="button" onClick={() => void open(pack.key)}>
-                  Ansehen
+                  {tx("Ansehen")}{" "}
                 </button>
                 {pack.installed ? (
                   <button type="button" onClick={() => void uninstall(pack.key)} disabled={busy === pack.key}>
-                    Entfernen
+                    {tx("Entfernen")}{" "}
                   </button>
                 ) : (
                   <button type="button" onClick={() => void install(pack.key)} disabled={busy === pack.key}>
-                    Installieren
+                    {tx("Installieren")}{" "}
                   </button>
                 )}
               </div>
             </div>
             <p>{pack.summary}</p>
             <p className="ic-pack-counts">
-              {pack.counts.departments} Abteilungen · {pack.counts.agents} Posten · {pack.counts.tools} Werkzeuge ·{" "}
-              {pack.counts.routines} Routinen
+              {pack.counts.departments} {tx("Abteilungen ·")} {pack.counts.agents} {tx("Posten ·")} {pack.counts.tools}{" "}
+              {tx("Werkzeuge ·")} {pack.counts.routines} {tx("Routinen")}{" "}
             </p>
 
             {pack.integrations.length > 0 && (
@@ -149,14 +160,14 @@ export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JS
                     <strong>{integration.label}</strong>{" "}
                     {integration.configured ? (
                       <>
-                        <span className="ic-pack-ok">konfiguriert</span>{" "}
+                        <span className="ic-pack-ok">{tx("konfiguriert")}</span>{" "}
                         <button type="button" onClick={() => void probe(pack.key, integration.key)}>
-                          Verbindung prüfen
+                          {tx("Verbindung prüfen")}{" "}
                         </button>
                       </>
                     ) : (
                       <span className="ic-pack-missing">
-                        nicht konfiguriert —{" "}
+                        {tx("nicht konfiguriert —")}{" "}
                         {integration.env.map((e) => e.name + (e.optional ? " (optional)" : "")).join(", ")}
                       </span>
                     )}
@@ -175,19 +186,21 @@ export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JS
 
         {detail && (
           <section className="ic-pack-detail">
-            <h3>{detail.pack.label} — was dazukommt</h3>
-            <h4>Posten</h4>
+            <h3>
+              {detail.pack.label} {tx("— was dazukommt")}
+            </h3>
+            <h4>{tx("Posten")}</h4>
             <ul>
               {detail.agents.map((agent) => (
                 <li key={agent.key}>
-                  <strong>{agent.displayName}</strong> — {agent.professionalRole} ({agent.department}, max. Risiko{" "}
-                  {agent.maxRiskLevel})<div className="ic-pack-summary">{agent.roleSummary}</div>
+                  <strong>{agent.displayName}</strong> — {agent.professionalRole} ({agent.department}
+                  {tx(", max. Risiko")} {agent.maxRiskLevel})<div className="ic-pack-summary">{agent.roleSummary}</div>
                 </li>
               ))}
             </ul>
             {detail.tools.length > 0 && (
               <>
-                <h4>Werkzeuge</h4>
+                <h4>{tx("Werkzeuge")}</h4>
                 <ul>
                   {detail.tools.map((tool) => (
                     <li key={tool.key}>
@@ -199,11 +212,11 @@ export function PacksPanel({ onClose, client = api }: PacksPanelProps): React.JS
             )}
             {detail.routines.length > 0 && (
               <>
-                <h4>Routinen (werden ausgeschaltet installiert)</h4>
+                <h4>{tx("Routinen (werden ausgeschaltet installiert)")}</h4>
                 <ul>
                   {detail.routines.map((routine) => (
                     <li key={routine.key}>
-                      <strong>{routine.name}</strong> — alle {Math.round(routine.interval_minutes / 60)} h
+                      <strong>{routine.name}</strong> {tx("— alle")} {Math.round(routine.interval_minutes / 60)} h
                       <div className="ic-pack-summary">{routine.instruction}</div>
                     </li>
                   ))}

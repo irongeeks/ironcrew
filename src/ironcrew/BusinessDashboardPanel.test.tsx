@@ -1,5 +1,6 @@
+import { I18nProvider } from "../i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render as rtlRender, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BusinessDashboardPanel } from "./BusinessDashboardPanel";
 import type { BusinessDashboardSnapshot } from "../shared/business-dashboard";
@@ -74,4 +75,41 @@ describe("business dashboard source visibility", () => {
     await userEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
     expect(await screen.findByLabelText("Mitarbeiter für den Abruf")).toBeVisible();
   });
+});
+
+function render(ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>,
+    ...options,
+  });
+}
+
+it("switches business controls and locale formatting while preserving source records", async () => {
+  const data = fixture();
+  Object.assign(data.sources[0]!, {
+    state: "ok",
+    fetchedAt: 1750000000000,
+    metrics: [{ key: "guests", label: "Gäste ohne Templates", value: 1234, unit: "count" }],
+    records: [{ id: "source-a", label: "Kundenserver", status: "running" }],
+  });
+  const api = client(data);
+  const view = rtlRender(
+    <I18nProvider language="en">
+      <BusinessDashboardPanel onClose={() => {}} client={api} />
+    </I18nProvider>,
+  );
+  expect(await screen.findByText("Data available")).toBeVisible();
+  expect(screen.getByText("1,234")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Proxmox · Guests" })).toBeVisible();
+  expect(screen.getByText("Guests excluding templates")).toBeVisible();
+  expect(screen.getByText("Selection returned by the source system. No projections.")).toBeVisible();
+  view.rerender(
+    <I18nProvider language="de">
+      <BusinessDashboardPanel onClose={() => {}} client={api} />
+    </I18nProvider>,
+  );
+  expect(await screen.findByText("Daten vorhanden")).toBeVisible();
+  expect(screen.getByText("1.234")).toBeVisible();
+  expect(screen.getByText("Kundenserver")).toBeInTheDocument();
+  expect(api.refresh).not.toHaveBeenCalled();
 });

@@ -141,3 +141,6 @@ vault/
 release-image.env
 release-manifest.json
 .ironcrew-docker-update.lock/
+
+# One-time local installer configuration (consumed on first server start)
+/setup.json

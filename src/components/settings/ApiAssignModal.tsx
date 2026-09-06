@@ -9,19 +9,19 @@ interface ApiAssignModalProps {
   apiState: ApiStateBundle;
 }
 
-export default function ApiAssignModal({ t, localeTag, apiState }: ApiAssignModalProps) {
+export default function ApiAssignModal({ t, apiState }: ApiAssignModalProps) {
   const { apiAssignTarget, apiAssigning, apiAssignAgents, apiAssignDepts, setApiAssignTarget, handleApiAssignToAgent } =
     apiState;
 
   if (!apiAssignTarget) return null;
 
   const spriteMap = buildSpriteMap(apiAssignAgents);
-  const localName = (nameEn: string, nameKo: string) => (localeTag === "ko" ? nameKo || nameEn : nameEn || nameKo);
+  const localName = (nameEn: string, nameKo: string) => nameEn || nameKo;
   const ROLE_LABELS: Record<string, Record<string, string>> = {
-    team_leader: { ko: "팀장", en: "Team Leader", ja: "チームリーダー", zh: "Team Leader", de: "Teamleiter" },
-    senior: { ko: "시니어", en: "Senior", ja: "シニア", zh: "Senior", de: "Senior" },
-    junior: { ko: "주니어", en: "Junior", ja: "ジュニア", zh: "Junior", de: "Junior" },
-    intern: { ko: "인턴", en: "Intern", ja: "インターン", zh: "Intern", de: "Praktikant" },
+    team_leader: { en: "Team Leader", de: "Teamleiter" },
+    senior: { en: "Senior", de: "Senior" },
+    junior: { en: "Junior", de: "Junior" },
+    intern: { en: "Intern", de: "Praktikant" },
   };
 
   const roleBadge = (role: string) => {
@@ -91,13 +91,7 @@ export default function ApiAssignModal({ t, localeTag, apiState }: ApiAssignModa
       >
         <div className="px-4 py-3 border-b" style={{ borderColor: "var(--th-border)" }}>
           <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-            {t({
-              ko: "에이전트에 모델 배정",
-              en: "Assign Model to Agent",
-              ja: "エージェントにモデル割当",
-              zh: "Assign Model to Agent",
-              de: "Modell einem Agenten zuweisen",
-            })}
+            {t({ en: "Assign Model to Agent", de: "Modell einem Agenten zuweisen" })}
           </h4>
           <p className="text-[11px] mt-0.5 font-mono truncate" style={{ color: "var(--th-text-secondary)" }}>
             {apiAssignTarget.model}
@@ -107,13 +101,7 @@ export default function ApiAssignModal({ t, localeTag, apiState }: ApiAssignModa
         <div className="max-h-[55vh] overflow-y-auto p-2 space-y-3">
           {apiAssignAgents.length === 0 ? (
             <p className="text-xs text-center py-4" style={{ color: "var(--th-text-muted)" }}>
-              {t({
-                ko: "에이전트를 불러오는 중...",
-                en: "Loading agents...",
-                ja: "エージェント読み込み中...",
-                zh: "Loading agents...",
-                de: "Agenten werden geladen...",
-              })}
+              {t({ en: "Loading agents...", de: "Agenten werden geladen..." })}
             </p>
           ) : (
             <>
@@ -143,7 +131,7 @@ export default function ApiAssignModal({ t, localeTag, apiState }: ApiAssignModa
                   >
                     <span className="text-sm">📁</span>
                     <span className="text-[11px] font-semibold tracking-wide" style={{ color: "var(--th-text-muted)" }}>
-                      {t({ ko: "미배정", en: "Unassigned", ja: "未配属", zh: "Unassigned", de: "Nicht zugewiesen" })}
+                      {t({ en: "Unassigned", de: "Nicht zugewiesen" })}
                     </span>
                   </div>
                   {unassigned.map(renderAgentRow)}
@@ -159,7 +147,7 @@ export default function ApiAssignModal({ t, localeTag, apiState }: ApiAssignModa
             className="text-xs px-3 py-1.5 rounded-lg transition-colors"
             style={{ background: "var(--th-bg-surface-hover)", color: "var(--th-text-secondary)" }}
           >
-            {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "Close", de: "Schließen" })}
+            {t({ en: "Close", de: "Schließen" })}
           </button>
         </div>
       </div>

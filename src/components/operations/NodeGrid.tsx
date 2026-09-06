@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import type { OperationsNode } from "../../types";
 
 export interface NodeGridProps {
@@ -118,14 +119,17 @@ export default function NodeGrid({
                 <div className="space-y-1 text-xs" style={{ color: "var(--th-text-secondary)" }}>
                   <p>
                     <span style={{ color: "var(--th-text-muted)" }}>{capacityLabel}:</span> {node.current_jobs} /{" "}
-                    {node.max_concurrent_jobs} running
+                    {node.max_concurrent_jobs} <LocalizedText en="running" de="läuft" />
                   </p>
                   <p>
                     <span style={{ color: "var(--th-text-muted)" }}>{queueLabel}:</span> {node.queued_allocations}{" "}
-                    waiting, {node.active_allocations} active
+                    <LocalizedText en="waiting," de="wartend," /> {node.active_allocations}{" "}
+                    <LocalizedText en="active" de="aktiv" />
                   </p>
                   <p>
-                    <span style={{ color: "var(--th-text-muted)" }}>status:</span>{" "}
+                    <span style={{ color: "var(--th-text-muted)" }}>
+                      <LocalizedText en="status:" de="Status:" />
+                    </span>{" "}
                     <span className={statusColor(node.status)}>{node.status}</span>
                   </p>
                   <p className="truncate text-[11px]" style={{ color: "var(--th-text-muted)" }}>

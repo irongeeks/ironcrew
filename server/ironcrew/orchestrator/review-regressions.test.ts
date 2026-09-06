@@ -68,7 +68,7 @@ describe("review: orchestrator integration regressions", () => {
     expect(orc.tasks.get(task.id)!.status).toBe("waiting");
     expect(orc.runRequests.get(request.id)!.status).toBe("queued");
   });
-  it("honours the persisted cooldown across restart without spending retries", async () => {
+  it("honours the persisted cooldown and attempt budget across restart", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-05T12:00:00Z"));
     const resetAt = Date.now() + 120_000;
@@ -76,7 +76,7 @@ describe("review: orchestrator integration regressions", () => {
     const task = orc.handleCeoMessage(companyId, "Bitte dokumentiere das Deployment-Verfahren.").task!;
     const request = orc.runRequests.liveForTask(task.id)!;
     expect(await orc.drainRunQueue(companyId)).toMatchObject({ completed: 0, deferred: 1 });
-    expect(orc.runRequests.get(request.id)).toMatchObject({ status: "queued", attempts: 0, not_before: resetAt });
+    expect(orc.runRequests.get(request.id)).toMatchObject({ status: "queued", attempts: 1, not_before: resetAt });
     expect(orc.agentStatus(companyId, task.assigned_agent_id!)).toBe("rate_limited");
 
     const restarted = new CompanyOrchestrator(db);
@@ -87,7 +87,8 @@ describe("review: orchestrator integration regressions", () => {
     vi.setSystemTime(resetAt);
     expect(await restarted.drainRunQueue(companyId)).toMatchObject({ completed: 1 });
     expect(restarted.tasks.get(task.id)!.status).toBe("review");
-    expect(restarted.runRequests.get(request.id)).toMatchObject({ status: "done", attempts: 1 });
+    expect(restarted.runRequests.get(request.id)).toMatchObject({ status: "done", attempts: 2 });
+    expect(restarted.runs.listForTask(task.id)).toHaveLength(1);
     expect(restarted.agentStatus(companyId, task.assigned_agent_id!)).toBe("idle");
   });
 
@@ -145,7 +146,7 @@ describe("review: orchestrator integration regressions", () => {
     const task = orc.handleCeoMessage(companyId, "Bitte dokumentiere Verfahren A.").task!;
     expect((await orc.executeNextTask(companyId))?.task.status).toBe("waiting");
     const request = orc.runRequests.liveForTask(task.id)!;
-    expect(request).toMatchObject({ status: "queued", attempts: 0, not_before: resetAt });
+    expect(request).toMatchObject({ status: "queued", attempts: 1, not_before: resetAt });
     const restarted = new CompanyOrchestrator(db);
     restarted.registerRuntime(new MockRuntime());
     vi.setSystemTime(resetAt);

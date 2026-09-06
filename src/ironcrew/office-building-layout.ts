@@ -57,6 +57,7 @@ export function createOfficeBuilding(
   agents: Agent[],
   meetingCount: number,
   decisionCount: number,
+  language: "de" | "en" = "de",
 ): OfficeBuildingLayout {
   const ordered = [...departments].sort((a, b) => {
     const ai = ORDER.indexOf(a.key),
@@ -65,7 +66,12 @@ export function createOfficeBuilding(
   });
   const unknown = agents.some((a) => !ordered.some((d) => d.id === a.departmentId));
   if (unknown)
-    ordered.push({ id: "unassigned", key: "unassigned", name: "Crew-Studio", description: "Agents ohne Abteilung" });
+    ordered.push({
+      id: "unassigned",
+      key: "unassigned",
+      name: language === "de" ? "Crew-Studio" : "Crew studio",
+      description: language === "de" ? "Agents ohne Abteilung" : "Agents without a department",
+    });
   const byDepartment = (id: string) =>
     agents.filter(
       (a) => a.departmentId === id || (id === "unassigned" && !departments.some((d) => d.id === a.departmentId)),
@@ -213,7 +219,7 @@ export function createOfficeBuilding(
   const meeting: BuildingRoom = {
     id: "meeting",
     key: "meeting",
-    name: "Meetingraum",
+    name: language === "de" ? "Meetingraum" : "Meeting room",
     x: 304,
     y: middleTop,
     width: 244,
@@ -224,7 +230,7 @@ export function createOfficeBuilding(
   const decision: BuildingRoom = {
     id: "decision",
     key: "decision",
-    name: "Entscheidungen",
+    name: language === "de" ? "Entscheidungen" : "Decisions",
     x: 572,
     y: middleTop,
     width: 244,
@@ -235,7 +241,7 @@ export function createOfficeBuilding(
   const lounge: BuildingRoom = {
     id: "lounge",
     key: "lounge",
-    name: "Lounge & Kaffee",
+    name: language === "de" ? "Lounge & Kaffee" : "Lounge & coffee",
     x: 304,
     y: loungeTop,
     width: 512,

@@ -1,3 +1,5 @@
+import { useI18n } from "../../i18n";
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import {
   fetchScheduledTasks,
@@ -20,7 +22,7 @@ interface SchedulesViewProps {
   departments: Department[];
 }
 
-function formatTs(ts: number | null, tz?: string): string {
+function formatTs(ts: number | null, tz?: string, locale = "en-US"): string {
   if (!ts) return "--";
   const options: Intl.DateTimeFormatOptions = {
     month: "short",
@@ -37,10 +39,12 @@ function formatTs(ts: number | null, tz?: string): string {
       // invalid tz — fall back to local time
     }
   }
-  return new Date(ts).toLocaleString(undefined, options);
+  return new Date(ts).toLocaleString(locale, options);
 }
 
 export default function SchedulesView({ departments }: SchedulesViewProps) {
+  const translateUiCopy = useUiCopy();
+  const { language, locale } = useI18n();
   const [schedules, setSchedules] = useState<ScheduledTask[]>([]);
   const [packs, setPacks] = useState<PackRegistryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,11 +65,15 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
       setSchedules(data);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load schedules");
+      setError(
+        err instanceof Error
+          ? err.message
+          : translateUiCopy("Failed to load schedules", "Zeitpläne konnten nicht geladen werden"),
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [translateUiCopy]);
 
   useEffect(() => {
     void load();
@@ -145,7 +153,7 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
   );
 
   const deptMap = new Map(departments.map((d) => [d.id, d.name]));
-  const packMap = new Map(packs.map((p) => [p.key, p.name.en ?? p.key]));
+  const packMap = new Map(packs.map((p) => [p.key, p.name[language] ?? p.name.en ?? p.key]));
 
   const badgeStyle = (bg: string, color: string): React.CSSProperties => ({
     display: "inline-block",
@@ -169,7 +177,7 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
           fontSize: 12,
         }}
       >
-        Loading schedules...
+        <LocalizedText en="Loading schedules..." de="Zeitpläne werden geladen …" />
       </div>
     );
   }
@@ -185,7 +193,7 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
             color: "var(--th-text-primary)",
           }}
         >
-          SCHEDULES
+          <LocalizedText en="SCHEDULES" de="ZEITPLÄNE" />
         </h1>
         <button
           type="button"
@@ -203,7 +211,7 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
             transition: "background 120ms",
           }}
         >
-          + New Schedule
+          <LocalizedText en="+ New Schedule" de="+ Neuer Zeitplan" />
         </button>
       </div>
 
@@ -241,10 +249,13 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
               color: "var(--th-text-secondary)",
             }}
           >
-            No schedules yet
+            <LocalizedText en="No schedules yet" de="Noch keine Zeitpläne" />
           </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-            Create a schedule to automate recurring tasks.
+            <LocalizedText
+              en="Create a schedule to automate recurring tasks."
+              de="Erstelle einen Zeitplan, um wiederkehrende Aufgaben zu automatisieren."
+            />
           </div>
         </div>
       )}
@@ -291,7 +302,9 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
                 <button
                   type="button"
                   onClick={() => handleToggle(s.id)}
-                  title={s.enabled ? "Disable" : "Enable"}
+                  title={
+                    s.enabled ? translateUiCopy("Disable", "Deaktivieren") : translateUiCopy("Enable", "Aktivieren")
+                  }
                   style={{
                     padding: "3px 8px",
                     borderRadius: 4,
@@ -304,12 +317,12 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
                     cursor: "pointer",
                   }}
                 >
-                  {s.enabled ? "ON" : "OFF"}
+                  {s.enabled ? "ON" : translateUiCopy("OFF", "AUS")}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleTrigger(s.id)}
-                  title="Run Now"
+                  title={translateUiCopy("Run Now", "Jetzt ausführen")}
                   style={{
                     padding: "3px 6px",
                     borderRadius: 4,
@@ -325,7 +338,7 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
                 <button
                   type="button"
                   onClick={() => setModalSchedule(s)}
-                  title="Edit"
+                  title={translateUiCopy("Edit", "Bearbeiten")}
                   style={{
                     padding: "3px 6px",
                     borderRadius: 4,
@@ -337,12 +350,12 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
                     fontSize: 11,
                   }}
                 >
-                  Edit
+                  <LocalizedText en="Edit" de="Bearbeiten" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleShowHistory(s.id)}
-                  title="History"
+                  title={translateUiCopy("History", "Verlauf")}
                   style={{
                     padding: "3px 6px",
                     borderRadius: 4,
@@ -354,12 +367,12 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
                     fontSize: 11,
                   }}
                 >
-                  Log
+                  <LocalizedText en="Log" de="Protokoll" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDelete(s.id)}
-                  title="Delete"
+                  title={translateUiCopy("Delete", "Löschen")}
                   style={{
                     padding: "3px 6px",
                     borderRadius: 4,
@@ -384,7 +397,7 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
                   fontSize: 12,
                 }}
               >
-                {cronToHuman(s.cron_expression)}
+                {cronToHuman(s.cron_expression, language)}
               </span>
               <span
                 style={{
@@ -413,12 +426,12 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
               <span
                 style={{ color: "var(--th-text-tertiary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}
               >
-                Next: {formatTs(s.next_run_at, s.timezone)}
+                <LocalizedText en="Next:" de="Nächster Lauf:" /> {formatTs(s.next_run_at, s.timezone, locale)}
               </span>
               <span
                 style={{ color: "var(--th-text-tertiary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}
               >
-                Last: {formatTs(s.last_run_at, s.timezone)}
+                <LocalizedText en="Last:" de="Letzter Lauf:" /> {formatTs(s.last_run_at, s.timezone, locale)}
               </span>
             </div>
 
@@ -441,11 +454,17 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
                     marginBottom: 6,
                   }}
                 >
-                  RUN HISTORY
+                  <LocalizedText en="RUN HISTORY" de="AUSFÜHRUNGSVERLAUF" />
                 </span>
-                {historyLoading && <span style={{ color: "var(--th-text-tertiary)", fontSize: 11 }}>Loading...</span>}
+                {historyLoading && (
+                  <span style={{ color: "var(--th-text-tertiary)", fontSize: 11 }}>
+                    <LocalizedText en="Loading..." de="Wird geladen …" />
+                  </span>
+                )}
                 {!historyLoading && historyEntries.length === 0 && (
-                  <span style={{ color: "var(--th-text-tertiary)", fontSize: 11 }}>No runs yet.</span>
+                  <span style={{ color: "var(--th-text-tertiary)", fontSize: 11 }}>
+                    <LocalizedText en="No runs yet." de="Noch keine Ausführungen." />
+                  </span>
                 )}
                 {!historyLoading &&
                   historyEntries.map((h) => (
@@ -476,7 +495,9 @@ export default function SchedulesView({ departments }: SchedulesViewProps) {
                       />
                       <span style={{ color: "var(--th-text-secondary)", flex: 1 }}>{h.title}</span>
                       <span style={{ color: "var(--th-text-tertiary)", fontSize: 10 }}>{h.status}</span>
-                      <span style={{ color: "var(--th-text-tertiary)", fontSize: 10 }}>{formatTs(h.created_at)}</span>
+                      <span style={{ color: "var(--th-text-tertiary)", fontSize: 10 }}>
+                        {formatTs(h.created_at, undefined, locale)}
+                      </span>
                     </div>
                   ))}
               </div>

@@ -11,13 +11,7 @@ export default function RuntimeSessionsPanel({ t, runtimeSessions }: RuntimeSess
   return (
     <div className="pt-1">
       <div className="text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
-        {t({
-          ko: "런타임 세션",
-          en: "Runtime Sessions",
-          ja: "実行中セッション",
-          zh: "Runtime Sessions",
-          de: "Laufzeitsitzungen",
-        })}
+        {t({ en: "Runtime Sessions", de: "Laufzeitsitzungen" })}
       </div>
       <div className="max-h-44 overflow-auto rounded-md border" style={{ borderColor: "var(--th-border)" }}>
         {runtimeSessions.map((session) => (

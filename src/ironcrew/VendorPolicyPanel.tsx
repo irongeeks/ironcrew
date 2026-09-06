@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError } from "../api/core";
 import type { CompanyPolicyRestrictions, CompanyPolicySnapshot } from "../shared/company-policy";
@@ -19,6 +20,7 @@ export function VendorPolicyPanel({
   canManage?: boolean;
   refreshKey?: number;
 }): React.JSX.Element {
+  const { tx, t, locale } = useGovernanceI18n();
   const [snapshot, setSnapshot] = useState<CompanyPolicySnapshot | null>(null);
   const [draft, setDraft] = useState<CompanyPolicyRestrictions | null>(null);
   const [base, setBase] = useState({ revision: 0, fingerprint: "" });
@@ -63,11 +65,11 @@ export function VendorPolicyPanel({
       setChecking(false);
       if (!dirtyRef.current) adopt(result);
     } catch (cause) {
-      if (generation.current === token) setError(errorText(cause));
+      if (generation.current === token) setError(tx(errorText(cause)));
     } finally {
       if (generation.current === token) setLoading(false);
     }
-  }, [adopt]);
+  }, [adopt, tx]);
 
   const invalidateRequests = useCallback(() => {
     mounted.current = false;
@@ -86,15 +88,21 @@ export function VendorPolicyPanel({
   const valid =
     draft &&
     snapshot &&
-    draft.allowedFamilies.every((item) => snapshot.baseline.allowedFamilies.includes(item)) &&
-    draft.allowedProviders.every((item) => snapshot.baseline.allowedProviders.includes(item));
+    (snapshot.baseline.allowedFamilies.includes("*") ||
+      draft.allowedFamilies.every((item) => snapshot.baseline.allowedFamilies.includes(item))) &&
+    (snapshot.baseline.allowedProviders.includes("*") ||
+      draft.allowedProviders.every((item) => snapshot.baseline.allowedProviders.includes(item)));
   const change = (field: keyof CompanyPolicyRestrictions, item: string, selected: boolean) => {
     if (!canManage || busy) return;
     setDraft((current) =>
       current
         ? {
             ...current,
-            [field]: selected ? [...current[field], item] : current[field].filter((value) => value !== item),
+            [field]: selected
+              ? item === "*"
+                ? ["*"]
+                : [...current[field], item]
+              : current[field].filter((value) => value !== item),
           }
         : current,
     );
@@ -123,15 +131,22 @@ export function VendorPolicyPanel({
       setCheck(null);
       checkGeneration.current++;
       setChecking(false);
-      setNotice(`Freigaben gespeichert. Revision ${result.revision} gilt für folgende Modellanfragen.`);
+      setNotice(
+        t({
+          de: `Freigaben gespeichert. Revision ${result.revision} gilt für folgende Modellanfragen.`,
+          en: `Permissions saved. Revision ${result.revision} applies to subsequent model requests.`,
+        }),
+      );
     } catch (cause) {
       if (!mounted.current) return;
       if (cause instanceof ApiRequestError && cause.status === 409) {
         setConflict(true);
         setError(
-          "Der Serverstand oder die zentrale Policy wurde geändert. Dein Entwurf bleibt erhalten. Lade den aktuellen Serverstand und vergleiche die Freigaben.",
+          tx(
+            "Der Serverstand oder die zentrale Policy wurde geändert. Dein Entwurf bleibt erhalten. Lade den aktuellen Serverstand und vergleiche die Freigaben.",
+          ),
         );
-      } else setError(errorText(cause));
+      } else setError(tx(errorText(cause)));
     } finally {
       saving.current = false;
       if (mounted.current) setBusy(false);
@@ -147,30 +162,35 @@ export function VendorPolicyPanel({
       const result = await vendorPolicyApi.check(model.trim(), provider.trim() || undefined);
       if (token === checkGeneration.current) setCheck(result);
     } catch (cause) {
-      if (token === checkGeneration.current) setCheckError(errorText(cause));
+      if (token === checkGeneration.current) setCheckError(tx(errorText(cause)));
     } finally {
       if (token === checkGeneration.current) setChecking(false);
     }
   };
 
   return (
-    <section className="vendor-policy-panel" aria-label="Vendor- und Provider-Freigaben" aria-busy={loading || busy}>
+    <section
+      className="vendor-policy-panel"
+      aria-label={tx("Vendor- und Provider-Freigaben")}
+      aria-busy={loading || busy}
+    >
       <header>
         <div>
-          <h2>Vendor- &amp; Provider-Freigaben</h2>
-          <p>Lege fest, welche Modellfamilien und OpenRouter-Provider deine Firma verwenden darf.</p>
+          <h2>{tx("Vendor- &amp; Provider-Freigaben")}</h2>
+          <p>{tx("Lege fest, welche Modellfamilien und OpenRouter-Provider deine Firma verwenden darf.")}</p>
         </div>
         <div className="vendor-policy-toolbar">
           {snapshot && <span className="vendor-policy-revision">Revision {snapshot.revision}</span>}
           <button type="button" className="ic-btn" disabled={loading || busy} onClick={() => void load()}>
-            Serverstand laden
+            {tx("Serverstand laden")}{" "}
           </button>
         </div>
       </header>
-      {!canManage && <p className="vendor-policy-note">Leseansicht: Nur der Owner kann Freigaben ändern.</p>}
+      {!canManage && <p className="vendor-policy-note">{tx("Leseansicht: Nur der Owner kann Freigaben ändern.")}</p>}
       {loading && (
         <div className="vendor-policy-loading" role="status">
-          Freigaben werden geladen …<div aria-hidden="true" />
+          {tx("Freigaben werden geladen …")}
+          <div aria-hidden="true" />
           <div aria-hidden="true" />
         </div>
       )}
@@ -180,19 +200,23 @@ export function VendorPolicyPanel({
           {notice}
         </p>
       )}
-      {!snapshot && !loading && <p>Die Freigaben sind noch nicht verfügbar. Lade den Serverstand erneut.</p>}
+      {!snapshot && !loading && <p>{tx("Die Freigaben sind noch nicht verfügbar. Lade den Serverstand erneut.")}</p>}
       {snapshot && draft && (
         <>
-          <section className="vendor-policy-baseline" aria-label="Zentrale Schutzregeln">
+          <section className="vendor-policy-baseline" aria-label={tx("Zentrale Schutzregeln")}>
             <h3>
-              Zentrale Schutzregeln <span>Fest vorgegeben</span>
+              {tx("Zentrale Schutzregeln")} <span>{tx("Fest vorgegeben")}</span>
             </h3>
             <p>
-              Die zentrale Policy begrenzt alle Freigaben. Diese Ansicht kann ihre Sperren, Datenschutzregeln und
-              Telemetrie-Einstellungen nicht ändern.
+              {tx(
+                "Die zentrale Policy begrenzt alle Freigaben. Diese Ansicht kann ihre Sperren, Datenschutzregeln und Telemetrie-Einstellungen nicht ändern.",
+              )}{" "}
             </p>
             <details>
-              <summary>Gesperrte Modellfamilien ({snapshot.effectivePolicy.blocked_families.length})</summary>
+              <summary>
+                {tx("Gesperrte Modellfamilien (")}
+                {snapshot.effectivePolicy.blocked_families.length})
+              </summary>
               <ul className="vendor-policy-blocks">
                 {snapshot.effectivePolicy.blocked_families.map((item) => (
                   <li key={item.id}>
@@ -203,7 +227,10 @@ export function VendorPolicyPanel({
               </ul>
             </details>
             <details>
-              <summary>Gesperrte Dienste ({snapshot.effectivePolicy.blocked_endpoints.length})</summary>
+              <summary>
+                {tx("Gesperrte Dienste (")}
+                {snapshot.effectivePolicy.blocked_endpoints.length})
+              </summary>
               <ul className="vendor-policy-blocks">
                 {snapshot.effectivePolicy.blocked_endpoints.map((item) => (
                   <li key={item.id}>
@@ -215,49 +242,56 @@ export function VendorPolicyPanel({
             </details>
             <dl className="vendor-policy-rules">
               <div>
-                <dt>OpenRouter-Fallback</dt>
+                <dt>{tx("OpenRouter-Fallback")}</dt>
                 <dd>
                   {snapshot.effectivePolicy.openrouter.allow_fallbacks
-                    ? "Innerhalb der Provider-Freigaben"
-                    : "Ausgeschaltet"}
+                    ? tx("Innerhalb der Provider-Freigaben")
+                    : tx("Ausgeschaltet")}
                 </dd>
               </div>
               <div>
-                <dt>Sensible Aufgaben</dt>
+                <dt>{tx("Sensible Aufgaben")}</dt>
                 <dd>
-                  Datensammlung:{" "}
+                  {tx("Datensammlung:")}{" "}
                   {snapshot.effectivePolicy.openrouter.sensitive_defaults.data_collection === "deny"
-                    ? "verboten"
-                    : "erlaubt"}{" "}
+                    ? tx("verboten")
+                    : tx("erlaubt")}{" "}
                   · ZDR:{" "}
-                  {snapshot.effectivePolicy.openrouter.sensitive_defaults.zdr ? "erforderlich" : "nicht vorgeschrieben"}{" "}
+                  {snapshot.effectivePolicy.openrouter.sensitive_defaults.zdr
+                    ? tx("erforderlich")
+                    : tx("nicht vorgeschrieben")}{" "}
                   · Fallback:{" "}
                   {snapshot.effectivePolicy.openrouter.sensitive_defaults.allow_fallbacks
-                    ? "innerhalb der Provider-Freigaben"
-                    : "ausgeschaltet"}
+                    ? tx("innerhalb der Provider-Freigaben")
+                    : tx("ausgeschaltet")}
                 </dd>
               </div>
               <div>
-                <dt>Telemetrie</dt>
+                <dt>{tx("Telemetrie")}</dt>
                 <dd>
-                  {snapshot.effectivePolicy.telemetry.enabled ? "In zentraler Policy aktiviert" : "Ausgeschaltet"}
+                  {snapshot.effectivePolicy.telemetry.enabled
+                    ? tx("In zentraler Policy aktiviert")
+                    : tx("Ausgeschaltet")}
                 </dd>
               </div>
             </dl>
           </section>
           {stale && (
-            <section aria-label="Geladener Serverstand">
+            <section aria-label={tx("Geladener Serverstand")}>
               <p role="alert">
-                Der Entwurf basiert auf Revision {base.revision}. Der geladene Serverstand (Revision {snapshot.revision}
-                ) oder seine zentrale Policy ist neuer. Deine Auswahl und Begründung bleiben erhalten.
+                {tx("Der Entwurf basiert auf Revision")} {base.revision}
+                {tx(". Der geladene Serverstand (Revision")} {snapshot.revision}
+                {tx(") oder seine zentrale Policy ist neuer. Deine Auswahl und Begründung bleiben erhalten.")}{" "}
               </p>
-              <p>Aktive Modellfamilien: {snapshot.effectivePolicy.allowed_families.join(", ") || "keine"}</p>
               <p>
-                Aktive OpenRouter-Provider:{" "}
-                {snapshot.effectivePolicy.openrouter.allowed_providers.join(", ") || "keine"}
+                {tx("Aktive Modellfamilien:")} {snapshot.effectivePolicy.allowed_families.join(", ") || tx("keine")}
+              </p>
+              <p>
+                {tx("Aktive OpenRouter-Provider:")}{" "}
+                {snapshot.effectivePolicy.openrouter.allowed_providers.join(", ") || tx("keine")}
               </p>
               <p className="vendor-policy-note">
-                Erneutes Speichern übernimmt deine vollständige Auswahl als neue Firmenfreigabe.
+                {tx("Erneutes Speichern übernimmt deine vollständige Auswahl als neue Firmenfreigabe.")}{" "}
               </p>
             </section>
           )}
@@ -273,11 +307,13 @@ export function VendorPolicyPanel({
                     setConflict(false);
                     setError("");
                     setNotice(
-                      "Dein Entwurf basiert jetzt auf dem geladenen Stand. Prüfe die Auswahl vor dem Speichern erneut.",
+                      tx(
+                        "Dein Entwurf basiert jetzt auf dem geladenen Stand. Prüfe die Auswahl vor dem Speichern erneut.",
+                      ),
                     );
                   }}
                 >
-                  Entwurf auf geladenem Stand weiterbearbeiten
+                  {tx("Entwurf auf geladenem Stand weiterbearbeiten")}{" "}
                 </button>
               )}
               <button
@@ -287,26 +323,26 @@ export function VendorPolicyPanel({
                 onClick={() => {
                   adopt(snapshot);
                   setError("");
-                  setNotice("Geladener Serverstand übernommen. Der Entwurf wurde verworfen.");
+                  setNotice(tx("Geladener Serverstand übernommen. Der Entwurf wurde verworfen."));
                 }}
               >
-                Entwurf verwerfen und Serverstand übernehmen
+                {tx("Entwurf verwerfen und Serverstand übernehmen")}{" "}
               </button>
             </div>
           )}
           <div className="vendor-policy-selections">
             {(
               [
-                ["allowedFamilies", "Modellfamilien"],
-                ["allowedProviders", "OpenRouter-Provider"],
+                ["allowedFamilies", tx("Modellfamilien")],
+                ["allowedProviders", tx("OpenRouter-Provider")],
               ] as const
             ).map(([field, label]) => (
               <fieldset key={field} disabled={!canManage || busy || loading}>
-                <legend>{label}</legend>
+                <legend>{tx(label)}</legend>
                 <p>
                   {field === "allowedFamilies"
-                    ? "Gilt auch für CLI-Runtimes und Routing-Fallbacks."
-                    : "Gilt für die ausführenden Anbieter hinter OpenRouter."}
+                    ? tx("Gilt auch für CLI-Runtimes und Routing-Fallbacks.")
+                    : tx("Gilt für die ausführenden Anbieter hinter OpenRouter.")}
                 </p>
                 {snapshot.baseline[field].map((item) => (
                   <label className="vendor-policy-check" key={item}>
@@ -315,7 +351,9 @@ export function VendorPolicyPanel({
                       checked={draft[field].includes(item)}
                       onChange={(event) => change(field, item, event.target.checked)}
                     />
-                    <span>{item}</span>
+                    <span>
+                      {item === "*" ? (field === "allowedFamilies" ? tx("Alle Modelle") : tx("Alle Anbieter")) : item}
+                    </span>
                   </label>
                 ))}
                 {draft[field]
@@ -323,37 +361,59 @@ export function VendorPolicyPanel({
                   .map((item) => (
                     <label className="vendor-policy-check" key={item}>
                       <input type="checkbox" checked onChange={() => change(field, item, false)} />
-                      <span>{item} — zentral nicht mehr erlaubt; Auswahl entfernen</span>
+                      <span>
+                        {item}
+                        {snapshot.baseline[field].includes("*")
+                          ? tx(" — gespeicherte Einschränkung")
+                          : tx(" — zentral nicht mehr erlaubt; Auswahl entfernen")}
+                      </span>
                     </label>
                   ))}
-                {snapshot.baseline[field].length === 0 && <p>Die zentrale Policy gibt keine Einträge frei.</p>}
+                {snapshot.baseline[field].length === 0 && <p>{tx("Die zentrale Policy gibt keine Einträge frei.")}</p>}
               </fieldset>
             ))}
           </div>
-          <section className="vendor-policy-preview" aria-label="Vorschau der Freigaben">
-            <h3>{dirty ? "Vorschau deines Entwurfs" : "Aktive Freigaben"}</h3>
+          <section className="vendor-policy-preview" aria-label={tx("Vorschau der Freigaben")}>
+            <h3>{dirty ? tx("Vorschau deines Entwurfs") : tx("Aktive Freigaben")}</h3>
             <p>
-              {dirty ? "Noch nicht gespeichert. " : ""}Modellfamilien:{" "}
-              {draft.allowedFamilies.filter((item) => snapshot.baseline.allowedFamilies.includes(item)).join(", ") ||
-                "keine"}
+              {dirty ? tx("Noch nicht gespeichert. ") : ""}
+              {tx("Modellfamilien:")}{" "}
+              {draft.allowedFamilies
+                .filter(
+                  (item) =>
+                    snapshot.baseline.allowedFamilies.includes("*") || snapshot.baseline.allowedFamilies.includes(item),
+                )
+                .map((item) => (item === "*" ? tx("alle") : item))
+                .join(", ") || tx("keine")}
             </p>
             <p>
-              OpenRouter-Provider:{" "}
-              {draft.allowedProviders.filter((item) => snapshot.baseline.allowedProviders.includes(item)).join(", ") ||
-                "keine"}
+              {tx("OpenRouter-Provider:")}{" "}
+              {draft.allowedProviders
+                .filter(
+                  (item) =>
+                    snapshot.baseline.allowedProviders.includes("*") ||
+                    snapshot.baseline.allowedProviders.includes(item),
+                )
+                .map((item) => (item === "*" ? tx("alle") : item))
+                .join(", ") || tx("keine")}
             </p>
             {draft.allowedFamilies.length === 0 && (
               <p className="vendor-policy-warning">
-                Keine Modellfamilie ausgewählt: Alle Modellanfragen werden blockiert.
+                {tx("Keine Modellfamilie ausgewählt: Alle Modellanfragen werden blockiert.")}{" "}
               </p>
             )}
             {draft.allowedProviders.length === 0 && (
-              <p className="vendor-policy-warning">Kein Provider ausgewählt: OpenRouter-Anfragen werden blockiert.</p>
+              <p className="vendor-policy-warning">
+                {tx("Kein Provider ausgewählt: OpenRouter-Anfragen werden blockiert.")}
+              </p>
             )}
-            {!valid && <p role="alert">Entferne die Auswahlen, die in der zentralen Policy nicht mehr erlaubt sind.</p>}
+            {!valid && (
+              <p role="alert">{tx("Entferne die Auswahlen, die in der zentralen Policy nicht mehr erlaubt sind.")}</p>
+            )}
             <p className="vendor-policy-note">
-              Zentrale Sperren haben immer Vorrang. Eine Freigabe bestätigt keine Modellverfügbarkeit, Anmeldung oder
-              ausreichendes Budget.
+              {tx(
+                "Zentrale Sperren haben immer Vorrang. Eine Freigabe bestätigt keine Modellverfügbarkeit, Anmeldung oder ausreichendes Budget.",
+              )}{" "}
             </p>
           </section>
           {canManage && (
@@ -364,7 +424,7 @@ export function VendorPolicyPanel({
               }}
             >
               <label>
-                Begründung der Änderung
+                {tx("Begründung der Änderung")}{" "}
                 <textarea
                   value={reason}
                   minLength={10}
@@ -381,7 +441,9 @@ export function VendorPolicyPanel({
                 />
               </label>
               <p id="vendor-policy-reason-help" className="vendor-policy-note">
-                Mindestens 10 Zeichen. Die Begründung wird mit deiner Identität in Verlauf und Audit gespeichert.
+                {tx(
+                  "Mindestens 10 Zeichen. Die Begründung wird mit deiner Identität in Verlauf und Audit gespeichert.",
+                )}{" "}
               </p>
               <div className="vendor-policy-actions">
                 <button
@@ -390,20 +452,22 @@ export function VendorPolicyPanel({
                   data-variant="primary"
                   disabled={busy || loading || !dirty || !valid || !!stale || conflict || reason.trim().length < 10}
                 >
-                  {busy ? "Freigaben werden gespeichert …" : "Freigaben speichern"}
+                  {busy ? tx("Freigaben werden gespeichert …") : tx("Freigaben speichern")}
                 </button>
               </div>
             </form>
           )}
-          <section className="vendor-policy-model-check" aria-label="Modell prüfen">
-            <h3>Modell gegen gespeicherte Freigaben prüfen</h3>
+          <section className="vendor-policy-model-check" aria-label={tx("Modell prüfen")}>
+            <h3>{tx("Modell gegen gespeicherte Freigaben prüfen")}</h3>
             <p>
-              Prüft ausschließlich den gespeicherten Serverstand. Dabei wird kein Modell gestartet und kein Provider
-              kontaktiert.
+              {tx(
+                "Prüft ausschließlich den gespeicherten Serverstand. Dabei wird kein Modell gestartet und kein Provider kontaktiert.",
+              )}{" "}
             </p>
             <p className="vendor-policy-note">
-              Ohne Provider wird nur die Modellfamilie geprüft. Für OpenRouter zusätzlich den konkreten Provider
-              angeben.
+              {tx(
+                "Ohne Provider wird nur die Modellfamilie geprüft. Für OpenRouter zusätzlich den konkreten Provider angeben.",
+              )}{" "}
             </p>
             <form
               onSubmit={(event) => {
@@ -413,12 +477,12 @@ export function VendorPolicyPanel({
             >
               <div className="vendor-policy-check-fields">
                 <label>
-                  Modell-ID
+                  {tx("Modell-ID")}{" "}
                   <input
                     type="text"
                     value={model}
                     maxLength={250}
-                    placeholder="anbieter/modell"
+                    placeholder={tx("anbieter/modell")}
                     disabled={checking || busy}
                     onChange={(event) => {
                       setModel(event.target.value);
@@ -427,12 +491,12 @@ export function VendorPolicyPanel({
                   />
                 </label>
                 <label>
-                  Provider (optional)
+                  {tx("Provider (optional)")}{" "}
                   <input
                     type="text"
                     value={provider}
                     maxLength={200}
-                    placeholder="Name des OpenRouter-Providers"
+                    placeholder={tx("Name des OpenRouter-Providers")}
                     disabled={checking || busy}
                     onChange={(event) => {
                       setProvider(event.target.value);
@@ -442,24 +506,27 @@ export function VendorPolicyPanel({
                 </label>
               </div>
               <button type="submit" className="ic-btn" disabled={checking || busy || !model.trim()}>
-                {checking ? "Modell wird geprüft …" : "Gespeicherte Policy prüfen"}
+                {checking ? tx("Modell wird geprüft …") : tx("Gespeicherte Policy prüfen")}
               </button>
             </form>
             {checkError && <p role="alert">{checkError}</p>}
             {check && (
               <p role="status" className={check.decision.allowed ? "vendor-policy-notice" : "vendor-policy-warning"}>
                 <strong>
-                  {check.decision.allowed ? "Erlaubt" : "Blockiert"}: {check.model}
+                  {check.decision.allowed ? tx("Erlaubt") : tx("Blockiert")}: {check.model}
                 </strong>
-                {check.provider ? ` · ${check.provider}` : ""} — {check.decision.reason} (geprüfte Revision{" "}
+                {check.provider ? ` · ${check.provider}` : ""} — {check.decision.reason} {tx("(geprüfte Revision")}{" "}
                 {check.revision})
               </p>
             )}
           </section>
           <details className="vendor-policy-history">
-            <summary>Änderungsverlauf ({snapshot.history.length})</summary>
+            <summary>
+              {tx("Änderungsverlauf (")}
+              {snapshot.history.length})
+            </summary>
             {snapshot.history.length === 0 ? (
-              <p>Noch keine Firmenänderung gespeichert. Es gelten die zentralen Freigaben.</p>
+              <p>{tx("Noch keine Firmenänderung gespeichert. Es gelten die zentralen Freigaben.")}</p>
             ) : (
               <ol>
                 {snapshot.history.map((item) => (
@@ -467,17 +534,17 @@ export function VendorPolicyPanel({
                     <div>
                       <strong>Revision {item.revision}</strong>
                       <time dateTime={new Date(item.createdAt).toISOString()}>
-                        {new Date(item.createdAt).toLocaleString("de-DE")}
+                        {new Date(item.createdAt).toLocaleString(locale)}
                       </time>
                       <span>{item.createdBy}</span>
                     </div>
                     <p>{item.reason}</p>
                     <p>
-                      Familien: {item.restrictions.allowedFamilies.join(", ") || "keine"} · Provider:{" "}
-                      {item.restrictions.allowedProviders.join(", ") || "keine"}
+                      {tx("Familien:")} {item.restrictions.allowedFamilies.join(", ") || tx("keine")} · Provider:{" "}
+                      {item.restrictions.allowedProviders.join(", ") || tx("keine")}
                     </p>
                     <p className="vendor-policy-note">
-                      Audit: {item.auditEventId} · Korrelation: {item.correlationId}
+                      Audit: {item.auditEventId} {tx("· Korrelation:")} {item.correlationId}
                     </p>
                   </li>
                 ))}

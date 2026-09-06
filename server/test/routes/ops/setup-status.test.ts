@@ -1,80 +1,47 @@
 import { describe, it, expect } from "vitest";
 
-/**
- * Unit tests for pure utility functions in setup-status.ts.
- *
- * The module is primarily composed of an Express route handler that needs a full
- * RuntimeContext (db, app, etc.). The testable pure functions are re-implemented
- * here following the project pattern (see settings-stats.test.ts).
- *
- * - checkSecret — reads a key from .env content and validates it
- * - deriveOverallStatus — determines required_ok and optional_ok from checks map
- */
-
-// ---------------------------------------------------------------------------
-// Re-implementations (mirrors server/modules/routes/ops/setup-status.ts)
-// ---------------------------------------------------------------------------
-
-function checkSecret(envContent: string, key: string): { ok: boolean; detail?: string } {
-  const match = envContent.match(new RegExp(`^${key}\\s*=\\s*(.*)$`, "m"));
-  if (!match) return { ok: false, detail: `${key} not found in .env` };
-  const value = match[1].trim().replace(/^['"]|['"]$/g, "");
-  if (!value || value === "__CHANGE_ME__") return { ok: false, detail: `${key} not configured` };
-  return { ok: true };
-}
-
-function deriveOverallStatus(checks: Record<string, { ok: boolean }>): {
-  required_ok: boolean;
-  optional_ok: boolean;
-} {
-  const requiredKeys = [
-    "database",
-    "encryption_secret",
-    "webhook_secret",
-    "agents_seeded",
-    "departments_seeded",
-    "cli_provider_configured",
-  ];
-  const required_ok = requiredKeys.every((k) => checks[k]?.ok === true);
-  const optional_ok = Object.values(checks).every((c) => c.ok === true);
-  return { required_ok, optional_ok };
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+import {
+  checkSecret,
+  deriveOverallStatus,
+  registerSetupStatusRoutes,
+} from "../../../modules/routes/ops/setup-status.ts";
 
 describe("checkSecret", () => {
+  it("accepts injected runtime secrets without an env file", () => {
+    expect(checkSecret("", "MY_SECRET", { MY_SECRET: "injected-value" })).toEqual({ ok: true });
+    expect(checkSecret("", "MY_SECRET", { MY_SECRET: "__CHANGE_ME__" }).ok).toBe(false);
+  });
+
   it("returns ok for a valid secret value", () => {
     const env = "OAUTH_ENCRYPTION_SECRET=supersecretvalue123\nINBOX_WEBHOOK_SECRET=anothersecret";
-    expect(checkSecret(env, "OAUTH_ENCRYPTION_SECRET")).toEqual({ ok: true });
-    expect(checkSecret(env, "INBOX_WEBHOOK_SECRET")).toEqual({ ok: true });
+    expect(checkSecret(env, "OAUTH_ENCRYPTION_SECRET", {})).toEqual({ ok: true });
+    expect(checkSecret(env, "INBOX_WEBHOOK_SECRET", {})).toEqual({ ok: true });
   });
 
   it("returns not ok for __CHANGE_ME__ placeholder", () => {
     const env = "OAUTH_ENCRYPTION_SECRET=__CHANGE_ME__";
-    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET");
+    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET", {});
     expect(result.ok).toBe(false);
     expect(result.detail).toContain("OAUTH_ENCRYPTION_SECRET");
   });
 
   it("returns not ok when key is missing", () => {
     const env = "OTHER_KEY=somevalue";
-    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET");
+    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET", {});
     expect(result.ok).toBe(false);
     expect(result.detail).toContain("not found");
   });
 
   it("returns not ok when value is empty string", () => {
     const env = "OAUTH_ENCRYPTION_SECRET=";
-    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET");
+    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET", {});
     expect(result.ok).toBe(false);
     expect(result.detail).toContain("OAUTH_ENCRYPTION_SECRET");
   });
 
   it("returns not ok when value is whitespace only", () => {
     const env = "OAUTH_ENCRYPTION_SECRET=   ";
-    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET");
+    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET", {});
     expect(result.ok).toBe(false);
   });
 
@@ -88,14 +55,14 @@ describe("checkSecret", () => {
 
   it("returns not ok for quoted __CHANGE_ME__", () => {
     const env = "OAUTH_ENCRYPTION_SECRET='__CHANGE_ME__'";
-    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET");
+    const result = checkSecret(env, "OAUTH_ENCRYPTION_SECRET", {});
     expect(result.ok).toBe(false);
   });
 
   it("handles multiple keys in the same env string", () => {
     const env = ["FOO=bar", "OAUTH_ENCRYPTION_SECRET=myrealtoken", "INBOX_WEBHOOK_SECRET=__CHANGE_ME__"].join("\n");
-    expect(checkSecret(env, "OAUTH_ENCRYPTION_SECRET")).toEqual({ ok: true });
-    expect(checkSecret(env, "INBOX_WEBHOOK_SECRET").ok).toBe(false);
+    expect(checkSecret(env, "OAUTH_ENCRYPTION_SECRET", {})).toEqual({ ok: true });
+    expect(checkSecret(env, "INBOX_WEBHOOK_SECRET", {}).ok).toBe(false);
   });
 });
 
@@ -166,5 +133,36 @@ describe("deriveOverallStatus", () => {
     const { agents_seeded: _omit, ...rest } = allRequiredPassing;
     const result = deriveOverallStatus(rest);
     expect(result.required_ok).toBe(false);
+  });
+});
+
+describe("setup status runtime credentials", () => {
+  it("recognizes authenticated OpenRouter runtimes without stored API keys", async () => {
+    let handler: any;
+    const app = {
+      locals: {
+        ironCrewRuntimes: () => [
+          { type: "openrouter", authStatus: async () => ({ authenticated: true, method: "api-key" }) },
+        ],
+      },
+      get: (_path: string, fn: unknown) => {
+        handler = fn;
+      },
+    };
+    const db = { prepare: () => ({ get: () => ({ cnt: 0, value: "claude" }) }) };
+    registerSetupStatusRoutes({ app, db } as any);
+    let payload: any;
+    await handler(
+      {},
+      {
+        json: (body: unknown) => {
+          payload = body;
+        },
+      },
+    );
+    expect(payload.checks.api_key_configured).toEqual({
+      ok: true,
+      detail: "Runtime credentials configured: openrouter",
+    });
   });
 });

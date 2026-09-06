@@ -215,21 +215,21 @@ export const TASK_TYPE_OPTIONS: { value: TaskType; color: string }[] = [
 export function taskStatusLabel(status: TaskStatus, t: TFunction) {
   switch (status) {
     case "inbox":
-      return t({ ko: "수신함", en: "Inbox", ja: "受信箱", zh: "Inbox", de: "Posteingang" });
+      return t({ en: "Inbox", de: "Posteingang" });
     case "planned":
-      return t({ ko: "계획됨", en: "Planned", ja: "計画済み", zh: "Planned", de: "Geplant" });
+      return t({ en: "Planned", de: "Geplant" });
     case "collaborating":
-      return t({ ko: "협업 중", en: "Collaborating", ja: "協業中", zh: "Collaborating", de: "Zusammenarbeit" });
+      return t({ en: "Collaborating", de: "Zusammenarbeit" });
     case "in_progress":
-      return t({ ko: "진행 중", en: "In Progress", ja: "進行中", zh: "In Progress", de: "In Arbeit" });
+      return t({ en: "In Progress", de: "In Arbeit" });
     case "review":
-      return t({ ko: "검토", en: "Review", ja: "レビュー", zh: "Review", de: "Überprüfung" });
+      return t({ en: "Review", de: "Überprüfung" });
     case "done":
-      return t({ ko: "완료", en: "Done", ja: "完了", zh: "Done", de: "Erledigt" });
+      return t({ en: "Done", de: "Erledigt" });
     case "pending":
-      return t({ ko: "보류", en: "Pending", ja: "保留", zh: "Pending", de: "Ausstehend" });
+      return t({ en: "Pending", de: "Ausstehend" });
     case "cancelled":
-      return t({ ko: "취소", en: "Cancelled", ja: "キャンセル", zh: "Cancelled", de: "Abgebrochen" });
+      return t({ en: "Cancelled", de: "Abgebrochen" });
     default:
       return status;
   }
@@ -238,49 +238,25 @@ export function taskStatusLabel(status: TaskStatus, t: TFunction) {
 export function taskTypeLabel(type: TaskType, t: TFunction) {
   switch (type) {
     case "general":
-      return t({ ko: "일반", en: "General", ja: "一般", zh: "General", de: "Allgemein" });
+      return t({ en: "General", de: "Allgemein" });
     case "development":
-      return t({ ko: "개발", en: "Development", ja: "開発", zh: "Development", de: "Entwicklung" });
+      return t({ en: "Development", de: "Entwicklung" });
     case "design":
-      return t({ ko: "디자인", en: "Design", ja: "デザイン", zh: "Design", de: "Design" });
+      return t({ en: "Design", de: "Design" });
     case "create_mockup":
-      return t({
-        ko: "목업 제작",
-        en: "Create Mockup",
-        ja: "モックアップ作成",
-        zh: "Create Mockup",
-        de: "Mockup erstellen",
-      });
+      return t({ en: "Create Mockup", de: "Mockup erstellen" });
     case "design_system_update":
-      return t({
-        ko: "디자인 시스템 업데이트",
-        en: "Design System Update",
-        ja: "デザインシステム更新",
-        zh: "Design System Update",
-        de: "Design-System aktualisieren",
-      });
+      return t({ en: "Design System Update", de: "Design-System aktualisieren" });
     case "color_palette_generate":
-      return t({
-        ko: "컬러 팔레트 생성",
-        en: "Color Palette Generate",
-        ja: "カラーパレット生成",
-        zh: "Color Palette Generate",
-        de: "Farbpalette generieren",
-      });
+      return t({ en: "Color Palette Generate", de: "Farbpalette generieren" });
     case "typography_review":
-      return t({
-        ko: "타이포그래피 리뷰",
-        en: "Typography Review",
-        ja: "タイポグラフィレビュー",
-        zh: "Typography Review",
-        de: "Typografie-Überprüfung",
-      });
+      return t({ en: "Typography Review", de: "Typografie-Überprüfung" });
     case "analysis":
-      return t({ ko: "분석", en: "Analysis", ja: "分析", zh: "Analysis", de: "Analyse" });
+      return t({ en: "Analysis", de: "Analyse" });
     case "presentation":
-      return t({ ko: "발표", en: "Presentation", ja: "プレゼン", zh: "Presentation", de: "Präsentation" });
+      return t({ en: "Presentation", de: "Präsentation" });
     case "documentation":
-      return t({ ko: "문서화", en: "Documentation", ja: "文書化", zh: "Documentation", de: "Dokumentation" });
+      return t({ en: "Documentation", de: "Dokumentation" });
     default:
       return type;
   }
@@ -298,9 +274,9 @@ export function priorityIcon(priority: number) {
 }
 
 export function priorityLabel(priority: number, t: TFunction) {
-  if (priority >= 4) return t({ ko: "높음", en: "High", ja: "高", zh: "High", de: "Hoch" });
-  if (priority >= 2) return t({ ko: "중간", en: "Medium", ja: "中", zh: "Medium", de: "Mittel" });
-  return t({ ko: "낮음", en: "Low", ja: "低", zh: "Low", de: "Niedrig" });
+  if (priority >= 4) return t({ en: "High", de: "Hoch" });
+  if (priority >= 2) return t({ en: "Medium", de: "Mittel" });
+  return t({ en: "Low", de: "Niedrig" });
 }
 
 export function timeAgo(ts: number, localeTag: string): string {

@@ -20,6 +20,17 @@ oversized and length-limited responses fail instead of becoming completed work.
 HTTP and in-stream 429 responses become `rate_limit.detected` / `run.waiting`.
 An HTTP `Retry-After` is carried forward as an absolute reset time when valid.
 
+The scheduler counts each rate-limited invocation against the vessel's
+`max_retries` budget (one initial attempt plus that many retries). Retries wait
+60 seconds, then 120, 240, and so on, with the exponential delay capped at
+15 minutes. A valid `Retry-After` remains a minimum, even when longer than the
+cap. Attempts and deadlines survive a server restart. Exhaustion marks the
+request dead and the task and run failed, with a visible rate-limit reason;
+further execution requires an explicit retry after reviewing the model or quota.
+Untouched, stateless rate-limited attempts reuse the same run and append events.
+Sessions, partial output or changed execution identities retain separate runs
+so earlier context and results are not overwritten.
+
 Cancellation aborts both the request and a waiting stream reader. The timeout
 covers the full run, including body consumption and tool callbacks. An executor
 must honor its supplied AbortSignal to terminate its underlying operation;

@@ -62,20 +62,11 @@ export default function CustomSkillModal({
           <div>
             <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: "var(--th-text-heading)" }}>
               <span>✏️</span>
-              {t({
-                ko: "커스텀 스킬 추가",
-                en: "Add Custom Skill",
-                ja: "カスタムスキル追加",
-                zh: "Add Custom Skill",
-                de: "Benutzerdefinierter Skill hinzufügen",
-              })}
+              {t({ en: "Add Custom Skill", de: "Benutzerdefinierter Skill hinzufügen" })}
             </h3>
             <div className="mt-1 text-xs" style={{ color: "var(--th-text-secondary)" }}>
               {t({
-                ko: "skills.md 파일을 첨부하고 CLI 대표자를 선택하세요",
                 en: "Attach a skills.md file and select CLI representatives",
-                ja: "skills.md ファイルを添付し、CLI代表を選択してください",
-                zh: "Attach a skills.md file and select CLI representatives",
                 de: "skills.md-Datei anhängen und CLI-Vertreter auswählen",
               })}
             </div>
@@ -86,26 +77,20 @@ export default function CustomSkillModal({
             className="rounded-lg border px-2.5 py-1 text-xs transition-all"
             style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
           >
-            {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "Close", de: "Schließen" })}
+            {t({ en: "Close", de: "Schließen" })}
           </button>
         </div>
 
         <div className="space-y-4 overflow-y-auto px-5 py-4 max-h-[calc(90vh-72px)]">
           <div>
             <label className="block text-xs mb-1.5" style={{ color: "var(--th-text-secondary)" }}>
-              {t({ ko: "스킬명", en: "Skill Name", ja: "スキル名", zh: "Skill Name", de: "Skill-Name" })}
+              {t({ en: "Skill Name", de: "Skill-Name" })}
             </label>
             <input
               type="text"
               value={customSkillName}
               onChange={(e) => setCustomSkillName(e.target.value)}
-              placeholder={t({
-                ko: "예: my-custom-skill",
-                en: "e.g. my-custom-skill",
-                ja: "例: my-custom-skill",
-                zh: "e.g. my-custom-skill",
-                de: "z. B. my-custom-skill",
-              })}
+              placeholder={t({ en: "e.g. my-custom-skill", de: "z. B. my-custom-skill" })}
               className="w-full border rounded-lg px-3 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/25"
               style={{
                 background: "var(--th-input-bg)",
@@ -115,10 +100,7 @@ export default function CustomSkillModal({
             />
             <div className="text-[10px] mt-1" style={{ color: "var(--th-text-muted)" }}>
               {t({
-                ko: "영문, 숫자, 하이픈(-), 언더스코어(_)만 사용 가능",
                 en: "Only alphanumeric, dash (-), underscore (_) allowed",
-                ja: "英数字、ハイフン(-)、アンダースコア(_)のみ使用可能",
-                zh: "Only alphanumeric, dash (-), underscore (_) allowed",
                 de: "Nur Buchstaben, Zahlen, Bindestrich (-) und Unterstrich (_) erlaubt",
               })}
             </div>
@@ -126,13 +108,7 @@ export default function CustomSkillModal({
 
           <div>
             <label className="block text-xs mb-1.5" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "skills.md 파일",
-                en: "skills.md File",
-                ja: "skills.md ファイル",
-                zh: "skills.md File",
-                de: "skills.md-Datei",
-              })}
+              {t({ en: "skills.md File", de: "skills.md-Datei" })}
             </label>
             <div className="flex items-center gap-2">
               <button
@@ -145,13 +121,7 @@ export default function CustomSkillModal({
                 }}
               >
                 <span>📎</span>
-                {t({
-                  ko: "파일 선택",
-                  en: "Choose File",
-                  ja: "ファイル選択",
-                  zh: "Choose File",
-                  de: "Datei auswählen",
-                })}
+                {t({ en: "Choose File", de: "Datei auswählen" })}
               </button>
               <input
                 ref={customFileInputRef}
@@ -182,13 +152,7 @@ export default function CustomSkillModal({
 
           <div>
             <label className="block text-xs mb-1.5" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "학습시킬 CLI 대표자",
-                en: "CLI Representatives to Train",
-                ja: "学習させるCLI代表",
-                zh: "CLI Representatives to Train",
-                de: "CLI-Vertreter für das Training",
-              })}
+              {t({ en: "CLI Representatives to Train", de: "CLI-Vertreter für das Training" })}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {representatives.map((row) => {
@@ -198,7 +162,7 @@ export default function CustomSkillModal({
                   ? preferKoreanName
                     ? row.agent.name_ko || row.agent.name
                     : row.agent.name || row.agent.name_ko
-                  : t({ ko: "없음", en: "None", ja: "なし", zh: "None", de: "Keiner" });
+                  : t({ en: "None", de: "Keiner" });
                 return (
                   <button
                     key={`custom-${row.provider}`}
@@ -259,7 +223,7 @@ export default function CustomSkillModal({
               className="px-3 py-1.5 rounded-lg text-xs border transition-all"
               style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
             >
-              {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+              {t({ en: "Cancel", de: "Abbrechen" })}
             </button>
             <button
               onClick={onSubmit}
@@ -278,24 +242,12 @@ export default function CustomSkillModal({
               {customSkillSubmitting ? (
                 <>
                   <span className="animate-spin w-3 h-3 border border-violet-400 border-t-transparent rounded-full" />
-                  {t({
-                    ko: "등록중...",
-                    en: "Submitting...",
-                    ja: "登録中...",
-                    zh: "Submitting...",
-                    de: "Wird eingereicht...",
-                  })}
+                  {t({ en: "Submitting...", de: "Wird eingereicht..." })}
                 </>
               ) : (
                 <>
                   <span>🎓</span>
-                  {t({
-                    ko: "학습 시작",
-                    en: "Start Training",
-                    ja: "学習開始",
-                    zh: "Start Training",
-                    de: "Training starten",
-                  })}
+                  {t({ en: "Start Training", de: "Training starten" })}
                 </>
               )}
             </button>

@@ -75,10 +75,8 @@ export function useCustomSkillsState({
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(customSkillName.trim())) {
       setCustomSkillError(
         t({
-          ko: "스킬명은 영문, 숫자, 하이픈, 언더스코어만 사용 가능합니다 (최대 80자)",
           en: "Skill name must be alphanumeric, dash or underscore (max 80 chars)",
-          ja: "スキル名は英数字、ハイフン、アンダースコアのみ使用可能です（最大80文字）",
-          zh: "Skill name must be alphanumeric, dash or underscore (max 80 chars)",
+          de: "Der Skill-Name darf nur Buchstaben, Zahlen, Bindestriche und Unterstriche enthalten (maximal 80 Zeichen).",
         }),
       );
       return;

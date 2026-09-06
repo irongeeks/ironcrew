@@ -42,31 +42,14 @@ export function MobileProjectsView({ agents, departments }: MobileProjectsViewPr
   }, [refreshCount]);
 
   const tabLabel = (tab: Tab) =>
-    tab === "projects"
-      ? t({ ko: "프로젝트", en: "Projects", ja: "プロジェクト", zh: "项目", de: "Projekte" })
-      : t({ ko: "편집기", en: "Editor", ja: "エディター", zh: "编辑器", de: "Editor" });
+    tab === "projects" ? t({ en: "Projects", de: "Projekte" }) : t({ en: "Editor", de: "Editor" });
 
-  const emptyHeading = t({
-    ko: "선택된 프로젝트 없음",
-    en: "No project selected",
-    ja: "プロジェクトが選択されていません",
-    zh: "未选择项目",
-    de: "Kein Projekt ausgewählt",
-  });
+  const emptyHeading = t({ en: "No project selected", de: "Kein Projekt ausgewählt" });
   const emptySubtitle = t({
-    ko: "목록에서 프로젝트를 선택하거나 새 프로젝트를 만들어 시작하세요.",
     en: "Pick a project from the list or create a new one to get started.",
-    ja: "リストからプロジェクトを選択するか、新しいプロジェクトを作成してください。",
-    zh: "从列表中选择一个项目,或创建一个新项目以开始。",
     de: "Wähle ein Projekt aus der Liste oder erstelle ein neues, um loszulegen.",
   });
-  const emptyCta = t({
-    ko: "프로젝트 보기",
-    en: "Browse Projects",
-    ja: "プロジェクト一覧へ",
-    zh: "查看项目",
-    de: "Projekte anzeigen",
-  });
+  const emptyCta = t({ en: "Browse Projects", de: "Projekte anzeigen" });
 
   const showEmptyState = activeTab === "editor" && countLoaded && projectCount === 0;
 

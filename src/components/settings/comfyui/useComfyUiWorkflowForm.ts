@@ -1,3 +1,4 @@
+import { useUiCopy } from "../../LocalizedText";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TFunction } from "../types";
 import {
@@ -12,6 +13,7 @@ import { type FormState, EMPTY_FORM } from "./constants";
 import { type ParsedNode, type RoleAssignment, parseWorkflowNodes, autoDetectRoles } from "./workflowNodeParser";
 
 export function useComfyUiWorkflowForm() {
+  const translateUiCopy = useUiCopy();
   const [workflows, setWorkflows] = useState<ComfyUiWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [addMode, setAddMode] = useState(false);
@@ -193,18 +195,7 @@ export function useComfyUiWorkflowForm() {
   };
 
   const handleDelete = async (id: string, t: TFunction) => {
-    if (
-      !window.confirm(
-        t({
-          ko: "이 워크플로우를 삭제하시겠습니까?",
-          en: "Delete this workflow?",
-          ja: "このワークフローを削除しますか？",
-          zh: "Delete this workflow?",
-          de: "Diesen Workflow löschen?",
-        }),
-      )
-    )
-      return;
+    if (!window.confirm(t({ en: "Delete this workflow?", de: "Diesen Workflow löschen?" }))) return;
     try {
       await deleteComfyUiWorkflow(id);
       await loadWorkflows();
@@ -221,7 +212,7 @@ export function useComfyUiWorkflowForm() {
       setTestResult({
         id,
         ok: result.ok,
-        msg: result.ok ? "Test passed" : result.error || "Test failed",
+        msg: result.ok ? translateUiCopy("Test passed", "Test erfolgreich") : result.error || "Test failed",
       });
     } catch (e) {
       setTestResult({ id, ok: false, msg: e instanceof Error ? e.message : String(e) });

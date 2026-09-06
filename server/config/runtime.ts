@@ -1,3 +1,4 @@
+import { assertE2EIsolation } from "./e2e-isolation.ts";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -10,7 +11,7 @@ const SERVER_DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 // ---------------------------------------------------------------------------
 const envFilePath = path.resolve(SERVER_DIRNAME, "..", "..", ".env");
 try {
-  if (fs.existsSync(envFilePath)) {
+  if (process.env.IRONCREW_E2E !== "1" && fs.existsSync(envFilePath)) {
     const envContent = fs.readFileSync(envFilePath, "utf8");
     for (const line of envContent.split(/\r?\n/)) {
       const trimmed = line.trim();
@@ -36,6 +37,8 @@ try {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+assertE2EIsolation();
+
 export const PKG_VERSION: string = (() => {
   try {
     return (

@@ -18,7 +18,7 @@ interface TaskReportPopupProps {
 }
 
 export default function TaskReportPopup({ report, agents, departments, uiLanguage, onClose }: TaskReportPopupProps) {
-  const t = (text: { ko: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
 
   const [currentReport, setCurrentReport] = useState<TaskReportDetail>(report);
   const [refreshingArchive, setRefreshingArchive] = useState(false);
@@ -67,14 +67,8 @@ export default function TaskReportPopup({ report, agents, departments, uiLanguag
   const taskDeptFromMap = currentReport.task.department_id
     ? departmentById.get(currentReport.task.department_id)
     : undefined;
-  const taskAgentName =
-    uiLanguage === "ko"
-      ? currentReport.task.agent_name_ko || currentReport.task.agent_name
-      : currentReport.task.agent_name;
-  const taskDeptName =
-    uiLanguage === "ko"
-      ? taskDeptFromMap?.name_ko || currentReport.task.dept_name_ko || currentReport.task.dept_name
-      : taskDeptFromMap?.name || currentReport.task.dept_name || currentReport.task.dept_name_ko;
+  const taskAgentName = currentReport.task.agent_name;
+  const taskDeptName = taskDeptFromMap?.name || currentReport.task.dept_name || currentReport.task.dept_name_ko;
 
   const selectedTeam = useMemo(() => {
     if (activeTab === "planning") return null;
@@ -110,13 +104,7 @@ export default function TaskReportPopup({ report, agents, departments, uiLanguag
             <div className="mb-1 flex items-center gap-2">
               <span className="text-xl">&#x1F4CB;</span>
               <h2 className="truncate text-lg font-bold" style={{ color: "var(--th-text-heading)" }}>
-                {t({
-                  ko: "작업 완료 보고서",
-                  en: "Task Completion Report",
-                  ja: "タスク完了レポート",
-                  zh: "Task Completion Report",
-                  de: "Aufgaben-Abschlussbericht",
-                })}
+                {t({ en: "Task Completion Report", de: "Aufgaben-Abschlussbericht" })}
               </h2>
               <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-300">{projectName}</span>
             </div>
@@ -152,8 +140,7 @@ export default function TaskReportPopup({ report, agents, departments, uiLanguag
                   {taskAgentName} ({currentReport.task.agent_role})
                 </span>
                 <span>
-                  {t({ ko: "완료", en: "Completed", ja: "완了", zh: "Completed", de: "Abgeschlossen" })}:{" "}
-                  {fmtTime(currentReport.task.completed_at)}
+                  {t({ en: "Completed", de: "Abgeschlossen" })}: {fmtTime(currentReport.task.completed_at)}
                 </span>
                 <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-400">
                   {elapsed(currentReport.task.created_at, currentReport.task.completed_at)}
@@ -172,19 +159,10 @@ export default function TaskReportPopup({ report, agents, departments, uiLanguag
                 activeTab === "planning" ? "bg-emerald-600 text-white" : "text-slate-300 hover:opacity-80"
               }`}
             >
-              {t({
-                ko: "기획팀장 취합본",
-                en: "Planning Summary",
-                ja: "企画サマリー",
-                zh: "Planning Summary",
-                de: "Planungszusammenfassung",
-              })}
+              {t({ en: "Planning Summary", de: "Planungszusammenfassung" })}
             </button>
             {teamReports.map((team) => {
-              const label =
-                uiLanguage === "ko"
-                  ? team.department_name_ko || team.department_name || team.department_id || "팀"
-                  : team.department_name || team.department_id || "Team";
+              const label = team.department_name || team.department_id || "Team";
               return (
                 <button
                   key={team.id}
@@ -227,13 +205,7 @@ export default function TaskReportPopup({ report, agents, departments, uiLanguag
             />
           ) : (
             <p className="text-sm" style={{ color: "var(--th-text-muted)" }}>
-              {t({
-                ko: "표시할 보고서가 없습니다",
-                en: "No report to display",
-                ja: "表示するレポートがありません",
-                zh: "No report to display",
-                de: "Kein Bericht anzuzeigen",
-              })}
+              {t({ en: "No report to display", de: "Kein Bericht anzuzeigen" })}
             </p>
           )}
         </div>
@@ -254,7 +226,7 @@ export default function TaskReportPopup({ report, agents, departments, uiLanguag
               onClick={onClose}
               className="rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-500"
             >
-              {t({ ko: "확인", en: "OK", ja: "OK", zh: "OK", de: "OK" })}
+              {t({ en: "OK", de: "OK" })}
             </button>
           </div>
         </div>

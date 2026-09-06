@@ -1,12 +1,12 @@
 import { request, type APIRequestContext } from "@playwright/test";
 
-/**
- * Default E2E base URL. Resolves from PW_BASE_URL when set (e.g. when CI boots
- * the normal dev server on :8790/:8800 and exports PW_BASE_URL accordingly).
- * Falls back to the port used by `pnpm dev:e2e`.
- */
+/** All helper contexts must target the isolated suite's own frontend. */
 export function baseURLFromEnv(): string {
-  return process.env.PW_BASE_URL ?? "http://127.0.0.1:8810";
+  const isolatedUrl = "http://127.0.0.1:8810";
+  if (process.env.PW_BASE_URL && process.env.PW_BASE_URL !== isolatedUrl) {
+    throw new Error("Refusing to run E2E requests against a non-isolated base URL");
+  }
+  return isolatedUrl;
 }
 
 /**

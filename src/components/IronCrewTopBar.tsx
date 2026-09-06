@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n";
+import { NAVIGATION_LABELS } from "../app/navigation-labels";
 import { useEffect, useState } from "react";
 import type { View } from "../app/types";
 import type { UiLanguage } from "../i18n";
@@ -36,25 +38,9 @@ interface IronCrewTopBarProps {
   setupStatus?: { required_ok: boolean; optional_ok: boolean; onboarding_completed: boolean } | null;
 }
 
-type NavTab = {
-  key: View;
-  label: string;
-};
+const NAV_TABS = Object.keys(NAVIGATION_LABELS) as (keyof typeof NAVIGATION_LABELS)[];
 
-const NAV_TABS: NavTab[] = [
-  { key: "command", label: "COMMAND" },
-  { key: "office", label: "OFFICE" },
-  { key: "tasks", label: "TASKS" },
-  { key: "workflows", label: "WORKFLOWS" },
-  { key: "operations", label: "OPS" },
-  { key: "agents", label: "LEGACY ROSTER" },
-  { key: "skills", label: "LIBRARY" },
-  { key: "projects", label: "LEGACY PROJECTS" },
-  { key: "schedules", label: "LEGACY SCHEDULES" },
-  { key: "settings", label: "SETTINGS" },
-];
-
-const LANGUAGE_CYCLE: UiLanguage[] = ["en", "ko", "ja", "zh", "de"];
+const LANGUAGE_CYCLE: UiLanguage[] = ["en", "de"];
 
 export default function IronCrewTopBar({
   view,
@@ -75,6 +61,7 @@ export default function IronCrewTopBar({
   connected,
   setupStatus,
 }: IronCrewTopBarProps) {
+  const { t, locale } = useI18n(language);
   const showLegacyActions = view !== "office" && view !== "command" && view !== "tasks";
   const [time, setTime] = useState(new Date());
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -84,7 +71,8 @@ export default function IronCrewTopBar({
     return () => clearInterval(timer);
   }, []);
 
-  const formatTime = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
 
   function cycleLanguage() {
     const idx = LANGUAGE_CYCLE.indexOf(language);
@@ -202,12 +190,12 @@ export default function IronCrewTopBar({
         }}
       >
         {NAV_TABS.map((tab) => {
-          const isActive = view === tab.key;
+          const isActive = view === tab;
           return (
             <button
-              key={tab.key}
+              key={tab}
               type="button"
-              onClick={() => onChangeView(tab.key)}
+              onClick={() => onChangeView(tab)}
               style={{
                 position: "relative",
                 height: 36,
@@ -240,10 +228,10 @@ export default function IronCrewTopBar({
                 }
               }}
             >
-              {tab.label}
-              {tab.key === "settings" && setupStatus && !setupStatus.onboarding_completed && (
+              {t(NAVIGATION_LABELS[tab]).toLocaleUpperCase(locale)}
+              {tab === "settings" && setupStatus && !setupStatus.onboarding_completed && (
                 <span
-                  aria-label="Setup incomplete"
+                  aria-label={t({ en: "Setup incomplete", de: "Einrichtung unvollständig" })}
                   style={{
                     position: "absolute",
                     top: 4,
@@ -297,7 +285,7 @@ export default function IronCrewTopBar({
           (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
         }}
       >
-        + NEW MISSION
+        {t({ en: "+ NEW MISSION", de: "+ NEUER AUFTRAG" })}
       </button>
 
       <div style={dividerStyle} />
@@ -308,8 +296,8 @@ export default function IronCrewTopBar({
           <button
             type="button"
             onClick={onOpenAnnouncement}
-            aria-label="Announcement"
-            title="Announcement"
+            aria-label={t({ en: "Announcement", de: "Ankündigung" })}
+            title={t({ en: "Announcement", de: "Ankündigung" })}
             style={ghostBtnBase}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-surface-hover)";
@@ -329,8 +317,8 @@ export default function IronCrewTopBar({
               type="button"
               onClick={onOpenDecisionInbox}
               disabled={decisionInboxLoading}
-              aria-label="Decision Inbox"
-              title="Decision Inbox"
+              aria-label={t({ en: "Decision Inbox", de: "Entscheidungen" })}
+              title={t({ en: "Decision Inbox", de: "Entscheidungen" })}
               style={{
                 ...ghostBtnBase,
                 opacity: decisionInboxLoading ? 0.6 : 1,
@@ -351,7 +339,10 @@ export default function IronCrewTopBar({
             </button>
             {decisionInboxCount > 0 && (
               <span
-                aria-label={`${decisionInboxCount} decisions pending`}
+                aria-label={t({
+                  en: `${decisionInboxCount} decisions pending`,
+                  de: `${decisionInboxCount} ausstehende Entscheidungen`,
+                })}
                 style={{
                   position: "absolute",
                   top: 5,
@@ -409,8 +400,8 @@ export default function IronCrewTopBar({
               type="button"
               onClick={() => setMoreMenuOpen((prev) => !prev)}
               style={{ ...ghostBtnBase, fontSize: 18, letterSpacing: "1px" }}
-              aria-label="More actions"
-              title="More actions"
+              aria-label={t({ en: "More actions", de: "Weitere Aktionen" })}
+              title={t({ en: "More actions", de: "Weitere Aktionen" })}
             >
               &#x22EF;
             </button>
@@ -419,7 +410,7 @@ export default function IronCrewTopBar({
                 <button
                   className="fixed inset-0 z-40"
                   onClick={() => setMoreMenuOpen(false)}
-                  aria-label="Close menu"
+                  aria-label={t({ en: "Close menu", de: "Menü schließen" })}
                   style={{ background: "transparent", border: "none" }}
                 />
                 <div
@@ -438,9 +429,9 @@ export default function IronCrewTopBar({
                   }}
                 >
                   {[
-                    { label: "🛠 Agent Status", action: onOpenAgentStatus },
-                    { label: "📊 Report History", action: onOpenReportHistory },
-                    { label: "🏠 Room Manager", action: onOpenRoomManager },
+                    { label: t({ en: "Agent Status", de: "Agentenstatus" }), action: onOpenAgentStatus },
+                    { label: t({ en: "Report History", de: "Berichtsverlauf" }), action: onOpenReportHistory },
+                    { label: t({ en: "Room Manager", de: "Büroverwaltung" }), action: onOpenRoomManager },
                   ].map((item) => (
                     <button
                       key={item.label}
@@ -487,8 +478,16 @@ export default function IronCrewTopBar({
       <button
         type="button"
         onClick={onToggleTheme}
-        aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        aria-label={
+          theme === "dark"
+            ? t({ en: "Switch to light mode", de: "Zum hellen Modus wechseln" })
+            : t({ en: "Switch to dark mode", de: "Zum dunklen Modus wechseln" })
+        }
+        title={
+          theme === "dark"
+            ? t({ en: "Switch to light mode", de: "Zum hellen Modus wechseln" })
+            : t({ en: "Switch to dark mode", de: "Zum dunklen Modus wechseln" })
+        }
         style={ghostBtnBase}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-surface-hover)";
@@ -506,8 +505,11 @@ export default function IronCrewTopBar({
       <button
         type="button"
         onClick={cycleLanguage}
-        aria-label={`Current language: ${language.toUpperCase()}. Click to cycle.`}
-        title={`Language: ${language.toUpperCase()}`}
+        aria-label={t({
+          en: `Current language: ${language.toUpperCase()}. Click to switch to German.`,
+          de: "Aktuelle Sprache: DE. Klicken, um zu Englisch zu wechseln.",
+        })}
+        title={t({ en: "Language: English", de: "Sprache: Deutsch" })}
         style={{
           ...ghostBtnBase,
           width: "auto",
@@ -549,8 +551,8 @@ export default function IronCrewTopBar({
       {/* Connection indicator (optional) */}
       {connected !== undefined && (
         <span
-          aria-label={connected ? "Connected" : "Disconnected"}
-          title={connected ? "Connected" : "Disconnected"}
+          aria-label={connected ? t({ en: "Connected", de: "Verbunden" }) : t({ en: "Disconnected", de: "Getrennt" })}
+          title={connected ? t({ en: "Connected", de: "Verbunden" }) : t({ en: "Disconnected", de: "Getrennt" })}
           style={{
             width: 6,
             height: 6,

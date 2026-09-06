@@ -1,3 +1,5 @@
+import { useCrewLabel } from "./crew-labels";
+import { useI18n } from "../i18n";
 import { AGENT_STATUS_LABEL, type AgentStatus, type CharacterAnimationConfig } from "./types";
 
 export function CharacterAnimationEditor({
@@ -9,18 +11,22 @@ export function CharacterAnimationEditor({
   onChange: (config: CharacterAnimationConfig) => void;
   disabled: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
+  const crewLabel = useCrewLabel();
   const field = (name: "frameWidth" | "frameHeight" | "columns", value: string) =>
     onChange({ ...config, [name]: Math.max(1, Number(value) || 1) });
   return (
     <fieldset className="character-editor-fieldset" disabled={disabled}>
-      <legend>Animationsraster und Statuszeilen</legend>
+      <legend>{t({ de: "Animationsraster und Statuszeilen", en: "Sprite sheet and status rows" })}</legend>
       <p className="character-editor-hint">
-        Jede Zeile enthält die Frames eines Systemzustands von links nach rechts. Die Zuordnung wird beim Speichern
-        gegen die Bildgröße geprüft. Ohne eigene Statuszeile dient „Bereit“ als Ersatz.
+        {t({
+          de: "Jede Zeile enthält die Frames eines Systemzustands von links nach rechts. Die Zuordnung wird beim Speichern gegen die Bildgröße geprüft. Ohne eigene Statuszeile dient „Bereit“ als Ersatz.",
+          en: "Each row contains the frames for a system state from left to right. The mapping is checked against image dimensions when you save. Without a dedicated status row, “Ready” is used as the fallback.",
+        })}{" "}
       </p>
       <div className="character-animation-dimensions">
         <label>
-          Framebreite in Pixel
+          {t({ de: "Framebreite in Pixel", en: "Frame width in pixels" })}{" "}
           <input
             type="number"
             min="1"
@@ -30,7 +36,7 @@ export function CharacterAnimationEditor({
           />
         </label>
         <label>
-          Framehöhe in Pixel
+          {t({ de: "Framehöhe in Pixel", en: "Frame height in pixels" })}{" "}
           <input
             type="number"
             min="1"
@@ -40,7 +46,7 @@ export function CharacterAnimationEditor({
           />
         </label>
         <label>
-          Spalten
+          {t({ de: "Spalten", en: "Columns" })}{" "}
           <input
             type="number"
             min="1"
@@ -69,14 +75,14 @@ export function CharacterAnimationEditor({
                     onChange({ ...config, states });
                   }}
                 />
-                {label}
+                {crewLabel(label)}
               </label>
               {clip && (
                 <>
                   <label>
-                    Zeile (ab 0)
+                    {t({ de: "Zeile (ab 0)", en: "Row (starting at 0)" })}{" "}
                     <input
-                      aria-label={`${label}: Zeile`}
+                      aria-label={`${crewLabel(label)}: Zeile`}
                       type="number"
                       min="0"
                       max="255"
@@ -87,7 +93,7 @@ export function CharacterAnimationEditor({
                   <label>
                     Frames
                     <input
-                      aria-label={`${label}: Frames`}
+                      aria-label={`${crewLabel(label)}: Frames`}
                       type="number"
                       min="1"
                       max={Math.min(64, config.columns)}
@@ -100,7 +106,7 @@ export function CharacterAnimationEditor({
                   <label>
                     FPS
                     <input
-                      aria-label={`${label}: FPS`}
+                      aria-label={`${crewLabel(label)}: FPS`}
                       type="number"
                       min="1"
                       max="30"
@@ -115,7 +121,7 @@ export function CharacterAnimationEditor({
                       disabled={status === "error"}
                       onChange={(event) => update({ loop: event.target.checked })}
                     />
-                    Wiederholen
+                    {t({ de: "Wiederholen", en: "Loop" })}{" "}
                   </label>
                 </>
               )}

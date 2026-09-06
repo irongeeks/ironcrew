@@ -68,14 +68,13 @@ export default function DepartmentDetail({
   const statsLine = (
     <div className="flex gap-4 mt-3 text-xs" style={{ color: "var(--th-text-secondary)" }}>
       <span>
-        🤖 {deptAgents.length} {t({ ko: "명", en: "agents", ja: "名", zh: "agents", de: "Agenten" })}
+        🤖 {deptAgents.length} {t({ en: "agents", de: "Agenten" })}
       </span>
       <span>
-        ⚡ {activeCount} {t({ ko: "작업중", en: "working", ja: "作業中", zh: "working", de: "aktiv" })}
+        ⚡ {activeCount} {t({ en: "working", de: "aktiv" })}
       </span>
       <span>
-        📋 {inProgressTasks}{" "}
-        {t({ ko: "진행중", en: "in progress", ja: "進行中", zh: "in progress", de: "in Bearbeitung" })}
+        📋 {inProgressTasks} {t({ en: "in progress", de: "in Bearbeitung" })}
       </span>
       <span>
         ✅ {doneTasks}/{deptTasks.length}
@@ -87,13 +86,7 @@ export default function DepartmentDetail({
     <div className="space-y-2">
       {deptAgents.length === 0 ? (
         <p className="text-center py-8" style={{ color: "var(--th-text-muted)" }}>
-          {t({
-            ko: "배정된 에이전트가 없습니다",
-            en: "No agents assigned",
-            ja: "配属エージェントなし",
-            zh: "No agents assigned",
-            de: "Keine Agenten zugewiesen",
-          })}
+          {t({ en: "No agents assigned", de: "Keine Agenten zugewiesen" })}
         </p>
       ) : (
         deptAgents.map((agent) => {
@@ -159,7 +152,7 @@ export default function DepartmentDetail({
                   border: "1px solid var(--border-strong)",
                   color: "var(--th-text-secondary)",
                 }}
-                title={t({ ko: "채팅", en: "Chat", ja: "チャット", zh: "Chat", de: "Chat" })}
+                title={t({ en: "Chat", de: "Chat" })}
               >
                 💬
               </button>
@@ -268,19 +261,12 @@ function VideoPipelineProgress({
   t,
 }: {
   tasks: Task[];
-  t: (messages: { ko: string; en: string; ja: string; zh: string; de?: string }) => string;
+  t: (messages: { ko?: string; en: string; ja?: string; zh?: string; de?: string }) => string;
 }) {
   return (
     <div className="shrink-0 px-4 py-3" style={{ borderBottom: "1px solid var(--th-border)" }}>
       <p className="mb-2 text-xs font-medium" style={{ color: "var(--th-text-secondary)" }}>
-        🎬{" "}
-        {t({
-          ko: "비디오 파이프라인",
-          en: "Video Pipeline",
-          ja: "ビデオパイプライン",
-          zh: "Video Pipeline",
-          de: "Video-Pipeline",
-        })}
+        🎬 {t({ en: "Video Pipeline", de: "Video-Pipeline" })}
         <span className="ml-1" style={{ color: "var(--th-text-muted)" }}>
           ({tasks.length})
         </span>

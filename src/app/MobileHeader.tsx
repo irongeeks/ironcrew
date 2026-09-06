@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import type { View } from "./types";
 import type { UiLanguage } from "../i18n";
 
@@ -62,6 +63,7 @@ export default function MobileHeader({
   toggleTheme,
   setMobileNavOpen: _setMobileNavOpen,
 }: MobileHeaderProps) {
+  const { t } = useI18n(uiLanguage);
   return (
     <header
       className="sticky top-0 z-30 flex shrink-0 h-14 items-center justify-between px-3 lg:hidden"
@@ -71,7 +73,7 @@ export default function MobileHeader({
         type="button"
         onClick={() => onChangeView("office")}
         className="flex h-11 w-11 items-center justify-center rounded"
-        aria-label="IronCrew home"
+        aria-label={t({ en: "IronCrew home", de: "IronCrew-Startseite" })}
         title="IronCrew"
       >
         <picture>
@@ -142,19 +144,16 @@ export default function MobileHeader({
           style={{ background: "var(--th-input-bg)", color: "var(--th-text-primary)" }}
           aria-label={languageLabel}
         >
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-          <option value="ja">JA</option>
-          <option value="zh">ZH</option>
-          <option value="de">DE</option>
+          <option value="en">English</option>
+          <option value="de">Deutsch</option>
         </select>
         <span className={`h-2.5 w-2.5 ${connected ? "bg-retro-green" : "bg-retro-red"}`} />
-        <span>{connected ? "LIVE" : "OFF"}</span>
+        <span>{connected ? t({ en: "LIVE", de: "VERBUNDEN" }) : t({ en: "OFF", de: "GETRENNT" })}</span>
         <button
           type="button"
           onClick={() => setMobileHeaderMenuOpen(!mobileHeaderMenuOpen)}
           className="inline-flex h-11 w-11 items-center justify-center rounded border border-[var(--th-border)] bg-[var(--th-bg-surface)] text-[var(--th-text-secondary)]"
-          aria-label="More actions"
+          aria-label={t({ en: "More actions", de: "Weitere Aktionen" })}
         >
           {"\u22EF"}
         </button>
@@ -163,7 +162,7 @@ export default function MobileHeader({
             <button
               className="fixed inset-0 z-40"
               onClick={() => setMobileHeaderMenuOpen(false)}
-              aria-label="Close menu"
+              aria-label={t({ en: "Close menu", de: "Menü schließen" })}
             />
             <div
               className="absolute right-0 top-full z-50 mt-1 min-w-[190px] rounded py-1"
@@ -231,7 +230,9 @@ export default function MobileHeader({
                 className="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--th-bg-surface-hover)]"
                 style={{ borderTop: "1px solid var(--th-border)", color: "var(--th-text-primary)" }}
               >
-                {theme === "dark" ? "\u2600 Light Mode" : "\uD83C\uDF19 Dark Mode"}
+                {theme === "dark"
+                  ? t({ en: "Light mode", de: "Heller Modus" })
+                  : t({ en: "Dark mode", de: "Dunkler Modus" })}
               </button>
               <div className="px-3 py-2" style={{ borderTop: "1px solid var(--th-border)" }}>
                 <label className="mb-1 block text-[10px] font-medium" style={{ color: "var(--th-text-muted)" }}>
@@ -247,11 +248,8 @@ export default function MobileHeader({
                   style={{ background: "var(--th-input-bg)", color: "var(--th-text-primary)" }}
                   aria-label={languageLabel}
                 >
-                  <option value="ko">KO</option>
-                  <option value="en">EN</option>
-                  <option value="ja">JA</option>
-                  <option value="zh">ZH</option>
-                  <option value="de">DE</option>
+                  <option value="en">English</option>
+                  <option value="de">Deutsch</option>
                 </select>
               </div>
             </div>

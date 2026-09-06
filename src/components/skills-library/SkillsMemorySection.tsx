@@ -21,23 +21,9 @@ export default function SkillsMemorySection({
       style={{ background: "var(--th-bg-secondary)", borderColor: "var(--th-border)" }}
     >
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-sm font-semibold text-slate-100">
-          {t({
-            ko: "학습 메모리",
-            en: "Learning Memory",
-            ja: "学習メモリ",
-            zh: "Learning Memory",
-            de: "Lerngedächtnis",
-          })}
-        </div>
+        <div className="text-sm font-semibold text-slate-100">{t({ en: "Learning Memory", de: "Lerngedächtnis" })}</div>
         <div className="text-[11px] text-slate-500">
-          {t({
-            ko: "CLI별 스킬 이력",
-            en: "Per-CLI skill history",
-            ja: "CLI別スキル履歴",
-            zh: "Per-CLI skill history",
-            de: "Skill-Verlauf pro CLI",
-          })}
+          {t({ en: "Per-CLI skill history", de: "Skill-Verlauf pro CLI" })}
         </div>
       </div>
       <SkillHistoryPanel

@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 import { useCallback, useEffect, useState } from "react";
 
 export interface SandboxAccessGrant {
@@ -28,6 +29,7 @@ interface Props {
   onChanged?(): void;
 }
 export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: Props) {
+  const { tx, locale } = useGovernanceI18n();
   const [data, setData] = useState<SandboxAccessData>({ grants: [], requests: [] });
   const [taskId, setTaskId] = useState("");
   const [provider, setProvider] = useState<SandboxAccessInput["provider"]>("codex");
@@ -40,9 +42,9 @@ export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: 
     try {
       setData(await load());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sandbox-Zugriffe konnten nicht geladen werden.");
+      setError(err instanceof Error ? err.message : tx("Sandbox-Zugriffe konnten nicht geladen werden."));
     }
-  }, [load]);
+  }, [load, tx]);
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -56,35 +58,37 @@ export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: 
       await refresh();
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Änderung fehlgeschlagen.");
+      setError(err instanceof Error ? err.message : tx("Änderung fehlgeschlagen."));
     } finally {
       setBusy(false);
     }
   };
   return (
     <section className="cc-panel" aria-labelledby="sandbox-access-heading">
-      <h2 id="sandbox-access-heading">Sandbox-Ausnahmen</h2>
+      <h2 id="sandbox-access-heading">{tx("Sandbox-Ausnahmen")}</h2>
       <p>
-        CLI-Sicherheitsabfragen nur für eine konkrete Aufgabe, deren Projekt-Workspace und genau einen Run umgehen. Der
-        Owner muss die Anfrage in der Freigabe-Inbox genehmigen.
+        {tx(
+          "CLI-Sicherheitsabfragen nur für eine konkrete Aufgabe, deren Projekt-Workspace und genau einen Run umgehen. Der Owner muss die Anfrage in der Freigabe-Inbox genehmigen.",
+        )}{" "}
       </p>
       <p>
-        Ein Widerruf oder Ablauf beendet den erhöhten Run. Bereits erfolgte Änderungen bleiben bestehen und benötigen
-        eine Prüfung.
+        {tx(
+          "Ein Widerruf oder Ablauf beendet den erhöhten Run. Bereits erfolgte Änderungen bleiben bestehen und benötigen eine Prüfung.",
+        )}{" "}
       </p>
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void mutate(
             () => request({ taskId, provider, durationMs: minutes * 60_000, reason }),
-            "Anfrage erstellt. Bitte die konkrete Ausnahme in der Freigabe-Inbox prüfen.",
+            tx("Anfrage erstellt. Bitte die konkrete Ausnahme in der Freigabe-Inbox prüfen."),
           );
         }}
       >
         <label>
-          Aufgabe
+          {tx("Aufgabe")}{" "}
           <select value={taskId} onChange={(e) => setTaskId(e.target.value)} required disabled={busy}>
-            <option value="">Aufgabe mit Projekt auswählen</option>
+            <option value="">{tx("Aufgabe mit Projekt auswählen")}</option>
             {tasks
               .filter((task) => task.project_id)
               .map((task) => (
@@ -107,7 +111,7 @@ export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: 
           </select>
         </label>
         <label>
-          Zeitfenster in Minuten
+          {tx("Zeitfenster in Minuten")}{" "}
           <input
             type="number"
             min={1}
@@ -119,7 +123,7 @@ export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: 
           />
         </label>
         <label>
-          Begründung
+          {tx("Begründung")}{" "}
           <textarea
             minLength={10}
             maxLength={2000}
@@ -130,14 +134,14 @@ export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: 
           />
         </label>
         <button type="submit" disabled={busy || !taskId || reason.trim().length < 10}>
-          Ausnahme anfragen
+          {tx("Ausnahme anfragen")}{" "}
         </button>
       </form>
       {error && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
-      <h3>Offene Anfragen</h3>
+      <h3>{tx("Offene Anfragen")}</h3>
       {data.requests.length === 0 ? (
-        <p>Keine offenen Sandbox-Anfragen.</p>
+        <p>{tx("Keine offenen Sandbox-Anfragen.")}</p>
       ) : (
         <ul>
           {data.requests.map((item) => (
@@ -148,24 +152,24 @@ export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: 
           ))}
         </ul>
       )}
-      <h3>Genehmigte Zeitfenster</h3>
+      <h3>{tx("Genehmigte Zeitfenster")}</h3>
       {data.grants.length === 0 ? (
-        <p>Noch keine Sandbox-Ausnahme genehmigt.</p>
+        <p>{tx("Noch keine Sandbox-Ausnahme genehmigt.")}</p>
       ) : (
         <ul>
           {data.grants.map((grant) => (
             <li key={grant.id}>
-              <strong>{tasks.find((task) => task.id === grant.task_id)?.title ?? "Aufgabe"}</strong>
+              <strong>{tasks.find((task) => task.id === grant.task_id)?.title ?? tx("Aufgabe")}</strong>
               <p>{grant.workspace_path}</p>
               <p>
                 {grant.revoked_at
-                  ? "Widerrufen"
+                  ? tx("Widerrufen")
                   : grant.expires_at <= Date.now()
-                    ? "Abgelaufen"
+                    ? tx("Abgelaufen")
                     : grant.consumed_run_id
-                      ? "An einen Run gebunden"
-                      : "Für einen Run verfügbar"}{" "}
-                · endet {new Date(grant.expires_at).toLocaleString("de-DE")}
+                      ? tx("An einen Run gebunden")
+                      : tx("Für einen Run verfügbar")}{" "}
+                {tx("· endet")} {new Date(grant.expires_at).toLocaleString(locale)}
               </p>
               {!grant.revoked_at && grant.expires_at > Date.now() && (
                 <button
@@ -173,12 +177,12 @@ export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: 
                   disabled={busy}
                   onClick={() =>
                     void mutate(
-                      () => revoke(grant.id, "Vom Owner in der Sandbox-Ansicht widerrufen"),
-                      "Sandbox-Ausnahme widerrufen.",
+                      () => revoke(grant.id, tx("Vom Owner in der Sandbox-Ansicht widerrufen")),
+                      tx("Sandbox-Ausnahme widerrufen."),
                     )
                   }
                 >
-                  Widerrufen
+                  {tx("Widerrufen")}{" "}
                 </button>
               )}
             </li>
@@ -186,7 +190,7 @@ export function SandboxAccessPanel({ tasks, load, request, revoke, onChanged }: 
         </ul>
       )}
       <button type="button" disabled={busy} onClick={() => void refresh()}>
-        Aktualisieren
+        {tx("Aktualisieren")}{" "}
       </button>
     </section>
   );

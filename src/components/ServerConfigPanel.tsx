@@ -1,7 +1,9 @@
+import LocalizedText, { useUiCopy } from "./LocalizedText";
 import { useEffect, useMemo, useState } from "react";
 import { deleteServer, getServer, getServerTypePresets, runServerHealthCheck, updateServer } from "../api";
 import { useI18n } from "../i18n";
 import type { Agent, ServerAllocation, ServerNode, ServerTypePreset } from "../types";
+import { testSshConnection } from "../api/server-ssh";
 import ServerFileBrowser from "./ServerFileBrowser";
 
 type AuthMode = "none" | "bearer" | "api_key" | "header";
@@ -59,6 +61,7 @@ export default function ServerConfigPanel({
   onClose,
   onUpdated,
 }: ServerConfigPanelProps) {
+  const translateUiCopy = useUiCopy();
   const { t } = useI18n();
   const [detail, setDetail] = useState<ServerNode | null>(server);
   const [allocations, setAllocations] = useState<ServerAllocation[]>(initialAllocations);
@@ -203,17 +206,7 @@ export default function ServerConfigPanel({
 
   const handleDelete = async () => {
     if (!detail) return;
-    if (
-      !window.confirm(
-        t({
-          ko: "이 서버를 삭제할까요?",
-          en: "Delete this server?",
-          ja: "このサーバーを削除しますか？",
-          zh: "Delete this server?",
-        }),
-      )
-    )
-      return;
+    if (!window.confirm(t({ en: "Delete this server?", de: "Diesen Server löschen?" }))) return;
     setDeleting(true);
     try {
       await deleteServer(detail.id);
@@ -231,7 +224,6 @@ export default function ServerConfigPanel({
     setSshTesting(true);
     setSshTestResult(null);
     try {
-      const { testSshConnection } = await import("../api/server-ssh");
       const result = await testSshConnection(detail.id);
       setSshTestResult(result);
     } catch (err) {
@@ -273,7 +265,7 @@ export default function ServerConfigPanel({
               className="rounded-lg border px-2 py-1 text-xs"
               style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
             >
-              CLOSE
+              <LocalizedText en="CLOSE" de="SCHLIESSEN" />
             </button>
           </div>
         </div>
@@ -313,13 +305,13 @@ export default function ServerConfigPanel({
 
         {!activeServer ? (
           <div className="px-5 py-8 text-center text-sm" style={{ color: "var(--th-text-muted)" }}>
-            No servers configured
+            <LocalizedText en="No servers configured" de="Keine Server eingerichtet" />
           </div>
         ) : (
           <div className="space-y-4 px-5 py-4 text-sm">
             <label className="block">
               <div className="mb-1 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                Endpoint URL
+                <LocalizedText en="Endpoint URL" de="Endpunkt-URL" />
               </div>
               <input
                 value={endpoint}
@@ -337,7 +329,7 @@ export default function ServerConfigPanel({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <div className="mb-1 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                  Max Concurrent Jobs
+                  <LocalizedText en="Max Concurrent Jobs" de="Maximale gleichzeitige Aufträge" />
                 </div>
                 <input
                   type="number"
@@ -354,7 +346,7 @@ export default function ServerConfigPanel({
               </label>
               <label className="flex items-center gap-2 pt-6 text-xs" style={{ color: "var(--th-text-secondary)" }}>
                 <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-                Enabled
+                <LocalizedText en="Enabled" de="Aktiviert" />
               </label>
             </div>
 
@@ -363,7 +355,7 @@ export default function ServerConfigPanel({
               style={{ borderColor: "var(--th-border)", background: "var(--th-input-bg)" }}
             >
               <div className="mb-2 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                Auth Credentials
+                <LocalizedText en="Auth Credentials" de="Zugangsdaten" />
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <select
@@ -376,10 +368,18 @@ export default function ServerConfigPanel({
                     color: "var(--th-text-primary)",
                   }}
                 >
-                  <option value="none">None</option>
-                  <option value="bearer">Bearer Token</option>
-                  <option value="api_key">API Key Header</option>
-                  <option value="header">Custom Header</option>
+                  <option value="none">
+                    <LocalizedText en="None" de="Keine" />
+                  </option>
+                  <option value="bearer">
+                    <LocalizedText en="Bearer Token" de="Bearer-Token" />
+                  </option>
+                  <option value="api_key">
+                    <LocalizedText en="API Key Header" de="API-Schlüssel-Header" />
+                  </option>
+                  <option value="header">
+                    <LocalizedText en="Custom Header" de="Eigener Header" />
+                  </option>
                 </select>
                 {authMode === "bearer" && (
                   <input
@@ -391,7 +391,7 @@ export default function ServerConfigPanel({
                       borderColor: "var(--th-input-border)",
                       color: "var(--th-text-primary)",
                     }}
-                    placeholder="Bearer token"
+                    placeholder={translateUiCopy("Bearer token", "Bearer-Token")}
                   />
                 )}
                 {authMode === "api_key" && (
@@ -416,7 +416,7 @@ export default function ServerConfigPanel({
                         borderColor: "var(--th-input-border)",
                         color: "var(--th-text-primary)",
                       }}
-                      placeholder="API key"
+                      placeholder={translateUiCopy("API key", "API-Schlüssel")}
                     />
                   </>
                 )}
@@ -431,7 +431,7 @@ export default function ServerConfigPanel({
                         borderColor: "var(--th-input-border)",
                         color: "var(--th-text-primary)",
                       }}
-                      placeholder="Header name"
+                      placeholder={translateUiCopy("Header name", "Header-Name")}
                     />
                     <input
                       value={authValue}
@@ -442,7 +442,7 @@ export default function ServerConfigPanel({
                         borderColor: "var(--th-input-border)",
                         color: "var(--th-text-primary)",
                       }}
-                      placeholder="Header value"
+                      placeholder={translateUiCopy("Header value", "Header-Wert")}
                     />
                   </>
                 )}
@@ -453,7 +453,7 @@ export default function ServerConfigPanel({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium" style={{ color: "var(--th-text-heading)" }}>
-                  SSH Configuration
+                  <LocalizedText en="SSH Configuration" de="SSH-Konfiguration" />
                 </span>
                 {detail?.type !== "ssh_remote" && (
                   <label
@@ -466,7 +466,7 @@ export default function ServerConfigPanel({
                       onChange={(e) => setSshEnabled(e.target.checked)}
                       className="accent-current"
                     />
-                    Enable
+                    <LocalizedText en="Enable" de="Aktivieren" />
                   </label>
                 )}
               </div>
@@ -474,7 +474,7 @@ export default function ServerConfigPanel({
                 <div className="space-y-2 rounded-lg border p-3" style={{ borderColor: "var(--th-border)" }}>
                   <label className="block">
                     <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
-                      Host (Tailscale IP / Hostname)
+                      <LocalizedText en="Host (Tailscale IP / Hostname)" de="Host (Tailscale-IP / Hostname)" />
                     </span>
                     <input
                       className="mt-0.5 w-full rounded-lg border px-2 py-1 text-xs"
@@ -491,7 +491,7 @@ export default function ServerConfigPanel({
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
                       <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
-                        User
+                        <LocalizedText en="User" de="Benutzer" />
                       </span>
                       <input
                         className="mt-0.5 w-full rounded-lg border px-2 py-1 text-xs"
@@ -524,7 +524,7 @@ export default function ServerConfigPanel({
                   </div>
                   <label className="block">
                     <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
-                      Private Key Path
+                      <LocalizedText en="Private Key Path" de="Pfad zum privaten Schlüssel" />
                     </span>
                     <input
                       className="mt-0.5 w-full rounded-lg border px-2 py-1 text-xs"
@@ -540,7 +540,7 @@ export default function ServerConfigPanel({
                   </label>
                   <label className="block">
                     <span className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
-                      Host Key Verification
+                      <LocalizedText en="Host Key Verification" de="Hostschlüssel-Prüfung" />
                     </span>
                     <select
                       className="mt-0.5 w-full rounded-lg border px-2 py-1 text-xs"
@@ -552,8 +552,12 @@ export default function ServerConfigPanel({
                       value={sshKnownHostsPolicy}
                       onChange={(e) => setSshKnownHostsPolicy(e.target.value as "accept" | "strict")}
                     >
-                      <option value="accept">Accept unknown hosts</option>
-                      <option value="strict">Strict host checking</option>
+                      <option value="accept">
+                        <LocalizedText en="Accept unknown hosts" de="Unbekannte Hosts akzeptieren" />
+                      </option>
+                      <option value="strict">
+                        <LocalizedText en="Strict host checking" de="Strenge Hostprüfung" />
+                      </option>
                     </select>
                   </label>
                   <div className="flex items-center gap-2 pt-1">
@@ -563,7 +567,9 @@ export default function ServerConfigPanel({
                       onClick={handleSshTest}
                       disabled={sshTesting || !sshHost.trim() || !sshUser.trim()}
                     >
-                      {sshTesting ? "Testing..." : "Test Connection"}
+                      {sshTesting
+                        ? translateUiCopy("Testing...", "Wird getestet …")
+                        : translateUiCopy("Test Connection", "Verbindung testen")}
                     </button>
                     {sshTestResult && (
                       <span
@@ -572,7 +578,9 @@ export default function ServerConfigPanel({
                           color: sshTestResult.success ? "var(--th-success, #22c55e)" : "var(--th-error, #ef4444)",
                         }}
                       >
-                        {sshTestResult.success ? "Connected" : (sshTestResult.error ?? "Failed")}
+                        {sshTestResult.success
+                          ? translateUiCopy("Connected", "Verbunden")
+                          : (sshTestResult.error ?? "Failed")}
                       </span>
                     )}
                     <button
@@ -580,7 +588,9 @@ export default function ServerConfigPanel({
                       style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
                       onClick={() => setShowFileBrowser((v) => !v)}
                     >
-                      {showFileBrowser ? "Hide File System" : "File System"}
+                      {showFileBrowser
+                        ? translateUiCopy("Hide File System", "Dateisystem ausblenden")
+                        : translateUiCopy("File System", "Dateisystem")}
                     </button>
                   </div>
                 </div>
@@ -610,11 +620,12 @@ export default function ServerConfigPanel({
               style={{ borderColor: "var(--th-border)", background: "var(--th-input-bg)" }}
             >
               <div className="mb-1 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                Active Agent Bindings ({activeAllocations.length})
+                <LocalizedText en="Active Agent Bindings (" de="Aktive Agentenzuordnungen (" />
+                {activeAllocations.length})
               </div>
               {activeAllocations.length === 0 && (
                 <div className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                  No active allocation
+                  <LocalizedText en="No active allocation" de="Keine aktive Zuweisung" />
                 </div>
               )}
               {activeAllocations.map((allocation) => {
@@ -629,11 +640,12 @@ export default function ServerConfigPanel({
                 );
               })}
               <div className="mt-2 mb-1 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                Queue ({queuedAllocations.length})
+                <LocalizedText en="Queue (" de="Warteschlange (" />
+                {queuedAllocations.length})
               </div>
               {queuedAllocations.length === 0 && (
                 <div className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                  Queue empty
+                  <LocalizedText en="Queue empty" de="Warteschlange leer" />
                 </div>
               )}
               {queuedAllocations.map((allocation) => (
@@ -650,14 +662,14 @@ export default function ServerConfigPanel({
                 disabled={saving || !detail}
                 className="rounded-lg border border-emerald-700 bg-emerald-900/30 px-3 py-2 text-xs text-emerald-200 disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Save"}
+                {saving ? translateUiCopy("Saving...", "Wird gespeichert …") : translateUiCopy("Save", "Speichern")}
               </button>
               <button
                 onClick={handleHealthCheck}
                 disabled={!detail}
                 className="rounded-lg border border-sky-700 bg-sky-900/30 px-3 py-2 text-xs text-sky-200 disabled:opacity-50"
               >
-                Health Check
+                <LocalizedText en="Health Check" de="Zustand prüfen" />
               </button>
               <button
                 onClick={() => {
@@ -666,14 +678,14 @@ export default function ServerConfigPanel({
                 className="rounded-lg border px-3 py-2 text-xs"
                 style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
               >
-                Refresh
+                <LocalizedText en="Refresh" de="Aktualisieren" />
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting || !detail}
                 className="rounded-lg border border-red-700 bg-red-900/30 px-3 py-2 text-xs text-red-200 disabled:opacity-50"
               >
-                {deleting ? "Deleting..." : "Delete"}
+                {deleting ? translateUiCopy("Deleting...", "Wird gelöscht …") : translateUiCopy("Delete", "Löschen")}
               </button>
             </div>
           </div>

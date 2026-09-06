@@ -45,7 +45,12 @@ export function registerCompanyPolicyRoutes(
         model,
         provider,
       );
-      if (decision.allowed && provider && !snapshot.effectivePolicy.openrouter.allowed_providers.includes(provider))
+      if (
+        decision.allowed &&
+        provider &&
+        !snapshot.effectivePolicy.openrouter.allowed_providers.includes("*") &&
+        !snapshot.effectivePolicy.openrouter.allowed_providers.includes(provider)
+      )
         decision = {
           allowed: false,
           code: "provider_not_allowed",

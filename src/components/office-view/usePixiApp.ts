@@ -1,3 +1,4 @@
+import { useUiCopy } from "../LocalizedText";
 import { useEffect, useRef, type MutableRefObject, type Dispatch, type SetStateAction } from "react";
 import { Application, Container, Graphics, Rectangle, Text, TextureStyle } from "pixi.js";
 import { loadTiledMap, type TiledObject } from "./TiledRenderer";
@@ -78,6 +79,7 @@ export function usePixiApp(
    */
   onRenderTier?: (tier: RenderTier, reason: string) => void,
 ) {
+  const translateUiCopy = useUiCopy();
   // ── RENDER QUALITY ──
   // Probed once, before any Pixi object exists, so the very first frame is
   // already drawn at a scale this machine can hold. `qualityRef` is then the
@@ -732,7 +734,9 @@ export function usePixiApp(
           const bindText = sprite.getChildByLabel("bind") as Text | null;
           if (bindText) {
             const active = activeByServer.get(server.id);
-            bindText.text = active?.agent_name ? active.agent_name.toUpperCase().slice(0, 10) : "IDLE";
+            bindText.text = active?.agent_name
+              ? active.agent_name.toUpperCase().slice(0, 10)
+              : translateUiCopy("IDLE", "INAKTIV");
           }
         });
       });
@@ -761,5 +765,5 @@ export function usePixiApp(
       worldRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [translateUiCopy]);
 }

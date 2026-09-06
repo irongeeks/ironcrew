@@ -172,56 +172,32 @@ your actual deployment before relying on one in production.
 
 - The API key is referenced as a `SecretRef`, never stored in plaintext or in an
   agent profile.
-- The model catalogue is fetched dynamically, cached, and **filtered through the
-  vendor policy server-side** before it is offered anywhere.
-- Every request carries a provider routing block built by
-  `buildOpenRouterProviderPolicy()`:
-
-```json
-{
-  "only": ["OpenAI", "Anthropic", "Google", "..."],
-  "order": ["OpenAI", "Anthropic", "Google", "..."],
-  "allow_fallbacks": false
-}
-```
-
-For a task flagged sensitive it additionally pins:
-
-```json
-{ "data_collection": "deny", "zdr": true, "allow_fallbacks": false }
-```
-
-- Because `allow_fallbacks` is false and `only` is pinned, a request cannot
-  silently fall back to a provider outside the allowlist.
-- Default concurrency: configurable, initially 6–8.
-
-_Status: policy and routing-block construction are implemented and tested; the
-OpenRouter transport itself is not wired yet._
+- The model catalogue is fetched dynamically from OpenRouter, with all output
+  modalities included. Model IDs remain directly editable when the catalogue is unavailable.
+- The shipped policy allows **all model vendors and all OpenRouter providers**,
+  including paid and free models. It has no geographic or vendor blocklist.
+- `allowed_families: ["*"]` and `openrouter.allowed_providers: ["*"]`
+  explicitly mean unrestricted. Requests omit `only`/`order`; OpenRouter can
+  route to any available host. `allow_fallbacks: true` applies to ordinary tasks.
+- Tasks classified as sensitive still request `data_collection: deny`, `zdr: true`
+  and `allow_fallbacks: false`. A host that cannot meet those requirements may
+  be unavailable. Selecting a model does not add unsupported tools or modalities.
 
 ## Vendor policy
 
-`config/vendor-policy.yaml` is the single source of truth, enforced in
-`server/ironcrew/policy/vendor-policy.ts` and validated with Zod at load.
+`config/vendor-policy.yaml` is enforced in the backend and validated with Zod.
+Operators can deliberately narrow model families and providers; empty lists
+still deny all, and any explicitly configured blocklist wins. A standalone `*`
+permits any nonempty model ID or any provider. It is never sent as a literal
+OpenRouter provider name.
 
-- **Deny by default** — a model matching no allowed family is refused.
-- **The blocklist always wins**, so widening `allowed_families` cannot
-  re-enable a blocked vendor.
-- Matching normalises the model id _and_ checks the resolved upstream provider,
-  so a re-hosted alias or an allowed-looking model routed through a blocked host
-  is still refused.
-- `POST /api/crew/vendor-policy/check` returns **403** for a denied model. This is
-  the same call the execution path makes, so the UI cannot present a model as
-  usable that the backend would refuse.
+Existing owner restrictions in SQLite remain effective after an update. To
+remove an old restriction, select **Alle Modelle** and **Alle Anbieter** in
+Provider-Freigaben and save the change with a reason. A remote runner retains
+its own restrictions and must also receive the updated configuration.
 
-Allowed by default: `openai/*`, `anthropic/*`, `google/*`, `mistralai/*`,
-`meta-llama/*`.
-
-Blocked by default, including aliases and variants: DeepSeek, Qwen/Alibaba,
-Moonshot/Kimi, MiniMax, Zhipu/GLM/Z.ai, Baichuan, Yi/01.AI, StepFun, Tencent
-Hunyuan, ByteDance/Doubao, Baidu ERNIE, SenseTime, iFlytek, InternLM, TeleAI.
-
-Also blocked: the OneManCompany Talent Market and WeChat endpoints. Telemetry
-is off.
+The OneManCompany Talent Market and WeChat endpoint restrictions are separate
+from model selection and remain unchanged. Telemetry remains off.
 
 ## Routing profiles
 

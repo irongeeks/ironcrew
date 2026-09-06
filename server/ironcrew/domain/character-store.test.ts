@@ -29,7 +29,7 @@ const input = async () => ({
 });
 
 beforeEach(() => {
-  directory = fs.mkdtempSync(path.join(os.tmpdir(), "crew-characters-"));
+  directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "crew-characters-")));
   db = createTestDb(path.join(directory, "crew.sqlite"));
   companyId = seedCompany(db);
   agentId = seedAgent(db, companyId);

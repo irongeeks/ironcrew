@@ -417,7 +417,7 @@ export class RunRequestStore {
   fail(
     id: string,
     error: string,
-    opts: { now?: number; runId?: string; leaseOwner?: string } = {},
+    opts: { now?: number; runId?: string; leaseOwner?: string; minimumDelayMs?: number } = {},
   ): RunRequestRow | null {
     const now = opts.now ?? Date.now();
     const request = this.get(id);
@@ -482,7 +482,7 @@ export class RunRequestStore {
       .run(
         opts.runId ?? null,
         error,
-        now + backoffMs(request.attempts),
+        now + Math.max(backoffMs(request.attempts), opts.minimumDelayMs ?? 0),
         now,
         id,
         opts.leaseOwner ?? null,

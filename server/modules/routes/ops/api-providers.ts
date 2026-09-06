@@ -62,7 +62,11 @@ const API_PROVIDER_PRESETS: Record<ApiProviderType, ApiProviderPreset> = {
     auth_header: "key",
   },
   ollama: { base_url: "http://localhost:11434/v1", models_path: "/models", auth_header: "" },
-  openrouter: { base_url: "https://openrouter.ai/api/v1", models_path: "/models", auth_header: "Bearer" },
+  openrouter: {
+    base_url: "https://openrouter.ai/api/v1",
+    models_path: "/models?output_modalities=all",
+    auth_header: "Bearer",
+  },
   together: { base_url: "https://api.together.xyz/v1", models_path: "/models", auth_header: "Bearer" },
   groq: { base_url: "https://api.groq.com/openai/v1", models_path: "/models", auth_header: "Bearer" },
   cerebras: { base_url: "https://api.cerebras.ai/v1", models_path: "/models", auth_header: "Bearer" },
@@ -338,7 +342,9 @@ export function registerApiProviderRoutes({ app, db, nowMs }: RegisterApiProvide
     if (!row) return sendNotFound(res);
 
     const cachedModels = parseModelsCache(row.models_cache);
-    if (!refresh && row.models_cache) {
+    const cacheFresh =
+      row.type !== "openrouter" || (row.models_cached_at !== null && nowMs() - row.models_cached_at < 10 * 60_000);
+    if (!refresh && row.models_cache && cacheFresh) {
       return res.json({ ok: true, models: cachedModels, cached: true });
     }
 

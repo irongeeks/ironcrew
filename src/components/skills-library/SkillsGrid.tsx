@@ -125,21 +125,18 @@ export default function SkillsGrid({
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
                     <span className="text-emerald-400 font-medium">{skill.installsDisplay}</span>{" "}
-                    {t({ ko: "설치", en: "installs", ja: "インストール", zh: "installs", de: "Installationen" })}
+                    {t({ en: "installs", de: "Installationen" })}
                   </span>
                   <div className="flex flex-col gap-1">
                     <button
                       onClick={() => onOpenLearningModal(skill)}
                       className="px-2 py-1 text-[10px] bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 rounded-md hover:bg-emerald-600/30 transition-all"
                       title={t({
-                        ko: "CLI 대표자에게 스킬 학습시키기",
                         en: "Teach this skill to selected CLI leaders",
-                        ja: "選択したCLI代表にこのスキルを学習させる",
-                        zh: "Teach this skill to selected CLI leaders",
                         de: "Diesen Skill den ausgewählten CLI-Vertretern beibringen",
                       })}
                     >
-                      {t({ ko: "학습", en: "Learn", ja: "学習", zh: "Learn", de: "Lernen" })}
+                      {t({ en: "Learn", de: "Lernen" })}
                     </button>
                     <button
                       onClick={() => onCopy(skill)}
@@ -147,8 +144,8 @@ export default function SkillsGrid({
                       title={`npx skills add ${skill.repo}`}
                     >
                       {copiedSkill === skill.name
-                        ? t({ ko: "복사됨", en: "Copied", ja: "コピー済み", zh: "Copied", de: "Kopiert" })
-                        : t({ ko: "복사", en: "Copy", ja: "コピー", zh: "Copy", de: "Kopieren" })}
+                        ? t({ en: "Copied", de: "Kopiert" })
+                        : t({ en: "Copy", de: "Kopieren" })}
                     </button>
                   </div>
                 </div>
@@ -168,25 +165,13 @@ export default function SkillsGrid({
                   {detail === "loading" && (
                     <div className="flex items-center gap-2 text-xs" style={{ color: "var(--th-text-secondary)" }}>
                       <div className="animate-spin w-3 h-3 border border-blue-500 border-t-transparent rounded-full" />
-                      {t({
-                        ko: "상세정보 로딩중...",
-                        en: "Loading details...",
-                        ja: "詳細を読み込み中...",
-                        zh: "Loading details...",
-                        de: "Details werden geladen...",
-                      })}
+                      {t({ en: "Loading details...", de: "Details werden geladen..." })}
                     </div>
                   )}
 
                   {detail === "error" && (
                     <div className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                      {t({
-                        ko: "상세정보를 불러올 수 없습니다",
-                        en: "Could not load details",
-                        ja: "詳細を読み込めません",
-                        zh: "Could not load details",
-                        de: "Details konnten nicht geladen werden",
-                      })}
+                      {t({ en: "Could not load details", de: "Details konnten nicht geladen werden" })}
                     </div>
                   )}
 
@@ -210,13 +195,7 @@ export default function SkillsGrid({
                             className="text-[10px] uppercase tracking-wider"
                             style={{ color: "var(--th-text-muted)" }}
                           >
-                            {t({
-                              ko: "사용 시점",
-                              en: "When to Use",
-                              ja: "使うタイミング",
-                              zh: "When to Use",
-                              de: "Verwendungszweck",
-                            })}
+                            {t({ en: "When to Use", de: "Verwendungszweck" })}
                           </div>
                           <ul
                             className="list-disc pl-4 space-y-1 text-[11px]"
@@ -233,19 +212,13 @@ export default function SkillsGrid({
                         {detail.weeklyInstalls && (
                           <span style={{ color: "var(--th-text-secondary)" }}>
                             <span className="text-emerald-400 font-medium">{detail.weeklyInstalls}</span>{" "}
-                            {t({ ko: "주간 설치", en: "weekly", ja: "週間", zh: "weekly", de: "wöchentlich" })}
+                            {t({ en: "weekly", de: "wöchentlich" })}
                           </span>
                         )}
                         {detail.firstSeen && (
                           <span style={{ color: "var(--th-text-muted)" }}>
-                            {t({
-                              ko: "최초 등록",
-                              en: "First seen",
-                              ja: "初登録",
-                              zh: "First seen",
-                              de: "Erstmals gesehen",
-                            })}
-                            : {formatFirstSeen(detail.firstSeen, localeTag)}
+                            {t({ en: "First seen", de: "Erstmals gesehen" })}:{" "}
+                            {formatFirstSeen(detail.firstSeen, localeTag)}
                           </span>
                         )}
                       </div>
@@ -256,13 +229,7 @@ export default function SkillsGrid({
                             className="text-[10px] mb-1.5 uppercase tracking-wider"
                             style={{ color: "var(--th-text-muted)" }}
                           >
-                            {t({
-                              ko: "플랫폼별 설치",
-                              en: "Platform Installs",
-                              ja: "プラットフォーム別",
-                              zh: "Platform Installs",
-                              de: "Installationen nach Plattform",
-                            })}
+                            {t({ en: "Platform Installs", de: "Installationen nach Plattform" })}
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {detail.platforms.slice(0, 6).map((platform) => (
@@ -320,22 +287,10 @@ export default function SkillsGrid({
         <div className="text-center py-16">
           <div className="text-4xl mb-3">🔍</div>
           <div className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "검색 결과가 없습니다",
-              en: "No search results",
-              ja: "検索結果はありません",
-              zh: "No search results",
-              de: "Keine Suchergebnisse",
-            })}
+            {t({ en: "No search results", de: "Keine Suchergebnisse" })}
           </div>
           <div className="text-xs mt-1" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "다른 키워드로 검색해보세요",
-              en: "Try a different keyword",
-              ja: "別のキーワードで検索してください",
-              zh: "Try a different keyword",
-              de: "Versuchen Sie ein anderes Stichwort",
-            })}
+            {t({ en: "Try a different keyword", de: "Versuchen Sie ein anderes Stichwort" })}
           </div>
         </div>
       )}

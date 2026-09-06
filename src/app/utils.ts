@@ -302,6 +302,8 @@ export function isForceUpdateBannerEnabled(): boolean {
 
 export function syncClientLanguage(language: string): void {
   if (typeof window === "undefined") return;
-  writeStoredValue(LANGUAGE_STORAGE_KEY, normalizeLanguage(language));
+  const normalized = normalizeLanguage(language);
+  writeStoredValue(LANGUAGE_STORAGE_KEY, normalized);
+  document.documentElement.lang = normalized;
   window.dispatchEvent(new Event("ironcrew-language-change"));
 }

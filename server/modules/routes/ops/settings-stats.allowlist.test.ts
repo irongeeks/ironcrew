@@ -375,3 +375,133 @@ describe("PUT /api/settings allowlist (T-004, #81)", () => {
     }
   });
 });
+
+describe("canonical company identity through settings", () => {
+  it("persists browser wizard names in the company and reads canonical values", () => {
+    const db = setupDb();
+    try {
+      db.exec(`CREATE TABLE crew_companies (id TEXT PRIMARY KEY, slug TEXT, name TEXT, owner_name TEXT, updated_at INTEGER);
+        INSERT INTO crew_companies VALUES ('company', 'iron-crew', 'IronCrew', 'CEO', 0);`);
+      const { putRoutes, getRoutes } = createHarness(db);
+      const result = createFakeResponse();
+      putRoutes.get("/api/settings")?.({ body: { companyName: "Testfirma", ceoName: "Robert" } }, result);
+      expect(result.statusCode).toBe(200);
+      expect(db.prepare("SELECT name, owner_name FROM crew_companies").get()).toEqual({
+        name: "Testfirma",
+        owner_name: "Robert",
+      });
+      db.prepare("UPDATE crew_companies SET name = 'Canonical name'").run();
+      const response = createFakeResponse();
+      getRoutes.get("/api/settings")?.({}, response);
+      expect(response.payload.settings).toMatchObject({ companyName: "Canonical name", ceoName: "Robert" });
+    } finally {
+      db.close();
+    }
+  });
+  it("rolls back canonical identity if another setting fails to save", () => {
+    const db = setupDb();
+    try {
+      db.exec(`CREATE TABLE crew_companies (id TEXT PRIMARY KEY, slug TEXT, name TEXT, owner_name TEXT, updated_at INTEGER);
+        INSERT INTO crew_companies VALUES ('company', 'iron-crew', 'IronCrew', 'CEO', 0);
+        CREATE TRIGGER fail_theme BEFORE INSERT ON settings WHEN NEW.key = 'theme'
+        BEGIN SELECT RAISE(ABORT, 'test save failure'); END;`);
+      const { putRoutes } = createHarness(db);
+      const result = createFakeResponse();
+      putRoutes.get("/api/settings")?.({ body: { companyName: "Testfirma", theme: "dark" } }, result);
+      expect(result.statusCode).toBe(500);
+      expect(db.prepare("SELECT name FROM crew_companies").get()).toEqual({ name: "IronCrew" });
+      expect(db.prepare("SELECT value FROM settings WHERE key = 'companyName'").get()).toBeUndefined();
+    } finally {
+      db.close();
+    }
+  });
+  it("rejects invalid identity before changing any settings", () => {
+    const db = setupDb();
+    try {
+      const { putRoutes } = createHarness(db);
+      const response = createFakeResponse();
+      putRoutes.get("/api/settings")?.({ body: { companyName: " ", ceoName: "Robert" } }, response);
+      expect(response.statusCode).toBe(400);
+      expect(db.prepare("SELECT value FROM settings WHERE key = 'ceoName'").get()).toBeUndefined();
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe("supported UI language persistence", () => {
+  it("updates settings and canonical company locale together", () => {
+    const db = setupDb();
+    try {
+      db.exec(`CREATE TABLE crew_companies (id TEXT, slug TEXT, name TEXT, owner_name TEXT, locale TEXT, updated_at INTEGER);
+        INSERT INTO crew_companies VALUES ('company', 'iron-crew', 'IronCrew', 'CEO', 'de-DE', 0)`);
+      const { getRoutes, putRoutes } = createHarness(db);
+      for (const [language, locale] of [
+        ["en", "en-US"],
+        ["de", "de-DE"],
+      ]) {
+        const response = createFakeResponse();
+        putRoutes.get("/api/settings")!({ body: { language } }, response);
+        expect(response.statusCode).toBe(200);
+        expect(db.prepare("SELECT value FROM settings WHERE key='language'").get()).toEqual({ value: language });
+        expect(db.prepare("SELECT locale FROM crew_companies").get()).toEqual({ locale });
+        const saved = createFakeResponse();
+        getRoutes.get("/api/settings")!({}, saved);
+        expect(saved.payload.settings.language).toBe(language);
+      }
+    } finally {
+      db.close();
+    }
+  });
+
+  it("rolls back company locale when settings persistence fails", () => {
+    const db = setupDb();
+    try {
+      db.exec(`CREATE TABLE crew_companies (id TEXT, slug TEXT, name TEXT, owner_name TEXT, locale TEXT, updated_at INTEGER);
+        INSERT INTO crew_companies VALUES ('company', 'iron-crew', 'IronCrew', 'CEO', 'de-DE', 0);
+        CREATE TRIGGER fail_language BEFORE INSERT ON settings WHEN NEW.key='language'
+        BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END;`);
+      const { putRoutes } = createHarness(db);
+      const response = createFakeResponse();
+      putRoutes.get("/api/settings")!({ body: { language: "en" } }, response);
+      expect(response.statusCode).toBe(500);
+      expect(db.prepare("SELECT locale FROM crew_companies").get()).toEqual({ locale: "de-DE" });
+      expect(db.prepare("SELECT value FROM settings WHERE key='language'").get()).toBeUndefined();
+    } finally {
+      db.close();
+    }
+  });
+
+  it.each(["ko", "ja", "zh", "fr", "de-DE", "", null, 1])(
+    "rejects unsupported locale %s before any write",
+    (language) => {
+      const db = setupDb();
+      try {
+        db.prepare("INSERT INTO settings VALUES ('language','en')").run();
+        const { putRoutes } = createHarness(db);
+        const response = createFakeResponse();
+        const before = db.prepare("SELECT * FROM settings").all();
+        putRoutes.get("/api/settings")!({ body: { language, companyName: "Should not be saved" } }, response);
+        expect(response.statusCode).toBe(400);
+        expect(response.payload).toMatchObject({ error: "invalid_setting_value", key: "language" });
+        expect(db.prepare("SELECT * FROM settings").all()).toEqual(before);
+      } finally {
+        db.close();
+      }
+    },
+  );
+
+  it("normalizes unsupported saved languages on read without changing user data", () => {
+    const db = setupDb();
+    try {
+      db.prepare("INSERT INTO settings VALUES ('language','ja')").run();
+      const { getRoutes } = createHarness(db);
+      const response = createFakeResponse();
+      getRoutes.get("/api/settings")!({}, response);
+      expect(response.payload.settings.language).toBe("en");
+      expect(db.prepare("SELECT value FROM settings WHERE key='language'").get()).toEqual({ value: "ja" });
+    } finally {
+      db.close();
+    }
+  });
+});
