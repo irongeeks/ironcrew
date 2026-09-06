@@ -121,6 +121,34 @@ afterEach(() => {
 });
 
 describe("VendorPolicyPanel", () => {
+  it("keeps saved choices available while editing an unrestricted baseline and can restore all models", async () => {
+    server.baseline = { allowedFamilies: ["*"], allowedProviders: ["*"] };
+    await ready();
+    const choice = screen.getByRole("checkbox", { name: "Anthropic — gespeicherte Einschränkung", exact: true });
+    fireEvent.click(choice);
+    expect(choice).toBeInTheDocument();
+    expect(choice).not.toBeChecked();
+    fireEvent.click(choice);
+    expect(choice).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Alle Anbieter", exact: true }));
+    expect(choice).not.toBeChecked();
+    fireEvent.click(choice);
+    expect(screen.getByRole("checkbox", { name: "Alle Anbieter", exact: true })).not.toBeChecked();
+    reason();
+    save();
+    await screen.findByText(/Freigaben gespeichert. Revision 3/);
+    expect(writes[0].body.restrictions).toEqual({
+      allowedFamilies: ["openai/*", "anthropic/*"],
+      allowedProviders: ["Anthropic"],
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Alle Modelle", exact: true }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Alle Anbieter", exact: true }));
+    reason();
+    save();
+    await screen.findByText(/Freigaben gespeichert. Revision 4/);
+    expect(writes[1].body.restrictions).toEqual({ allowedFamilies: ["*"], allowedProviders: ["*"] });
+  });
+
   it("shows immutable baseline and saves only explicit restrictions with reason, version and CSRF", async () => {
     await ready();
     const baseline = screen.getByRole("region", { name: "Zentrale Schutzregeln" });

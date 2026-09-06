@@ -101,7 +101,7 @@ export function VendorPolicyPanel({
             [field]: selected
               ? item === "*"
                 ? ["*"]
-                : [...current[field], item]
+                : [...current[field].filter((value) => value !== "*" && value !== item), item]
               : current[field].filter((value) => value !== item),
           }
         : current,
@@ -356,11 +356,15 @@ export function VendorPolicyPanel({
                     </span>
                   </label>
                 ))}
-                {draft[field]
+                {[...new Set([...snapshot.restrictions[field], ...draft[field]])]
                   .filter((item) => !snapshot.baseline[field].includes(item))
                   .map((item) => (
                     <label className="vendor-policy-check" key={item}>
-                      <input type="checkbox" checked onChange={() => change(field, item, false)} />
+                      <input
+                        type="checkbox"
+                        checked={draft[field].includes(item)}
+                        onChange={(event) => change(field, item, event.target.checked)}
+                      />
                       <span>
                         {item}
                         {snapshot.baseline[field].includes("*")

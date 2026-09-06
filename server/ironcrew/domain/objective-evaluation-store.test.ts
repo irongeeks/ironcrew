@@ -55,6 +55,9 @@ beforeEach(() => {
 });
 afterEach(() => db.close());
 describe("objective evidence evaluations", () => {
+  // This case includes all schema migrations on disk, durable writes and a
+  // reopen; its budget accounts for shared CI disk contention, unlike the
+  // in-memory cases below.
   it("preserves criteria, evidence, comparison and replay across a database restart", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "crew-objective-"));
     const filename = path.join(directory, "crew.sqlite");
@@ -80,7 +83,7 @@ describe("objective evidence evaluations", () => {
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
   it("persists immutable versioned criteria, deterministic per-case results and idempotent comparisons", () => {
     const rubric = store.createRubric(company, rubricInput(), owner);
     const run = evidence();

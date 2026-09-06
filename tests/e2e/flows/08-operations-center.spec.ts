@@ -10,11 +10,12 @@ test.describe("Operations Center Flow", () => {
 
   test("operations view loads with all sections", async ({ page }) => {
     await navigateTo(page, "operations");
-    const content = page.locator("main, [class*=operations], [class*=Operations]").first();
-    await expect(content).toBeVisible();
-    const sections = page.locator("section, [class*=section], [class*=Section], [class*=card], [class*=Card]");
-    const count = await sections.count();
-    expect(count).toBeGreaterThan(0);
+    const content = page.getByRole("main");
+    await expect(content.getByRole("heading", { name: "Unified Operations Center", exact: true })).toBeVisible();
+    // The route is lazy-loaded, then its data loads before these sections render.
+    for (const name of ["Session Stream", "Node Grid", "Alert Feed"]) {
+      await expect(content.getByRole("heading", { name, exact: true })).toBeVisible();
+    }
   });
 
   test("stats API returns data", async ({ request }) => {
