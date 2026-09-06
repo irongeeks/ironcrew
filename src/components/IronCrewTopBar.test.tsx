@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import IronCrewTopBar from "./IronCrewTopBar";
+import { VIEW_LABELS } from "../../tests/e2e/fixtures/navigation-labels";
 
 function createBaseProps(): ComponentProps<typeof IronCrewTopBar> {
   return {
@@ -130,6 +131,17 @@ describe("IronCrewTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
 });
 
 describe("IronCrewTopBar language selection", () => {
+  it.each(["en", "de"] as const)("supports E2E navigation by its actual %s accessible names", (language) => {
+    const props = createBaseProps();
+    render(<IronCrewTopBar {...props} language={language} />);
+    const navigation = within(within(screen.getByRole("banner")).getByRole("navigation"));
+    for (const [view, name] of Object.entries(VIEW_LABELS)) {
+      const button = navigation.getByRole("button", { name });
+      fireEvent.click(button);
+      expect(props.onChangeView).toHaveBeenLastCalledWith(view);
+    }
+  });
+
   it("switches only between English and German and localizes navigation", () => {
     const props = createBaseProps();
     const { rerender } = render(<IronCrewTopBar {...props} />);

@@ -2,31 +2,8 @@ import { type Page, type APIRequestContext, expect } from "@playwright/test";
 
 // ── Navigation ──────────────────────────────────────────────
 
-export type ViewName =
-  | "command"
-  | "office"
-  | "tasks"
-  | "workflows"
-  | "operations"
-  | "agents"
-  | "skills"
-  | "projects"
-  | "schedules"
-  | "settings";
-
-// Accessible names use the selected UI language; CSS uppercase is only visual.
-const VIEW_LABELS: Record<ViewName, RegExp> = {
-  command: /^(Command|Zentrale)$/,
-  office: /^(Office|Büro)$/,
-  tasks: /^(Tasks|Aufgaben)$/,
-  workflows: /^(Workflows|Abläufe)$/,
-  operations: /^(Operations|Betrieb)$/,
-  agents: /^(Agents|Agenten)$/,
-  skills: /^(Library|Bibliothek)$/,
-  projects: /^(Projects|Projekte)$/,
-  schedules: /^(Schedules|Zeitpläne)$/,
-  settings: /^(Settings|Einstellungen)$/,
-};
+import { VIEW_LABELS, type ViewName } from "./navigation-labels";
+export type { ViewName } from "./navigation-labels";
 
 export async function navigateTo(page: Page, view: ViewName): Promise<void> {
   const label = VIEW_LABELS[view];

@@ -45,4 +45,7 @@ export default defineConfig({
   },
   reporter: process.env.CI ? [["list"], ["github"]] : [["list"]],
   retries: process.env.CI ? 1 : 0,
+  // Return actionable traces promptly instead of exhausting an hour on the
+  // same broken navigation. A successful CI run still executes every test.
+  maxFailures: process.env.CI ? 5 : 0,
 });
