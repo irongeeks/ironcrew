@@ -12,6 +12,16 @@ apple_tools_ready() { [[ "${BOOTSTRAP_OS:-}" != Darwin ]] || xcode-select -p >/d
 git_ready() { apple_tools_ready && has_command git && git --version >/dev/null 2>&1; }
 python_ready() { apple_tools_ready && has_command python3 && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1; }
 compiler_ready() { apple_tools_ready && has_command c++ && c++ --version >/dev/null 2>&1; }
+activate_homebrew_python() {
+  local brew_prefix
+  if [[ "${BOOTSTRAP_OS}" == Darwin ]] && apple_tools_ready && ! python_ready && has_command brew; then
+    brew_prefix="$(brew --prefix)" || return 1
+    if [[ -x "${brew_prefix}/bin/python3" ]] && "${brew_prefix}/bin/python3" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1; then
+      export PATH="${brew_prefix}/bin:${PATH}"
+      hash -r
+    fi
+  fi
+}
 pnpm_ready() {
   has_command pnpm && [[ "$(cd /; COREPACK_ENABLE_NETWORK=0 COREPACK_ENABLE_AUTO_PIN=0 COREPACK_ENABLE_PROJECT_SPEC=0 npm_config_manage_package_manager_versions=false pnpm_config_manage_package_manager_versions=false pnpm_config_pm_on_fail=ignore pnpm --version 2>/dev/null)" == "${PNPM_VERSION}" ]]
 }
@@ -39,6 +49,7 @@ bootstrap_platform() {
   if ! pnpm_ready && [[ -x "${BOOTSTRAP_PREFIX}/bin/pnpm" ]]; then
     export PATH="${BOOTSTRAP_PREFIX}/bin:${PATH}"
   fi
+  activate_homebrew_python
 }
 
 missing_requirements() {
@@ -129,6 +140,7 @@ install_macos_packages() {
       install_homebrew
       brew install python
     fi
+    activate_homebrew_python
   fi
 }
 

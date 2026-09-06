@@ -40,6 +40,8 @@ function fixture({
   downloadedNodeMajor = 26,
   packageNoop = false,
   missingCommandLineTools = false,
+  shadowedBrewPython = false,
+  brewPythonInstalled = false,
 } = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), "ironcrew-bootstrap-"));
   fixtures.push(directory);
@@ -108,6 +110,20 @@ function fixture({
   for (const name of ["git", "python3", "make", "c++", "g++", "cc", "gcc"]) {
     executable(path.join(source, name), "exit 0");
     if (!missing.includes(name)) copyFileSync(path.join(source, name), path.join(bin, name));
+  }
+  if (shadowedBrewPython) {
+    const brewPrefix = path.join(directory, "homebrew");
+    mkdirSync(path.join(brewPrefix, "bin"), { recursive: true });
+    command("python3", "exit 1");
+    if (brewPythonInstalled) copyFileSync(path.join(source, "python3"), path.join(brewPrefix, "bin/python3"));
+    command(
+      "brew",
+      `case "$1" in
+      --prefix) echo ${quote(brewPrefix)};;
+      install) printf 'brew %s\\n' "$*" >> "$BOOTSTRAP_LOG"; cp "$BOOTSTRAP_SOURCE/python3" ${quote(path.join(brewPrefix, "bin/python3"))};;
+      *) exit 90;;
+    esac`,
+    );
   }
   const pnpmScript = (version) =>
     `if [ "\${1:-}" = --version ] || [ "\${1:-}" = -v ]; then echo ${quote(version)}; else printf 'pnpm %s\\n' "$*" >> "$BOOTSTRAP_LOG"; fi`;
@@ -203,6 +219,20 @@ describe.skipIf(process.platform === "win32")("native setup bootstrap", () => {
     expect(setup.calls()).toBe("");
     expect(existsSync(setup.toolchain)).toBe(false);
   });
+
+  it.each([false, true])(
+    "uses Homebrew Python behind an older Python (already installed: %s)",
+    (brewPythonInstalled) => {
+      const setup = fixture({ platform: "Darwin", shadowedBrewPython: true, brewPythonInstalled });
+      const result = setup.run("--requirements-only");
+      expect(result.status, result.stderr).toBe(0);
+      expect(setup.calls()).toBe(brewPythonInstalled ? "" : "brew install python\n");
+      const calls = setup.calls();
+      const repeated = setup.run("--check");
+      expect(repeated.status, repeated.stderr).toBe(0);
+      expect(setup.calls()).toBe(calls);
+    },
+  );
 
   it("checks requirements without creating toolchain files or installing anything", () => {
     const setup = fixture({ nodeMajor: 24, pnpmVersion: null, missing: ["git"] });
