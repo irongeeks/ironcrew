@@ -115,3 +115,21 @@ Ein vollständiger Release-Nachweis benötigt zusätzlich die Browser-Suite und
 Linux-/macOS-CI einschließlich echter Unix-Socket-Tests. Historische fehlerhafte
 Runs oder durch alte E2E-Läufe veränderte Produktivdaten werden nicht automatisch
 bereinigt.
+
+## Korrekturen aus der anschließenden GitHub-CI
+
+Die erste vollständige CI bestätigte die Unit-Suites, zeigte aber zusätzliche
+Integrationsfehler. Vor dem Merge wurden diese korrigiert:
+
+- Der Docker-Dependency-Layer kopiert auch `pnpm-workspace.yaml`, damit die
+  eingefrorene Installation dieselben Overrides wie Lockfile und reguläre CI nutzt.
+- Logging-Tests setzen und restaurieren ihr eigenes Log-Level. Damit werden
+  Redaktionsprüfungen auch bei `LOG_LEVEL=error` tatsächlich ausgeführt; zwei
+  zusätzliche Positivassertions verhindern falsch positive Tests ohne Log-Ausgabe.
+- E2E-Sessions setzen ihre Sprache explizit. Navigation und UI-Erwartungen verwenden
+  die aktuellen EN/DE-Beschriftungen. Die API-Prüfung bestätigt Deutsch-Persistenz
+  und weist Japanisch ohne Veränderung der gespeicherten Sprache zurück.
+
+Lokaler Nachweis: Logging-Tests unter `LOG_LEVEL=error` bestanden; eine isolierte
+Frozen-Lockfile-Prüfung mit den drei Docker-Eingabedateien war erfolgreich.
+Der abschließende Browser-/Docker-/Plattformnachweis erfolgt in den PR-Checks.

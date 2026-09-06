@@ -13,12 +13,19 @@
  * is the copy that outlives the process.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { logger, getSqliteBuffer } from "./logger.ts";
 
 let baseline = 0;
+let previousLevel = logger.level;
 beforeEach(() => {
+  previousLevel = logger.level;
+  // Exercise redaction even when the host/CI suppresses informational logs.
+  logger.level = "info";
   baseline = getSqliteBuffer().length;
+});
+afterEach(() => {
+  logger.level = previousLevel;
 });
 
 function sinceBaseline(): string {
@@ -52,6 +59,7 @@ describe("the logger scrubs what call sites forget to", () => {
   it("catches one interpolated into the message itself", () => {
     // `formatters.log` never sees the message string; the logMethod hook does.
     logger.warn({ module: "test" }, "token=sk-ant-abcdefghijklmnop0123456789 rejected");
+    expect(sinceBaseline()).toContain("rejected");
     expect(sinceBaseline()).not.toContain("sk-ant-abcdefghijklmnop0123456789");
   });
 
@@ -63,6 +71,7 @@ describe("the logger scrubs what call sites forget to", () => {
       },
       "starting servers",
     );
+    expect(sinceBaseline()).toContain("starting servers");
     expect(sinceBaseline()).not.toContain("sk-ant-abcdefghijklmnop0123456789");
   });
 

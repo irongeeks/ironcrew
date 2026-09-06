@@ -5,7 +5,7 @@ test("creates an immutable rubric, measures a persisted mock run and reproduces 
   page,
   request,
 }, testInfo) => {
-  const csrf = await establishSession(request);
+  const csrf = await establishSession(request, "de");
   const headers = { "x-csrf-token": csrf };
   const endpoint = "/api/crew/evaluations";
   let snapshot = await expectOkJson<ObjectiveSnapshot>(await request.get(endpoint), "Read objective evaluations");

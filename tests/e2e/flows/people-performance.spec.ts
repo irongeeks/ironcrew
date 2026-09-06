@@ -25,7 +25,7 @@ test("opens canonical employee performance, filters real review data and reopens
   page,
   request,
 }, testInfo) => {
-  await establishSession(request);
+  await establishSession(request, "de");
   const before = await snapshot(request);
   const { agents } = await expectOkJson<{ agents: Agent[] }>(await request.get("/api/crew/agents"), "Read employees");
   const routing = await expectOkJson<RoutingSnapshot>(
@@ -126,7 +126,7 @@ test("saves an inactive department reviewer, retains it after reload and rejects
   page,
   request,
 }, testInfo) => {
-  const csrf = await establishSession(request);
+  const csrf = await establishSession(request, "de");
   const headers = { "x-csrf-token": csrf };
   const before = await snapshot(request);
   const { departments } = await expectOkJson<{ departments: Department[] }>(
@@ -225,7 +225,7 @@ test("saves an inactive department reviewer, retains it after reload and rejects
 });
 
 test("refuses browser-supplied self-ratings and preserves canonical review history", async ({ request }) => {
-  const csrf = await establishSession(request);
+  const csrf = await establishSession(request, "de");
   const before = await snapshot(request);
   const agent = before.profiles[0];
   expect(agent).toBeDefined();

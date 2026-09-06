@@ -21,7 +21,7 @@ interface PlanTask {
 }
 
 test("CEO plan is reviewed before its canonical child tasks exist", async ({ page, request }, testInfo) => {
-  const headers = { "x-csrf-token": await establishSession(request) };
+  const headers = { "x-csrf-token": await establishSession(request, "de") };
   const suffix = randomUUID().slice(0, 12);
   const { agents } = await expectOkJson<{ agents: Agent[] }>(await request.get("/api/crew/agents"), "read crew");
   const ea = agents.find((agent) => agent.isExecutiveAssistant)!;

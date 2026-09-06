@@ -17,7 +17,7 @@ test("owner restrictions persist, block provider checks, and reject stale revisi
   page,
   request,
 }, testInfo) => {
-  const headers = { "x-csrf-token": await establishSession(request) };
+  const headers = { "x-csrf-token": await establishSession(request, "de") };
   const original = await snapshot(request);
   cleanups.set(testInfo.testId, async (request) => {
     const current = await snapshot(request);

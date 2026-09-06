@@ -21,7 +21,7 @@ test("persists an owner-edited model profile and an existing agent binding throu
   page,
   request,
 }, testInfo) => {
-  const csrf = await establishSession(request);
+  const csrf = await establishSession(request, "de");
   const headers = { "x-csrf-token": csrf };
   const before = await snapshot(request);
   const { agents } = await expectOkJson<{ agents: Agent[] }>(await request.get("/api/crew/agents"), "Read seed agents");

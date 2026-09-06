@@ -442,7 +442,7 @@ test.describe("CI coverage gap expansion", () => {
     const settingsPutRes = await request.put("/api/settings", {
       headers: csrfHeaders,
       data: {
-        language: "ja",
+        language: "de",
         uiDensity: "compact",
       },
     });
@@ -450,7 +450,7 @@ test.describe("CI coverage gap expansion", () => {
 
     const settingsGetRes = await request.get("/api/settings");
     const settingsGet = await expectOkJson<{ settings: Record<string, unknown> }>(settingsGetRes, "GET /api/settings");
-    expect(settingsGet.settings.language).toBe("ja");
+    expect(settingsGet.settings.language).toBe("de");
     expect(settingsGet.settings.uiDensity).toBe("compact");
 
     const settingsGetRes2 = await request.get("/api/settings");
@@ -458,7 +458,18 @@ test.describe("CI coverage gap expansion", () => {
       settingsGetRes2,
       "GET /api/settings(second-read)",
     );
-    expect(settingsGet2.settings.language).toBe("ja");
+    expect(settingsGet2.settings.language).toBe("de");
+
+    const unsupportedLanguage = await request.put("/api/settings", {
+      headers: csrfHeaders,
+      data: { language: "ja" },
+    });
+    expect(unsupportedLanguage.status()).toBe(400);
+    const afterRejectedLanguage = await expectOkJson<{ settings: Record<string, unknown> }>(
+      await request.get("/api/settings"),
+      "GET /api/settings(after unsupported language)",
+    );
+    expect(afterRejectedLanguage.settings.language).toBe("de");
 
     const badDeptRes = await request.post("/api/departments", {
       headers: csrfHeaders,

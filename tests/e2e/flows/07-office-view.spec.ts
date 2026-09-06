@@ -3,7 +3,7 @@ import { navigateTo, establishSession } from "../fixtures/test-helpers";
 
 test.describe("Canonical Crew Office", () => {
   test.beforeEach(async ({ page, request }) => {
-    await establishSession(request);
+    await establishSession(request, "de");
     await page.goto("/");
     await navigateTo(page, "office");
     await expect(page.getByTestId("crew-office")).toBeVisible();

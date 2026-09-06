@@ -3,13 +3,7 @@ import { navigateTo, establishSession } from "../fixtures/test-helpers";
 
 test.describe("Settings Flow", () => {
   test.beforeEach(async ({ page, request }) => {
-    const csrfToken = await establishSession(request);
-    // ci-coverage-gap.spec.ts sets language:"ja" and does not clean up.
-    // Reset to English before loading the page so text locators are stable.
-    await request.put("/api/settings", {
-      data: { language: "en" },
-      headers: { "x-csrf-token": csrfToken },
-    });
+    await establishSession(request, "en");
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
     await navigateTo(page, "settings");

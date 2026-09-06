@@ -7,12 +7,12 @@
  */
 
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { establishSession } from "../fixtures/test-helpers";
+import { establishSession, navigateTo } from "../fixtures/test-helpers";
 
 const CREW = "/api/crew";
 
 async function session(request: APIRequestContext): Promise<Record<string, string>> {
-  const csrf = await establishSession(request);
+  const csrf = await establishSession(request, "de");
   return { "x-csrf-token": csrf };
 }
 
@@ -196,7 +196,7 @@ test.describe("IronCrew control plane (API)", () => {
 
 test.describe("Command Center UI", () => {
   test.beforeEach(async ({ request }) => {
-    await establishSession(request);
+    await establishSession(request, "de");
   });
 
   test("renders the command center with live backend state", async ({ page, request }) => {
@@ -207,7 +207,7 @@ test.describe("Command Center UI", () => {
     });
 
     await page.goto("/");
-    await page.getByRole("button", { name: "COMMAND" }).first().click();
+    await navigateTo(page, "command");
 
     const shell = page.getByTestId("command-center");
     await expect(shell).toBeVisible();
@@ -237,7 +237,7 @@ test.describe("Command Center UI", () => {
 
   test("lets the CEO send a message and see the EA reply", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "COMMAND" }).first().click();
+    await navigateTo(page, "command");
     await expect(page.getByTestId("command-center")).toBeVisible();
 
     const message = `E2E Auftrag ${Date.now()}: bitte dokumentiere das Deployment-Verfahren.`;
@@ -258,7 +258,7 @@ test.describe("Command Center UI", () => {
 
   test("shows agent policy separately from persona", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "COMMAND" }).first().click();
+    await navigateTo(page, "command");
     await expect(page.getByTestId("command-center")).toBeVisible();
 
     await page.locator(".ic-agent").filter({ hasText: "Ledger" }).click();

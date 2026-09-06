@@ -11,7 +11,7 @@ test("CEO requests a revision in the UI, receives a second run, accepts and relo
   page,
   request,
 }, testInfo) => {
-  const headers = { "x-csrf-token": await establishSession(request) };
+  const headers = { "x-csrf-token": await establishSession(request, "de") };
   await page.goto("/");
   await expect(page.getByTestId("command-center")).toBeVisible();
   await expect(page.getByTestId("crew-sync-status")).toContainText("Live");
