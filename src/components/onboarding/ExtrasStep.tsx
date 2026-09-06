@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n";
 import { useState } from "react";
 
 interface ExtrasStepProps {
@@ -8,36 +9,55 @@ interface ExtrasStepProps {
 interface CardConfig {
   id: string;
   icon: string;
-  title: string;
-  subtitle: string;
-  expandedContent: string;
+  title: { en: string; de: string };
+  subtitle: { en: string; de: string };
+  expandedContent: { en: string; de: string };
 }
 
 const EXTRAS_CARDS: CardConfig[] = [
   {
     id: "github",
     icon: "🐙",
-    title: "GitHub OAuth",
-    subtitle: "Connect GitHub for repo import and Copilot auth",
-    expandedContent: "→ Configure in Settings → API & Keys tab",
+    title: { en: "GitHub OAuth", de: "GitHub OAuth" },
+    subtitle: {
+      en: "Connect GitHub for repo import and Copilot auth",
+      de: "Verbinde GitHub für Repository-Import und Copilot-Anmeldung",
+    },
+    expandedContent: {
+      en: "→ Configure in Settings → API & Keys tab",
+      de: "→ Unter Einstellungen → API & Schlüssel einrichten",
+    },
   },
   {
     id: "apikey",
     icon: "🔑",
-    title: "API Key",
-    subtitle: "Add API keys for cloud model providers (OpenAI, Anthropic…)",
-    expandedContent: "→ Configure in Settings → API & Keys tab",
+    title: { en: "API Key", de: "API-Schlüssel" },
+    subtitle: {
+      en: "Add API keys for cloud model providers (OpenAI, Anthropic…)",
+      de: "Füge API-Schlüssel für Cloud-Modellanbieter hinzu (OpenAI, Anthropic…)",
+    },
+    expandedContent: {
+      en: "→ Configure in Settings → API & Keys tab",
+      de: "→ Unter Einstellungen → API & Schlüssel einrichten",
+    },
   },
   {
     id: "messenger",
     icon: "💬",
-    title: "Messenger",
-    subtitle: "Connect Telegram, Discord, Slack and more for notifications",
-    expandedContent: "→ Configure in Settings → Messenger tab",
+    title: { en: "Messenger", de: "Messenger" },
+    subtitle: {
+      en: "Connect Telegram, Discord, Slack and more for notifications",
+      de: "Verbinde Telegram, Discord, Slack und weitere Dienste für Benachrichtigungen",
+    },
+    expandedContent: {
+      en: "→ Configure in Settings → Messenger tab",
+      de: "→ Unter Einstellungen → Messenger einrichten",
+    },
   },
 ];
 
 export default function ExtrasStep({ onNext, onBack }: ExtrasStepProps) {
+  const { t } = useI18n();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
@@ -52,7 +72,7 @@ export default function ExtrasStep({ onNext, onBack }: ExtrasStepProps) {
             lineHeight: 1.5,
           }}
         >
-          Optional Integrations
+          {t({ en: "Optional Integrations", de: "Optionale Integrationen" })}
         </h2>
         <p
           style={{
@@ -62,7 +82,10 @@ export default function ExtrasStep({ onNext, onBack }: ExtrasStepProps) {
             lineHeight: 1.6,
           }}
         >
-          These are optional — you can skip them and configure later in Settings.
+          {t({
+            en: "These are optional — you can skip them and configure later in Settings.",
+            de: "Du kannst diese Integrationen überspringen und später in den Einstellungen einrichten.",
+          })}
         </p>
       </div>
 
@@ -105,7 +128,7 @@ export default function ExtrasStep({ onNext, onBack }: ExtrasStepProps) {
                       marginBottom: 3,
                     }}
                   >
-                    {card.title}
+                    {t(card.title)}
                   </div>
                   <div
                     style={{
@@ -115,7 +138,7 @@ export default function ExtrasStep({ onNext, onBack }: ExtrasStepProps) {
                       lineHeight: 1.4,
                     }}
                   >
-                    {card.subtitle}
+                    {t(card.subtitle)}
                   </div>
                 </div>
                 <span
@@ -149,7 +172,7 @@ export default function ExtrasStep({ onNext, onBack }: ExtrasStepProps) {
                       lineHeight: 1.5,
                     }}
                   >
-                    {card.expandedContent}
+                    {t(card.expandedContent)}
                   </p>
                 </div>
               )}
@@ -172,7 +195,7 @@ export default function ExtrasStep({ onNext, onBack }: ExtrasStepProps) {
             cursor: "pointer",
           }}
         >
-          ← Back
+          {t({ en: "← Back", de: "← Zurück" })}
         </button>
         <button
           onClick={onNext}
@@ -188,7 +211,7 @@ export default function ExtrasStep({ onNext, onBack }: ExtrasStepProps) {
             letterSpacing: "0.05em",
           }}
         >
-          Next →
+          {t({ en: "Next →", de: "Weiter →" })}
         </button>
       </div>
     </div>

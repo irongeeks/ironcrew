@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError } from "../api/core";
 import {
@@ -25,6 +26,7 @@ export function ConfigurationPanel({
   canManage?: boolean;
   refreshKey?: number;
 }): React.JSX.Element {
+  const { tx, t, locale } = useGovernanceI18n();
   const [snapshot, setSnapshot] = useState<CompanyConfigurationSnapshot | null>(null);
   const [draft, setDraft] = useState<CompanyConfiguration | null>(null);
   const [baseRevision, setBaseRevision] = useState(0);
@@ -60,11 +62,11 @@ export function ConfigurationPanel({
       setSnapshot(result);
       if (!dirtyRef.current) adopt(result);
     } catch (cause) {
-      if (generation.current === token) setError(errorText(cause));
+      if (generation.current === token) setError(tx(errorText(cause)));
     } finally {
       if (generation.current === token) setLoading(false);
     }
-  }, [adopt]);
+  }, [adopt, tx]);
   const invalidateRequests = useCallback(() => {
     mounted.current = false;
     generation.current++;
@@ -100,15 +102,22 @@ export function ConfigurationPanel({
       if (!mounted.current) return;
       setSnapshot(result);
       adopt(result);
-      setNotice(`Konfiguration gespeichert. Revision ${result.revision} ist aktiv.`);
+      setNotice(
+        t({
+          de: `Konfiguration gespeichert. Revision ${result.revision} ist aktiv.`,
+          en: `Configuration saved. Revision ${result.revision} is active.`,
+        }),
+      );
     } catch (cause) {
       if (!mounted.current) return;
       if (cause instanceof ApiRequestError && cause.status === 409) {
         setConflict(true);
         setError(
-          "Der Serverstand wurde geändert. Dein Entwurf bleibt erhalten. Lade den aktuellen Stand und vergleiche die Änderungen.",
+          tx(
+            "Der Serverstand wurde geändert. Dein Entwurf bleibt erhalten. Lade den aktuellen Stand und vergleiche die Änderungen.",
+          ),
         );
-      } else setError(errorText(cause));
+      } else setError(tx(errorText(cause)));
     } finally {
       saving.current = false;
       if (mounted.current) setBusy(false);
@@ -116,22 +125,23 @@ export function ConfigurationPanel({
   }
 
   return (
-    <section className="configuration-panel" aria-label="Firmenkonfiguration" aria-busy={loading || busy}>
+    <section className="configuration-panel" aria-label={tx("Firmenkonfiguration")} aria-busy={loading || busy}>
       <header>
         <div>
-          <h2>Firmenkonfiguration</h2>
-          <p>Arbeitsgrenzen, Freigaben und Kontext für deine Crew.</p>
+          <h2>{tx("Firmenkonfiguration")}</h2>
+          <p>{tx("Arbeitsgrenzen, Freigaben und Kontext für deine Crew.")}</p>
         </div>
         <div className="configuration-actions">
           {snapshot && <span>Revision {snapshot.revision}</span>}
           <button type="button" className="ic-btn" disabled={loading || busy} onClick={() => void load()}>
-            Serverstand laden
+            {tx("Serverstand laden")}{" "}
           </button>
         </div>
       </header>
       {loading && (
         <div className="configuration-loading" role="status">
-          Konfiguration wird geladen …<div aria-hidden="true" />
+          {tx("Konfiguration wird geladen …")}
+          <div aria-hidden="true" />
           <div aria-hidden="true" />
         </div>
       )}
@@ -145,14 +155,15 @@ export function ConfigurationPanel({
         <>
           {!editable && (
             <p className="configuration-note">
-              Leseansicht: Nur der bestätigte Owner kann die Firmenkonfiguration ändern.
+              {tx("Leseansicht: Nur der bestätigte Owner kann die Firmenkonfiguration ändern.")}{" "}
             </p>
           )}
           <p className="configuration-boundary">
-            Die Vendor-Policy und verpflichtende Freigaben bleiben verbindlich. Diese Einstellungen erteilen keine
-            zusätzlichen Tool- oder Netzwerkrechte.
+            {tx(
+              "Die Vendor-Policy und verpflichtende Freigaben bleiben verbindlich. Diese Einstellungen erteilen keine zusätzlichen Tool- oder Netzwerkrechte.",
+            )}{" "}
           </p>
-          <nav className="configuration-nav" aria-label="Konfigurationsbereiche">
+          <nav className="configuration-nav" aria-label={tx("Konfigurationsbereiche")}>
             {Object.entries(sections).map(([key, title]) => (
               <button
                 type="button"
@@ -160,18 +171,20 @@ export function ConfigurationPanel({
                 aria-pressed={section === key}
                 onClick={() => setSection(key as keyof typeof sections)}
               >
-                {title}
+                {tx(title)}
               </button>
             ))}
           </nav>
           <fieldset className="configuration-fields" disabled={!editable || busy}>
-            <legend>{sections[section]} bearbeiten</legend>
+            <legend>
+              {tx(sections[section])} {tx("bearbeiten")}
+            </legend>
             {section === "runtime" && (
               <>
-                <p>Firmenweite Obergrenzen. Strengere Grenzen einzelner Runtime-Profile gelten weiterhin.</p>
+                <p>{tx("Firmenweite Obergrenzen. Strengere Grenzen einzelner Runtime-Profile gelten weiterhin.")}</p>
                 <div className="configuration-grid">
                   <label>
-                    Maximale parallele Runs
+                    {tx("Maximale parallele Runs")}{" "}
                     <input
                       type="number"
                       min={1}
@@ -187,7 +200,7 @@ export function ConfigurationPanel({
                     />
                   </label>
                   <label>
-                    Maximale Laufzeit (Sekunden)
+                    {tx("Maximale Laufzeit (Sekunden)")}{" "}
                     <input
                       type="number"
                       min={1}
@@ -204,22 +217,27 @@ export function ConfigurationPanel({
                   </label>
                 </div>
                 <p className="configuration-note">
-                  Änderungen gelten für folgende Run-Starts. Bereits laufende Prozesse werden dadurch nicht beendet.
+                  {tx(
+                    "Änderungen gelten für folgende Run-Starts. Bereits laufende Prozesse werden dadurch nicht beendet.",
+                  )}{" "}
                 </p>
               </>
             )}
             {section === "approvals" && (
               <>
                 <p>
-                  Erweitere die Freigabepflicht um zusätzliche Aktionstypen. Die festen Schutzregeln können hier nicht
-                  aufgehoben werden.
+                  {tx(
+                    "Erweitere die Freigabepflicht um zusätzliche Aktionstypen. Die festen Schutzregeln können hier nicht aufgehoben werden.",
+                  )}{" "}
                 </p>
                 <div
                   className="configuration-tool-list"
                   role="group"
-                  aria-label="Zusätzlich freigabepflichtige Aktionen"
+                  aria-label={tx("Zusätzlich freigabepflichtige Aktionen")}
                 >
-                  {snapshot.toolChoices.length === 0 && <p>Es sind noch keine zusätzlichen Tools registriert.</p>}
+                  {snapshot.toolChoices.length === 0 && (
+                    <p>{tx("Es sind noch keine zusätzlichen Tools registriert.")}</p>
+                  )}
                   {snapshot.toolChoices
                     .filter((tool) => !snapshot.constraints.alwaysApprovalRequired.includes(tool.key))
                     .map((tool) => (
@@ -246,7 +264,10 @@ export function ConfigurationPanel({
                     ))}
                 </div>
                 <details className="configuration-floor">
-                  <summary>Immer freigabepflichtig ({snapshot.constraints.alwaysApprovalRequired.length})</summary>
+                  <summary>
+                    {tx("Immer freigabepflichtig (")}
+                    {snapshot.constraints.alwaysApprovalRequired.length})
+                  </summary>
                   <ul>
                     {snapshot.constraints.alwaysApprovalRequired.map((action) => (
                       <li key={action}>
@@ -259,9 +280,13 @@ export function ConfigurationPanel({
             )}
             {section === "tools" && (
               <>
-                <p>Gesperrte Tools bleiben auch dann gesperrt, wenn ein Mitarbeiter sie ansonsten verwenden dürfte.</p>
-                <div className="configuration-tool-list" role="group" aria-label="Tools sperren">
-                  {snapshot.toolChoices.length === 0 && <p>Es sind noch keine Tools registriert.</p>}
+                <p>
+                  {tx(
+                    "Gesperrte Tools bleiben auch dann gesperrt, wenn ein Mitarbeiter sie ansonsten verwenden dürfte.",
+                  )}
+                </p>
+                <div className="configuration-tool-list" role="group" aria-label={tx("Tools sperren")}>
+                  {snapshot.toolChoices.length === 0 && <p>{tx("Es sind noch keine Tools registriert.")}</p>}
                   {snapshot.toolChoices.map((tool) => (
                     <label className="configuration-check" key={tool.key}>
                       <input
@@ -282,13 +307,13 @@ export function ConfigurationPanel({
                       <span>
                         {tool.label}
                         <small>
-                          {tool.key} · {riskLabels[tool.riskClass as keyof typeof riskLabels] ?? tool.riskClass}
+                          {tool.key} · {tx(riskLabels[tool.riskClass as keyof typeof riskLabels] ?? tool.riskClass)}
                         </small>
                       </span>
                     </label>
                   ))}
                 </div>
-                <h3>Zusätzliche Freigaben nach Risikoklasse</h3>
+                <h3>{tx("Zusätzliche Freigaben nach Risikoklasse")}</h3>
                 {Object.entries(riskLabels).map(([risk, label]) => (
                   <label className="configuration-check" key={risk}>
                     <input
@@ -306,7 +331,7 @@ export function ConfigurationPanel({
                         }))
                       }
                     />
-                    Freigabe für {label}
+                    {tx("Freigabe für")} {tx(label)}
                   </label>
                 ))}
               </>
@@ -314,7 +339,9 @@ export function ConfigurationPanel({
             {section === "memory" && (
               <>
                 <p>
-                  Steuere den Kontextabruf für kommende Runs. Gespeichertes Wissen wird beim Ausschalten nicht gelöscht.
+                  {tx(
+                    "Steuere den Kontextabruf für kommende Runs. Gespeichertes Wissen wird beim Ausschalten nicht gelöscht.",
+                  )}{" "}
                 </p>
                 <label className="configuration-check">
                   <input
@@ -327,10 +354,10 @@ export function ConfigurationPanel({
                       }))
                     }
                   />
-                  Memory-Kontext für Runs verwenden
+                  {tx("Memory-Kontext für Runs verwenden")}{" "}
                 </label>
                 <label>
-                  Maximale Kontext-Einträge
+                  {tx("Maximale Kontext-Einträge")}{" "}
                   <input
                     type="number"
                     min={1}
@@ -356,29 +383,32 @@ export function ConfigurationPanel({
                       }))
                     }
                   />
-                  Optionale semantische Suche verwenden
+                  {tx("Optionale semantische Suche verwenden")}{" "}
                 </label>
                 <p className="configuration-note">
-                  Externe Memory-Dienste müssen zusätzlich eingerichtet sein. Diese Auswahl richtet keinen Dienst ein
-                  und überträgt keine Zugangsdaten.
+                  {tx(
+                    "Externe Memory-Dienste müssen zusätzlich eingerichtet sein. Diese Auswahl richtet keinen Dienst ein und überträgt keine Zugangsdaten.",
+                  )}{" "}
                 </p>
               </>
             )}
           </fieldset>
           {!valid && (
             <p role="alert">
-              Prüfe die Eingaben: parallele Runs 1–64, Laufzeit 1–86.400 Sekunden, Kontext-Einträge 1–30 und gültige,
-              eindeutige Aktionstypen.
+              {tx(
+                "Prüfe die Eingaben: parallele Runs 1–64, Laufzeit 1–86.400 Sekunden, Kontext-Einträge 1–30 und gültige, eindeutige Aktionstypen.",
+              )}{" "}
             </p>
           )}
           {stale && (
-            <section aria-label="Geladener Serverstand">
+            <section aria-label={tx("Geladener Serverstand")}>
               <p role="alert">
-                Dein Entwurf basiert auf Revision {baseRevision}; geladen ist Revision {snapshot.revision}. Vergleiche
-                die Werte vor dem erneuten Speichern.
+                {tx("Dein Entwurf basiert auf Revision")} {baseRevision}
+                {tx("; geladen ist Revision")} {snapshot.revision}
+                {tx(". Vergleiche die Werte vor dem erneuten Speichern.")}{" "}
               </p>
               <details>
-                <summary>Aktuelle Serverwerte vergleichen</summary>
+                <summary>{tx("Aktuelle Serverwerte vergleichen")}</summary>
                 <pre>{JSON.stringify(snapshot.configuration, null, 2)}</pre>
               </details>
             </section>
@@ -394,10 +424,12 @@ export function ConfigurationPanel({
                     setBaseRevision(snapshot.revision);
                     setConflict(false);
                     setError("");
-                    setNotice("Der Entwurf verwendet jetzt die geladene Revision. Prüfe alle Werte vor dem Speichern.");
+                    setNotice(
+                      tx("Der Entwurf verwendet jetzt die geladene Revision. Prüfe alle Werte vor dem Speichern."),
+                    );
                   }}
                 >
-                  Entwurf auf geladenem Stand weiterbearbeiten
+                  {tx("Entwurf auf geladenem Stand weiterbearbeiten")}{" "}
                 </button>
               )}
               <button
@@ -409,12 +441,12 @@ export function ConfigurationPanel({
                   setError("");
                 }}
               >
-                Entwurf verwerfen
+                {tx("Entwurf verwerfen")}{" "}
               </button>
             </div>
           )}
           <label>
-            Begründung der Änderung
+            {tx("Begründung der Änderung")}{" "}
             <textarea
               rows={2}
               minLength={10}
@@ -425,7 +457,9 @@ export function ConfigurationPanel({
             />
           </label>
           <p className="configuration-note">
-            Mindestens 10 Zeichen. Die Begründung wird mit Owner, Zeitpunkt und Revision im Audit gespeichert.
+            {tx(
+              "Mindestens 10 Zeichen. Die Begründung wird mit Owner, Zeitpunkt und Revision im Audit gespeichert.",
+            )}{" "}
           </p>
           <div className="configuration-actions">
             <button
@@ -436,14 +470,17 @@ export function ConfigurationPanel({
               }
               onClick={() => void save()}
             >
-              {busy ? "Wird gespeichert …" : "Konfiguration speichern"}
+              {busy ? tx("Wird gespeichert …") : tx("Konfiguration speichern")}
             </button>
-            {dirty && <span>Ungespeicherter Entwurf</span>}
+            {dirty && <span>{tx("Ungespeicherter Entwurf")}</span>}
           </div>
           <details className="configuration-history">
-            <summary>Änderungsverlauf ({snapshot.history.length})</summary>
+            <summary>
+              {tx("Änderungsverlauf (")}
+              {snapshot.history.length})
+            </summary>
             {snapshot.history.length === 0 ? (
-              <p>Noch keine Änderungen. Es gelten die Ausgangswerte.</p>
+              <p>{tx("Noch keine Änderungen. Es gelten die Ausgangswerte.")}</p>
             ) : (
               <ol>
                 {snapshot.history.map((entry) => (
@@ -451,18 +488,18 @@ export function ConfigurationPanel({
                     <div>
                       <strong>Revision {entry.revision}</strong>
                       <time dateTime={new Date(entry.createdAt).toISOString()}>
-                        {new Date(entry.createdAt).toLocaleString("de-DE")}
+                        {new Date(entry.createdAt).toLocaleString(locale)}
                       </time>
                       <span>{entry.createdBy}</span>
                     </div>
                     <p>{entry.reason}</p>
                     <details>
-                      <summary>Gespeicherte Werte und Audit-Bezug</summary>
+                      <summary>{tx("Gespeicherte Werte und Audit-Bezug")}</summary>
                       <pre>{JSON.stringify(entry.configuration, null, 2)}</pre>
                       <p>
                         Audit: <code>{entry.auditEventId}</code>
                         <br />
-                        Korrelation: <code>{entry.correlationId}</code>
+                        {tx("Korrelation:")} <code>{entry.correlationId}</code>
                       </p>
                     </details>
                   </li>
@@ -472,7 +509,7 @@ export function ConfigurationPanel({
           </details>
         </>
       )}
-      {!snapshot && !loading && <p>Die Konfiguration ist nicht verfügbar. Lade den Serverstand erneut.</p>}
+      {!snapshot && !loading && <p>{tx("Die Konfiguration ist nicht verfügbar. Lade den Serverstand erneut.")}</p>}
     </section>
   );
 }

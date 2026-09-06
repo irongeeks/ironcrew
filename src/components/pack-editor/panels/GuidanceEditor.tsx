@@ -1,3 +1,4 @@
+import LocalizedText from "../../LocalizedText";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { listGuidanceLanguages, fetchGuidance, saveGuidance } from "../../../api/workflow-packs";
 
@@ -106,7 +107,7 @@ export function GuidanceEditor({ packKey, phaseId, readOnly }: GuidanceEditorPro
         )}
         {saving && (
           <span className="ml-auto text-[8px]" style={{ color: "var(--text-muted)" }}>
-            Saving...
+            <LocalizedText en="Saving..." de="Wird gespeichert …" />
           </span>
         )}
       </div>
@@ -114,7 +115,7 @@ export function GuidanceEditor({ packKey, phaseId, readOnly }: GuidanceEditorPro
       {/* Editor */}
       {loading ? (
         <div className="py-4 text-center text-[10px]" style={{ color: "var(--text-muted)" }}>
-          Loading...
+          <LocalizedText en="Loading..." de="Wird geladen …" />
         </div>
       ) : (
         <textarea

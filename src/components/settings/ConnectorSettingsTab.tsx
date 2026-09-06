@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import type { TFunction } from "./types";
 import {
@@ -106,13 +107,7 @@ export default function ConnectorSettingsTab({ t }: ConnectorSettingsTabProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold" style={{ color: "var(--th-text-heading)" }}>
-          {t({
-            ko: "커넥터 설정",
-            en: "Connector Settings",
-            ja: "コネクター設定",
-            zh: "Connector Settings",
-            de: "Connector-Einstellungen",
-          })}
+          {t({ en: "Connector Settings", de: "Connector-Einstellungen" })}
         </h3>
       </div>
 
@@ -129,19 +124,13 @@ export default function ConnectorSettingsTab({ t }: ConnectorSettingsTabProps) {
         <div>
           <p style={{ color: "var(--th-text-primary)" }}>
             {t({
-              ko: "커넥터는 외부 서비스에 대한 API 호출을 감싸는 래퍼입니다.",
               en: "Connectors are API wrappers for external services.",
-              ja: "コネクターは外部サービスへのAPIラッパーです。",
-              zh: "Connectors are API wrappers for external services.",
               de: "Connectors sind API-Wrapper für externe Services.",
             })}
           </p>
           <p className="mt-1" style={{ color: "var(--th-text-muted)" }}>
             {t({
-              ko: "에이전트가 직접 API를 호출하는 대신, 커넥터가 자동으로 처리합니다. 예: ComfyUI로 이미지 생성, TTS로 음성 합성. 이전 단계의 출력 파일을 읽어 입력으로 사용합니다. LLM이 필요 없는 작업에 적합합니다.",
               en: "Instead of an agent calling APIs manually, connectors handle it automatically. Example: image generation via ComfyUI, voice synthesis via TTS. They read output files from previous phases as input. Ideal for tasks that don't need an LLM.",
-              ja: "エージェントが手動でAPIを呼び出す代わりに、コネクターが自動処理します。例：ComfyUIでの画像生成、TTSでの音声合成。前フェーズの出力ファイルを入力として読み取ります。LLMが不要なタスクに最適です。",
-              zh: "Instead of an agent calling APIs manually, connectors handle it automatically. Example: image generation via ComfyUI, voice synthesis via TTS. They read output files from previous phases as input. Ideal for tasks that don't need an LLM.",
               de: "Statt dass ein Agent APIs manuell aufruft, erledigen Connectors das automatisch. Beispiel: Bildgenerierung via ComfyUI, Sprachsynthese via TTS. Sie lesen Output-Dateien der vorherigen Phase als Input. Ideal für Aufgaben, die kein LLM brauchen.",
             })}
           </p>
@@ -159,40 +148,25 @@ export default function ConnectorSettingsTab({ t }: ConnectorSettingsTabProps) {
 
       {loading ? (
         <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-          Loading...
+          <LocalizedText en="Loading..." de="Wird geladen …" />
         </p>
       ) : (
         <>
           {/* ── Capability Bindings ── */}
           <section>
             <h4 className="mb-3 text-sm font-medium" style={{ color: "var(--th-text-heading)" }}>
-              {t({
-                ko: "기능 바인딩",
-                en: "Capability Bindings",
-                ja: "ケイパビリティ バインディング",
-                zh: "Capability Bindings",
-                de: "Fähigkeits-Bindungen",
-              })}
+              {t({ en: "Capability Bindings", de: "Fähigkeits-Bindungen" })}
             </h4>
             <p className="mb-3 text-xs" style={{ color: "var(--th-text-muted)" }}>
               {t({
-                ko: "각 기능을 처리할 커넥터를 선택하세요.",
                 en: "Select which connector handles each capability.",
-                ja: "各ケイパビリティを処理するコネクターを選択してください。",
-                zh: "Select which connector handles each capability.",
                 de: "Wählen Sie, welcher Connector jede Fähigkeit verarbeitet.",
               })}
             </p>
 
             {allCapabilities.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                {t({
-                  ko: "등록된 기능이 없습니다.",
-                  en: "No capabilities registered.",
-                  ja: "登録されているケイパビリティはありません。",
-                  zh: "No capabilities registered.",
-                  de: "Keine Fähigkeiten registriert.",
-                })}
+                {t({ en: "No capabilities registered.", de: "Keine Fähigkeiten registriert." })}
               </p>
             ) : (
               <div className="space-y-2">
@@ -223,9 +197,7 @@ export default function ConnectorSettingsTab({ t }: ConnectorSettingsTabProps) {
                           color: "var(--th-text-primary)",
                         }}
                       >
-                        <option value="">
-                          — {t({ ko: "없음", en: "none", ja: "なし", zh: "none", de: "keine" })} —
-                        </option>
+                        <option value="">— {t({ en: "none", de: "keine" })} —</option>
                         {capConnectors.map((c) => (
                           <option key={c.name} value={c.name}>
                             {c.name}
@@ -247,14 +219,8 @@ export default function ConnectorSettingsTab({ t }: ConnectorSettingsTabProps) {
                 {saving
                   ? "..."
                   : saved
-                    ? t({ ko: "저장됨", en: "Saved", ja: "保存済み", zh: "Saved", de: "Gespeichert" })
-                    : t({
-                        ko: "저장",
-                        en: "Save Bindings",
-                        ja: "バインドを保存",
-                        zh: "Save Bindings",
-                        de: "Bindungen speichern",
-                      })}
+                    ? t({ en: "Saved", de: "Gespeichert" })
+                    : t({ en: "Save Bindings", de: "Bindungen speichern" })}
               </button>
             )}
           </section>
@@ -262,24 +228,12 @@ export default function ConnectorSettingsTab({ t }: ConnectorSettingsTabProps) {
           {/* ── Installed Connectors ── */}
           <section>
             <h4 className="mb-3 text-sm font-medium" style={{ color: "var(--th-text-heading)" }}>
-              {t({
-                ko: "설치된 커넥터",
-                en: "Installed Connectors",
-                ja: "インストール済みコネクター",
-                zh: "Installed Connectors",
-                de: "Installierte Connectors",
-              })}
+              {t({ en: "Installed Connectors", de: "Installierte Connectors" })}
             </h4>
 
             {connectors.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                {t({
-                  ko: "등록된 커넥터가 없습니다.",
-                  en: "No connectors registered.",
-                  ja: "登録されているコネクターはありません。",
-                  zh: "No connectors registered.",
-                  de: "Keine Connectors registriert.",
-                })}
+                {t({ en: "No connectors registered.", de: "Keine Connectors registriert." })}
               </p>
             ) : (
               <div className="space-y-2">
@@ -321,9 +275,7 @@ export default function ConnectorSettingsTab({ t }: ConnectorSettingsTabProps) {
                           className="ml-3 shrink-0 rounded border px-2 py-1 text-[10px] disabled:opacity-50"
                           style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
                         >
-                          {testingConnector === connector.name
-                            ? "..."
-                            : t({ ko: "테스트", en: "Test", ja: "テスト", zh: "Test", de: "Testen" })}
+                          {testingConnector === connector.name ? "..." : t({ en: "Test", de: "Testen" })}
                         </button>
                       </div>
                     </div>

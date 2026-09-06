@@ -1,5 +1,6 @@
+import { I18nProvider } from "../i18n";
 import { StrictMode, useState } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DetailDialog, dialogTabStops } from "./DetailDialog";
 
@@ -42,7 +43,7 @@ describe("DetailDialog component responsibilities (not native browser emulation)
     );
     const dialog = screen.getByRole("dialog");
     const first = screen.getByRole("textbox");
-    const last = screen.getByRole("button", { name: "Schliessen" });
+    const last = screen.getByRole("button", { name: "Schließen" });
     fireEvent.keyDown(dialog, { key: "Tab" });
     expect(first).toHaveFocus();
     fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
@@ -179,3 +180,7 @@ describe("dialogTabStops", () => {
     ]);
   });
 });
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });

@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReactFlow,
@@ -175,10 +176,13 @@ export function GraphCanvas({
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
         <span className="text-4xl">🖥️</span>
         <h2 className="text-sm font-bold" style={{ color: "var(--th-text-primary)" }}>
-          Pack Editor ist auf Desktop verfügbar
+          <LocalizedText en="The pack editor is available on desktop" de="Pack Editor ist auf Desktop verfügbar" />
         </h2>
         <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-          Der visuelle Editor benötigt einen größeren Bildschirm. Bitte nutze ein Desktop-Gerät.
+          <LocalizedText
+            en="The visual editor needs a larger screen. Please use a desktop device."
+            de="Der visuelle Editor benötigt einen größeren Bildschirm. Bitte nutze ein Desktop-Gerät."
+          />
         </p>
       </div>
     );
@@ -187,7 +191,9 @@ export function GraphCanvas({
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center" style={{ color: "var(--text-muted)" }}>
-        <span className="text-xs font-mono">Loading graph...</span>
+        <span className="text-xs font-mono">
+          <LocalizedText en="Loading graph..." de="Diagramm wird geladen …" />
+        </span>
       </div>
     );
   }

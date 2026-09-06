@@ -37,10 +37,7 @@ function readHydratedPackSet(source: CompanySettings): Set<string> {
 function getPackLabelByLanguage(packKey: WorkflowPackKey, language: string): string {
   const label = getOfficePackMeta(packKey).label;
   const lang = normalizeLanguage(language);
-  if (lang === "ko") return label.ko || label.en;
-  if (lang === "ja") return label.ja || label.en;
-  if (lang === "zh") return label.zh || label.en;
-  return label.en;
+  return lang === "de" ? label.de || label.en : label.en;
 }
 
 export function useOfficePackBootstrap({
@@ -64,7 +61,7 @@ export function useOfficePackBootstrap({
         return null;
       }
 
-      const locale = normalizeLanguage(sourceSettings.language) as "ko" | "en" | "ja" | "zh" | "de";
+      const locale = normalizeLanguage(sourceSettings.language);
       const presentation = buildOfficePackPresentation({
         packKey,
         locale,

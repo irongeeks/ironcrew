@@ -29,15 +29,7 @@ export default function CliAuthApiKeyFlow({ provider = "codex", onSuccess, onCan
         setSuccess(true);
         setTimeout(onSuccess, 1500);
       } else {
-        setError(
-          t({
-            ko: "API 키가 유효하지 않습니다.",
-            en: "API key is not valid.",
-            ja: "APIキーが無効です。",
-            zh: "API key is not valid.",
-            de: "API-Schlüssel ist ungültig.",
-          }),
-        );
+        setError(t({ en: "API key is not valid.", de: "API-Schlüssel ist ungültig." }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -49,13 +41,7 @@ export default function CliAuthApiKeyFlow({ provider = "codex", onSuccess, onCan
   if (success) {
     return (
       <div className="rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs text-green-400">
-        {t({
-          ko: "API 키가 저장되었습니다!",
-          en: "API key saved successfully!",
-          ja: "APIキーが保存されました！",
-          zh: "API key saved successfully!",
-          de: "API-Schlüssel erfolgreich gespeichert!",
-        })}
+        {t({ en: "API key saved successfully!", de: "API-Schlüssel erfolgreich gespeichert!" })}
       </div>
     );
   }
@@ -65,17 +51,11 @@ export default function CliAuthApiKeyFlow({ provider = "codex", onSuccess, onCan
       <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
         {isClaude
           ? t({
-              ko: "Anthropic API 키를 입력하세요. sk-ant-로 시작해야 합니다.",
               en: "Enter your Anthropic API key. It should start with sk-ant-.",
-              ja: "Anthropic APIキーを入力してください。sk-ant-で始まる必要があります。",
-              zh: "Enter your Anthropic API key. It should start with sk-ant-.",
               de: "Geben Sie Ihren Anthropic-API-Schlüssel ein. Er sollte mit sk-ant- beginnen.",
             })
           : t({
-              ko: "OpenAI API 키를 입력하세요. sk-로 시작해야 합니다.",
               en: "Enter your OpenAI API key. It should start with sk-.",
-              ja: "OpenAI APIキーを入力してください。sk-で始まる必要があります。",
-              zh: "Enter your OpenAI API key. It should start with sk-.",
               de: "Geben Sie Ihren OpenAI-API-Schlüssel ein. Er sollte mit sk- beginnen.",
             })}
       </p>
@@ -100,17 +80,11 @@ export default function CliAuthApiKeyFlow({ provider = "codex", onSuccess, onCan
           <p className="mt-1 text-xs text-rose-400">
             {isClaude
               ? t({
-                  ko: "유효한 API 키를 입력하세요 (sk-ant-로 시작, 10자 이상)",
                   en: "Enter a valid API key (starts with sk-ant-, more than 10 characters)",
-                  ja: "有効なAPIキーを入力してください（sk-ant-で始まり、10文字以上）",
-                  zh: "Enter a valid API key (starts with sk-ant-, more than 10 characters)",
                   de: "Geben Sie einen gültigen API-Schlüssel ein (beginnt mit sk-ant-, mehr als 10 Zeichen)",
                 })
               : t({
-                  ko: "유효한 API 키를 입력하세요 (sk-로 시작, 10자 이상)",
                   en: "Enter a valid API key (starts with sk-, more than 10 characters)",
-                  ja: "有効なAPIキーを入力してください（sk-で始まり、10文字以上）",
-                  zh: "Enter a valid API key (starts with sk-, more than 10 characters)",
                   de: "Geben Sie einen gültigen API-Schlüssel ein (beginnt mit sk-, mehr als 10 Zeichen)",
                 })}
           </p>
@@ -130,9 +104,7 @@ export default function CliAuthApiKeyFlow({ provider = "codex", onSuccess, onCan
           onClick={() => void handleSave()}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
         >
-          {saving
-            ? t({ ko: "저장 중...", en: "Saving...", ja: "保存中...", zh: "Saving...", de: "Speichern..." })
-            : t({ ko: "저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })}
+          {saving ? t({ en: "Saving...", de: "Speichern..." }) : t({ en: "Save", de: "Speichern" })}
         </button>
         <button
           type="button"
@@ -140,7 +112,7 @@ export default function CliAuthApiKeyFlow({ provider = "codex", onSuccess, onCan
           className="rounded-lg border px-3 py-2 text-xs"
           style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
         >
-          {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+          {t({ en: "Cancel", de: "Abbrechen" })}
         </button>
       </div>
     </div>

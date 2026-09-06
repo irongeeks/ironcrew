@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import React, { useState } from "react";
 import type { Agent, AgentStatus } from "../../types";
 import { useBulkAgentTokenUsage, type TokenTotals } from "../../hooks/useTokenUsage";
@@ -28,6 +29,19 @@ const STATUS_DOT_COLOR: Record<AgentStatus, string> = {
   break: "#F97316",
   idle: "#6B7280",
   offline: "#374151",
+};
+
+const STATUS_LABEL_DE: Record<string, string> = {
+  working: "Arbeitet",
+  break: "Pause",
+  idle: "Bereit",
+  offline: "Offline",
+};
+const ROLE_LABEL_DE: Record<string, string> = {
+  team_leader: "Teamleitung",
+  senior: "Senior",
+  junior: "Junior",
+  intern: "Praktikant",
 };
 
 const STATUS_LABEL: Record<AgentStatus, string> = {
@@ -146,7 +160,7 @@ const AgentCard = React.memo(function AgentCard({
                 textTransform: "uppercase",
               }}
             >
-              {ROLE_LABEL[agent.role] ?? agent.role}
+              <LocalizedText en={ROLE_LABEL[agent.role] ?? agent.role} de={ROLE_LABEL_DE[agent.role] ?? agent.role} />
             </span>
             <span
               style={{
@@ -183,7 +197,10 @@ const AgentCard = React.memo(function AgentCard({
                 color: isWorking ? "var(--accent)" : "var(--text-muted)",
               }}
             >
-              {STATUS_LABEL[agent.status] ?? agent.status}
+              <LocalizedText
+                en={STATUS_LABEL[agent.status] ?? agent.status}
+                de={STATUS_LABEL_DE[agent.status] ?? agent.status}
+              />
             </span>
           </div>
         </div>
@@ -243,7 +260,7 @@ export default function AgentSidebarPanel({ agents, onAgentClick }: AgentSidebar
             letterSpacing: "0.05em",
           }}
         >
-          AGENTS
+          <LocalizedText en="AGENTS" de="AGENTEN" />
         </span>
         <span
           style={{
@@ -291,7 +308,7 @@ export default function AgentSidebarPanel({ agents, onAgentClick }: AgentSidebar
               padding: "24px 0",
             }}
           >
-            No agents
+            <LocalizedText en="No agents" de="Keine Agenten" />
           </div>
         )}
       </div>

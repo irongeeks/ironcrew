@@ -1,3 +1,5 @@
+import { normalizeUiLanguage } from "../../../../src/shared/ui-language.ts";
+import { readCompanyIdentity } from "../../../ironcrew/domain/company-identity.ts";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import { toErrorMessage } from "../validation.ts";
 import {
@@ -193,6 +195,13 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
         settings[row.key] = row.value;
       }
     }
+    const company = readCompanyIdentity(db, app.locals?.ironCrewCompanyId);
+    if (company) {
+      settings.companyName = company.name;
+      settings.ceoName = company.owner_name;
+      settings.language = normalizeUiLanguage(settings.language ?? company.locale);
+    }
+    if ("language" in settings) settings.language = normalizeUiLanguage(settings.language);
     res.json({ settings });
   });
 
@@ -210,6 +219,14 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
         return res.status(400).json({ ok: false, error: "unknown_setting_key", key });
       }
     }
+    if ("language" in body && body.language !== "en" && body.language !== "de") {
+      return res.status(400).json({ ok: false, error: "invalid_setting_value", key: "language" });
+    }
+    for (const key of ["companyName", "ceoName"]) {
+      if (key in body && (typeof body[key] !== "string" || !body[key].trim() || body[key].trim().length > 100)) {
+        return res.status(400).json({ ok: false, error: "invalid_setting_value", key });
+      }
+    }
     const officePackProfilesInPayload = (body as Record<string, unknown>)[OFFICE_PACK_PROFILES_KEY];
     const selectedOfficePackInPayload = (body as Record<string, unknown>)["officeWorkflowPack"];
 
@@ -217,7 +234,26 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
       "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     );
 
+    let transactionOpen = false;
     try {
+      db.exec("SAVEPOINT settings_update");
+      transactionOpen = true;
+      const company = readCompanyIdentity(db, app.locals?.ironCrewCompanyId);
+      if (company && ("companyName" in body || "ceoName" in body)) {
+        db.prepare("UPDATE crew_companies SET name = ?, owner_name = ?, updated_at = ? WHERE id = ?").run(
+          typeof body.companyName === "string" ? body.companyName.trim() : company.name,
+          typeof body.ceoName === "string" ? body.ceoName.trim() : company.owner_name,
+          nowMs(),
+          company.id,
+        );
+      }
+      if (company && "language" in body) {
+        db.prepare("UPDATE crew_companies SET locale = ?, updated_at = ? WHERE id = ?").run(
+          body.language === "de" ? "de-DE" : "en-US",
+          nowMs(),
+          company.id,
+        );
+      }
       for (const [key, value] of Object.entries(body)) {
         if (key === MESSENGER_SETTINGS_KEY) {
           const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
@@ -253,7 +289,13 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
           }
         }
       }
+      db.exec("RELEASE settings_update");
+      transactionOpen = false;
     } catch (err: unknown) {
+      if (transactionOpen) {
+        db.exec("ROLLBACK TO settings_update");
+        db.exec("RELEASE settings_update");
+      }
       const detail = toErrorMessage(err);
       return res.status(500).json({ ok: false, error: "settings_write_failed", detail });
     }
@@ -291,17 +333,22 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
       }
     ).cnt;
 
-    const totalAgents = (db.prepare("SELECT COUNT(*) as cnt FROM agents").get() as { cnt: number }).cnt;
-    const workingAgents = (
-      db.prepare("SELECT COUNT(*) as cnt FROM agents WHERE status = 'working'").get() as {
-        cnt: number;
-      }
-    ).cnt;
-    const idleAgents = (
-      db.prepare("SELECT COUNT(*) as cnt FROM agents WHERE status = 'idle'").get() as {
-        cnt: number;
-      }
-    ).cnt;
+    // Crew is the canonical roster. Legacy task metrics remain separate until
+    // their workflow/status model is migrated; never silently add both rosters.
+    const agentSource = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'crew_agents'").get()
+      ? "crew_agents"
+      : "agents";
+    const countAgents = (table: "agents" | "crew_agents") =>
+      db
+        .prepare(
+          `SELECT COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN status IN ('working', 'thinking') THEN 1 ELSE 0 END), 0) AS working,
+        COALESCE(SUM(CASE WHEN status = 'idle' THEN 1 ELSE 0 END), 0) AS idle
+        FROM ${table}`,
+        )
+        .get() as { total: number; working: number; idle: number };
+    const agents = countAgents(agentSource);
+    const legacyAgents = countAgents("agents");
 
     const completionRate = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
@@ -383,10 +430,14 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
           cancelled: cancelledTasks,
           completion_rate: completionRate,
         },
-        agents: {
-          total: totalAgents,
-          working: workingAgents,
-          idle: idleAgents,
+        agents,
+        legacy_agents: legacyAgents,
+        sources: {
+          agents: agentSource,
+          tasks: "tasks",
+          tasks_by_department: "tasks",
+          recent_activity: "task_logs",
+          legacy_agents: "agents",
         },
         tasks_by_department: tasksByDept,
         recent_activity: recentActivity,

@@ -1,16 +1,9 @@
+import { lazyFeature } from "../components/lazyFeature";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import RetroSidebar from "../components/RetroSidebar";
 import IronCrewTopBar from "../components/IronCrewTopBar";
-import { CommandCenterView } from "../ironcrew/CommandCenterView";
 import { IdentityGate } from "../ironcrew/IdentityGate";
-import AgentManager from "../components/AgentManager";
-import SkillsLibrary from "../components/SkillsLibrary";
-import SettingsPanel from "../components/SettingsPanel";
 import type { SettingsTab } from "../components/settings/types";
-import OperationsCenter from "../components/OperationsCenter";
-import ProjectsView from "../components/ProjectsView";
-import SchedulesView from "../components/schedules/SchedulesView";
-import { WorkflowEditorPage } from "../components/workflow-editor/WorkflowEditorPage";
 import { SubsystemErrorBoundary } from "../components/SubsystemErrorBoundary";
 import { I18nProvider } from "../i18n";
 import type {
@@ -40,6 +33,19 @@ import MobileHeader from "./MobileHeader";
 import { useMobile } from "../hooks/useMobile";
 import { MobileBottomTabBar } from "../components/mobile/MobileBottomTabBar";
 import { useOfficePackResolution } from "./useOfficePackResolution";
+
+const CommandCenterView = lazyFeature(async () => ({
+  default: (await import("../ironcrew/CommandCenterView")).CommandCenterView,
+}));
+const AgentManager = lazyFeature(() => import("../components/AgentManager"));
+const SkillsLibrary = lazyFeature(() => import("../components/SkillsLibrary"));
+const SettingsPanel = lazyFeature(() => import("../components/SettingsPanel"));
+const OperationsCenter = lazyFeature(() => import("../components/OperationsCenter"));
+const ProjectsView = lazyFeature(() => import("../components/ProjectsView"));
+const SchedulesView = lazyFeature(() => import("../components/schedules/SchedulesView"));
+const WorkflowEditorPage = lazyFeature(async () => ({
+  default: (await import("../components/workflow-editor/WorkflowEditorPage")).WorkflowEditorPage,
+}));
 
 interface AppMainLayoutLabels {
   uiLanguage: string;
@@ -263,10 +269,7 @@ export default function AppMainLayout({
   const [newMissionRequest, setNewMissionRequest] = useState(0);
   const canonicalView = view === "office" || view === "command" || view === "tasks";
 
-  const uiLanguage =
-    labels.uiLanguage === "ko" || labels.uiLanguage === "ja" || labels.uiLanguage === "zh" || labels.uiLanguage === "de"
-      ? labels.uiLanguage
-      : "en";
+  const uiLanguage = labels.uiLanguage === "de" ? "de" : "en";
 
   const pack = useOfficePackResolution({
     activeOfficeWorkflowPack,
@@ -431,10 +434,11 @@ export default function AppMainLayout({
                     role="note"
                     className="mb-4 rounded border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-secondary)]"
                   >
-                    OctoOffice-Werkzeuge · Dieser Bereich verwaltet die bisherigen Daten. Ihre aktuelle Crew, Projekte
-                    und Aufgaben finden Sie im Command Center.
+                    {uiLanguage === "de"
+                      ? "Erweiterte Werkzeuge · Ihre aktuelle Crew, Projekte und Aufgaben finden Sie im Command Center."
+                      : "Advanced tools · Find your current crew, projects and tasks in the Command Center."}
                     <button type="button" className="ml-2 underline" onClick={() => handleChangeView("command")}>
-                      Zum Command Center
+                      {uiLanguage === "de" ? "Zum Command Center" : "Open Command Center"}
                     </button>
                   </p>
                 )}

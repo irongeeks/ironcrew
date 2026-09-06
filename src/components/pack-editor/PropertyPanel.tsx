@@ -1,3 +1,6 @@
+import { localizeNodeType } from "./node-type-labels";
+import { useI18n } from "../../i18n";
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import type { PhaseDefinition, NodeConfigField } from "./types";
 import { GuidanceEditor } from "./panels/GuidanceEditor";
@@ -29,6 +32,8 @@ interface PropertyPanelProps {
 }
 
 export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: PropertyPanelProps) {
+  const translateUiCopy = useUiCopy();
+  const { language } = useI18n();
   const update = useCallback((updates: Partial<PhaseDefinition>) => onUpdate(phase.id, updates), [phase.id, onUpdate]);
 
   // Fetch available options for dropdowns
@@ -42,7 +47,8 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
     fetchNodeTypes().then(setNodeTypes);
   }, []);
 
-  const activeNodeType = phase.node_type ? nodeTypes.find((nt) => nt.key === phase.node_type) : undefined;
+  const selectedNodeType = phase.node_type ? nodeTypes.find((nt) => nt.key === phase.node_type) : undefined;
+  const activeNodeType = selectedNodeType ? localizeNodeType(selectedNodeType, language) : undefined;
 
   return (
     <div
@@ -65,7 +71,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
 
       <div className="flex flex-col gap-3 p-3">
         {/* Phase ID */}
-        <Field label="Phase ID">
+        <Field label={translateUiCopy("Phase ID", "Phasen-ID")}>
           <input
             value={phase.id}
             disabled
@@ -75,7 +81,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
         </Field>
 
         {/* Department — Dropdown */}
-        <Field label="Department">
+        <Field label={translateUiCopy("Department", "Abteilung")}>
           <select
             value={phase.department}
             disabled={readOnly}
@@ -102,7 +108,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
         </Field>
 
         {/* Gate */}
-        <Field label="Gate">
+        <Field label={translateUiCopy("Gate", "Freigabe")}>
           <select
             value={phase.gate ?? "auto"}
             disabled={readOnly}
@@ -110,13 +116,17 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
             className="w-full rounded border px-2 py-1 text-xs"
             style={selectStyle(readOnly)}
           >
-            <option value="auto">Auto</option>
-            <option value="user_approval">User Approval</option>
+            <option value="auto">
+              <LocalizedText en="Auto" de="Automatisch" />
+            </option>
+            <option value="user_approval">
+              <LocalizedText en="User Approval" de="Benutzerfreigabe" />
+            </option>
           </select>
         </Field>
 
         {/* Node Type */}
-        <Field label="Node Type">
+        <Field label={translateUiCopy("Node Type", "Knotentyp")}>
           <select
             value={phase.node_type ?? ""}
             disabled={readOnly}
@@ -145,10 +155,12 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
             className="w-full rounded border px-2 py-1 text-xs"
             style={selectStyle(readOnly)}
           >
-            <option value="">None (agent-only)</option>
+            <option value="">
+              <LocalizedText en="None (agent-only)" de="Keine (nur Agent)" />
+            </option>
             {nodeTypes.map((nt) => (
               <option key={nt.key} value={nt.key}>
-                {nt.meta.icon} {nt.meta.label}
+                {nt.meta.icon} {localizeNodeType(nt, language).meta.label}
               </option>
             ))}
             {phase.node_type && !nodeTypes.some((nt) => nt.key === phase.node_type) && (
@@ -159,7 +171,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
 
         {/* Node Config — dynamic fields from configSchema */}
         {activeNodeType && activeNodeType.configSchema.length > 0 && (
-          <Field label="Node Configuration">
+          <Field label={translateUiCopy("Node Configuration", "Knotenkonfiguration")}>
             <div
               className="flex flex-col gap-2 rounded border p-2"
               style={{ borderColor: "var(--border)", background: "var(--bg-base)" }}
@@ -180,7 +192,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
         )}
 
         {/* Capability — Dropdown */}
-        <Field label="Capability">
+        <Field label={translateUiCopy("Capability", "Fähigkeit")}>
           <select
             value={phase.capability ?? ""}
             disabled={readOnly}
@@ -188,7 +200,9 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
             className="w-full rounded border px-2 py-1 text-xs"
             style={selectStyle(readOnly)}
           >
-            <option value="">None (agent-only)</option>
+            <option value="">
+              <LocalizedText en="None (agent-only)" de="Keine (nur Agent)" />
+            </option>
             {capabilities.map((c) => (
               <option key={c.name} value={c.name}>
                 {c.name} ({c.connector})
@@ -203,7 +217,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
 
         {/* Capability Mode */}
         {phase.capability && (
-          <Field label="Capability Mode">
+          <Field label={translateUiCopy("Capability Mode", "Fähigkeitsmodus")}>
             <select
               value={phase.capability_mode ?? "hybrid"}
               disabled={readOnly}
@@ -219,7 +233,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
         )}
 
         {/* Skip When */}
-        <Field label="Skip When">
+        <Field label={translateUiCopy("Skip When", "Überspringen, wenn")}>
           <input
             value={phase.skip_when ?? ""}
             disabled={readOnly}
@@ -231,7 +245,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
         </Field>
 
         {/* Fan-out */}
-        <Field label="Fan-out Count From">
+        <Field label={translateUiCopy("Fan-out Count From", "Anzahl paralleler Zweige aus")}>
           <input
             value={phase.fan_out?.count_from ?? ""}
             disabled={readOnly}
@@ -246,7 +260,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
 
         {/* On Review Fail */}
         {/* Note: flag_output is intentionally not exposed in the UI editor; it defaults to empty string. */}
-        <Field label="On Review Fail">
+        <Field label={translateUiCopy("On Review Fail", "Bei fehlgeschlagener Prüfung")}>
           <div className="flex flex-col gap-1">
             <input
               value={phase.on_review_fail?.rerun ?? ""}
@@ -262,7 +276,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
                     : undefined,
                 })
               }
-              placeholder="Rerun phase ID"
+              placeholder={translateUiCopy("Rerun phase ID", "Phasen-ID für Wiederholung")}
               className="w-full rounded border px-2 py-1 font-mono text-xs"
               style={selectStyle(readOnly)}
             />
@@ -281,7 +295,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
                   style={selectStyle(readOnly)}
                 />
                 <span className="self-center text-[9px]" style={{ color: "var(--text-muted)" }}>
-                  max passes
+                  <LocalizedText en="max passes" de="max. Durchläufe" />
                 </span>
               </div>
             )}
@@ -289,7 +303,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
         </Field>
 
         {/* Guidance path */}
-        <Field label="Guidance Path">
+        <Field label={translateUiCopy("Guidance Path", "Pfad zur Anleitung")}>
           <input
             value={phase.guidance}
             disabled={readOnly}
@@ -300,7 +314,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
         </Field>
 
         {/* Inputs */}
-        <Field label={`Inputs (${phase.inputs.length})`}>
+        <Field label={`${translateUiCopy("Inputs", "Eingaben")} (${phase.inputs.length})`}>
           <div className="flex flex-col gap-1">
             {phase.inputs.map((input, i) => (
               <div
@@ -358,14 +372,14 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
                 className="w-full rounded border border-dashed py-1 text-[10px] hover:opacity-80"
                 style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
               >
-                + Add Input
+                <LocalizedText en="+ Add Input" de="+ Eingabe hinzufügen" />
               </button>
             )}
           </div>
         </Field>
 
         {/* Outputs */}
-        <Field label={`Outputs (${phase.outputs.length})`}>
+        <Field label={`${translateUiCopy("Outputs", "Ausgaben")} (${phase.outputs.length})`}>
           <div className="flex flex-col gap-1">
             {phase.outputs.map((output, i) => (
               <div
@@ -435,14 +449,14 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
                 className="w-full rounded border border-dashed py-1 text-[10px] hover:opacity-80"
                 style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
               >
-                + Add Output
+                <LocalizedText en="+ Add Output" de="+ Ausgabe hinzufügen" />
               </button>
             )}
           </div>
         </Field>
 
         {/* Guidance Editor */}
-        <Field label="Guidance Prompt">
+        <Field label={translateUiCopy("Guidance Prompt", "Anweisung")}>
           <GuidanceEditor packKey={packKey} phaseId={phase.id} readOnly={readOnly} />
         </Field>
 
@@ -451,7 +465,7 @@ export function PropertyPanel({ packKey, phase, readOnly, onUpdate, onClose }: P
             className="mt-2 rounded px-3 py-2 text-center text-[10px]"
             style={{ background: "var(--bg-surface-hover)", color: "var(--text-muted)" }}
           >
-            Read-only mode
+            <LocalizedText en="Read-only mode" de="Schreibgeschützt" />
           </div>
         )}
       </div>
@@ -518,8 +532,12 @@ function NodeConfigFieldEditor({
           className="w-full rounded border px-2 py-1 text-xs"
           style={inputStyle}
         >
-          <option value="false">No</option>
-          <option value="true">Yes</option>
+          <option value="false">
+            <LocalizedText en="No" de="Nein" />
+          </option>
+          <option value="true">
+            <LocalizedText en="Yes" de="Ja" />
+          </option>
         </select>
       ) : field.type === "number" ? (
         <input

@@ -6,36 +6,30 @@ import type { TFunction } from "../constants";
 
 interface PipelinePreset {
   key: string;
-  label: { ko: string; en: string; ja: string; zh: string; de: string };
+  label: { ko?: string; en: string; ja?: string; zh?: string; de: string };
   steps: string[];
 }
 
 const PIPELINE_PRESETS: PipelinePreset[] = [
-  { key: "direct", label: { ko: "직접", en: "Direct", ja: "ダイレクト", zh: "Direct", de: "Direkt" }, steps: [] },
+  { key: "direct", label: { en: "Direct", de: "Direkt" }, steps: [] },
   {
     key: "with_planning",
-    label: { ko: "기획 포함", en: "With Planning", ja: "計画付き", zh: "With Planning", de: "Mit Planung" },
+    label: { en: "With Planning", de: "Mit Planung" },
     steps: ["planning", "dev"],
   },
   {
     key: "with_qa",
-    label: { ko: "QA 포함", en: "With QA", ja: "QA付き", zh: "With QA", de: "Mit QA" },
+    label: { en: "With QA", de: "Mit QA" },
     steps: ["dev", "qa"],
   },
   {
     key: "full",
-    label: { ko: "전체", en: "Full Pipeline", ja: "フル", zh: "Full Pipeline", de: "Vollständige Pipeline" },
+    label: { en: "Full Pipeline", de: "Vollständige Pipeline" },
     steps: ["planning", "dev", "qa"],
   },
   {
     key: "full_design",
-    label: {
-      ko: "전체+디자인",
-      en: "Full + Design",
-      ja: "フル+デザイン",
-      zh: "Full + Design",
-      de: "Vollständig + Design",
-    },
+    label: { en: "Full + Design", de: "Vollständig + Design" },
     steps: ["planning", "design", "dev", "qa"],
   },
 ];
@@ -131,13 +125,7 @@ export default function PipelineSection({
         className="cursor-pointer select-none px-3 py-2 text-sm font-medium"
         style={{ color: "var(--th-text-secondary)" }}
       >
-        {t({
-          ko: "파이프라인 & 옵션",
-          en: "Pipeline & Options",
-          ja: "パイプライン＆オプション",
-          zh: "Pipeline & Options",
-          de: "Pipeline & Optionen",
-        })}
+        {t({ en: "Pipeline & Options", de: "Pipeline & Optionen" })}
         {pipelineSteps.length > 0 && (
           <span className="ml-2 text-xs opacity-60">
             ({pipelineSteps.map((s) => deptMap.get(s)?.icon ?? s).join(" → ")})
@@ -149,7 +137,7 @@ export default function PipelineSection({
         {/* Preset chips */}
         <div>
           <label className="mb-1.5 block text-xs font-medium" style={{ color: "var(--th-text-muted)" }}>
-            {t({ ko: "프리셋", en: "Preset", ja: "プリセット", zh: "Preset", de: "Voreinstellung" })}
+            {t({ en: "Preset", de: "Voreinstellung" })}
           </label>
           <div className="flex flex-wrap gap-1.5">
             {PIPELINE_PRESETS.map((preset) => {
@@ -175,13 +163,7 @@ export default function PipelineSection({
         {pipelineSteps.length > 0 && (
           <div>
             <label className="mb-1.5 block text-xs font-medium" style={{ color: "var(--th-text-muted)" }}>
-              {t({
-                ko: "파이프라인 순서",
-                en: "Pipeline Order",
-                ja: "パイプライン順序",
-                zh: "Pipeline Order",
-                de: "Pipeline-Reihenfolge",
-              })}
+              {t({ en: "Pipeline Order", de: "Pipeline-Reihenfolge" })}
             </label>
             <div className="flex flex-wrap items-center gap-1.5">
               {pipelineSteps.map((deptId, index) => {
@@ -258,13 +240,7 @@ export default function PipelineSection({
               onChange={(e) => onEnableAutoRetryChange(e.target.checked)}
               className="accent-blue-500"
             />
-            {t({
-              ko: "실패 시 자동 재시도",
-              en: "Auto-retry on failure",
-              ja: "失敗時に自動リトライ",
-              zh: "Auto-retry on failure",
-              de: "Automatisch bei Fehler wiederholen",
-            })}
+            {t({ en: "Auto-retry on failure", de: "Automatisch bei Fehler wiederholen" })}
           </label>
           {enableAutoRetry && (
             <label className="flex items-center gap-1.5 text-xs" style={{ color: "var(--th-text-muted)" }}>

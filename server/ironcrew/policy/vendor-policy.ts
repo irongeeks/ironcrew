@@ -72,6 +72,7 @@ export function normaliseModelId(modelId: string): string {
  * "*" matches one or more characters inside a single "/"-delimited segment.
  */
 function matchesFamily(normalisedId: string, pattern: string): boolean {
+  if (pattern.trim() === "*") return normalisedId.length > 0;
   const escaped = pattern
     .trim()
     .toLowerCase()
@@ -166,17 +167,22 @@ export function evaluateRuntimeModel(policy: VendorPolicy, runtimeType: string, 
   return evaluateModel(policy, canonical, runtimeType);
 }
 
+/** Intersect explicit selections, treating a standalone "*" as universal. */
+export function intersectPolicySelections(baseline: string[], restriction: string[]): string[] {
+  if (baseline.includes("*")) return [...restriction];
+  if (restriction.includes("*")) return [...baseline];
+  return baseline.filter((value) => restriction.includes(value));
+}
+
 /** Wire data can tighten the runner's own baseline, never relax any guard. */
 export function restrictVendorPolicy(policy: VendorPolicy, restrictions?: CompanyPolicyRestrictions): VendorPolicy {
   if (!restrictions) return policy;
   return {
     ...policy,
-    allowed_families: policy.allowed_families.filter((family) => restrictions.allowedFamilies.includes(family)),
+    allowed_families: intersectPolicySelections(policy.allowed_families, restrictions.allowedFamilies),
     openrouter: {
       ...policy.openrouter,
-      allowed_providers: policy.openrouter.allowed_providers.filter((provider) =>
-        restrictions.allowedProviders.includes(provider),
-      ),
+      allowed_providers: intersectPolicySelections(policy.openrouter.allowed_providers, restrictions.allowedProviders),
     },
   };
 }
@@ -244,8 +250,9 @@ export function buildOpenRouterProviderPolicy(
   opts: { sensitive?: boolean } = {},
 ): Record<string, unknown> {
   const base: Record<string, unknown> = {
-    order: [...policy.openrouter.allowed_providers],
-    only: [...policy.openrouter.allowed_providers],
+    ...(policy.openrouter.allowed_providers.includes("*")
+      ? {}
+      : { order: [...policy.openrouter.allowed_providers], only: [...policy.openrouter.allowed_providers] }),
     allow_fallbacks: policy.openrouter.allow_fallbacks,
   };
   if (opts.sensitive) {

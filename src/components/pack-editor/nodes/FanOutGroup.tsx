@@ -1,3 +1,4 @@
+import LocalizedText from "../../LocalizedText";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { PhaseNodeData } from "../pack-deserializer";
 import type { PhaseExecutionState } from "../execution-types";
@@ -38,7 +39,9 @@ export function FanOutGroup({ data, selected }: NodeProps) {
 
       {/* Fan-out label with execution progress */}
       <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[9px]" style={{ color: "#facc15" }}>
-        <span>fan-out</span>
+        <span>
+          <LocalizedText en="fan-out" de="Parallele Verteilung" />
+        </span>
         {exec?.totalInstances ? (
           <span
             className="rounded px-1 py-0.5"

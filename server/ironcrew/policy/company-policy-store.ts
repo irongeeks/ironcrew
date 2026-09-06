@@ -10,7 +10,12 @@ import {
 } from "../../../src/shared/company-policy.ts";
 import { appendAuditEvent, canonicalJson } from "../domain/audit.ts";
 import { redact } from "../security/redaction.ts";
-import { defaultVendorPolicyPath, loadVendorPolicyFromFile, type VendorPolicy } from "./vendor-policy.ts";
+import {
+  defaultVendorPolicyPath,
+  loadVendorPolicyFromFile,
+  restrictVendorPolicy,
+  type VendorPolicy,
+} from "./vendor-policy.ts";
 
 export class CompanyPolicyError extends Error {
   constructor(
@@ -56,17 +61,9 @@ export class CompanyPolicyStore {
     return createHash("sha256").update(canonicalJson(policy)).digest("hex");
   }
   private restricted(baseline: VendorPolicy, restrictions: CompanyPolicyRestrictions): VendorPolicy {
-    return {
-      ...baseline,
-      allowed_families: baseline.allowed_families.filter((value) => restrictions.allowedFamilies.includes(value)),
-      openrouter: {
-        ...baseline.openrouter,
-        allowed_providers: baseline.openrouter.allowed_providers.filter((value) =>
-          restrictions.allowedProviders.includes(value),
-        ),
-      },
-    };
+    return restrictVendorPolicy(baseline, restrictions);
   }
+
   effective(companyId: string): VendorPolicy {
     this.company(companyId);
     const baseline = this.baselineLoader();
@@ -136,8 +133,10 @@ export class CompanyPolicyStore {
           "Die zentrale YAML-Policy wurde geändert. Neu laden und erneut prüfen.",
         );
       if (
-        input.restrictions.allowedFamilies.some((value) => !baseline.allowed_families.includes(value)) ||
-        input.restrictions.allowedProviders.some((value) => !baseline.openrouter.allowed_providers.includes(value))
+        (!baseline.allowed_families.includes("*") &&
+          input.restrictions.allowedFamilies.some((value) => !baseline.allowed_families.includes(value))) ||
+        (!baseline.openrouter.allowed_providers.includes("*") &&
+          input.restrictions.allowedProviders.some((value) => !baseline.openrouter.allowed_providers.includes(value)))
       )
         throw new CompanyPolicyError(
           "outside_baseline",

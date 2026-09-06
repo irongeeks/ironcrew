@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetApiRuntimeForTests, writeStoredCsrfToken } from "../api/core";
 import {
@@ -229,4 +230,26 @@ describe("ConfigurationPanel", () => {
     await screen.findByText("Konfiguration gespeichert. Revision 1 ist aktiv.");
     expect(writes).toHaveLength(1);
   });
+});
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });
+
+it("switches configuration labels between English and German without losing the draft", async () => {
+  const { rerender } = rtlRender(
+    <I18nProvider language="en">
+      <ConfigurationPanel canManage />
+    </I18nProvider>,
+  );
+  const limit = await screen.findByLabelText("Maximum parallel runs");
+  fireEvent.change(limit, { target: { value: "5" } });
+  expect(screen.getByRole("button", { name: "Save configuration" })).toBeInTheDocument();
+  rerender(
+    <I18nProvider language="de">
+      <ConfigurationPanel canManage />
+    </I18nProvider>,
+  );
+  expect(await screen.findByLabelText("Maximale parallele Runs")).toHaveValue(5);
+  expect(screen.getByRole("button", { name: "Konfiguration speichern" })).toBeInTheDocument();
 });

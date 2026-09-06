@@ -3,7 +3,7 @@ import { navigateTo, establishSession } from "../fixtures/test-helpers";
 
 test.describe("Company dashboard", () => {
   test.beforeEach(async ({ page, request }) => {
-    await establishSession(request);
+    await establishSession(request, "de");
     await page.goto("/");
     await navigateTo(page, "office");
     await expect(page.getByTestId("crew-office")).toBeVisible();
@@ -19,7 +19,7 @@ test.describe("Company dashboard", () => {
       ["Review", dashboard.tasks.review],
       ["Freigaben", dashboard.approvalsPending],
       ["Blockiert", dashboard.tasks.blocked],
-      ["Agents aktiv", dashboard.agents.working],
+      ["Aktive Agenten", dashboard.agents.working],
     ] as const) {
       const metric = metrics.locator(".ic-metric").filter({ has: page.getByText(label, { exact: true }) });
       await expect(metric.locator(".ic-metric-value")).toHaveText(String(value));
@@ -29,7 +29,7 @@ test.describe("Company dashboard", () => {
 
   test("New Mission from another screen returns to and focuses the CEO composer", async ({ page }) => {
     await navigateTo(page, "projects");
-    await page.getByRole("button", { name: /NEW MISSION/ }).click();
+    await page.getByRole("button", { name: "+ NEUER AUFTRAG", exact: true }).click();
     await expect(page.getByTestId("crew-office")).toBeVisible();
     await expect(page.locator("#ic-composer-input")).toBeFocused();
     await page.locator("#ic-composer-input").fill("Bitte die nächste Aufgabe planen.");

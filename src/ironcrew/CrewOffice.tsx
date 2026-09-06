@@ -1,3 +1,5 @@
+import { useCrewLabel } from "./crew-labels";
+import { useI18n } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AGENT_STATUS_LABEL, TASK_STATUS_LABEL, type Agent, type Department, type Meeting, type Task } from "./types";
 import { CharacterAvatar } from "./CharacterAvatar";
@@ -59,6 +61,8 @@ export function CrewOffice({
   onSelectTask,
   onSelectMeeting,
 }: CrewOfficeProps): React.JSX.Element {
+  const { t, language } = useI18n();
+  const crewLabel = useCrewLabel();
   const [focusedRoomId, setFocusedRoomId] = useState<string | null>(null);
   const [motionPaused, setMotionPaused] = useState(false);
   const [view, setView] = useState<"floor" | "list">("floor");
@@ -119,8 +123,8 @@ export function CrewOffice({
       (a.status === "waiting_for_approval" || currentTasks.get(a.id)?.status === "approval_required"),
   );
   const layout = useMemo(
-    () => createOfficeBuilding(departments, sortedAgents, meetingAgents.length, decisionAgents.length),
-    [departments, sortedAgents, meetingAgents.length, decisionAgents.length],
+    () => createOfficeBuilding(departments, sortedAgents, meetingAgents.length, decisionAgents.length, language),
+    [departments, sortedAgents, meetingAgents.length, decisionAgents.length, language],
   );
   const height = layout.height;
   const focusedRoom = layout.rooms.find((room) => room.id === focusedRoomId);
@@ -184,31 +188,45 @@ export function CrewOffice({
   const activeMeetings = meetings.filter((meeting) => meeting.status === "in_progress");
   const taskLabel = (agent: Agent) => {
     const task = currentTasks.get(agent.id);
-    return task ? `${TASK_STATUS_LABEL[task.status]}: ${task.title}` : "Keine offene Aufgabe zugewiesen";
+    return task
+      ? `${crewLabel(TASK_STATUS_LABEL[task.status])}: ${task.title}`
+      : t({ de: "Keine offene Aufgabe zugewiesen", en: "No open task assigned" });
   };
 
   return (
     <section
       className="crew-office"
-      aria-label="Virtuelles Büro"
+      aria-label={t({ de: "Virtuelles Büro", en: "Virtual office" })}
       data-testid="crew-office"
       data-ambient-paused={motionPaused || undefined}
     >
       <header className="crew-office-toolbar">
         <div>
           <span className="crew-office-eyebrow">IRONCREW / OFFICE</span>
-          <h2>{focusedRoom ? focusedRoom.name : "Ein Gebäude für die ganze Crew"}</h2>
+          <h2>
+            {focusedRoom
+              ? focusedRoom.name
+              : t({ de: "Ein Gebäude für die ganze Crew", en: "One building for the whole crew" })}
+          </h2>
           <p>
             {focusedRoom
-              ? "Figur öffnen · Aufgabe verfolgen · Einrichtung und Crew im Detail"
-              : "Eigene Büros, kurze Wege und ein gemeinsamer Treffpunkt."}
+              ? t({
+                  de: "Figur öffnen · Aufgabe verfolgen · Einrichtung und Crew im Detail",
+                  en: "Open character · Follow task · Explore rooms and crew",
+                })
+              : t({
+                  de: "Eigene Büros, kurze Wege und ein gemeinsamer Treffpunkt.",
+                  en: "Dedicated offices, short walks and a shared meeting point.",
+                })}
           </p>
         </div>
         <div className="crew-office-controls">
           <label>
-            <span className="ic-sr-only">Büro nach Abteilung filtern</span>
+            <span className="ic-sr-only">
+              {t({ de: "Büro nach Abteilung filtern", en: "Filter office by department" })}
+            </span>
             <select
-              aria-label="Büro nach Abteilung filtern"
+              aria-label={t({ de: "Büro nach Abteilung filtern", en: "Filter office by department" })}
               value={departmentFilter}
               onChange={(event) => {
                 const id = event.target.value;
@@ -217,7 +235,7 @@ export function CrewOffice({
                 setZoom("fit");
               }}
             >
-              <option value="">Alle Abteilungen</option>
+              <option value="">{t({ de: "Alle Abteilungen", en: "All departments" })}</option>
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -227,7 +245,7 @@ export function CrewOffice({
           </label>
           {focusedRoom && (
             <button type="button" className="crew-office-control-button" onClick={overview}>
-              Gebäudeübersicht
+              {t({ de: "Gebäudeübersicht", en: "Building overview" })}{" "}
             </button>
           )}
           <button
@@ -236,20 +254,30 @@ export function CrewOffice({
             aria-pressed={motionPaused}
             onClick={() => setMotionPaused((value) => !value)}
           >
-            {motionPaused ? "Bürobewegung fortsetzen" : "Bürobewegung pausieren"}
+            {motionPaused
+              ? t({ de: "Bürobewegung fortsetzen", en: "Resume office movement" })
+              : t({ de: "Bürobewegung pausieren", en: "Pause office movement" })}
           </button>
-          <div className="crew-office-view-switch" role="group" aria-label="Büroansicht">
+          <div
+            className="crew-office-view-switch"
+            role="group"
+            aria-label={t({ de: "Büroansicht", en: "Office view" })}
+          >
             <button type="button" aria-pressed={view === "floor"} onClick={() => setView("floor")}>
-              Grundriss
+              {t({ de: "Grundriss", en: "Floor plan" })}{" "}
             </button>
             <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>
-              Liste
+              {t({ de: "Liste", en: "List" })}{" "}
             </button>
           </div>
           {view === "floor" && (
-            <div className="crew-office-view-switch" role="group" aria-label="Büro vergrößern">
+            <div
+              className="crew-office-view-switch"
+              role="group"
+              aria-label={t({ de: "Büro vergrößern", en: "Zoom office" })}
+            >
               <button type="button" aria-pressed={zoom === "fit"} onClick={() => setZoom("fit")}>
-                Einpassen
+                {t({ de: "Einpassen", en: "Fit" })}{" "}
               </button>
               <button type="button" aria-pressed={zoom === "actual"} onClick={() => setZoom("actual")}>
                 100 %
@@ -259,26 +287,34 @@ export function CrewOffice({
         </div>
       </header>
       <div className="crew-office-legend">
-        <span className="crew-office-ambient-note">Begegnungen zeigen Bereitschaft · Meetings zeigen echte Arbeit</span>
+        <span className="crew-office-ambient-note">
+          {t({
+            de: "Begegnungen zeigen Bereitschaft · Meetings zeigen echte Arbeit",
+            en: "Encounters show availability · Meetings show actual work",
+          })}
+        </span>
         <span>
           <i data-tone="active" />
-          Arbeit / Analyse
+          {t({ de: "Arbeit / Analyse", en: "Work / analysis" })}{" "}
         </span>
         <span>
           <i data-tone="decision" />
-          Freigabe / Pause
+          {t({ de: "Freigabe / Pause", en: "Approval / pause" })}{" "}
         </span>
         <span>
           <i data-tone="error" />
-          Fehler / Blocker
+          {t({ de: "Fehler / Blocker", en: "Error / blocker" })}{" "}
         </span>
         <span className="crew-office-count">
-          {visibleAgents.length} von {agents.length} Agents
+          {visibleAgents.length} {t({ de: "von", en: "of" })} {agents.length} {t({ de: "Agents", en: "Agents" })}{" "}
         </span>
       </div>
       {agents.length === 0 ? (
         <p className="crew-office-empty">
-          Noch keine Crew vorhanden. Sobald Agents angelegt sind, erscheinen ihre Arbeitsplätze hier.
+          {t({
+            de: "Noch keine Crew vorhanden. Sobald Agents angelegt sind, erscheinen ihre Arbeitsplätze hier.",
+            en: "No crew yet. Workstations will appear here when agents are created.",
+          })}{" "}
         </p>
       ) : view === "floor" ? (
         <div
@@ -286,7 +322,10 @@ export function CrewOffice({
           ref={viewportRef}
           tabIndex={0}
           role="region"
-          aria-label="Bürogrundriss, horizontal verschiebbar. Alternativ Listenansicht verwenden."
+          aria-label={t({
+            de: "Bürogrundriss, horizontal verschiebbar. Alternativ Listenansicht verwenden.",
+            en: "Office floor plan, scroll horizontally. Alternatively, use the list view.",
+          })}
         >
           <div
             className="crew-office-canvas-space"
@@ -307,7 +346,7 @@ export function CrewOffice({
                   type="button"
                   className="crew-office-room-focus"
                   data-testid={`office-room-focus-${room.id}`}
-                  aria-label={`Raum öffnen: ${room.name}`}
+                  aria-label={t({ de: `Raum öffnen: ${room.name}`, en: `Open room: ${room.name}` })}
                   tabIndex={focusedRoom && focusedRoom.id !== room.id ? -1 : 0}
                   aria-hidden={focusedRoom && focusedRoom.id !== room.id ? true : undefined}
                   aria-pressed={focusedRoom?.id === room.id}
@@ -340,8 +379,8 @@ export function CrewOffice({
                       className="crew-office-person-button"
                       disabled={filtered}
                       onClick={() => onSelectAgent(agent)}
-                      aria-label={`${agent.displayName} – ${AGENT_STATUS_LABEL[agent.status]} – ${taskLabel(agent)}`}
-                      title={`${agent.displayName} · ${AGENT_STATUS_LABEL[agent.status]}\n${taskLabel(agent)}`}
+                      aria-label={`${agent.displayName} – ${crewLabel(AGENT_STATUS_LABEL[agent.status])} – ${taskLabel(agent)}`}
+                      title={`${agent.displayName} · ${crewLabel(AGENT_STATUS_LABEL[agent.status])}\n${taskLabel(agent)}`}
                     >
                       <CharacterAvatar
                         characterId={agent.persona.character_id}
@@ -362,10 +401,10 @@ export function CrewOffice({
                           <circle cx="12" cy="6" r="1" fill="#d1e3dc" />
                           <circle cx="17" cy="6" r="1" fill="#d1e3dc" />
                         </svg>
-                        <span>Begegnung</span>
+                        <span>{t({ de: "Begegnung", en: "Encounter" })}</span>
                       </span>
                       <span className="crew-office-name">{agent.displayName}</span>
-                      <span className="crew-office-state">{AGENT_STATUS_LABEL[agent.status]}</span>
+                      <span className="crew-office-state">{crewLabel(AGENT_STATUS_LABEL[agent.status])}</span>
                     </button>
                     {task && (
                       <button
@@ -373,10 +412,13 @@ export function CrewOffice({
                         disabled={filtered}
                         className="crew-office-task-link"
                         onClick={() => onSelectTask(task)}
-                        aria-label={`Aufgabe von ${agent.displayName}: ${task.title}`}
+                        aria-label={t({
+                          de: `Aufgabe von ${agent.displayName}: ${task.title}`,
+                          en: `Task for ${agent.displayName}: ${task.title}`,
+                        })}
                         title={task.title}
                       >
-                        {task.status === "blocked" ? "Blockiert: " : ""}
+                        {task.status === "blocked" ? t({ de: "Blockiert: ", en: "Blocked: " }) : ""}
                         {task.title}
                       </button>
                     )}
@@ -387,7 +429,10 @@ export function CrewOffice({
           </div>
         </div>
       ) : (
-        <ul className="crew-office-roster" aria-label="Crew und aktuelle Aufgaben">
+        <ul
+          className="crew-office-roster"
+          aria-label={t({ de: "Crew und aktuelle Aufgaben", en: "Crew and current tasks" })}
+        >
           {visibleAgents.map((agent) => {
             const task = currentTasks.get(agent.id);
             return (
@@ -395,15 +440,16 @@ export function CrewOffice({
                 <button type="button" onClick={() => onSelectAgent(agent)}>
                   <strong>{agent.displayName}</strong>
                   <span>
-                    {departmentById.get(agent.departmentId ?? "")?.name ?? "Crew"} · {AGENT_STATUS_LABEL[agent.status]}
+                    {departmentById.get(agent.departmentId ?? "")?.name ?? "Crew"} ·{" "}
+                    {crewLabel(AGENT_STATUS_LABEL[agent.status])}
                   </span>
                 </button>
                 {task ? (
                   <button type="button" className="crew-office-roster-task" onClick={() => onSelectTask(task)}>
-                    {TASK_STATUS_LABEL[task.status]}: {task.title}
+                    {crewLabel(TASK_STATUS_LABEL[task.status])}: {task.title}
                   </button>
                 ) : (
-                  <span>Keine offene Aufgabe zugewiesen</span>
+                  <span>{t({ de: "Keine offene Aufgabe zugewiesen", en: "No open task assigned" })}</span>
                 )}
               </li>
             );
@@ -411,18 +457,25 @@ export function CrewOffice({
         </ul>
       )}
       {visibleAgents.length === 0 && agents.length > 0 && (
-        <p className="crew-office-empty">Dieser Abteilung ist noch kein Agent zugeordnet.</p>
+        <p className="crew-office-empty">
+          {t({
+            de: "Dieser Abteilung ist noch kein Agent zugeordnet.",
+            en: "No agent is assigned to this department yet.",
+          })}
+        </p>
       )}
       {activeMeetings.length > 0 && (
-        <div className="crew-office-meetings" aria-label="Laufende Meetings">
+        <div className="crew-office-meetings" aria-label={t({ de: "Laufende Meetings", en: "Active meetings" })}>
           {activeMeetings.map((meeting) =>
             onSelectMeeting ? (
               <button key={meeting.id} type="button" onClick={() => onSelectMeeting(meeting.id)}>
-                Meeting: {meeting.topic} · Runde {meeting.current_round}/{meeting.max_rounds}
+                Meeting: {meeting.topic} {t({ de: "· Runde", en: "· Round" })} {meeting.current_round}/
+                {meeting.max_rounds}
               </button>
             ) : (
               <span key={meeting.id}>
-                Meeting: {meeting.topic} · Runde {meeting.current_round}/{meeting.max_rounds}
+                Meeting: {meeting.topic} {t({ de: "· Runde", en: "· Round" })} {meeting.current_round}/
+                {meeting.max_rounds}
               </span>
             ),
           )}

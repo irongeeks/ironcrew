@@ -121,11 +121,11 @@ export function createEditorState(channelsConfig: MessengerChannelsConfig): Chat
 export function defaultWorkflowPackLabel(t: ChannelSettingsTabProps["t"], key: WorkflowPackKey): string {
   switch (key) {
     case "development":
-      return t({ ko: "개발", en: "Development", ja: "開発", zh: "Development", de: "Entwicklung" });
+      return t({ en: "Development", de: "Entwicklung" });
     case "video_preprod":
-      return t({ ko: "영상기획", en: "Video Preprod", ja: "映像企画", zh: "Video Preprod", de: "Video-Vorproduktion" });
+      return t({ en: "Video Preprod", de: "Video-Vorproduktion" });
     case "web_research_report":
-      return t({ ko: "웹서치+리포트", en: "Web Research", ja: "Web調査", zh: "Web Research", de: "Web-Recherche" });
+      return t({ en: "Web Research", de: "Web-Recherche" });
     default:
       return key;
   }

@@ -1,3 +1,4 @@
+import LocalizedText from "./LocalizedText";
 import { useEffect, useState, useCallback } from "react";
 import type { Agent } from "../types";
 import type { ActiveAgentInfo, CliProcessInfo } from "../api";
@@ -39,7 +40,7 @@ function displayCliProvider(provider: CliProcessInfo["provider"]): string {
 }
 
 export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentStatusPanelProps) {
-  const t = (text: { ko: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
   const [activeAgents, setActiveAgents] = useState<ActiveAgentInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [killing, setKilling] = useState<Set<string>>(new Set());
@@ -164,13 +165,7 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
           <div className="flex items-center gap-3">
             <span className="text-2xl">&#x1F6E0;</span>
             <h2 className="text-lg font-bold" style={{ color: "var(--th-text-heading)" }}>
-              {t({
-                ko: "활성 에이전트",
-                en: "Active Agents",
-                ja: "アクティブエージェント",
-                zh: "Active Agents",
-                de: "Aktive Agenten",
-              })}
+              {t({ en: "Active Agents", de: "Aktive Agenten" })}
             </h2>
             <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-medium text-blue-400">
               {activeAgents.length}
@@ -189,15 +184,9 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                   ? "border-violet-500/40 bg-violet-500/20 text-violet-300"
                   : "hover:text-white"
               }`}
-              title={t({
-                ko: "Script 조회",
-                en: "Script Inspector",
-                ja: "Script確認",
-                zh: "Script Inspector",
-                de: "Script-Inspektor",
-              })}
+              title={t({ en: "Script Inspector", de: "Script-Inspektor" })}
             >
-              <span>{t({ ko: "Script조회", en: "Script", ja: "Script", zh: "Script", de: "Script" })}</span>
+              <span>{t({ en: "Script", de: "Script" })}</span>
               <span aria-hidden>&#x2699;</span>
             </button>
             <button
@@ -210,17 +199,9 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
               className={`flex h-8 items-center gap-1 rounded-lg border px-2 text-[11px] font-medium whitespace-nowrap transition ${
                 inspectorMode === "idle_cli" ? "border-blue-500/40 bg-blue-500/20 text-blue-300" : "hover:text-white"
               }`}
-              title={t({
-                ko: "유휴 CLI 조회",
-                en: "Idle CLI Inspector",
-                ja: "アイドルCLI確認",
-                zh: "Idle CLI Inspector",
-                de: "Inaktiver CLI-Inspektor",
-              })}
+              title={t({ en: "Idle CLI Inspector", de: "Inaktiver CLI-Inspektor" })}
             >
-              <span>
-                {t({ ko: "유휴CLI조회", en: "Idle CLI", ja: "アイドルCLI", zh: "Idle CLI", de: "Inaktiver CLI" })}
-              </span>
+              <span>{t({ en: "Idle CLI", de: "Inaktiver CLI" })}</span>
               <span aria-hidden>&#x1F5A5;</span>
             </button>
             <button
@@ -230,7 +211,7 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
               }}
               className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:text-white"
               style={{ color: "var(--th-text-secondary)" }}
-              title={t({ ko: "새로고침", en: "Refresh", ja: "リフレッシュ", zh: "Refresh", de: "Aktualisieren" })}
+              title={t({ en: "Refresh", de: "Aktualisieren" })}
             >
               &#x21BB;
             </button>
@@ -254,20 +235,8 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                   style={{ color: "var(--th-text-secondary)" }}
                 >
                   {inspectorMode === "script"
-                    ? t({
-                        ko: "실행 중인 Script",
-                        en: "Running Script Processes",
-                        ja: "実行中Script",
-                        zh: "Running Script Processes",
-                        de: "Laufende Script-Prozesse",
-                      })
-                    : t({
-                        ko: "실행 중인 유휴CLI",
-                        en: "Running Idle CLI Processes",
-                        ja: "実行中アイドルCLI",
-                        zh: "Running Idle CLI Processes",
-                        de: "Laufende inaktive CLI-Prozesse",
-                      })}
+                    ? t({ en: "Running Script Processes", de: "Laufende Script-Prozesse" })
+                    : t({ en: "Running Idle CLI Processes", de: "Laufende inaktive CLI-Prozesse" })}
                 </span>
                 <div className="flex items-center gap-2">
                   <span
@@ -285,45 +254,21 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                     className="rounded border px-2 py-0.5 text-[11px] transition hover:text-white"
                     style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
                   >
-                    {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "Refresh", de: "Aktualisieren" })}
+                    {t({ en: "Refresh", de: "Aktualisieren" })}
                   </button>
                 </div>
               </div>
               {cliLoading && visibleCliProcesses.length === 0 ? (
                 <div className="py-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
                   {inspectorMode === "script"
-                    ? t({
-                        ko: "Script 목록 불러오는 중...",
-                        en: "Loading script list...",
-                        ja: "Script一覧を読み込み中...",
-                        zh: "Loading script list...",
-                        de: "Script-Liste wird geladen...",
-                      })
-                    : t({
-                        ko: "유휴 CLI 목록 불러오는 중...",
-                        en: "Loading idle CLI list...",
-                        ja: "アイドルCLI一覧を読み込み中...",
-                        zh: "Loading idle CLI list...",
-                        de: "Inaktive CLI-Liste wird geladen...",
-                      })}
+                    ? t({ en: "Loading script list...", de: "Script-Liste wird geladen..." })
+                    : t({ en: "Loading idle CLI list...", de: "Inaktive CLI-Liste wird geladen..." })}
                 </div>
               ) : visibleCliProcesses.length === 0 ? (
                 <div className="py-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
                   {inspectorMode === "script"
-                    ? t({
-                        ko: "실행 중인 Script가 없습니다",
-                        en: "No running script process",
-                        ja: "実行中Scriptなし",
-                        zh: "No running script process",
-                        de: "Kein laufender Script-Prozess",
-                      })
-                    : t({
-                        ko: "실행 중인 유휴 CLI가 없습니다",
-                        en: "No running idle CLI",
-                        ja: "実行中アイドルCLIなし",
-                        zh: "No running idle CLI",
-                        de: "Kein laufender inaktiver CLI",
-                      })}
+                    ? t({ en: "No running script process", de: "Kein laufender Script-Prozess" })
+                    : t({ en: "No running idle CLI", de: "Kein laufender inaktiver CLI" })}
                 </div>
               ) : (
                 <div
@@ -332,8 +277,7 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                 >
                   {visibleCliProcesses.map((proc) => {
                     const isKilling = killingCliPids.has(proc.pid);
-                    const agentName =
-                      uiLanguage === "ko" ? proc.agent_name_ko || proc.agent_name || "-" : proc.agent_name || "-";
+                    const agentName = proc.agent_name || "-";
                     const commandText = proc.command || proc.executable;
                     const displayTitle = proc.task_title && proc.task_title !== commandText ? proc.task_title : null;
                     return (
@@ -350,11 +294,11 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                               <span style={{ color: "var(--th-text-secondary)" }}>PID {proc.pid}</span>
                               {proc.is_idle ? (
                                 <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-300">
-                                  {t({ ko: "유휴", en: "Idle", ja: "アイドル", zh: "Idle", de: "Inaktiv" })}
+                                  {t({ en: "Idle", de: "Inaktiv" })}
                                 </span>
                               ) : (
                                 <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-300">
-                                  {t({ ko: "활성", en: "Active", ja: "稼働中", zh: "Active", de: "Aktiv" })}
+                                  {t({ en: "Active", de: "Aktiv" })}
                                 </span>
                               )}
                             </div>
@@ -375,13 +319,14 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                               style={{ color: "var(--th-text-muted)" }}
                             >
                               <span>
-                                {t({ ko: "담당", en: "Agent", ja: "担当", zh: "Agent", de: "Agent" })}: {agentName}
+                                {t({ en: "Agent", de: "Agent" })}: {agentName}
                               </span>
                               <span>
-                                {t({ ko: "작업", en: "Task", ja: "タスク", zh: "Task", de: "Aufgabe" })}:{" "}
-                                {proc.task_status || "-"}
+                                {t({ en: "Task", de: "Aufgabe" })}: {proc.task_status || "-"}
                               </span>
-                              <span>Idle: {fmtElapsed(proc.idle_seconds)}</span>
+                              <span>
+                                <LocalizedText en="Idle:" de="Inaktiv:" /> {fmtElapsed(proc.idle_seconds)}
+                              </span>
                             </div>
                           </div>
                           <button
@@ -395,14 +340,8 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                             }`}
                           >
                             {isKilling
-                              ? t({
-                                  ko: "중지 중...",
-                                  en: "Killing...",
-                                  ja: "停止中...",
-                                  zh: "Killing...",
-                                  de: "Wird beendet...",
-                                })
-                              : t({ ko: "Kill", en: "Kill", ja: "Kill", zh: "Kill", de: "Kill" })}
+                              ? t({ en: "Killing...", de: "Wird beendet..." })
+                              : t({ en: "Kill", de: "Beenden" })}
                           </button>
                         </div>
                       </div>
@@ -416,20 +355,14 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-sm" style={{ color: "var(--th-text-muted)" }}>
-                {t({ ko: "불러오는 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+                {t({ en: "Loading...", de: "Laden..." })}
               </div>
             </div>
           ) : activeAgents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <span className="mb-2 text-3xl opacity-40">&#x1F634;</span>
               <p className="text-sm" style={{ color: "var(--th-text-muted)" }}>
-                {t({
-                  ko: "현재 작업 중인 에이전트가 없습니다",
-                  en: "No agents currently working",
-                  ja: "現在作業中のエージェントなし",
-                  zh: "No agents currently working",
-                  de: "Derzeit keine aktiven Agenten",
-                })}
+                {t({ en: "No agents currently working", de: "Derzeit keine aktiven Agenten" })}
               </p>
             </div>
           ) : (
@@ -476,37 +409,20 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                           {ag.has_active_process ? (
                             <span className="flex items-center gap-1">
                               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-                              {t({
-                                ko: "프로세스 활성",
-                                en: "Process active",
-                                ja: "プロセス実行中",
-                                zh: "Process active",
-                                de: "Prozess aktiv",
-                              })}
+                              {t({ en: "Process active", de: "Prozess aktiv" })}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1">
                               <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
-                              {t({
-                                ko: "프로세스 없음",
-                                en: "No process",
-                                ja: "プロセスなし",
-                                zh: "No process",
-                                de: "Kein Prozess",
-                              })}
+                              {t({ en: "No process", de: "Kein Prozess" })}
                             </span>
                           )}
                           <span>
-                            {t({
-                              ko: "마지막 응답",
-                              en: "Last activity",
-                              ja: "最終応答",
-                              zh: "Last activity",
-                              de: "Letzte Aktivität",
-                            })}
-                            : {fmtTime(ag.last_activity_at)}
+                            {t({ en: "Last activity", de: "Letzte Aktivität" })}: {fmtTime(ag.last_activity_at)}
                           </span>
-                          <span className={isIdle ? "text-amber-400" : ""}>Idle: {idleText}</span>
+                          <span className={isIdle ? "text-amber-400" : ""}>
+                            <LocalizedText en="Idle:" de="Inaktiv:" /> {idleText}
+                          </span>
                         </div>
                       </div>
                       {ag.task_id && (
@@ -520,14 +436,8 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
                           }`}
                         >
                           {isKilling
-                            ? t({
-                                ko: "중지 중...",
-                                en: "Stopping...",
-                                ja: "停止中...",
-                                zh: "Stopping...",
-                                de: "Wird gestoppt...",
-                              })
-                            : t({ ko: "강제 중지", en: "Kill", ja: "強制停止", zh: "Kill", de: "Kill" })}
+                            ? t({ en: "Stopping...", de: "Wird gestoppt..." })
+                            : t({ en: "Kill", de: "Beenden" })}
                         </button>
                       )}
                     </div>
@@ -542,20 +452,14 @@ export default function AgentStatusPanel({ agents, uiLanguage, onClose }: AgentS
         <div className="border-t px-6 py-3" style={{ borderColor: "var(--th-border)" }}>
           <div className="flex items-center justify-between">
             <span className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-              {t({
-                ko: "5초마다 자동 갱신",
-                en: "Auto-refresh every 5s",
-                ja: "5秒ごとに自動更新",
-                zh: "Auto-refresh every 5s",
-                de: "Automatische Aktualisierung alle 5 Sek.",
-              })}
+              {t({ en: "Auto-refresh every 5s", de: "Automatische Aktualisierung alle 5 Sek." })}
             </span>
             <button
               onClick={onClose}
               className="rounded-lg px-4 py-1.5 text-sm font-medium transition"
               style={{ background: "var(--th-bg-surface-hover)", color: "var(--th-text-secondary)" }}
             >
-              {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "Close", de: "Schließen" })}
+              {t({ en: "Close", de: "Schließen" })}
             </button>
           </div>
         </div>

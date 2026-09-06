@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import React, { useMemo, useEffect, useState } from "react";
 import type { Agent, Task, Department } from "../../types";
 import type { ProviderTokenData } from "../../hooks/useTokenUsage";
@@ -93,7 +94,9 @@ const MetricsStrip = React.memo(function MetricsStrip({ tasks, agents, departmen
       <div style={{ padding: "12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
         {/* Token Usage — full width on mobile */}
         <div style={{ ...mc }}>
-          <div style={mcLabel}>Token Usage</div>
+          <div style={mcLabel}>
+            <LocalizedText en="Token Usage" de="Token-Verbrauch" />
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <TokenDonut inputTokens={totalInput} outputTokens={totalOutput} cacheTokens={0} />
             <div style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 2 }}>
@@ -108,7 +111,8 @@ const MetricsStrip = React.memo(function MetricsStrip({ tasks, agents, departmen
                     marginRight: 6,
                   }}
                 />
-                Input <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{fmtK(totalInput)}</span>
+                <LocalizedText en="Input" de="Eingabe" />{" "}
+                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{fmtK(totalInput)}</span>
               </div>
               <div>
                 <span
@@ -121,7 +125,8 @@ const MetricsStrip = React.memo(function MetricsStrip({ tasks, agents, departmen
                     marginRight: 6,
                   }}
                 />
-                Output <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{fmtK(totalOutput)}</span>
+                <LocalizedText en="Output" de="Ausgabe" />{" "}
+                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{fmtK(totalOutput)}</span>
               </div>
             </div>
           </div>
@@ -130,22 +135,32 @@ const MetricsStrip = React.memo(function MetricsStrip({ tasks, agents, departmen
         {/* 2-column row: Today + Success */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div style={mc}>
-            <div style={mcLabel}>Today</div>
+            <div style={mcLabel}>
+              <LocalizedText en="Today" de="Heute" />
+            </div>
             <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1, color: "var(--accent)" }}>{completedToday}</div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{completedWeek} this week</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+              {completedWeek} <LocalizedText en="this week" de="diese Woche" />
+            </div>
           </div>
           <div style={mc}>
-            <div style={mcLabel}>Success</div>
+            <div style={mcLabel}>
+              <LocalizedText en="Success" de="Erfolgsquote" />
+            </div>
             <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1, color: "var(--text-secondary)" }}>
               {successRate}%
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>last {recentCount} tasks</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+              <LocalizedText en="last" de="letzte" /> {recentCount} <LocalizedText en="tasks" de="Aufgaben" />
+            </div>
           </div>
         </div>
 
         {/* Departments — full width */}
         <div style={mc}>
-          <div style={mcLabel}>Departments</div>
+          <div style={mcLabel}>
+            <LocalizedText en="Departments" de="Abteilungen" />
+          </div>
           <div style={{ marginTop: 6 }}>
             {deptCounts.slice(0, 4).map((d, i) => (
               <div
@@ -194,7 +209,9 @@ const MetricsStrip = React.memo(function MetricsStrip({ tasks, agents, departmen
     <div style={{ padding: "16px 18px", display: "flex", gap: 12 }}>
       {/* Token Usage (wide) */}
       <div style={{ ...mc, flex: 2.5 }}>
-        <div style={mcLabel}>Token Usage</div>
+        <div style={mcLabel}>
+          <LocalizedText en="Token Usage" de="Token-Verbrauch" />
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <TokenDonut inputTokens={totalInput} outputTokens={totalOutput} cacheTokens={0} />
           <div style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 2 }}>
@@ -209,7 +226,8 @@ const MetricsStrip = React.memo(function MetricsStrip({ tasks, agents, departmen
                   marginRight: 6,
                 }}
               />
-              Input <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{fmtK(totalInput)}</span>
+              <LocalizedText en="Input" de="Eingabe" />{" "}
+              <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{fmtK(totalInput)}</span>
             </div>
             <div>
               <span
@@ -222,7 +240,8 @@ const MetricsStrip = React.memo(function MetricsStrip({ tasks, agents, departmen
                   marginRight: 6,
                 }}
               />
-              Output <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{fmtK(totalOutput)}</span>
+              <LocalizedText en="Output" de="Ausgabe" />{" "}
+              <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{fmtK(totalOutput)}</span>
             </div>
           </div>
           {/* Provider breakdown */}
@@ -276,23 +295,33 @@ const MetricsStrip = React.memo(function MetricsStrip({ tasks, agents, departmen
 
       {/* Today */}
       <div style={mc}>
-        <div style={mcLabel}>Today</div>
+        <div style={mcLabel}>
+          <LocalizedText en="Today" de="Heute" />
+        </div>
         <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: "var(--accent)" }}>{completedToday}</div>
-        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{completedWeek} this week</div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+          {completedWeek} <LocalizedText en="this week" de="diese Woche" />
+        </div>
       </div>
 
       {/* Success */}
       <div style={mc}>
-        <div style={mcLabel}>Success</div>
+        <div style={mcLabel}>
+          <LocalizedText en="Success" de="Erfolgsquote" />
+        </div>
         <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: "var(--text-secondary)" }}>
           {successRate}%
         </div>
-        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>last {recentCount} tasks</div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+          <LocalizedText en="last" de="letzte" /> {recentCount} <LocalizedText en="tasks" de="Aufgaben" />
+        </div>
       </div>
 
       {/* Departments */}
       <div style={mc}>
-        <div style={mcLabel}>Departments</div>
+        <div style={mcLabel}>
+          <LocalizedText en="Departments" de="Abteilungen" />
+        </div>
         <div style={{ marginTop: 6 }}>
           {deptCounts.slice(0, 4).map((d, i) => (
             <div

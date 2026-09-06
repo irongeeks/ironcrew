@@ -11,6 +11,7 @@ import { createCrewAuth } from "../auth/crew-auth.ts";
 import { CompanyOrchestrator } from "../orchestrator/company.ts";
 import { MockRuntime } from "../runtime/mock-runtime.ts";
 import { MarketplaceInstallError } from "../marketplace/marketplace-installer.ts";
+import { CompanyPolicyStore } from "../policy/company-policy-store.ts";
 import { UNTRUSTED_OPEN } from "../policy/untrusted-content.ts";
 import { SearchProviderError } from "../search/search-provider.ts";
 import type { ProposedFile } from "../domain/change-proposal-store.ts";
@@ -414,7 +415,7 @@ describe("budgets over HTTP", () => {
 describe("vendor policy over HTTP (enforced server-side)", () => {
   it("exposes the policy", async () => {
     const res = await request(app).get("/api/crew/vendor-policy").expect(200);
-    expect(res.body.allowedFamilies).toContain("openai/*");
+    expect(res.body.allowedFamilies).toEqual(["*"]);
     expect(res.body.telemetry.enabled).toBe(false);
   });
 
@@ -426,32 +427,50 @@ describe("vendor policy over HTTP (enforced server-side)", () => {
     expect(res.body.decision.allowed).toBe(true);
   });
 
-  it("refuses a blocked model with 403, not a silent UI hide", async () => {
-    for (const model of [
-      "deepseek/deepseek-chat",
-      "qwen/qwen-2.5-72b-instruct",
-      "moonshotai/kimi-k2",
-      "z-ai/glm-4.6",
-      "01-ai/yi-large",
-    ]) {
-      const res = await request(app).post("/api/crew/vendor-policy/check").send({ model }).expect(403);
-      expect(res.body.decision.allowed).toBe(false);
-      expect(res.body.decision.code).toBe("blocked_family");
-    }
+  it.each([
+    "minimax/minimax-m2.5",
+    "deepseek/deepseek-chat",
+    "qwen/qwen-2.5-72b-instruct:free",
+    "moonshotai/kimi-k2",
+    "z-ai/glm-4.6",
+    "01-ai/yi-large",
+    "future-vendor/model-x",
+  ])("permits %s through the API by default", async (model) => {
+    const res = await request(app).post("/api/crew/vendor-policy/check").send({ model }).expect(200);
+    expect(res.body.decision.allowed).toBe(true);
   });
 
-  it("refuses an unknown vendor by default", async () => {
-    const res = await request(app).post("/api/crew/vendor-policy/check").send({ model: "mystery/model-x" }).expect(403);
-    expect(res.body.decision.code).toBe("not_in_allowlist");
+  it("preserves the full catalogue server-side", async () => {
+    const models = [{ id: "openai/gpt-4o" }, { id: "deepseek/deepseek-r1:free" }, { id: "future/model" }];
+    const res = await request(app).post("/api/crew/vendor-policy/filter").send({ models }).expect(200);
+    expect(res.body.allowed).toEqual(models);
+    expect(res.body.denied).toEqual([]);
   });
 
-  it("filters a catalogue server-side", async () => {
-    const res = await request(app)
+  it("still enforces explicit saved owner restrictions on checks and catalogues", async () => {
+    const store = new CompanyPolicyStore(db);
+    const before = store.snapshot(companyId);
+    store.save(
+      companyId,
+      {
+        baseRevision: before.revision,
+        baselineFingerprint: before.baselineFingerprint,
+        reason: "Only the approved model family for this test",
+        restrictions: { allowedFamilies: ["openai/*"], allowedProviders: ["OpenAI"] },
+      },
+      "ceo",
+    );
+    const denied = await request(app)
+      .post("/api/crew/vendor-policy/check")
+      .send({ model: "deepseek/example" })
+      .expect(403);
+    expect(denied.body.decision.code).toBe("not_in_allowlist");
+    const filtered = await request(app)
       .post("/api/crew/vendor-policy/filter")
-      .send({ models: [{ id: "openai/gpt-4o" }, { id: "deepseek/deepseek-r1" }] })
+      .send({ models: [{ id: "openai/example" }, { id: "deepseek/example" }] })
       .expect(200);
-    expect(res.body.allowed).toHaveLength(1);
-    expect(res.body.denied).toHaveLength(1);
+    expect(filtered.body.allowed).toEqual([{ id: "openai/example" }]);
+    expect(filtered.body.denied).toHaveLength(1);
   });
 });
 
@@ -2101,6 +2120,58 @@ describe("vessels and talents over HTTP (an agent is a pairing, not a monolith)"
       .expect(201);
     return res.body.talent;
   }
+
+  it("creates and edits OpenRouter vessels with arbitrary vendor and free model IDs", async () => {
+    const vessel = await createVessel({
+      key: "minimax-openrouter",
+      runtimeProvider: "openrouter",
+      model: "minimax/minimax-m2.5",
+    });
+    expect(vessel.model).toBe("minimax/minimax-m2.5");
+    const updated = await request(app)
+      .patch(`/api/crew/vessels/${vessel.id}`)
+      .send({ model: "qwen/future-model:free" })
+      .expect(200);
+    expect(updated.body.vessel.model).toBe("qwen/future-model:free");
+    const checked = await request(app)
+      .post("/api/crew/policies/vendor/check")
+      .send({ model: "minimax/minimax-m2.5", provider: "GMICloud" })
+      .expect(200);
+    expect(checked.body.decision.allowed).toBe(true);
+  });
+
+  it("rejects vessel creation and edits excluded by explicit owner policy without changing storage", async () => {
+    const vessel = await createVessel({
+      key: "restricted-openrouter",
+      runtimeProvider: "openrouter",
+      model: "openai/test",
+    });
+    const store = new CompanyPolicyStore(db);
+    const before = store.snapshot(companyId);
+    store.save(
+      companyId,
+      {
+        baseRevision: before.revision,
+        baselineFingerprint: before.baselineFingerprint,
+        reason: "Restrict models for vessel validation test",
+        restrictions: { allowedFamilies: ["openai/*"], allowedProviders: ["*"] },
+      },
+      "ceo",
+    );
+    const created = await request(app)
+      .post("/api/crew/vessels")
+      .send({ key: "rejected", runtimeProvider: "openrouter", model: "minimax/test" })
+      .expect(400);
+    expect(created.body.error).toBe("model_not_allowed");
+    const edited = await request(app)
+      .patch(`/api/crew/vessels/${vessel.id}`)
+      .send({ model: "deepseek/test" })
+      .expect(400);
+    expect(edited.body.error).toBe("model_not_allowed");
+    const listed = (await request(app).get("/api/crew/vessels").expect(200)).body.vessels;
+    expect(listed.find((item: { id: string }) => item.id === vessel.id).model).toBe("openai/test");
+    expect(listed.some((item: { key: string }) => item.key === "rejected")).toBe(false);
+  });
 
   it("lists the vessels the seed derived, with the agents using each", async () => {
     const res = await request(app).get("/api/crew/vessels").expect(200);

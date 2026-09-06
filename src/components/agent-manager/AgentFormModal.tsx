@@ -197,13 +197,7 @@ export default function AgentFormModal({
             {locale.startsWith("ja") && (
               <div>
                 <label className="block text-xs mb-1.5 font-medium" style={{ color: "var(--th-text-secondary)" }}>
-                  {t({
-                    ko: "일본어 이름",
-                    en: "Japanese Name",
-                    ja: "日本語名",
-                    zh: "Japanese Name",
-                    de: "Japanischer Name",
-                  })}
+                  {t({ en: "Japanese Name", de: "Japanischer Name" })}
                 </label>
                 <input
                   type="text"
@@ -218,13 +212,7 @@ export default function AgentFormModal({
             {locale.startsWith("zh") && (
               <div>
                 <label className="block text-xs mb-1.5 font-medium" style={{ color: "var(--th-text-secondary)" }}>
-                  {t({
-                    ko: "중국어 이름",
-                    en: "Chinese Name",
-                    ja: "中国語名",
-                    zh: "Chinese Name",
-                    de: "Chinesischer Name",
-                  })}
+                  {t({ en: "Chinese Name", de: "Chinesischer Name" })}
                 </label>
                 <input
                   type="text"
@@ -424,15 +412,7 @@ export default function AgentFormModal({
                 {tr("4방향 스프라이트 시트 업로드 (2x2 그리드)", "Upload 4-direction sprite sheet (2x2 grid)")}
               </span>
               <span className="text-xs">{tr("앞 / 왼 / 뒤 / 오른 순서", "Front / Left / Back / Right order")}</span>
-              <span className="text-xs">
-                {t({
-                  ko: "(흰색배경)",
-                  en: "(White background)",
-                  ja: "（白背景）",
-                  zh: "(White background)",
-                  de: "(Weißer Hintergrund)",
-                })}
-              </span>
+              <span className="text-xs">{t({ en: "(White background)", de: "(Weißer Hintergrund)" })}</span>
               <input
                 type="file"
                 accept="image/*"

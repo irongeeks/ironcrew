@@ -1,3 +1,4 @@
+import { useUiCopy } from "./LocalizedText";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WSEventType } from "../types";
 
@@ -27,6 +28,7 @@ interface NotificationToastProps {
 }
 
 export function NotificationToast({ socketOn }: NotificationToastProps) {
+  const translateUiCopy = useUiCopy();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const counterRef = useRef(0);
 
@@ -95,13 +97,16 @@ export function NotificationToast({ socketOn }: NotificationToastProps) {
     unsubs.push(
       socketOn("token_budget_warning", (payload) => {
         const rec = (payload as Record<string, unknown>) || {};
-        const message = typeof rec.message === "string" ? rec.message : "Token budget running low";
+        const message =
+          typeof rec.message === "string"
+            ? rec.message
+            : translateUiCopy("Token budget running low", "Token-Budget fast aufgebraucht");
         push(truncate(message, 180), "warning", TOAST_DURATION_LONG_MS);
       }),
     );
 
     return () => unsubs.forEach((fn) => fn());
-  }, [socketOn, push]);
+  }, [translateUiCopy, socketOn, push]);
 
   if (toasts.length === 0) return null;
 

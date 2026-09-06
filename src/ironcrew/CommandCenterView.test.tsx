@@ -1,5 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderWithOptions,
+  screen,
+  waitFor,
+  within,
+  type RenderOptions,
+} from "@testing-library/react";
+import type { ReactNode } from "react";
+import { I18nProvider, type UiLanguage } from "../i18n";
+import { commandMessages } from "./command-center-messages";
+import commandCenterSource from "./CommandCenterView.tsx?raw";
+import ts from "typescript";
 import userEvent from "@testing-library/user-event";
 import { ApiRequestError } from "../api/core";
 import { CommandCenterView } from "./CommandCenterView.tsx";
@@ -50,6 +62,13 @@ import type {
   ToolWithGrants,
   Vessel,
 } from "./types.ts";
+
+function render(ui: ReactNode, options?: RenderOptions) {
+  return renderWithOptions(ui, {
+    wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>,
+    ...options,
+  });
+}
 
 function agent(over: Partial<Agent> = {}): Agent {
   return {
@@ -614,7 +633,7 @@ describe("dashboard figures come from the backend", () => {
     expect(valueFor("Review")).toBe("1");
     expect(valueFor("Freigaben")).toBe("4");
     expect(valueFor("Blockiert")).toBe("2");
-    expect(valueFor("Agents aktiv")).toBe("3");
+    expect(valueFor("Aktive Agenten")).toBe("3");
   });
 
   it("flags a broken audit chain instead of hiding it", async () => {
@@ -4315,6 +4334,70 @@ describe("vendor policy identity permissions", () => {
     } finally {
       loadPolicy.mockRestore();
       savePolicy.mockRestore();
+    }
+  });
+});
+
+describe("Command Center language switching", () => {
+  it("translates every literal command message key", () => {
+    const keys: string[] = [];
+    const source = ts.createSourceFile(
+      "CommandCenterView.tsx",
+      commandCenterSource,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "ct") {
+        const first = node.arguments[0];
+        if (first && ts.isStringLiteralLike(first)) keys.push(first.text.trim());
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    expect(keys.length).toBeGreaterThan(300);
+    const missing = [...new Set(keys)].filter((key) => !Object.hasOwn(commandMessages, key));
+    expect(missing).toEqual([]);
+  });
+
+  it("switches EN to DE and back while preserving user-authored content", async () => {
+    const client = makeClient({
+      tasks: vi.fn().mockResolvedValue({ tasks: [task({ title: "Zugangsdaten" })] }),
+      chat: vi.fn().mockResolvedValue({
+        conversationId: "conversation-locale",
+        messages: [
+          {
+            id: "message-locale",
+            role: "ceo",
+            author_agent_id: null,
+            body: "Bitte prüfen: Zugangsdaten",
+            task_id: null,
+            created_at: Date.now(),
+            triage_json: null,
+          },
+        ],
+      }),
+    });
+    const view = (language: UiLanguage) => (
+      <I18nProvider language={language}>
+        <CommandCenterView initialView="tasks" client={client} />
+      </I18nProvider>
+    );
+    const { rerender } = renderWithOptions(view("en"));
+    await screen.findByTestId("kanban");
+    for (const [language, credentials, inbox] of [
+      ["en", "Credentials", "Inbox"],
+      ["de", "Zugangsdaten", "Eingang"],
+      ["en", "Credentials", "Inbox"],
+    ] as const) {
+      rerender(view(language));
+      expect(await screen.findByRole("button", { name: credentials })).toBeInTheDocument();
+      expect(within(screen.getByTestId("kanban")).getByText(inbox, { exact: true })).toBeInTheDocument();
+      expect(within(screen.getByTestId("kanban")).getByText("Zugangsdaten", { exact: true })).toBeInTheDocument();
+      expect(screen.getByText("Bitte prüfen: Zugangsdaten", { exact: true })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: language === "de" ? "Mannschaft" : "Team" })).toBeInTheDocument();
+      expect(document.documentElement.lang).toBe(language);
     }
   });
 });

@@ -7,7 +7,7 @@ test("private untextured GLB renders interactively while the office retains its 
   page,
   request,
 }, testInfo) => {
-  const csrf = await establishSession(request);
+  const csrf = await establishSession(request, "de");
   const headers = { "x-csrf-token": csrf };
   const { agents } = (await (await request.get("/api/crew/agents")).json()) as { agents: Agent[] };
   const agent = agents.find((item) => item.key === "cto") ?? agents[0];

@@ -26,9 +26,9 @@ describe("KnowledgeStep", () => {
     vi.clearAllMocks();
   });
 
-  it("renders vault path input with default value containing 'workspaces/knowledge'", () => {
+  it("renders vault path input with default value containing 'data/vault'", () => {
     render(<KnowledgeStep onNext={onNext} onBack={onBack} />);
-    const input = screen.getByDisplayValue("workspaces/knowledge");
+    const input = screen.getByDisplayValue("data/vault");
     expect(input).toBeTruthy();
   });
 
@@ -66,8 +66,8 @@ describe("KnowledgeStep", () => {
       id: "prov-1",
       name: "Obsidian Vault",
       providerType: "obsidian",
-      vaultPath: "workspaces/knowledge",
-      enabled: true,
+      vaultPath: "data/vault",
+      enabled: false,
       readOnly: false,
       metadata: null,
       createdAt: 0,
@@ -84,8 +84,8 @@ describe("KnowledgeStep", () => {
 
     expect(mockedCreate).toHaveBeenCalledWith({
       name: "Obsidian Vault",
-      vaultPath: "workspaces/knowledge",
-      enabled: true,
+      vaultPath: "data/vault",
+      enabled: false,
       readOnly: false,
     });
     expect(mockedTest).toHaveBeenCalledWith("prov-1");
@@ -96,8 +96,8 @@ describe("KnowledgeStep", () => {
       id: "prov-1",
       name: "Obsidian Vault",
       providerType: "obsidian",
-      vaultPath: "workspaces/knowledge",
-      enabled: true,
+      vaultPath: "data/vault",
+      enabled: false,
       readOnly: false,
       metadata: null,
       createdAt: 0,
@@ -122,8 +122,8 @@ describe("KnowledgeStep", () => {
       id: "prov-1",
       name: "Obsidian Vault",
       providerType: "obsidian",
-      vaultPath: "workspaces/knowledge",
-      enabled: true,
+      vaultPath: "data/vault",
+      enabled: false,
       readOnly: false,
       metadata: null,
       createdAt: 0,
@@ -152,8 +152,8 @@ describe("KnowledgeStep", () => {
       id: "prov-1",
       name: "Obsidian Vault",
       providerType: "obsidian",
-      vaultPath: "workspaces/knowledge",
-      enabled: true,
+      vaultPath: "data/vault",
+      enabled: false,
       readOnly: false,
       metadata: null,
       createdAt: 0,
@@ -174,8 +174,8 @@ describe("KnowledgeStep", () => {
       id: "prov-1",
       name: "Obsidian Vault",
       providerType: "obsidian",
-      vaultPath: "workspaces/knowledge",
-      enabled: true,
+      vaultPath: "data/vault",
+      enabled: false,
       readOnly: false,
       metadata: null,
       createdAt: 0,
@@ -190,7 +190,7 @@ describe("KnowledgeStep", () => {
       expect(screen.getByText(/7 notes found/)).toBeTruthy();
     });
 
-    const input = screen.getByDisplayValue("workspaces/knowledge");
+    const input = screen.getByDisplayValue("data/vault");
     fireEvent.change(input, { target: { value: "workspaces/other" } });
 
     expect(screen.queryByText(/7 notes found/)).toBeNull();
@@ -204,6 +204,6 @@ describe("KnowledgeStep", () => {
 
   it("renders Obsidian Sync hint text", () => {
     render(<KnowledgeStep onNext={onNext} onBack={onBack} />);
-    expect(screen.getByText(/Using Obsidian Sync\?/)).toBeTruthy();
+    expect(screen.getByText(/For Obsidian Sync/)).toBeTruthy();
   });
 });

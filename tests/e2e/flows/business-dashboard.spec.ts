@@ -6,7 +6,7 @@ test("business sources expose setup state without inventing metrics or starting 
   page,
   request,
 }, testInfo) => {
-  await establishSession(request);
+  await establishSession(request, "de");
   const snapshot = await expectOkJson<BusinessDashboardSnapshot>(
     await request.get("/api/crew/business-dashboard"),
     "Read business sources",

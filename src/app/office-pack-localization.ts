@@ -4,19 +4,7 @@ import { PACK_SEED_PROFILE } from "./office-pack-presets";
 import { DEPARTMENT_PERSON_NAME_POOL, PACK_NAME_POOL_OVERRIDES } from "./office-pack-name-pools";
 
 export function pickText(locale: UiLanguageLike, text: Localized): string {
-  switch (locale) {
-    case "ko":
-      return text.ko;
-    case "ja":
-      return text.ja || text.en;
-    case "zh":
-      return text.zh || text.en;
-    case "de":
-      return text.de || text.en;
-    case "en":
-    default:
-      return text.en;
-  }
+  return locale === "de" ? text.de || text.en : text.en;
 }
 
 export function localizedNumberedName(
@@ -62,32 +50,14 @@ export function buildSeedPersonality(params: {
   role: AgentRole;
   locale: UiLanguageLike;
   defaultPrefix: Localized;
-  departmentName: { ko: string; en: string; ja: string; zh: string };
+  departmentName: Localized;
 }): string | null {
   if (params.packKey === "development") return null;
   const tone = PACK_SEED_PROFILE[params.packKey]?.tone;
   if (!tone) return null;
   const locale = params.locale;
   const roleLabelMap: Record<UiLanguageLike, Record<AgentRole, string>> = {
-    ko: {
-      team_leader: "팀 리드",
-      senior: "시니어",
-      junior: "주니어",
-      intern: "인턴",
-    },
     en: {
-      team_leader: "team lead",
-      senior: "senior member",
-      junior: "junior member",
-      intern: "intern",
-    },
-    ja: {
-      team_leader: "チームリーダー",
-      senior: "シニア",
-      junior: "ジュニア",
-      intern: "インターン",
-    },
-    zh: {
       team_leader: "team lead",
       senior: "senior member",
       junior: "junior member",
@@ -101,18 +71,15 @@ export function buildSeedPersonality(params: {
     },
   };
   const focusByLocale: Record<UiLanguageLike, string> = {
-    ko: params.defaultPrefix.ko?.trim() || `${params.departmentName.ko} 담당`,
     en: params.defaultPrefix.en?.trim() || `${params.departmentName.en} coverage`,
-    ja: params.defaultPrefix.ja?.trim() || `${params.departmentName.ja}担当`,
-    zh: params.defaultPrefix.zh?.trim() || `${params.departmentName.zh} coverage`,
-    de: params.defaultPrefix.de?.trim() || params.defaultPrefix.en?.trim() || `${params.departmentName.en} coverage`,
+    de:
+      params.defaultPrefix.de?.trim() ||
+      params.defaultPrefix.en?.trim() ||
+      `${params.departmentName.de || params.departmentName.en}`,
   };
   const roleLabel = roleLabelMap[locale][params.role];
   const focus = focusByLocale[locale];
   const toneText = pickText(locale, tone);
-  if (locale === "ko") return `${toneText} ${focus} 역할의 ${roleLabel}입니다.`;
-  if (locale === "ja") return `${toneText} ${focus}を担当する${roleLabel}として動きます。`;
-  if (locale === "zh") return `${toneText} Serves as a ${roleLabel} focused on ${focus}.`;
   if (locale === "de") return `${toneText} Arbeitet als ${roleLabel} mit Fokus auf ${focus}.`;
   return `${toneText} Serves as a ${roleLabel} focused on ${focus}.`;
 }
@@ -125,10 +92,7 @@ export function buildPackDepartmentDescription(params: {
   const { locale, packSummary, departmentName } = params;
   const summary = pickText(locale, packSummary);
   const deptName = pickText(locale, departmentName);
-  if (locale === "ko") return `${deptName}입니다. ${summary} 목표를 중심으로 협업합니다.`;
-  if (locale === "ja") return `${deptName}です。${summary}の目標達成に向けて連携します。`;
-  if (locale === "zh") return `${deptName} team. Collaborates to deliver the ${summary.toLowerCase()} goal.`;
-  if (locale === "de") return `${deptName} Team. Collaborates to deliver the ${summary.toLowerCase()} goal.`;
+  if (locale === "de") return `${deptName}: Arbeitet gemeinsam an folgendem Ziel: ${summary}.`;
   return `${deptName} team. Collaborates to deliver the ${summary.toLowerCase()} goal.`;
 }
 
@@ -140,17 +104,8 @@ export function buildPackDepartmentPrompt(params: {
   const { locale, packSummary, departmentName } = params;
   const summary = pickText(locale, packSummary);
   const deptName = pickText(locale, departmentName);
-  if (locale === "ko") {
-    return `[부서 역할] ${deptName}\n[업무 기준] ${summary}\n요청을 실행 가능한 단계로 나누고, 근거와 산출물을 명확히 제시하세요.`;
-  }
-  if (locale === "ja") {
-    return `[部署の役割] ${deptName}\n[業務基準] ${summary}\n依頼を実行可能なステップに分解し、根拠と成果物を明確に提示してください。`;
-  }
-  if (locale === "zh") {
-    return `[Department Role] ${deptName}\n[Execution Standard] ${summary}\nBreak requests into actionable steps and clearly provide rationale and deliverables.`;
-  }
   if (locale === "de") {
-    return `[Department Role] ${deptName}\n[Execution Standard] ${summary}\nBreak requests into actionable steps and clearly provide rationale and deliverables.`;
+    return `[Abteilungsrolle] ${deptName}\n[Arbeitsgrundlage] ${summary}\nZerlege Anfragen in umsetzbare Schritte und benenne Begründungen und Ergebnisse klar.`;
   }
   return `[Department Role] ${deptName}\n[Execution Standard] ${summary}\nBreak requests into actionable steps and clearly provide rationale and deliverables.`;
 }

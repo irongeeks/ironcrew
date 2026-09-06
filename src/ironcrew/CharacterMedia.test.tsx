@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CharacterAssetManager } from "./CharacterAssetManager";
@@ -193,3 +194,10 @@ describe("bounded character media", () => {
     expect(use).toHaveBeenCalledWith(asset);
   });
 });
+
+function render(ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>,
+    ...options,
+  });
+}

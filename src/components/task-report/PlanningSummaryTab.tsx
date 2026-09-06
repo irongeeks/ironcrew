@@ -29,20 +29,14 @@ export default function PlanningSummaryTab({
   onToggleDoc,
   onSetPage,
 }: PlanningSummaryTabProps) {
-  const t = (text: { ko: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; ja?: string; zh?: string; de?: string }) => pickLang(uiLanguage, text);
 
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
         <div className="mb-1 flex items-center justify-between gap-2">
           <p className="text-xs font-semibold text-emerald-300">
-            {t({
-              ko: "기획팀장 최종 취합본",
-              en: "Planning Lead Consolidated Summary",
-              ja: "企画リード統合サマリー",
-              zh: "Planning Lead Consolidated Summary",
-              de: "Konsolidierte Zusammenfassung (Planungsleitung)",
-            })}
+            {t({ en: "Planning Lead Consolidated Summary", de: "Konsolidierte Zusammenfassung (Planungsleitung)" })}
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -55,38 +49,19 @@ export default function PlanningSummaryTab({
               }`}
             >
               {refreshingArchive
-                ? t({
-                    ko: "갱신 중...",
-                    en: "Refreshing...",
-                    ja: "更新中...",
-                    zh: "Refreshing...",
-                    de: "Aktualisieren...",
-                  })
-                : t({
-                    ko: "취합 갱신",
-                    en: "Refresh Consolidation",
-                    ja: "統合更新",
-                    zh: "Refresh Consolidation",
-                    de: "Konsolidierung aktualisieren",
-                  })}
+                ? t({ en: "Refreshing...", de: "Aktualisieren..." })
+                : t({ en: "Refresh Consolidation", de: "Konsolidierung aktualisieren" })}
             </button>
             <span className="text-[11px] text-emerald-400">{fmtTime(generatedAt)}</span>
           </div>
         </div>
         <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-emerald-100">
-          {content ||
-            t({
-              ko: "요약 내용이 없습니다",
-              en: "No summary text",
-              ja: "サマリーなし",
-              zh: "No summary text",
-              de: "Kein Zusammenfassungstext",
-            })}
+          {content || t({ en: "No summary text", de: "Kein Zusammenfassungstext" })}
         </pre>
       </div>
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: "var(--th-text-muted)" }}>
-          {t({ ko: "문서 원문", en: "Source Documents", ja: "原本文書", zh: "Source Documents", de: "Quelldokumente" })}
+          {t({ en: "Source Documents", de: "Quelldokumente" })}
         </p>
         <ReportDocumentList
           documents={documents}

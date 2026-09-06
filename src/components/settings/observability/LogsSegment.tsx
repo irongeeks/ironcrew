@@ -67,9 +67,7 @@ export function LogsSegment({ t }: { t: TFunction }) {
             setOffset(0);
           }}
         >
-          <option value="">
-            {t({ ko: "전체 레벨", en: "All Levels", ja: "全レベル", zh: "All Levels", de: "Alle Level" })}
-          </option>
+          <option value="">{t({ en: "All Levels", de: "Alle Level" })}</option>
           <option value="50">ERROR+</option>
           <option value="40">WARN+</option>
           <option value="30">INFO+</option>
@@ -84,7 +82,7 @@ export function LogsSegment({ t }: { t: TFunction }) {
             background: "var(--th-bg-primary)",
             color: "var(--th-text-primary)",
           }}
-          placeholder={t({ ko: "모듈 필터", en: "Module filter", ja: "モジュール", zh: "Module", de: "Modul" })}
+          placeholder={t({ en: "Module filter", de: "Modul" })}
           value={moduleFilter}
           onChange={(e) => {
             setModuleFilter(e.target.value);
@@ -100,7 +98,7 @@ export function LogsSegment({ t }: { t: TFunction }) {
             color: "var(--th-text-primary)",
             minWidth: 120,
           }}
-          placeholder={t({ ko: "검색...", en: "Search...", ja: "検索...", zh: "Search...", de: "Suche..." })}
+          placeholder={t({ en: "Search...", de: "Suche..." })}
           value={searchText}
           onChange={(e) => {
             setSearchText(e.target.value);
@@ -110,7 +108,7 @@ export function LogsSegment({ t }: { t: TFunction }) {
 
         <label className="flex items-center gap-1 text-xs" style={{ color: "var(--th-text-secondary)" }}>
           <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-          {t({ ko: "자동 새로고침", en: "Auto-refresh", ja: "自動更新", zh: "Auto-refresh", de: "Auto-Refresh" })}
+          {t({ en: "Auto-refresh", de: "Auto-Refresh" })}
         </label>
       </div>
 
@@ -118,28 +116,24 @@ export function LogsSegment({ t }: { t: TFunction }) {
       <div className="overflow-auto rounded-lg border" style={{ borderColor: "var(--th-border)", maxHeight: 480 }}>
         {loading ? (
           <div className="flex items-center justify-center py-12" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+            {t({ en: "Loading...", de: "Laden..." })}
           </div>
         ) : logs.length === 0 ? (
           <div className="py-8 text-center text-xs" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "로그가 없습니다", en: "No logs found", ja: "ログがありません", zh: "No logs", de: "Keine Logs" })}
+            {t({ en: "No logs found", de: "Keine Logs" })}
           </div>
         ) : (
           <table className="w-full text-xs" style={{ fontFamily: "monospace" }}>
             <thead>
               <tr style={{ background: "var(--th-bg-secondary)", color: "var(--th-text-secondary)" }}>
+                <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">{t({ en: "Time", de: "Zeit" })}</th>
                 <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">
-                  {t({ ko: "시간", en: "Time", ja: "時刻", zh: "Time", de: "Zeit" })}
-                </th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">
-                  {t({ ko: "레벨", en: "Level", ja: "レベル", zh: "Level", de: "Level" })}
+                  {t({ en: "Level", de: "Level" })}
                 </th>
                 <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">
-                  {t({ ko: "모듈", en: "Module", ja: "モジュール", zh: "Module", de: "Modul" })}
+                  {t({ en: "Module", de: "Modul" })}
                 </th>
-                <th className="px-2 py-1.5 text-left font-medium">
-                  {t({ ko: "메시지", en: "Message", ja: "メッセージ", zh: "Message", de: "Nachricht" })}
-                </th>
+                <th className="px-2 py-1.5 text-left font-medium">{t({ en: "Message", de: "Nachricht" })}</th>
               </tr>
             </thead>
             <tbody>
@@ -174,7 +168,7 @@ export function LogsSegment({ t }: { t: TFunction }) {
       {/* Pagination */}
       <div className="flex items-center justify-between text-xs" style={{ color: "var(--th-text-secondary)" }}>
         <span>
-          {t({ ko: "총", en: "Total:", ja: "合計:", zh: "Total:", de: "Gesamt:" })} {total}
+          {t({ en: "Total:", de: "Gesamt:" })} {total}
         </span>
         <div className="flex items-center gap-2">
           <button
@@ -183,7 +177,7 @@ export function LogsSegment({ t }: { t: TFunction }) {
             className="rounded px-2 py-1 transition-colors disabled:opacity-30"
             style={{ color: "var(--th-text-primary)" }}
           >
-            &larr; {t({ ko: "이전", en: "Prev", ja: "前", zh: "Prev", de: "Zurück" })}
+            &larr; {t({ en: "Prev", de: "Zurück" })}
           </button>
           <span>
             {offset + 1}–{Math.min(offset + LIMIT, total)}
@@ -194,7 +188,7 @@ export function LogsSegment({ t }: { t: TFunction }) {
             className="rounded px-2 py-1 transition-colors disabled:opacity-30"
             style={{ color: "var(--th-text-primary)" }}
           >
-            {t({ ko: "다음", en: "Next", ja: "次", zh: "Next", de: "Weiter" })} &rarr;
+            {t({ en: "Next", de: "Weiter" })} &rarr;
           </button>
         </div>
       </div>

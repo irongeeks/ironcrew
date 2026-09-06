@@ -14,20 +14,14 @@ export default function ComfyUiSettingsTab({ t }: ComfyUiSettingsTabProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold" style={{ color: "var(--th-text-heading)" }}>
-          {t({
-            ko: "ComfyUI 워크플로우",
-            en: "ComfyUI Workflows",
-            ja: "ComfyUI ワークフロー",
-            zh: "ComfyUI Workflows",
-            de: "ComfyUI Workflows",
-          })}
+          {t({ en: "ComfyUI Workflows", de: "ComfyUI Workflows" })}
         </h3>
         {!hf.addMode && (
           <button
             onClick={hf.startAdd}
             className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
           >
-            + {t({ ko: "추가", en: "Add", ja: "追加", zh: "Add", de: "Hinzufügen" })}
+            + {t({ en: "Add", de: "Hinzufügen" })}
           </button>
         )}
       </div>
@@ -35,13 +29,7 @@ export default function ComfyUiSettingsTab({ t }: ComfyUiSettingsTabProps) {
       <div className="flex items-end gap-2">
         <label className="block flex-1">
           <span className="mb-1 block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "ComfyUI 서버 URL",
-              en: "ComfyUI Server URL",
-              ja: "ComfyUI サーバー URL",
-              zh: "ComfyUI Server URL",
-              de: "ComfyUI Server-URL",
-            })}
+            {t({ en: "ComfyUI Server URL", de: "ComfyUI Server-URL" })}
           </span>
           <input
             value={hf.serverUrl}
@@ -59,9 +47,7 @@ export default function ComfyUiSettingsTab({ t }: ComfyUiSettingsTabProps) {
           onClick={() => hf.saveServerUrl(hf.serverUrl)}
           className="shrink-0 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
         >
-          {hf.serverUrlSaved
-            ? t({ ko: "저장됨", en: "Saved", ja: "保存済み", zh: "Saved", de: "Gespeichert" })
-            : t({ ko: "저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })}
+          {hf.serverUrlSaved ? t({ en: "Saved", de: "Gespeichert" }) : t({ en: "Save", de: "Speichern" })}
         </button>
       </div>
 

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { request } from "../api/core";
 import type { ObjectiveSnapshot } from "../shared/objective-evaluations";
@@ -109,3 +110,10 @@ describe("objective evaluations panel", () => {
     await waitFor(() => expect(screen.getAllByLabelText("Bezeichnung")).toHaveLength(2));
   });
 });
+
+function render(ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>,
+    ...options,
+  });
+}

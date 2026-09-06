@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "./LocalizedText";
 import { useEffect, useState } from "react";
 import { listRemoteDirectory, createRemoteDirectory, readRemoteFile, deleteRemoteFile } from "../api/server-ssh";
 import type { RemoteFileEntry } from "../types/index";
@@ -49,6 +50,7 @@ export default function ServerFileBrowser({
   compact = false,
   onSelectPath,
 }: ServerFileBrowserProps) {
+  const translateUiCopy = useUiCopy();
   const [currentPath, setCurrentPath] = useState(initialPath);
   const [entries, setEntries] = useState<RemoteFileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -126,20 +128,20 @@ export default function ServerFileBrowser({
       setShowNewFolder(false);
       void loadDirectory(currentPath);
     } catch (err) {
-      setError(`Failed to create folder: ${String(err)}`);
+      setError(`${translateUiCopy("Failed to create folder", "Ordner konnte nicht erstellt werden")}: ${String(err)}`);
     } finally {
       setCreatingFolder(false);
     }
   };
 
   const handleDelete = async (entry: RemoteFileEntry) => {
-    if (!window.confirm(`Delete "${entry.name}"?`)) return;
+    if (!window.confirm(translateUiCopy(`Delete "${entry.name}"?`, `„${entry.name}“ löschen?`))) return;
     setDeletingPath(entry.path);
     try {
       await deleteRemoteFile(serverId, entry.path);
       void loadDirectory(currentPath);
     } catch (err) {
-      setError(`Failed to delete: ${String(err)}`);
+      setError(`${translateUiCopy("Failed to delete", "Löschen fehlgeschlagen")}: ${String(err)}`);
     } finally {
       setDeletingPath(null);
     }
@@ -184,16 +186,16 @@ export default function ServerFileBrowser({
             className={`rounded border px-2 py-0.5 ${textSize}`}
             style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
             onClick={() => setShowNewFolder((v) => !v)}
-            title="New Folder"
+            title={translateUiCopy("New Folder", "Neuer Ordner")}
           >
-            + Folder
+            <LocalizedText en="+ Folder" de="+ Ordner" />
           </button>
           <button
             className={`rounded border px-2 py-0.5 ${textSize}`}
             style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
             onClick={() => void loadDirectory(currentPath)}
             disabled={loading}
-            title="Refresh"
+            title={translateUiCopy("Refresh", "Aktualisieren")}
           >
             ↻
           </button>
@@ -203,7 +205,7 @@ export default function ServerFileBrowser({
               style={{ borderColor: "var(--th-accent)", color: "var(--th-accent)" }}
               onClick={() => onSelectPath(currentPath)}
             >
-              Select
+              <LocalizedText en="Select" de="Auswählen" />
             </button>
           )}
         </div>
@@ -224,7 +226,7 @@ export default function ServerFileBrowser({
           }}
           value={pathInput}
           onChange={(e) => setPathInput(e.target.value)}
-          placeholder="Enter path..."
+          placeholder={translateUiCopy("Enter path...", "Pfad eingeben …")}
           spellCheck={false}
         />
         <button
@@ -254,7 +256,7 @@ export default function ServerFileBrowser({
             }}
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
-            placeholder="Folder name"
+            placeholder={translateUiCopy("Folder name", "Ordnername")}
             onKeyDown={(e) => {
               if (e.key === "Enter") void handleCreateFolder();
               if (e.key === "Escape") {
@@ -269,7 +271,7 @@ export default function ServerFileBrowser({
             onClick={() => void handleCreateFolder()}
             disabled={creatingFolder || !newFolderName.trim()}
           >
-            {creatingFolder ? "..." : "Create"}
+            {creatingFolder ? "..." : translateUiCopy("Create", "Erstellen")}
           </button>
           <button
             className={`shrink-0 rounded border px-2 py-0.5 ${textSize}`}
@@ -296,7 +298,7 @@ export default function ServerFileBrowser({
         >
           {error}
           <button className="ml-2 underline opacity-70" onClick={() => setError(null)}>
-            dismiss
+            <LocalizedText en="dismiss" de="Ausblenden" />
           </button>
         </div>
       )}
@@ -305,12 +307,12 @@ export default function ServerFileBrowser({
       <div className={`overflow-auto ${compact ? "max-h-48" : "max-h-80"}`}>
         {loading && (
           <div className={`px-3 py-4 text-center ${textSize}`} style={{ color: "var(--th-text-secondary)" }}>
-            Loading...
+            <LocalizedText en="Loading..." de="Wird geladen …" />
           </div>
         )}
         {!loading && entries.length === 0 && !error && (
           <div className={`px-3 py-4 text-center ${textSize}`} style={{ color: "var(--th-text-secondary)" }}>
-            Empty directory
+            <LocalizedText en="Empty directory" de="Leeres Verzeichnis" />
           </div>
         )}
         {!loading && entries.length > 0 && (
@@ -325,9 +327,19 @@ export default function ServerFileBrowser({
                 }}
               >
                 <th className="px-3 py-1 text-left font-normal">Name</th>
-                <th className="px-3 py-1 text-left font-normal">Type</th>
-                {!compact && <th className="px-3 py-1 text-right font-normal">Size</th>}
-                {!compact && <th className="px-3 py-1 text-left font-normal">Modified</th>}
+                <th className="px-3 py-1 text-left font-normal">
+                  <LocalizedText en="Type" de="Typ" />
+                </th>
+                {!compact && (
+                  <th className="px-3 py-1 text-right font-normal">
+                    <LocalizedText en="Size" de="Größe" />
+                  </th>
+                )}
+                {!compact && (
+                  <th className="px-3 py-1 text-left font-normal">
+                    <LocalizedText en="Modified" de="Geändert" />
+                  </th>
+                )}
                 <th className="w-8 px-2 py-1" />
               </tr>
             </thead>
@@ -370,7 +382,7 @@ export default function ServerFileBrowser({
                         style={{ color: "var(--th-error, #ef4444)" }}
                         onClick={() => void handleDelete(entry)}
                         disabled={deletingPath === entry.path}
-                        title="Delete"
+                        title={translateUiCopy("Delete", "Löschen")}
                       >
                         {deletingPath === entry.path ? "..." : "✕"}
                       </button>
@@ -407,13 +419,13 @@ export default function ServerFileBrowser({
                 style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
                 onClick={() => setPreviewContent(null)}
               >
-                Close
+                <LocalizedText en="Close" de="Schließen" />
               </button>
             </div>
             <div className="overflow-auto p-4">
               {previewLoading ? (
                 <div className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                  Loading file...
+                  <LocalizedText en="Loading file..." de="Datei wird geladen …" />
                 </div>
               ) : (
                 <pre

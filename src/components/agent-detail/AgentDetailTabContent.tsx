@@ -38,11 +38,10 @@ export default function AgentDetailTabContent({
       <div className="space-y-3">
         <div className="rounded-lg p-3" style={{ background: "var(--th-bg-surface-hover)" }}>
           <div className="text-xs mb-1" style={{ color: "var(--th-text-muted)" }}>
-            {t({ ko: "성격", en: "Personality", ja: "性格", zh: "Personality", de: "Persönlichkeit" })}
+            {t({ en: "Personality", de: "Persönlichkeit" })}
           </div>
           <div className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-            {agent.personality ??
-              t({ ko: "설정 없음", en: "Not set", ja: "未設定", zh: "Not set", de: "Nicht gesetzt" })}
+            {agent.personality ?? t({ en: "Not set", de: "Nicht gesetzt" })}
           </div>
         </div>
 
@@ -52,7 +51,7 @@ export default function AgentDetailTabContent({
               {agentSubAgents.filter((subAgent) => subAgent.status === "working").length}
             </div>
             <div className="text-[10px]" style={{ color: "var(--th-text-muted)" }}>
-              {t({ ko: "알바생", en: "Sub-agents", ja: "サブエージェント", zh: "Sub-agents", de: "Unteragenten" })}
+              {t({ en: "Sub-agents", de: "Unteragenten" })}
             </div>
           </div>
         </div>
@@ -67,7 +66,7 @@ export default function AgentDetailTabContent({
               color: "var(--th-text-primary)",
             }}
           >
-            💬 {t({ ko: "대화하기", en: "Chat", ja: "チャット", zh: "Chat", de: "Chat" })}
+            💬 {t({ en: "Chat", de: "Chat" })}
           </button>
           <button
             onClick={() => onAssignTask(agent.id)}
@@ -78,8 +77,7 @@ export default function AgentDetailTabContent({
               color: "var(--accent)",
             }}
           >
-            📋{" "}
-            {t({ ko: "업무 배정", en: "Assign Task", ja: "タスク割り当て", zh: "Assign Task", de: "Aufgabe zuweisen" })}
+            📋 {t({ en: "Assign Task", de: "Aufgabe zuweisen" })}
           </button>
         </div>
         {agent.status === "working" && agent.current_task_id && onOpenTerminal && (
@@ -88,14 +86,7 @@ export default function AgentDetailTabContent({
             className="w-full mt-2 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
             style={{ background: "var(--th-bg-surface-hover)", color: "var(--th-text-primary)" }}
           >
-            &#128421;{" "}
-            {t({
-              ko: "터미널 보기",
-              en: "View Terminal",
-              ja: "ターミナル表示",
-              zh: "View Terminal",
-              de: "Terminal anzeigen",
-            })}
+            &#128421; {t({ en: "View Terminal", de: "Terminal anzeigen" })}
           </button>
         )}
       </div>
@@ -107,13 +98,7 @@ export default function AgentDetailTabContent({
       <div className="space-y-2">
         {agentTasks.length === 0 ? (
           <div className="text-center py-8 text-sm" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "배정된 업무가 없습니다",
-              en: "No assigned tasks",
-              ja: "割り当てられたタスクはありません",
-              zh: "No assigned tasks",
-              de: "Keine zugewiesenen Aufgaben",
-            })}
+            {t({ en: "No assigned tasks", de: "Keine zugewiesenen Aufgaben" })}
           </div>
         ) : (
           agentTasks.map((taskItem) => {
@@ -193,16 +178,7 @@ export default function AgentDetailTabContent({
                             </span>
                           )}
                           {subtask.delegated_task_id && subtask.status !== "done" && (
-                            <span
-                              className="text-blue-400 shrink-0"
-                              title={t({
-                                ko: "위임됨",
-                                en: "Delegated",
-                                ja: "委任済み",
-                                zh: "Delegated",
-                                de: "Delegiert",
-                              })}
-                            >
+                            <span className="text-blue-400 shrink-0" title={t({ en: "Delegated", de: "Delegiert" })}>
                               🔗
                             </span>
                           )}
@@ -232,19 +208,10 @@ export default function AgentDetailTabContent({
       {agentSubAgents.length === 0 ? (
         <div className="text-center py-8 text-sm" style={{ color: "var(--th-text-muted)" }}>
           <div className="text-3xl mb-2">🧑‍💼</div>
-          {t({
-            ko: "현재 알바생이 없습니다",
-            en: "No sub-agents currently",
-            ja: "現在サブエージェントはいません",
-            zh: "No sub-agents currently",
-            de: "Derzeit keine Unteragenten",
-          })}
+          {t({ en: "No sub-agents currently", de: "Derzeit keine Unteragenten" })}
           <div className="text-xs mt-1" style={{ color: "var(--th-text-muted)" }}>
             {t({
-              ko: "병렬 처리 시 자동으로 알바생이 소환됩니다",
               en: "Sub-agents are spawned automatically during parallel work.",
-              ja: "並列処理時にサブエージェントが自動で生成されます。",
-              zh: "Sub-agents are spawned automatically during parallel work.",
               de: "Unteragenten werden bei paralleler Arbeit automatisch gestartet.",
             })}
           </div>
@@ -259,7 +226,7 @@ export default function AgentDetailTabContent({
             <div className="w-8 h-8 rounded-full bg-amber-500/20 overflow-hidden flex items-center justify-center">
               <img
                 src={`/sprites/${getSubAgentSpriteNum(subAgent.id)}-D-1.png`}
-                alt={t({ ko: "알바생", en: "Sub-agent", ja: "サブエージェント", zh: "Sub-agent", de: "Unteragent" })}
+                alt={t({ en: "Sub-agent", de: "Unteragent" })}
                 className="w-full h-full object-cover"
                 style={{ imageRendering: "pixelated" }}
               />
@@ -267,14 +234,14 @@ export default function AgentDetailTabContent({
             <div className="flex-1 min-w-0">
               <div className="text-sm truncate flex items-center gap-1.5" style={{ color: "var(--th-text-heading)" }}>
                 <span className="text-[10px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400">
-                  {t({ ko: "알바", en: "Sub", ja: "サブ", zh: "Sub", de: "Sub" })}
+                  {t({ en: "Sub", de: "Sub" })}
                 </span>
                 {subAgent.task}
               </div>
               <div className="text-xs mt-0.5" style={{ color: "var(--th-text-muted)" }}>
                 {subAgent.status === "working"
-                  ? `🔨 ${t({ ko: "작업중...", en: "Working...", ja: "作業中...", zh: "Working...", de: "Aktiv..." })}`
-                  : `✅ ${t({ ko: "완료", en: "Done", ja: "完了", zh: "Done", de: "Erledigt" })}`}
+                  ? `🔨 ${t({ en: "Working...", de: "Aktiv..." })}`
+                  : `✅ ${t({ en: "Done", de: "Erledigt" })}`}
               </div>
             </div>
             {subAgent.status === "working" && (

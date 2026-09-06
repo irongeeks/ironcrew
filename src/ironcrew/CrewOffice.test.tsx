@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { act, fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CrewOffice, currentOfficeTask, officeFitScale } from "./CrewOffice";
@@ -221,4 +222,39 @@ describe("CrewOffice canonical office", () => {
     expect(currentOfficeTask("agent-engineer", [task({ status: "done" })])).toBeUndefined();
     expect(currentOfficeTask("someone-else", [live])).toBeUndefined();
   });
+});
+
+function render(ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>,
+    ...options,
+  });
+}
+
+it("switches office controls, room names and status labels without translating task data", async () => {
+  const input = props();
+  const view = rtlRender(
+    <I18nProvider language="en">
+      <CrewOffice {...input} />
+    </I18nProvider>,
+  );
+  expect(screen.getByRole("region", { name: "Virtual office" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /Forge – Working/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Open room: Meeting room" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Task for Forge: Backup prüfen" })).toBeVisible();
+  view.rerender(
+    <I18nProvider language="de">
+      <CrewOffice {...input} />
+    </I18nProvider>,
+  );
+  expect(screen.getByRole("region", { name: "Virtuelles Büro" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /Forge – Arbeitet/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Raum öffnen: Meetingraum" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Aufgabe von Forge: Backup prüfen" })).toBeVisible();
+  view.rerender(
+    <I18nProvider language="en">
+      <CrewOffice {...input} />
+    </I18nProvider>,
+  );
+  expect(screen.getByRole("button", { name: "Pause office movement" })).toBeVisible();
 });

@@ -49,7 +49,7 @@ export function ConfigSegment({ t }: { t: TFunction }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12" style={{ color: "var(--th-text-secondary)" }}>
-        {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+        {t({ en: "Loading...", de: "Laden..." })}
       </div>
     );
   }
@@ -72,7 +72,7 @@ export function ConfigSegment({ t }: { t: TFunction }) {
         style={{ borderColor: "var(--th-border)", background: "var(--th-bg-secondary)" }}
       >
         <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-primary)" }}>
-          {t({ ko: "OTLP 내보내기", en: "OTLP Export", ja: "OTLP エクスポート", zh: "OTLP Export", de: "OTLP-Export" })}
+          {t({ en: "OTLP Export", de: "OTLP-Export" })}
         </h4>
 
         <div className="flex items-center gap-3">
@@ -82,20 +82,14 @@ export function ConfigSegment({ t }: { t: TFunction }) {
               checked={config.otlp_enabled}
               onChange={(e) => setConfig((c) => ({ ...c, otlp_enabled: e.target.checked }))}
             />
-            {t({ ko: "활성화", en: "Enabled", ja: "有効", zh: "Enabled", de: "Aktiviert" })}
+            {t({ en: "Enabled", de: "Aktiviert" })}
           </label>
           {envIndicator("OTLP_ENABLED")}
         </div>
 
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "엔드포인트 URL",
-              en: "Endpoint URL",
-              ja: "エンドポイント URL",
-              zh: "Endpoint URL",
-              de: "Endpunkt-URL",
-            })}
+            {t({ en: "Endpoint URL", de: "Endpunkt-URL" })}
           </label>
           <input
             className="w-full rounded border px-2 py-1.5 text-sm font-mono"
@@ -112,13 +106,7 @@ export function ConfigSegment({ t }: { t: TFunction }) {
 
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "내보내기 간격 (ms)",
-              en: "Export Interval (ms)",
-              ja: "エクスポート間隔 (ms)",
-              zh: "Export Interval (ms)",
-              de: "Export-Intervall (ms)",
-            })}
+            {t({ en: "Export Interval (ms)", de: "Export-Intervall (ms)" })}
           </label>
           <input
             type="number"
@@ -146,13 +134,13 @@ export function ConfigSegment({ t }: { t: TFunction }) {
         style={{ borderColor: "var(--th-border)", background: "var(--th-bg-secondary)" }}
       >
         <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-primary)" }}>
-          {t({ ko: "보존 기간", en: "Retention", ja: "保持期間", zh: "Retention", de: "Aufbewahrung" })}
+          {t({ en: "Retention", de: "Aufbewahrung" })}
         </h4>
 
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-              {t({ ko: "로그 (일)", en: "Logs (days)", ja: "ログ (日)", zh: "Logs (days)", de: "Logs (Tage)" })}
+              {t({ en: "Logs (days)", de: "Logs (Tage)" })}
             </label>
             <input
               type="number"
@@ -172,13 +160,7 @@ export function ConfigSegment({ t }: { t: TFunction }) {
           </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "메트릭 (일)",
-                en: "Metrics (days)",
-                ja: "メトリクス (日)",
-                zh: "Metrics (days)",
-                de: "Metriken (Tage)",
-              })}
+              {t({ en: "Metrics (days)", de: "Metriken (Tage)" })}
             </label>
             <input
               type="number"
@@ -198,13 +180,7 @@ export function ConfigSegment({ t }: { t: TFunction }) {
           </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "트레이스 (일)",
-                en: "Traces (days)",
-                ja: "トレース (日)",
-                zh: "Traces (days)",
-                de: "Traces (Tage)",
-              })}
+              {t({ en: "Traces (days)", de: "Traces (Tage)" })}
             </label>
             <input
               type="number"
@@ -233,13 +209,11 @@ export function ConfigSegment({ t }: { t: TFunction }) {
           className="rounded-lg px-4 py-1.5 text-xs font-medium text-white transition-colors disabled:opacity-50"
           style={{ background: "var(--th-accent, #3b82f6)" }}
         >
-          {saving
-            ? t({ ko: "저장 중...", en: "Saving...", ja: "保存中...", zh: "Saving...", de: "Speichern..." })
-            : t({ ko: "저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })}
+          {saving ? t({ en: "Saving...", de: "Speichern..." }) : t({ en: "Save", de: "Speichern" })}
         </button>
         {saved && (
           <span className="text-xs" style={{ color: "#22c55e" }}>
-            {t({ ko: "저장되었습니다", en: "Saved!", ja: "保存しました", zh: "Saved!", de: "Gespeichert!" })}
+            {t({ en: "Saved!", de: "Gespeichert!" })}
           </span>
         )}
       </div>

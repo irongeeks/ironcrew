@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { CAREER_FALLBACK_REVIEWER_ROLES } from "../shared/career";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CareerSnapshot, CareerReview, RatingAggregate, CareerFilters } from "../shared/career";
@@ -23,45 +24,62 @@ interface Props {
   refreshKey?: number;
   onOpenRouting?: () => void;
 }
-const LEVELS = { junior: "Junior", senior: "Senior", lead: "Lead" } as const;
-const DIFFICULTIES = { simple: "Einfach", normal: "Normal", complex: "Komplex" } as const;
-const PROFESSIONAL_ROLE_NAMES: Record<string, string> = {
-  executive_assistant: "Executive Assistant",
-  chief_operating_officer: "Betriebsleitung · COO",
-  chief_technology_officer: "Technische Leitung · CTO",
-  head_of_infrastructure: "Infrastrukturleitung",
-  chief_information_security_officer: "Informationssicherheit · CISO",
-  finance_and_bookkeeping_lead: "Finanzen & Buchhaltung",
-  legal_and_contracts: "Recht & Verträge",
-  research_and_intelligence: "Recherche & Analyse",
-  qa_root_cause_red_team: "Qualitätssicherung & Fehleranalyse",
-  quality_assurance: "Qualitätssicherung",
-  ui_ux_and_brand: "Design & Marke",
-  marketing_and_messaging: "Marketing & Kommunikation",
-  sales_and_negotiation: "Vertrieb & Verhandlung",
-  knowledge_and_documentation: "Wissen & Dokumentation",
-  automation_and_tools: "Automatisierung & Werkzeuge",
-};
-const roleName = (role: string | undefined) =>
-  role
-    ? Object.hasOwn(PROFESSIONAL_ROLE_NAMES, role)
-      ? PROFESSIONAL_ROLE_NAMES[role]
-      : role.replaceAll("_", " ")
-    : "";
 const FALLBACK_REVIEW_ROLES = new Set<string>(CAREER_FALLBACK_REVIEWER_ROLES);
-const displayTime = (value: number) => new Date(value).toLocaleString("de-DE");
-const average = (value: number | null) =>
-  value === null ? "–" : value.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+function usePeopleLabels() {
+  const { t, locale } = useI18n();
+  const LEVELS = { junior: "Junior", senior: "Senior", lead: "Lead" } as const;
+  const DIFFICULTIES = {
+    simple: t({ de: "Einfach", en: "Simple" }),
+    normal: "Normal",
+    complex: t({ de: "Komplex", en: "Complex" }),
+  } as const;
+  const PROFESSIONAL_ROLE_NAMES: Record<string, string> = {
+    executive_assistant: t({ de: "Executive Assistant", en: "Executive Assistant" }),
+    chief_operating_officer: t({ de: "Betriebsleitung · COO", en: "Operations · COO" }),
+    chief_technology_officer: t({ de: "Technische Leitung · CTO", en: "Technology · CTO" }),
+    head_of_infrastructure: t({ de: "Infrastrukturleitung", en: "Infrastructure lead" }),
+    chief_information_security_officer: t({ de: "Informationssicherheit · CISO", en: "Information security · CISO" }),
+    finance_and_bookkeeping_lead: t({ de: "Finanzen & Buchhaltung", en: "Finance & bookkeeping" }),
+    legal_and_contracts: t({ de: "Recht & Verträge", en: "Legal & contracts" }),
+    research_and_intelligence: t({ de: "Recherche & Analyse", en: "Research & analysis" }),
+    qa_root_cause_red_team: t({
+      de: "Qualitätssicherung & Fehleranalyse",
+      en: "Quality assurance & root cause analysis",
+    }),
+    quality_assurance: t({ de: "Qualitätssicherung", en: "Quality assurance" }),
+    ui_ux_and_brand: t({ de: "Design & Marke", en: "Design & brand" }),
+    marketing_and_messaging: t({ de: "Marketing & Kommunikation", en: "Marketing & communications" }),
+    sales_and_negotiation: t({ de: "Vertrieb & Verhandlung", en: "Sales & negotiation" }),
+    knowledge_and_documentation: t({ de: "Wissen & Dokumentation", en: "Knowledge & documentation" }),
+    automation_and_tools: t({ de: "Automatisierung & Werkzeuge", en: "Automation & tools" }),
+  };
+  const roleName = (role: string | undefined) =>
+    role
+      ? Object.hasOwn(PROFESSIONAL_ROLE_NAMES, role)
+        ? PROFESSIONAL_ROLE_NAMES[role]
+        : role.replaceAll("_", " ")
+      : "";
+
+  const displayTime = (value: number) => new Date(value).toLocaleString(locale);
+  const average = (value: number | null) =>
+    value === null ? "–" : value.toLocaleString(locale, { maximumFractionDigits: 2 });
+
+  return { LEVELS, DIFFICULTIES, roleName, displayTime, average };
+}
 
 function Distribution({ value }: { value: RatingAggregate }) {
+  const { t } = useI18n();
   return (
-    <dl className="people-distribution" aria-label="Verteilung von 1 bis 5 Sternen">
+    <dl
+      className="people-distribution"
+      aria-label={t({ de: "Verteilung von 1 bis 5 Sternen", en: "Distribution from 1 to 5 stars" })}
+    >
       {([1, 2, 3, 4, 5] as const).map((score) => (
         <div key={score}>
           <dt>{score}</dt>
           <dd>
             <meter
-              aria-label={`${score} Sterne`}
+              aria-label={t({ de: `${score} Sterne`, en: `${score} stars` })}
               min={0}
               max={Math.max(1, value.count)}
               value={value.distribution[score]}
@@ -83,22 +101,32 @@ function RatingsTable({
   title: string;
   label: (key: string) => string;
 }) {
+  const { t } = useI18n();
+  const { DIFFICULTIES, average } = usePeopleLabels();
   return (
     <section className="people-section">
       <h3>{title}</h3>
       {!rows.length ? (
-        <p className="people-help">– Noch keine Bewertungen für diese Auswahl.</p>
+        <p className="people-help">
+          {t({ de: "– Noch keine Bewertungen für diese Auswahl.", en: "– No ratings for this selection yet." })}
+        </p>
       ) : (
         <div className="people-table-scroll">
           <table>
-            <caption className="ic-sr-only">{title}: aktuelle Bewertungen, keine mehrfach gezählten Revisionen</caption>
+            <caption className="ic-sr-only">
+              {title}
+              {t({
+                de: ": aktuelle Bewertungen, keine mehrfach gezählten Revisionen",
+                en: ": current ratings, without counting revisions twice",
+              })}
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Name</th>
-                <th scope="col">Ø Sterne</th>
-                <th scope="col">Anzahl</th>
-                <th scope="col">Verteilung 1–5</th>
-                <th scope="col">Schwierigkeit</th>
+                <th scope="col">{t({ de: "Ø Sterne", en: "Average stars" })}</th>
+                <th scope="col">{t({ de: "Anzahl", en: "Count" })}</th>
+                <th scope="col">{t({ de: "Verteilung 1–5", en: "Distribution 1–5" })}</th>
+                <th scope="col">{t({ de: "Schwierigkeit", en: "Difficulty" })}</th>
               </tr>
             </thead>
             <tbody>
@@ -128,23 +156,33 @@ function RatingsTable({
 }
 
 function ReviewHistory({ reviews, agentName }: { reviews: CareerReview[]; agentName: (id: string) => string }) {
+  const { t } = useI18n();
+  const { DIFFICULTIES, displayTime } = usePeopleLabels();
   return (
     <section className="people-section">
-      <h3>Aufgabenbewertungen &amp; Revisionen</h3>
+      <h3>{t({ de: "Aufgabenbewertungen & Revisionen", en: "Task ratings & revisions" })}</h3>
       {!reviews.length && (
         <p className="people-help">
-          Noch keine Bewertungen. Ein abgeschlossener Arbeits-Run und ein unabhängiger Lead-Review sind erforderlich.
+          {t({
+            de: "Noch keine Bewertungen. Ein abgeschlossener Arbeits-Run und ein unabhängiger Lead-Review sind erforderlich.",
+            en: "No ratings yet. A completed work run and an independent lead review are required.",
+          })}{" "}
         </p>
       )}
       <div className="people-history">
         {reviews.map((review) => (
           <article key={review.id}>
             <h4>
-              {agentName(review.agentId)} · <span className="people-average">{review.score} / 5 Sterne</span>
+              {agentName(review.agentId)} ·{" "}
+              <span className="people-average">
+                {review.score} {t({ de: "/ 5 Sterne", en: "/ 5 stars" })}
+              </span>
             </h4>
             <p className="people-help">
               {DIFFICULTIES[review.difficulty]} · Revision {review.revision} ·{" "}
-              {review.isCurrent ? "Aktuelle Bewertung" : "Historisch – nicht im Durchschnitt"}
+              {review.isCurrent
+                ? t({ de: "Aktuelle Bewertung", en: "Current rating" })
+                : t({ de: "Historisch – nicht im Durchschnitt", en: "Historical – excluded from the average" })}
             </p>
             <pre>{review.rationale}</pre>
             <dl className="people-review-meta">
@@ -153,50 +191,54 @@ function ReviewHistory({ reviews, agentName }: { reviews: CareerReview[]; agentN
                 <dd>{agentName(review.reviewerAgentId)}</dd>
               </div>
               <div>
-                <dt>Zeitpunkt</dt>
+                <dt>{t({ de: "Zeitpunkt", en: "Time" })}</dt>
                 <dd>{displayTime(review.createdAt)}</dd>
               </div>
               <div>
-                <dt>Modell des Arbeits-Runs</dt>
+                <dt>{t({ de: "Modell des Arbeits-Runs", en: "Work run model" })}</dt>
                 <dd>
-                  {review.model ?? "Modell nicht erfasst"} · {review.runtimeType}
+                  {review.model ?? t({ de: "Modell nicht erfasst", en: "Model not recorded" })} · {review.runtimeType}
                 </dd>
               </div>
               <div>
-                <dt>Aufgabe</dt>
+                <dt>{t({ de: "Aufgabe", en: "Task" })}</dt>
                 <dd>
                   <code>{review.taskId}</code>
                 </dd>
               </div>
             </dl>
             <details>
-              <summary>Run-Nachweise und Bewertungsrubrik</summary>
+              <summary>{t({ de: "Run-Nachweise und Bewertungsrubrik", en: "Run evidence and review rubric" })}</summary>
               <p>
-                Rubrik-Version {review.rubricVersion} · Reviewer-Modell: {review.reviewerModel ?? "nicht erfasst"} ·{" "}
-                {review.reviewerRuntimeType}
+                {t({ de: "Rubrik-Version", en: "Rubric version" })} {review.rubricVersion}{" "}
+                {t({ de: "· Reviewer-Modell:", en: "· Reviewer model:" })}{" "}
+                {review.reviewerModel ?? t({ de: "nicht erfasst", en: "not recorded" })} · {review.reviewerRuntimeType}
               </p>
-              <p>Reviewer-Vessel: {review.reviewerVesselId ?? "–"}</p>
+              <p>
+                {t({ de: "Reviewer-Vessel:", en: "Reviewer vessel:" })} {review.reviewerVesselId ?? "–"}
+              </p>
               <dl className="people-review-meta">
                 <div>
-                  <dt>Arbeits-Run</dt>
+                  <dt>{t({ de: "Arbeits-Run", en: "Work run" })}</dt>
                   <dd>
                     <code>{review.workRunId}</code>
                   </dd>
                 </div>
                 <div>
-                  <dt>Review-Run</dt>
+                  <dt>{t({ de: "Review-Run", en: "Review run" })}</dt>
                   <dd>
                     <code>{review.reviewRunId}</code>
                   </dd>
                 </div>
                 <div>
-                  <dt>Vessel des Arbeits-Runs</dt>
+                  <dt>{t({ de: "Vessel des Arbeits-Runs", en: "Work run vessel" })}</dt>
                   <dd>{review.vesselId || "–"}</dd>
                 </div>
               </dl>
               <p>
-                Richtigkeit: {review.rubricDimensions.correctness}/5 · Vollständigkeit:{" "}
-                {review.rubricDimensions.completeness}/5 · Qualität: {review.rubricDimensions.quality}/5
+                {t({ de: "Richtigkeit:", en: "Correctness:" })} {review.rubricDimensions.correctness}
+                {t({ de: "/5 · Vollständigkeit:", en: "/5 · Completeness:" })} {review.rubricDimensions.completeness}
+                {t({ de: "/5 · Qualität:", en: "/5 · Quality:" })} {review.rubricDimensions.quality}/5
               </p>
               {review.evidence.length ? (
                 <ul>
@@ -205,7 +247,7 @@ function ReviewHistory({ reviews, agentName }: { reviews: CareerReview[]; agentN
                   ))}
                 </ul>
               ) : (
-                <p>Keine zusätzlichen Nachweise angegeben.</p>
+                <p>{t({ de: "Keine zusätzlichen Nachweise angegeben.", en: "No additional evidence provided." })}</p>
               )}
             </details>
           </article>
@@ -232,6 +274,7 @@ function DepartmentSetup({
     departments: CareerSnapshot["config"]["departments"];
   }) => void;
 }) {
+  const { t } = useI18n();
   const [enabled, setEnabled] = useState(snapshot.config.enabled);
   const [rows, setRows] = useState(() =>
     departments.map(
@@ -257,21 +300,27 @@ function DepartmentSetup({
       }}
     >
       <fieldset disabled={busy}>
-        <legend>Abteilungsleitung &amp; Delegation</legend>
+        <legend>{t({ de: "Abteilungsleitung & Delegation", en: "Department leads & delegation" })}</legend>
         <label className="people-check">
           <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-          Lead-Delegation und Aufgabenbewertung aktivieren
+          {t({
+            de: "Lead-Delegation und Aufgabenbewertung aktivieren",
+            en: "Enable lead delegation and task reviews",
+          })}{" "}
         </label>
         <p className="people-help">
-          Der Lead verteilt Aufgaben nach Schwierigkeit. Bewertungen benötigen einen unabhängigen Reviewer; keine
-          Selbstbewertung. Eigene Lead-Arbeit prüft ein unabhängiger QA-/COO-Reviewer. Level und fachliche Rolle bleiben
-          getrennt.
+          {t({
+            de: "Der Lead verteilt Aufgaben nach Schwierigkeit. Bewertungen benötigen einen unabhängigen Reviewer; keine Selbstbewertung. Eigene Lead-Arbeit prüft ein unabhängiger QA-/COO-Reviewer. Level und fachliche Rolle bleiben getrennt.",
+            en: "The lead assigns tasks by difficulty. Reviews require an independent reviewer; self-review is not allowed. An independent QA/COO reviewer assesses the lead’s own work. Career level and professional role remain separate.",
+          })}{" "}
         </p>
         <p className="people-help">
-          Für eine neue Abteilungsleitung zuerst die Laufbahnstufe Lead anfragen und in den Freigaben bestätigen;
-          anschließend hier zuweisen.
+          {t({
+            de: "Für eine neue Abteilungsleitung zuerst die Laufbahnstufe Lead anfragen und in den Freigaben bestätigen; anschließend hier zuweisen.",
+            en: "To appoint a new department lead, first request the Lead career level and approve it in Approvals, then assign the lead here.",
+          })}{" "}
         </p>
-        {!departments.length && <p>Noch keine Abteilungen vorhanden.</p>}
+        {!departments.length && <p>{t({ de: "Noch keine Abteilungen vorhanden.", en: "No departments yet." })}</p>}
         {rows.map((row) => (
           <fieldset key={row.departmentId}>
             <legend>
@@ -283,16 +332,16 @@ function DepartmentSetup({
                 checked={row.enabled}
                 onChange={(event) => patch(row.departmentId, { enabled: event.target.checked })}
               />
-              Delegation für diese Abteilung
+              {t({ de: "Delegation für diese Abteilung", en: "Delegation for this department" })}{" "}
             </label>
             <div className="people-fields">
               <label>
-                Abteilungslead
+                {t({ de: "Abteilungslead", en: "Department lead" })}{" "}
                 <select
                   value={row.leadAgentId ?? ""}
                   onChange={(event) => patch(row.departmentId, { leadAgentId: event.target.value || null })}
                 >
-                  <option value="">Nicht zugewiesen</option>
+                  <option value="">{t({ de: "Nicht zugewiesen", en: "Not assigned" })}</option>
                   {leads
                     .filter((agent) => agent.departmentId === row.departmentId)
                     .map((agent) => (
@@ -303,12 +352,12 @@ function DepartmentSetup({
                 </select>
               </label>
               <label>
-                Unabhängiger Ersatzreviewer
+                {t({ de: "Unabhängiger Ersatzreviewer", en: "Independent fallback reviewer" })}{" "}
                 <select
                   value={row.fallbackReviewerAgentId ?? ""}
                   onChange={(event) => patch(row.departmentId, { fallbackReviewerAgentId: event.target.value || null })}
                 >
-                  <option value="">Nicht zugewiesen</option>
+                  <option value="">{t({ de: "Nicht zugewiesen", en: "Not assigned" })}</option>
                   {agents
                     .filter(
                       (agent) =>
@@ -325,7 +374,7 @@ function DepartmentSetup({
           </fieldset>
         ))}
         <button className="ic-btn ic-btn--primary" type="submit">
-          Abteilungssteuerung speichern
+          {t({ de: "Abteilungssteuerung speichern", en: "Save department settings" })}{" "}
         </button>
       </fieldset>
     </form>
@@ -343,6 +392,8 @@ function LevelSetup({
   busy: boolean;
   save: (id: string, body: { baseRevision: number; level: "junior" | "senior" | "lead"; reason: string }) => void;
 }) {
+  const { t } = useI18n();
+  const { LEVELS } = usePeopleLabels();
   const [agentId, setAgentId] = useState(agents[0]?.id ?? "");
   const [level, setLevel] = useState<"junior" | "senior" | "lead">(
     snapshot.profiles.find((row) => row.agentId === agents[0]?.id)?.level ?? "junior",
@@ -357,10 +408,10 @@ function LevelSetup({
       }}
     >
       <fieldset disabled={busy || !agents.length}>
-        <legend>Mitarbeiterlevel ändern</legend>
+        <legend>{t({ de: "Mitarbeiterlevel ändern", en: "Change employee level" })}</legend>
         <div className="people-fields">
           <label>
-            Mitarbeiter
+            {t({ de: "Mitarbeiter", en: "Employee" })}{" "}
             <select
               value={agentId}
               onChange={(event) => {
@@ -377,7 +428,7 @@ function LevelSetup({
             </select>
           </label>
           <label>
-            Neues Level
+            {t({ de: "Neues Level", en: "New level" })}{" "}
             <select value={level} onChange={(event) => setLevel(event.target.value as typeof level)}>
               {Object.entries(LEVELS).map(([key, name]) => (
                 <option key={key} value={key}>
@@ -388,11 +439,14 @@ function LevelSetup({
           </label>
         </div>
         <p className="people-help">
-          Aktuell: {profile ? LEVELS[profile.level] : "–"}. Die Änderung wird als Freigabe angefragt. Rollen, Tools und
-          Modellkonfiguration werden dadurch nicht ersetzt.
+          {t({ de: "Aktuell:", en: "Current:" })} {profile ? LEVELS[profile.level] : "–"}
+          {t({
+            de: ". Die Änderung wird als Freigabe angefragt. Rollen, Tools und Modellkonfiguration werden dadurch nicht ersetzt.",
+            en: ". The change is submitted for approval. It does not replace roles, tools or model configuration.",
+          })}{" "}
         </p>
         <label>
-          Begründung
+          {t({ de: "Begründung", en: "Reason" })}{" "}
           <textarea value={reason} required maxLength={2000} onChange={(event) => setReason(event.target.value)} />
         </label>
         <button
@@ -405,7 +459,7 @@ function LevelSetup({
             snapshot.pendingChanges.some((change) => change.agentId === agentId && change.status === "pending")
           }
         >
-          Leveländerung zur Freigabe anfragen
+          {t({ de: "Leveländerung zur Freigabe anfragen", en: "Request approval for level change" })}{" "}
         </button>
       </fieldset>
     </form>
@@ -419,6 +473,8 @@ export function PeoplePerformancePanel({
   refreshKey,
   onOpenRouting,
 }: Props): React.JSX.Element {
+  const { t } = useI18n();
+  const { LEVELS, DIFFICULTIES, roleName, average } = usePeopleLabels();
   const [snapshot, setSnapshot] = useState<CareerSnapshot | null>(null);
   const [routing, setRouting] = useState<RoutingSnapshot | null>(null);
   const [difficulty, setDifficulty] = useState("");
@@ -451,12 +507,16 @@ export function PeoplePerformancePanel({
       }
     } catch (cause) {
       if (generation.current === token) {
-        setError(cause instanceof Error ? cause.message : "Teamdaten konnten nicht geladen werden.");
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : t({ de: "Teamdaten konnten nicht geladen werden.", en: "Could not load team data." }),
+        );
       }
     } finally {
       if (generation.current === token) setLoading(false);
     }
-  }, [filters]);
+  }, [filters, t]);
   const invalidate = useCallback(() => {
     generation.current++;
   }, []);
@@ -478,10 +538,13 @@ export function PeoplePerformancePanel({
     } catch (cause) {
       setError(
         isApiRequestError(cause) && cause.status === 409
-          ? "Zwischenzeitlich geändert. Bitte erneut laden und die Auswahl prüfen."
+          ? t({
+              de: "Zwischenzeitlich geändert. Bitte erneut laden und die Auswahl prüfen.",
+              en: "Changed in the meantime. Reload and check your selection.",
+            })
           : cause instanceof Error
             ? cause.message
-            : "Änderung konnte nicht gespeichert werden.",
+            : t({ de: "Änderung konnte nicht gespeichert werden.", en: "Could not save the change." }),
       );
     } finally {
       setBusy(false);
@@ -489,32 +552,48 @@ export function PeoplePerformancePanel({
   };
   const agentName = (id: string) => agents.find((agent) => agent.id === id)?.displayName ?? id;
   return (
-    <section className="people-panel" aria-label="Team und Leistung" aria-busy={loading || busy}>
+    <section
+      className="people-panel"
+      aria-label={t({ de: "Team und Leistung", en: "Team and performance" })}
+      aria-busy={loading || busy}
+    >
       <header>
-        <h2>Team &amp; Leistung</h2>
-        <p>Verantwortung zuweisen. Ergebnisse mit nachvollziehbaren Lead-Urteilen beurteilen.</p>
+        <h2>{t({ de: "Team & Leistung", en: "Team & performance" })}</h2>
+        <p>
+          {t({
+            de: "Verantwortung zuweisen. Ergebnisse mit nachvollziehbaren Lead-Urteilen beurteilen.",
+            en: "Assign responsibility. Assess results using traceable lead reviews.",
+          })}
+        </p>
         <p className="people-help">
-          Sterne sind Reviewer-Urteile im jeweiligen Aufgaben- und Modellkontext. Durchschnitt und Anzahl sind keine
-          objektive Modellgüte; die aktuelle Bewertung je Aufgabe zählt einmal.
+          {t({
+            de: "Sterne sind Reviewer-Urteile im jeweiligen Aufgaben- und Modellkontext. Durchschnitt und Anzahl sind keine objektive Modellgüte; die aktuelle Bewertung je Aufgabe zählt einmal.",
+            en: "Stars reflect reviewer judgments for a specific task and model. Averages and counts are not an objective measure of model quality; each task’s current rating is counted once.",
+          })}{" "}
         </p>
       </header>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      {loading && <p role="status">Teamdaten werden geladen …</p>}
+      {loading && <p role="status">{t({ de: "Teamdaten werden geladen …", en: "Loading team data …" })}</p>}
       {!loading && !snapshot && (
         <button className="ic-btn" onClick={() => void load()}>
-          Erneut laden
+          {t({ de: "Erneut laden", en: "Reload" })}{" "}
         </button>
       )}
       <section className="people-section">
-        <h3>Bewertungen filtern</h3>
+        <h3>{t({ de: "Bewertungen filtern", en: "Filter ratings" })}</h3>
         <form
           onSubmit={(event) => {
             event.preventDefault();
             const start = from ? new Date(from).getTime() : undefined;
             const end = to ? new Date(to).getTime() : undefined;
             if (start !== undefined && end !== undefined && start > end) {
-              setError("Der Beginn muss vor dem Ende des Zeitraums liegen.");
+              setError(
+                t({
+                  de: "Der Beginn muss vor dem Ende des Zeitraums liegen.",
+                  en: "The start must be before the end of the period.",
+                }),
+              );
               return;
             }
             setFilters({
@@ -527,9 +606,9 @@ export function PeoplePerformancePanel({
         >
           <div className="people-fields">
             <label>
-              Schwierigkeit
+              {t({ de: "Schwierigkeit", en: "Difficulty" })}{" "}
               <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}>
-                <option value="">Alle Schwierigkeiten</option>
+                <option value="">{t({ de: "Alle Schwierigkeiten", en: "All difficulties" })}</option>
                 {Object.entries(DIFFICULTIES).map(([key, name]) => (
                   <option key={key} value={key}>
                     {name}
@@ -538,42 +617,42 @@ export function PeoplePerformancePanel({
               </select>
             </label>
             <label>
-              Modellname (exakt)
+              {t({ de: "Modellname (exakt)", en: "Model name (exact)" })}{" "}
               <input
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
-                placeholder="Modell des Arbeits-Runs"
+                placeholder={t({ de: "Modell des Arbeits-Runs", en: "Work run model" })}
               />
             </label>
             <label>
-              Von (lokale Zeit)
+              {t({ de: "Von (lokale Zeit)", en: "From (local time)" })}{" "}
               <input type="datetime-local" value={from} onChange={(event) => setFrom(event.target.value)} />
             </label>
             <label>
-              Bis (lokale Zeit)
+              {t({ de: "Bis (lokale Zeit)", en: "To (local time)" })}{" "}
               <input type="datetime-local" value={to} onChange={(event) => setTo(event.target.value)} />
             </label>
           </div>
           <button type="submit" className="ic-btn" disabled={busy}>
-            Filter anwenden
+            {t({ de: "Filter anwenden", en: "Apply filters" })}{" "}
           </button>
         </form>
       </section>
       {snapshot && (
         <>
           <section className="people-section">
-            <h3>Mitarbeiter &amp; Modellprofile</h3>
+            <h3>{t({ de: "Mitarbeiter & Modellprofile", en: "Employees & model profiles" })}</h3>
             {!agents.length ? (
-              <p>Noch keine Mitarbeiter vorhanden.</p>
+              <p>{t({ de: "Noch keine Mitarbeiter vorhanden.", en: "No employees yet." })}</p>
             ) : (
               <div className="people-table-scroll">
                 <table>
                   <thead>
                     <tr>
-                      <th scope="col">Mitarbeiter / Fachrolle</th>
+                      <th scope="col">{t({ de: "Mitarbeiter / Fachrolle", en: "Employee / professional role" })}</th>
                       <th scope="col">Level</th>
-                      <th scope="col">Routingprofil</th>
-                      <th scope="col">Bewertung</th>
+                      <th scope="col">{t({ de: "Routingprofil", en: "Routing profile" })}</th>
+                      <th scope="col">{t({ de: "Bewertung", en: "Rating" })}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -592,12 +671,16 @@ export function PeoplePerformancePanel({
                           <td>
                             {route
                               ? `${route.label} (${route.key})`
-                              : (binding?.profileKey ?? "Keine explizite Bindung")}
+                              : (binding?.profileKey ??
+                                t({ de: "Keine explizite Bindung", en: "No explicit binding" }))}
                           </td>
                           <td>
                             {rating?.count
-                              ? `${average(rating.mean)} / 5 · ${rating.count} Bewertungen`
-                              : "– Unbewertet"}
+                              ? t({
+                                  de: `${average(rating.mean)} / 5 · ${rating.count} Bewertungen`,
+                                  en: `${average(rating.mean)} / 5 · ${rating.count} ratings`,
+                                })
+                              : t({ de: "– Unbewertet", en: "– Unrated" })}
                           </td>
                         </tr>
                       );
@@ -608,23 +691,33 @@ export function PeoplePerformancePanel({
             )}
             {onOpenRouting && (
               <button type="button" className="ic-btn" onClick={onOpenRouting}>
-                Bestehende Modellprofile und Zuordnungen öffnen
+                {t({
+                  de: "Bestehende Modellprofile und Zuordnungen öffnen",
+                  en: "Open existing model profiles and assignments",
+                })}{" "}
               </button>
             )}
             <p className="people-help">
-              Die neun vorhandenen Routingprofile steuern Runtime, Modell und erlaubte Fallbacks. Eine Leveländerung
-              erfindet keine zweite Modellkonfiguration.
+              {t({
+                de: "Die neun vorhandenen Routingprofile steuern Runtime, Modell und erlaubte Fallbacks. Eine Leveländerung erfindet keine zweite Modellkonfiguration.",
+                en: "The nine existing routing profiles control runtime, model and allowed fallbacks. A level change does not create a second model configuration.",
+              })}{" "}
             </p>
           </section>
           <section className="people-section">
-            <h3>Abteilungszuständigkeit</h3>
-            <p>Lead-Delegation: {snapshot.config.enabled ? "aktiv" : "inaktiv"}</p>
+            <h3>{t({ de: "Abteilungszuständigkeit", en: "Department responsibility" })}</h3>
+            <p>
+              {t({ de: "Lead-Delegation:", en: "Lead delegation:" })}{" "}
+              {snapshot.config.enabled ? t({ de: "aktiv", en: "active" }) : t({ de: "inaktiv", en: "inactive" })}
+            </p>
             {departments.map((department) => {
               const policy = snapshot.config.departments.find((row) => row.departmentId === department.id);
               return (
                 <p key={department.id}>
-                  <strong>{department.name}</strong> · {policy?.enabled ? "aktiv" : "inaktiv"} · Lead:{" "}
-                  {policy?.leadAgentId ? agentName(policy.leadAgentId) : "–"} · Ersatzreviewer:{" "}
+                  <strong>{department.name}</strong> ·{" "}
+                  {policy?.enabled ? t({ de: "aktiv", en: "active" }) : t({ de: "inaktiv", en: "inactive" })} · Lead:{" "}
+                  {policy?.leadAgentId ? agentName(policy.leadAgentId) : "–"}{" "}
+                  {t({ de: "· Ersatzreviewer:", en: "· Fallback reviewer:" })}{" "}
                   {policy?.fallbackReviewerAgentId ? agentName(policy.fallbackReviewerAgentId) : "–"}
                 </p>
               );
@@ -638,7 +731,14 @@ export function PeoplePerformancePanel({
                 agents={agents}
                 departments={departments}
                 busy={busy}
-                save={(body) => void mutate("/api/crew/people/config", body, "PUT", "Abteilungssteuerung gespeichert.")}
+                save={(body) =>
+                  void mutate(
+                    "/api/crew/people/config",
+                    body,
+                    "PUT",
+                    t({ de: "Abteilungssteuerung gespeichert.", en: "Department settings saved." }),
+                  )
+                }
               />
               <LevelSetup
                 snapshot={snapshot}
@@ -649,52 +749,81 @@ export function PeoplePerformancePanel({
                     `/api/crew/people/agents/${encodeURIComponent(id)}/level`,
                     body,
                     "POST",
-                    "Leveländerung zur Freigabe angefragt. Die Entscheidung erfolgt in den Freigaben.",
+                    t({
+                      de: "Leveländerung zur Freigabe angefragt. Die Entscheidung erfolgt in den Freigaben.",
+                      en: "Level change submitted for approval. The decision is made in Approvals.",
+                    }),
                   )
                 }
               />
             </>
           ) : (
             <p className="people-help">
-              Nur der Owner kann Abteilungssteuerung und Mitarbeiterlevel ändern. Lead-Delegation:{" "}
-              {snapshot.config.enabled ? "aktiv" : "inaktiv"}.
+              {t({
+                de: "Nur der Owner kann Abteilungssteuerung und Mitarbeiterlevel ändern. Lead-Delegation:",
+                en: "Only the owner can change department settings and employee levels. Lead delegation:",
+              })}{" "}
+              {snapshot.config.enabled ? t({ de: "aktiv", en: "active" }) : t({ de: "inaktiv", en: "inactive" })}.
             </p>
           )}
           {!!snapshot.pendingChanges.length && (
             <section className="people-section">
-              <h3>Leveländerungen</h3>
+              <h3>{t({ de: "Leveländerungen", en: "Level changes" })}</h3>
               {snapshot.pendingChanges.map((change) => (
                 <p key={change.id}>
-                  {agentName(change.agentId)} → {LEVELS[change.level]} · {change.status} · Freigabe{" "}
-                  <code>{change.approvalId}</code>
+                  {agentName(change.agentId)} → {LEVELS[change.level]} ·{" "}
+                  {t({
+                    de:
+                      {
+                        pending: "Ausstehend",
+                        approved: "Genehmigt",
+                        rejected: "Abgelehnt",
+                        applied: "Angewendet",
+                        failed: "Fehlgeschlagen",
+                      }[change.status] ?? change.status,
+                    en: change.status,
+                  })}{" "}
+                  {t({ de: "· Freigabe", en: "· Approval" })} <code>{change.approvalId}</code>
                 </p>
               ))}
             </section>
           )}
           <section className="people-section">
-            <h3>Delegation &amp; offene Reviews</h3>
+            <h3>{t({ de: "Delegation & offene Reviews", en: "Delegation & open reviews" })}</h3>
             {!snapshot.workflows.some((workflow) => workflow.status !== "completed") ? (
-              <p className="people-help">Keine offenen Delegations- oder Review-Schritte.</p>
+              <p className="people-help">
+                {t({
+                  de: "Keine offenen Delegations- oder Review-Schritte.",
+                  en: "No open delegation or review steps.",
+                })}
+              </p>
             ) : (
               snapshot.workflows
                 .filter((workflow) => workflow.status !== "completed")
                 .map((workflow) => (
                   <article key={workflow.id}>
                     <h4>
-                      {workflow.purpose === "routing" ? "Aufgabenverteilung" : "Lead-Review"} ·{" "}
+                      {workflow.purpose === "routing"
+                        ? t({ de: "Aufgabenverteilung", en: "Task assignment" })
+                        : t({ de: "Lead-Review", en: "Lead review" })}{" "}
+                      ·{" "}
                       {
                         {
-                          pending: "Ausstehend",
-                          failed: "Fehlgeschlagen",
-                          owner_required: "Ownerentscheidung erforderlich",
-                          completed: "Abgeschlossen",
+                          pending: t({ de: "Ausstehend", en: "Pending" }),
+                          failed: t({ de: "Fehlgeschlagen", en: "Failed" }),
+                          owner_required: t({ de: "Ownerentscheidung erforderlich", en: "Owner decision required" }),
+                          completed: t({ de: "Abgeschlossen", en: "Completed" }),
                         }[workflow.status]
                       }
                     </h4>
                     <p>
-                      Aufgabe <code>{workflow.taskId}</code> · {DIFFICULTIES[workflow.difficulty]}
+                      {t({ de: "Aufgabe", en: "Task" })} <code>{workflow.taskId}</code> ·{" "}
+                      {DIFFICULTIES[workflow.difficulty]}
                     </p>
-                    <p>{workflow.rationale || "– Noch keine Begründung verfügbar."}</p>
+                    <p>
+                      {workflow.rationale ||
+                        t({ de: "– Noch keine Begründung verfügbar.", en: "– No reason available yet." })}
+                    </p>
                     {workflow.runId && (
                       <p>
                         Run <code>{workflow.runId}</code>
@@ -702,14 +831,27 @@ export function PeoplePerformancePanel({
                     )}
                     {workflow.reviewerAgentId && <p>Reviewer: {agentName(workflow.reviewerAgentId)}</p>}
                     {workflow.purpose === "review" && (
-                      <p className="people-help">– Noch keine abgeschlossene Bewertung für diesen Schritt.</p>
+                      <p className="people-help">
+                        {t({
+                          de: "– Noch keine abgeschlossene Bewertung für diesen Schritt.",
+                          en: "– No completed review for this step yet.",
+                        })}
+                      </p>
                     )}
                   </article>
                 ))
             )}
           </section>
-          <RatingsTable title="Bewertungen je Mitarbeiter" rows={snapshot.aggregates.agents} label={agentName} />
-          <RatingsTable title="Bewertungen je Modell" rows={snapshot.aggregates.models} label={(key) => key} />
+          <RatingsTable
+            title={t({ de: "Bewertungen je Mitarbeiter", en: "Ratings by employee" })}
+            rows={snapshot.aggregates.agents}
+            label={agentName}
+          />
+          <RatingsTable
+            title={t({ de: "Bewertungen je Modell", en: "Ratings by model" })}
+            rows={snapshot.aggregates.models}
+            label={(key) => key}
+          />
           <ReviewHistory reviews={snapshot.reviews} agentName={agentName} />
         </>
       )}
@@ -729,6 +871,8 @@ export function PeopleAgentSummary({
   refreshKey?: number;
   onOpenPeople: () => void;
 }): React.JSX.Element {
+  const { t } = useI18n();
+  const { LEVELS, average } = usePeopleLabels();
   const [data, setData] = useState<{ people: CareerSnapshot; routing: RoutingSnapshot } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -741,51 +885,71 @@ export function PeopleAgentSummary({
         if (current) setData({ people, routing });
       })
       .catch((cause: unknown) => {
-        if (current) setError(cause instanceof Error ? cause.message : "Leistungsdaten konnten nicht geladen werden.");
+        if (current)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : t({ de: "Leistungsdaten konnten nicht geladen werden.", en: "Could not load performance data." }),
+          );
       });
     return () => {
       current = false;
     };
-  }, [agentId, refreshKey, attempt]);
+  }, [agentId, refreshKey, attempt, t]);
   const profile = data?.people.profiles.find((row) => row.agentId === agentId);
   const rating = data?.people.aggregates.agents.find((row) => row.key === agentId);
   const binding = data?.routing.bindings.find((row) => row.agentId === agentId);
   const route = data?.routing.config.profiles.find((row) => row.key === binding?.profileKey);
   return (
-    <section className="people-panel people-section" aria-label="Laufbahn und Aufgabenleistung">
-      <h3>Laufbahn &amp; Aufgabenleistung</h3>
+    <section
+      className="people-panel people-section"
+      aria-label={t({ de: "Laufbahn und Aufgabenleistung", en: "Career and task performance" })}
+    >
+      <h3>{t({ de: "Laufbahn & Aufgabenleistung", en: "Career & task performance" })}</h3>
       {error ? (
         <>
           <p role="alert">{error}</p>
           <button className="ic-btn" onClick={() => setAttempt((value) => value + 1)}>
-            Leistungsdaten erneut laden
+            {t({ de: "Leistungsdaten erneut laden", en: "Reload performance data" })}{" "}
           </button>
         </>
       ) : !data ? (
-        <p role="status">Leistungsdaten werden geladen …</p>
+        <p role="status">{t({ de: "Leistungsdaten werden geladen …", en: "Loading performance data …" })}</p>
       ) : (
         <>
           <dl className="people-review-meta">
             <div>
-              <dt>Laufbahnstufe</dt>
-              <dd>{profile ? LEVELS[profile.level] : "– Nicht eingerichtet"}</dd>
+              <dt>{t({ de: "Laufbahnstufe", en: "Career level" })}</dt>
+              <dd>{profile ? LEVELS[profile.level] : t({ de: "– Nicht eingerichtet", en: "– Not configured" })}</dd>
             </div>
             <div>
-              <dt>Lead-Bewertungen</dt>
+              <dt>{t({ de: "Lead-Bewertungen", en: "Lead ratings" })}</dt>
               <dd className="people-average">
-                {rating?.count ? `${average(rating.mean)} / 5 · ${rating.count} Bewertungen` : "– Unbewertet"}
+                {rating?.count
+                  ? t({
+                      de: `${average(rating.mean)} / 5 · ${rating.count} Bewertungen`,
+                      en: `${average(rating.mean)} / 5 · ${rating.count} ratings`,
+                    })
+                  : t({ de: "– Unbewertet", en: "– Unrated" })}
               </dd>
             </div>
             <div>
-              <dt>Modellprofil</dt>
-              <dd>{route ? `${route.label} (${route.key})` : (binding?.profileKey ?? "Keine explizite Bindung")}</dd>
+              <dt>{t({ de: "Modellprofil", en: "Model profile" })}</dt>
+              <dd>
+                {route
+                  ? `${route.label} (${route.key})`
+                  : (binding?.profileKey ?? t({ de: "Keine explizite Bindung", en: "No explicit binding" }))}
+              </dd>
             </div>
           </dl>
           <p className="people-help">
-            Reviewer-Urteile zu konkreten Aufgaben. Fachrolle und Berechtigungen sind vom Level getrennt.
+            {t({
+              de: "Reviewer-Urteile zu konkreten Aufgaben. Fachrolle und Berechtigungen sind vom Level getrennt.",
+              en: "Reviewer judgments on specific tasks. Professional role and permissions are separate from career level.",
+            })}{" "}
           </p>
           <details>
-            <summary>Letzte Aufgabenbewertungen</summary>
+            <summary>{t({ de: "Letzte Aufgabenbewertungen", en: "Recent task ratings" })}</summary>
             <ReviewHistory
               reviews={data.people.reviews.filter((review) => review.agentId === agentId).slice(0, 5)}
               agentName={(id) => agents.find((agent) => agent.id === id)?.displayName ?? id}
@@ -794,7 +958,10 @@ export function PeopleAgentSummary({
         </>
       )}
       <button className="ic-btn" onClick={onOpenPeople}>
-        Teamsteuerung und gesamten Bewertungsverlauf öffnen
+        {t({
+          de: "Teamsteuerung und gesamten Bewertungsverlauf öffnen",
+          en: "Open team settings and full rating history",
+        })}{" "}
       </button>
     </section>
   );

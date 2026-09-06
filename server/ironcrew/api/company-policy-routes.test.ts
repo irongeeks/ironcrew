@@ -5,6 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { createTestDb, seedCompany } from "../domain/test-db.ts";
 import { createCrewAuth, methodGuard, type CrewAuth } from "../auth/crew-auth.ts";
 import { CompanyPolicyStore } from "../policy/company-policy-store.ts";
+import { restrictiveVendorPolicy } from "../policy/test-vendor-policy.ts";
 import { registerCompanyPolicyRoutes } from "./company-policy-routes.ts";
 let db: DatabaseSync, app: Express, auth: CrewAuth, store: CompanyPolicyStore, companyId: string;
 const base = "/api/crew/policies/vendor";
@@ -12,7 +13,7 @@ beforeEach(() => {
   db = createTestDb();
   companyId = seedCompany(db);
   auth = createCrewAuth(db);
-  store = new CompanyPolicyStore(db);
+  store = new CompanyPolicyStore(db, restrictiveVendorPolicy);
   app = express();
   app.use(express.json());
   app.use("/api/crew", auth.identify, methodGuard(auth));

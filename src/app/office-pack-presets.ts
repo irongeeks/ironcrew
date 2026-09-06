@@ -1,7 +1,7 @@
 // TODO: Read staff pools and room themes from pack registry API instead of hardcoded values
 import type { AgentRole, RoomTheme, WorkflowPackKey } from "../types";
 
-export type UiLanguageLike = "ko" | "en" | "ja" | "zh" | "de";
+export type { UiLanguage as UiLanguageLike } from "../shared/ui-language";
 
 export type Localized = { ko: string; en: string; ja: string; zh: string; de?: string };
 export type DeptPreset = {

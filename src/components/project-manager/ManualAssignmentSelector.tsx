@@ -1,3 +1,4 @@
+import { useUiCopy } from "../LocalizedText";
 import type { Dispatch, SetStateAction } from "react";
 import type { ProjectDetailResponse } from "../../api";
 import type { Agent, Department, Project, AssignmentMode } from "../../types";
@@ -26,7 +27,6 @@ interface ManualAssignmentSelectorProps {
 
 export default function ManualAssignmentSelector({
   t,
-  language,
   isCreating,
   editingProjectId,
   assignmentMode,
@@ -43,19 +43,14 @@ export default function ManualAssignmentSelector({
   detail,
   selectedProject,
 }: ManualAssignmentSelectorProps) {
+  const translateUiCopy = useUiCopy();
   return (
     <>
       {(isCreating || !!editingProjectId) && (
         <div className="mt-2 space-y-3">
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "직원 할당 방식",
-                en: "Assignment Mode",
-                ja: "割り当てモード",
-                zh: "Assignment Mode",
-                de: "Zuweisung",
-              })}
+              {t({ en: "Assignment Mode", de: "Zuweisung" })}
             </span>
             <div
               className="flex gap-1 rounded-lg border p-0.5"
@@ -72,7 +67,7 @@ export default function ManualAssignmentSelector({
                 }`}
                 style={assignmentMode !== "auto" ? { color: "var(--th-text-muted)" } : undefined}
               >
-                {t({ ko: "자동 할당", en: "Auto", ja: "自動", zh: "Auto", de: "Automatisch" })}
+                {t({ en: "Auto", de: "Automatisch" })}
               </button>
               <button
                 type="button"
@@ -85,7 +80,7 @@ export default function ManualAssignmentSelector({
                 }`}
                 style={assignmentMode !== "manual" ? { color: "var(--th-text-muted)" } : undefined}
               >
-                {t({ ko: "직접 선택", en: "Manual", ja: "手動", zh: "Manual", de: "Manuell" })}
+                {t({ en: "Manual", de: "Manuell" })}
               </button>
             </div>
           </div>
@@ -97,16 +92,10 @@ export default function ManualAssignmentSelector({
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                  {t({
-                    ko: "참여 직원 선택",
-                    en: "Select Agents",
-                    ja: "エージェント選択",
-                    zh: "Select Agents",
-                    de: "Agenten auswählen",
-                  })}
+                  {t({ en: "Select Agents", de: "Agenten auswählen" })}
                   <span className="ml-2 font-medium text-blue-400">
                     {selectedAgentIds.size}
-                    {t({ ko: "명", en: " selected", ja: "人", zh: " selected", de: " ausgewählt" })}
+                    {t({ en: " selected", de: " ausgewählt" })}
                   </span>
                 </span>
                 {departments.length > 0 && (
@@ -120,12 +109,10 @@ export default function ManualAssignmentSelector({
                       color: "var(--th-text-primary)",
                     }}
                   >
-                    <option value="all">
-                      {t({ ko: "전체 부서", en: "All Depts", ja: "全部署", zh: "All Depts", de: "Alle Abteilungen" })}
-                    </option>
+                    <option value="all">{t({ en: "All Depts", de: "Alle Abteilungen" })}</option>
                     {departments.map((dept) => (
                       <option key={dept.id} value={dept.id}>
-                        {dept.icon} {language === "ko" ? dept.name_ko || dept.name : dept.name}
+                        {dept.icon} {dept.name}
                       </option>
                     ))}
                   </select>
@@ -140,24 +127,19 @@ export default function ManualAssignmentSelector({
                     color: "var(--th-text-secondary)",
                   }}
                 >
-                  {t({ ko: "총", en: "Total", ja: "合計", zh: "Total", de: "Gesamt" })}: {manualSelectionStats.total}
+                  {t({ en: "Total", de: "Gesamt" })}: {manualSelectionStats.total}
                 </span>
                 <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-300">
-                  {t({ ko: "팀장", en: "Leaders", ja: "リーダー", zh: "Leaders", de: "Teamleiter" })}:{" "}
-                  {manualSelectionStats.leaders}
+                  {t({ en: "Leaders", de: "Teamleiter" })}: {manualSelectionStats.leaders}
                 </span>
                 <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
-                  {t({ ko: "하위 직원", en: "Subordinates", ja: "サブ担当", zh: "Subordinates", de: "Mitarbeiter" })}:{" "}
-                  {manualSelectionStats.subordinates}
+                  {t({ en: "Subordinates", de: "Mitarbeiter" })}: {manualSelectionStats.subordinates}
                 </span>
               </div>
               {manualSelectionStats.subordinates === 0 && (
                 <p className="text-[11px] text-amber-300">
                   {t({
-                    ko: "하위 직원이 없으면 실행 시 팀장이 직접(단독) 수행할 수 있습니다.",
                     en: "Without subordinates, team leaders may execute tasks directly.",
-                    ja: "サブ担当がいない場合、実行時にチームリーダーが直接対応する可能性があります。",
-                    zh: "Without subordinates, team leaders may execute tasks directly.",
                     de: "Ohne Mitarbeiter können Teamleiter Aufgaben direkt ausführen.",
                   })}
                 </p>
@@ -200,15 +182,13 @@ export default function ManualAssignmentSelector({
                           style={{ borderColor: "var(--th-border)" }}
                         />
                         <AgentAvatar agent={agent} spriteMap={spriteMap} size={24} />
-                        <span className="text-xs font-medium text-[var(--th-text-primary)]">
-                          {language === "ko" ? agent.name_ko || agent.name : agent.name}
-                        </span>
+                        <span className="text-xs font-medium text-[var(--th-text-primary)]">{agent.name}</span>
                         {dept && (
                           <span
                             className="rounded-full px-1.5 py-0.5 text-[10px]"
                             style={{ background: `${dept.color}22`, color: dept.color }}
                           >
-                            {language === "ko" ? dept.name_ko || dept.name : dept.name}
+                            {dept.name}
                           </span>
                         )}
                         <span
@@ -216,21 +196,13 @@ export default function ManualAssignmentSelector({
                           style={{ color: "var(--th-text-muted)", background: "var(--bg-surface-hover)" }}
                         >
                           {agent.role === "team_leader"
-                            ? language === "ko"
-                              ? "팀장"
-                              : "Leader"
+                            ? translateUiCopy("Leader", "Teamleitung")
                             : agent.role === "senior"
-                              ? language === "ko"
-                                ? "시니어"
-                                : "Senior"
+                              ? "Senior"
                               : agent.role === "junior"
-                                ? language === "ko"
-                                  ? "주니어"
-                                  : "Junior"
+                                ? "Junior"
                                 : agent.role === "intern"
-                                  ? language === "ko"
-                                    ? "인턴"
-                                    : "Intern"
+                                  ? translateUiCopy("Intern", "Praktikant")
                                   : ""}
                         </span>
                       </label>
@@ -246,17 +218,11 @@ export default function ManualAssignmentSelector({
         <div className="mt-2 rounded-lg border border-violet-500/20 bg-violet-600/10 px-3 py-2">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-violet-400">
-              {t({
-                ko: "직접 선택 모드",
-                en: "Manual Assignment",
-                ja: "手動割り当て",
-                zh: "Manual Assignment",
-                de: "Manuelle Zuweisung",
-              })}
+              {t({ en: "Manual Assignment", de: "Manuelle Zuweisung" })}
             </span>
             <span className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
               {detail?.assigned_agents?.length ?? 0}
-              {t({ ko: "명 지정", en: " agents", ja: "人", zh: " agents", de: " Agenten" })}
+              {t({ en: " agents", de: " Agenten" })}
             </span>
           </div>
           {detail?.assigned_agents && detail.assigned_agents.length > 0 && (
@@ -268,7 +234,7 @@ export default function ManualAssignmentSelector({
                   style={{ background: "var(--th-card-bg)", color: "var(--th-text-secondary)" }}
                 >
                   <AgentAvatar agent={agent} spriteMap={spriteMap} size={16} />
-                  {language === "ko" ? agent.name_ko || agent.name : agent.name}
+                  {agent.name}
                 </span>
               ))}
             </div>

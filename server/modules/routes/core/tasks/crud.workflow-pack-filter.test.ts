@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { registerTaskCrudRoutes } from "./crud.ts";
@@ -29,12 +32,13 @@ function createFakeResponse(): FakeResponse {
 function createTaskCrudHarness(): { db: DatabaseSync; routes: Map<string, RouteHandler> } {
   const db = new DatabaseSync(":memory:");
   db.exec(`
+    PRAGMA foreign_keys = ON;
     CREATE TABLE tasks (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT,
       department_id TEXT,
-      assigned_agent_id TEXT,
+      assigned_agent_id TEXT REFERENCES agents(id),
       project_id TEXT,
       status TEXT NOT NULL,
       priority INTEGER NOT NULL,
@@ -71,6 +75,7 @@ function createTaskCrudHarness(): { db: DatabaseSync; routes: Map<string, RouteH
       project_path TEXT,
       default_pack_key TEXT NOT NULL DEFAULT 'development',
       last_used_at INTEGER,
+      created_at INTEGER,
       updated_at INTEGER
     );
     CREATE TABLE subtasks (
@@ -264,6 +269,83 @@ describe("task CRUD workflow pack filter", () => {
       expect(payload.task.workflow_pack_key).toBe("novel");
       expect(payload.task.project_id).toBe("project-novel");
       expect(payload.task.project_path).toBe("/tmp/novel-project");
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe("task CRUD path and assignment validation", () => {
+  it("accepts registered missing paths under symlink ancestors and rejects escaping siblings", () => {
+    const { db, routes } = createTaskCrudHarness();
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "crew-project-path-"));
+    try {
+      const real = path.join(directory, "real");
+      const alias = path.join(directory, "alias");
+      fs.mkdirSync(real);
+      fs.symlinkSync(real, alias, "dir");
+      const projectPath = path.join(alias, "not-created", "project");
+      db.prepare("INSERT INTO projects (id, project_path) VALUES (?, ?)").run("registered", projectPath);
+      const create = routes.get("POST /api/tasks")!;
+      for (const project_path of [projectPath, path.join(projectPath, "child")]) {
+        const res = createFakeResponse();
+        create({ body: { title: "New workspace", project_path } }, res);
+        expect(res.statusCode).toBe(200);
+        expect(fs.existsSync(project_path)).toBe(false);
+      }
+      const denied = createFakeResponse();
+      create({ body: { title: "Outside workspace", project_path: `${projectPath}-outside` } }, denied);
+      expect(denied.statusCode).toBe(400);
+      expect(denied.payload).toEqual({ error: "project_path_not_allowed" });
+
+      const outside = path.join(directory, "outside");
+      fs.mkdirSync(outside);
+      fs.mkdirSync(projectPath, { recursive: true });
+      fs.symlinkSync(outside, path.join(projectPath, "escape"), "dir");
+      const escaped = createFakeResponse();
+      create({ body: { title: "Symlink escape", project_path: path.join(projectPath, "escape", "new") } }, escaped);
+      expect(escaped.statusCode).toBe(400);
+    } finally {
+      db.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects unknown and Crew-only assignments before SQL and permits valid assignment and clearing", () => {
+    const { db, routes } = createTaskCrudHarness();
+    try {
+      db.exec(
+        "CREATE TABLE crew_agents (id TEXT PRIMARY KEY); INSERT INTO crew_agents VALUES ('crew-only'); INSERT INTO agents (id) VALUES ('legacy-agent');",
+      );
+      const create = routes.get("POST /api/tasks")!;
+      const update = routes.get("PATCH /api/tasks/:id")!;
+      for (const assigned_agent_id of ["missing", "crew-only", ""]) {
+        const res = createFakeResponse();
+        create({ body: { title: "Invalid assignment", assigned_agent_id } }, res);
+        expect(res.statusCode).toBe(400);
+        expect(res.payload).toMatchObject({ error: "agent_not_found" });
+      }
+      expect(db.prepare("SELECT COUNT(*) AS count FROM tasks").get()).toEqual({ count: 0 });
+      const created = createFakeResponse();
+      create({ body: { title: "Valid assignment", assigned_agent_id: "legacy-agent" } }, created);
+      expect(created.statusCode).toBe(200);
+      const { id } = created.payload as { id: string };
+      for (const assigned_agent_id of ["missing", "crew-only", ""]) {
+        const res = createFakeResponse();
+        update({ params: { id }, body: { title: "Must not persist", assigned_agent_id } }, res);
+        expect(res.statusCode).toBe(400);
+        expect(res.payload).toMatchObject({ error: "agent_not_found" });
+        expect(db.prepare("SELECT title, assigned_agent_id FROM tasks WHERE id = ?").get(id)).toEqual({
+          title: "Valid assignment",
+          assigned_agent_id: "legacy-agent",
+        });
+      }
+      const cleared = createFakeResponse();
+      update({ params: { id }, body: { assigned_agent_id: null } }, cleared);
+      expect(cleared.statusCode).toBe(200);
+      expect(db.prepare("SELECT assigned_agent_id FROM tasks WHERE id = ?").get(id)).toEqual({
+        assigned_agent_id: null,
+      });
     } finally {
       db.close();
     }

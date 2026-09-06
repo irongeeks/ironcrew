@@ -17,13 +17,17 @@ import {
   type VendorPolicy,
 } from "./vendor-policy.ts";
 
-const policy = loadVendorPolicyFromFile(path.resolve(process.cwd(), "config", "vendor-policy.yaml"));
+import { restrictiveVendorPolicy } from "./test-vendor-policy.ts";
+
+const shipped = loadVendorPolicyFromFile(path.resolve(process.cwd(), "config", "vendor-policy.yaml"));
+const policy = restrictiveVendorPolicy();
 
 describe("vendor policy config", () => {
   it("the shipped config validates against the schema", () => {
-    expect(policy.version).toBe(1);
-    expect(policy.allowed_families.length).toBeGreaterThan(0);
-    expect(policy.blocked_families.length).toBeGreaterThan(0);
+    expect(shipped.version).toBe(1);
+    expect(shipped.allowed_families).toEqual(["*"]);
+    expect(shipped.blocked_families).toEqual([]);
+    expect(shipped.openrouter.allowed_providers).toEqual(["*"]);
   });
 
   it("telemetry is off by default", () => {
@@ -70,7 +74,7 @@ describe("allowed model families", () => {
   });
 });
 
-describe("blocked vendor families (non-negotiable policy)", () => {
+describe("explicit operator vendor restrictions", () => {
   const blockedExamples: Array<[string, string]> = [
     ["deepseek/deepseek-chat", "deepseek"],
     ["deepseek/deepseek-r1", "deepseek"],
@@ -232,5 +236,38 @@ describe("official runtime model identity", () => {
     ["unknown-runtime", "default"],
   ])("rejects mismatched or blocked identity %s/%s", (runtime, model) => {
     expect(evaluateRuntimeModel(policy, runtime, model).allowed).toBe(false);
+  });
+});
+
+describe("unrestricted shipped OpenRouter catalogue", () => {
+  it.each([
+    "minimax/minimax-m2.5",
+    "deepseek/deepseek-r1:free",
+    "qwen/qwen3:free",
+    "moonshotai/kimi-k2",
+    "z-ai/glm-4.6",
+    "future-vendor/new-model",
+    "openrouter/free",
+    "future-model",
+    "vendor/namespace/future-model",
+  ])("allows %s without adding a vendor to a list", (model) => {
+    expect(evaluateModel(shipped, model, "FutureHostingProvider").allowed).toBe(true);
+  });
+  it("retains every nonempty catalogue model and rejects an empty id", () => {
+    const models = [{ id: "minimax/minimax-m2.5" }, { id: "future/model:free" }, { id: "" }];
+    const result = filterModelCatalogue(shipped, models);
+    expect(result.allowed).toEqual(models.slice(0, 2));
+    expect(result.denied[0].decision.code).toBe("empty_model");
+  });
+  it("omits provider pinning while retaining sensitive privacy settings", () => {
+    expect(buildOpenRouterProviderPolicy(shipped)).toEqual({ allow_fallbacks: true });
+    const sensitive = buildOpenRouterProviderPolicy(shipped, { sensitive: true });
+    expect(sensitive).toMatchObject({ data_collection: "deny", zdr: true });
+    expect(sensitive).not.toHaveProperty("only");
+    expect(sensitive).not.toHaveProperty("order");
+  });
+  it("keeps an empty allowlist distinct from the universal wildcard", () => {
+    expect(evaluateModel({ ...shipped, allowed_families: [] }, "future/model").allowed).toBe(false);
+    expect(evaluateModel(shipped, "   ").code).toBe("empty_model");
   });
 });

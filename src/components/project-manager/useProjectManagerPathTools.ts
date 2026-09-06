@@ -61,10 +61,8 @@ export function useProjectManagerPathTools({
   const unsupportedPathApiMessage = useMemo(
     () =>
       t({
-        ko: "현재 서버 버전은 경로 탐색 보조 기능을 지원하지 않습니다. 경로를 직접 입력해주세요.",
         en: "This server does not support path helper APIs. Enter the path manually.",
-        ja: "現在のサーバーではパス補助 API をサポートしていません。手入力してください。",
-        zh: "This server does not support path helper APIs. Enter the path manually.",
+        de: "Dieser Server unterstützt keine Pfad-Hilfsfunktionen. Bitte den Pfad manuell eingeben.",
       }),
     [t],
   );
@@ -72,10 +70,8 @@ export function useProjectManagerPathTools({
   const nativePickerUnavailableMessage = useMemo(
     () =>
       t({
-        ko: "운영체제 폴더 선택기를 사용할 수 없는 환경입니다. 앱 내 폴더 탐색 또는 직접 입력을 사용해주세요.",
         en: "OS folder picker is unavailable in this environment. Use in-app browser or manual input.",
-        ja: "この環境では OS フォルダ選択が利用できません。アプリ内閲覧または手入力を使ってください。",
-        zh: "OS folder picker is unavailable in this environment. Use in-app browser or manual input.",
+        de: "Die Ordnerauswahl des Betriebssystems ist hier nicht verfügbar. Bitte den integrierten Dateibrowser oder die manuelle Eingabe verwenden.",
       }),
     [t],
   );
@@ -84,10 +80,8 @@ export function useProjectManagerPathTools({
     (allowedRoots: string[]) => {
       if (allowedRoots.length === 0) {
         return t({
-          ko: "허용된 프로젝트 경로 범위를 벗어났습니다.",
           en: "Path is outside allowed project roots.",
-          ja: "許可されたプロジェクトパス範囲外です。",
-          zh: "Path is outside allowed project roots.",
+          de: "Der Pfad liegt außerhalb der erlaubten Projektverzeichnisse.",
         });
       }
       return t({
@@ -95,6 +89,7 @@ export function useProjectManagerPathTools({
         en: `Path is outside allowed project roots. Allowed roots: ${allowedRoots.join(", ")}`,
         ja: `許可されたプロジェクトパス範囲外です。許可パス: ${allowedRoots.join(", ")}`,
         zh: `Path is outside allowed project roots. Allowed roots: ${allowedRoots.join(", ")}`,
+        de: `Der Pfad liegt außerhalb der erlaubten Projektverzeichnisse. Erlaubte Verzeichnisse: ${allowedRoots.join(", ")}`,
       });
     },
     [t],
@@ -119,19 +114,12 @@ export function useProjectManagerPathTools({
       }
       if (err.code === "project_path_not_directory") {
         return t({
-          ko: "해당 경로는 폴더가 아닙니다. 디렉터리 경로를 입력해주세요.",
           en: "This path is not a directory. Please enter a directory path.",
-          ja: "このパスはフォルダではありません。ディレクトリパスを入力してください。",
-          zh: "This path is not a directory. Please enter a directory path.",
+          de: "Dieser Pfad ist kein Verzeichnis. Bitte einen Verzeichnispfad eingeben.",
         });
       }
       if (err.code === "project_path_not_found") {
-        return t({
-          ko: "해당 경로를 찾을 수 없습니다.",
-          en: "Path not found.",
-          ja: "パスが見つかりません。",
-          zh: "Path not found.",
-        });
+        return t({ en: "Path not found.", de: "Pfad nicht gefunden." });
       }
       return t(fallback);
     },
@@ -183,10 +171,8 @@ export function useProjectManagerPathTools({
         setFormFeedback({
           tone: "error",
           message: resolvePathHelperErrorMessage(err, {
-            ko: "경로 후보를 불러오지 못했습니다.",
             en: "Failed to load path suggestions.",
-            ja: "パス候補を読み込めませんでした。",
-            zh: "Failed to load path suggestions.",
+            de: "Die Pfadvorschläge konnten nicht geladen werden.",
           }),
         });
       })
@@ -230,10 +216,8 @@ export function useProjectManagerPathTools({
         } else {
           setManualPathError(
             resolvePathHelperErrorMessage(err, {
-              ko: "경로 목록을 불러오지 못했습니다.",
               en: "Failed to load directories.",
-              ja: "ディレクトリ一覧を読み込めませんでした。",
-              zh: "Failed to load directories.",
+              de: "Die Verzeichnisse konnten nicht geladen werden.",
             }),
           );
         }

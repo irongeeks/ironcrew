@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson as request } from "./panel-api";
 import type {
@@ -32,6 +33,7 @@ interface Props {
   refreshKey?: number;
 }
 export function CoachingPanel({ agents, canReview = true, canEdit = true, refreshKey }: Props): React.JSX.Element {
+  const { tx, t, locale } = useGovernanceI18n();
   const [agentId, setAgentId] = useState(agents[0]?.id ?? "");
   const [snapshot, setSnapshot] = useState<CoachingSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -57,11 +59,11 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
       if (token === generation.current) setSnapshot(data);
     } catch (cause) {
       if (token === generation.current)
-        setError(cause instanceof Error ? cause.message : "Coaching konnte nicht geladen werden.");
+        setError(cause instanceof Error ? cause.message : tx("Coaching konnte nicht geladen werden."));
     } finally {
       if (token === generation.current) setLoading(false);
     }
-  }, [agentId]);
+  }, [agentId, tx]);
   const invalidate = useCallback(() => {
     generation.current++;
   }, []);
@@ -93,7 +95,7 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
       setNotice(message);
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Die Änderung konnte nicht gespeichert werden.");
+      setError(cause instanceof Error ? cause.message : tx("Die Änderung konnte nicht gespeichert werden."));
     } finally {
       setBusy(false);
     }
@@ -118,7 +120,7 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
             })),
           }),
         }),
-      "Vorschlag gespeichert. Jetzt auswerten und anschließend menschlich prüfen.",
+      tx("Vorschlag gespeichert. Jetzt auswerten und anschließend menschlich prüfen."),
       () => {
         setTitle("");
       },
@@ -131,14 +133,14 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
           body: JSON.stringify({ decision, reason: reason[proposal.id] ?? "" }),
         }),
       decision === "approve"
-        ? "Neue Guidance-Version freigegeben. Sie gilt ab dem nächsten Run."
-        : "Vorschlag abgelehnt. Die aktive Guidance bleibt bestehen.",
+        ? tx("Neue Guidance-Version freigegeben. Sie gilt ab dem nächsten Run.")
+        : tx("Vorschlag abgelehnt. Die aktive Guidance bleibt bestehen."),
     );
   return (
-    <section className="coaching-panel" aria-label="Coaching und Evaluationen" aria-busy={busy || loading}>
+    <section className="coaching-panel" aria-label={tx("Coaching und Evaluationen")} aria-busy={busy || loading}>
       <header>
-        <h2>Coaching &amp; Evaluationen</h2>
-        <p>Konkrete Beobachtungen festhalten, Änderungen prüfen und bewusst freigeben.</p>
+        <h2>{tx("Coaching &amp; Evaluationen")}</h2>
+        <p>{tx("Konkrete Beobachtungen festhalten, Änderungen prüfen und bewusst freigeben.")}</p>
       </header>
       <label>
         Agent
@@ -152,35 +154,44 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
       </label>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      {loading && <p role="status">Coaching-Verlauf wird geladen …</p>}
-      {!agentId && <p>Noch keine Agenten vorhanden.</p>}
+      {loading && <p role="status">{tx("Coaching-Verlauf wird geladen …")}</p>}
+      {!agentId && <p>{tx("Noch keine Agenten vorhanden.")}</p>}
       {agentId && !loading && !snapshot && (
         <button type="button" className="ic-btn" onClick={() => void load()}>
-          Erneut laden
+          {tx("Erneut laden")}{" "}
         </button>
       )}
       {snapshot && (
         <>
           <section className="coaching-section">
-            <h3>Aktive Guidance · Version {snapshot.current?.version ?? 0}</h3>
+            <h3>
+              {tx("Aktive Guidance · Version")} {snapshot.current?.version ?? 0}
+            </h3>
             <p>
               {snapshot.current
-                ? `Freigegeben am ${new Date(snapshot.current.createdAt).toLocaleString("de-DE")} · ${snapshot.current.approvedBy}`
-                : "Es gilt die bestehende professionelle Rolle. Noch keine Coaching-Ergänzung freigegeben."}
+                ? t({
+                    de: `Freigegeben am ${new Date(snapshot.current.createdAt).toLocaleString(locale)} · ${snapshot.current.approvedBy}`,
+                    en: `Approved on ${new Date(snapshot.current.createdAt).toLocaleString(locale)} · ${snapshot.current.approvedBy}`,
+                  })
+                : tx("Es gilt die bestehende professionelle Rolle. Noch keine Coaching-Ergänzung freigegeben.")}
             </p>
             {snapshot.current && (
               <>
                 <pre>{snapshot.current.guidance}</pre>
-                <p>Skill-Referenzen: {snapshot.current.skills.join(", ") || "keine"}</p>
+                <p>
+                  {tx("Skill-Referenzen:")} {snapshot.current.skills.join(", ") || tx("keine")}
+                </p>
               </>
             )}
             <p className="coaching-help">
-              Guidance ergänzt die Arbeitsweise. Sie ändert keine Rolle, Persona, Tools, Berechtigungen oder Seniorität.
+              {tx(
+                "Guidance ergänzt die Arbeitsweise. Sie ändert keine Rolle, Persona, Tools, Berechtigungen oder Seniorität.",
+              )}{" "}
             </p>
           </section>
           {canEdit && (
             <details className="coaching-section">
-              <summary>Guidance-Änderung vorschlagen</summary>
+              <summary>{tx("Guidance-Änderung vorschlagen")}</summary>
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -188,11 +199,11 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                 }}
               >
                 <label>
-                  Titel
+                  {tx("Titel")}{" "}
                   <input required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} />
                 </label>
                 <label>
-                  Vollständige neue Coaching-Guidance
+                  {tx("Vollständige neue Coaching-Guidance")}{" "}
                   <textarea
                     required
                     maxLength={12000}
@@ -210,13 +221,13 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                       setSkills(snapshot.current!.skills.filter((skill) => snapshot.skills.includes(skill)));
                     }}
                   >
-                    Aktive Version als Ausgangspunkt laden
+                    {tx("Aktive Version als Ausgangspunkt laden")}{" "}
                   </button>
                 )}
                 <fieldset>
-                  <legend>Bereits installierte Skills</legend>
+                  <legend>{tx("Bereits installierte Skills")}</legend>
                   {snapshot.skills.length === 0 ? (
-                    <p>Keine installierten Skills. Hier werden keine Pakete nachgeladen.</p>
+                    <p>{tx("Keine installierten Skills. Hier werden keine Pakete nachgeladen.")}</p>
                   ) : (
                     snapshot.skills.map((skill) => (
                       <label className="coaching-check" key={skill}>
@@ -235,16 +246,17 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                   )}
                 </fieldset>
                 <fieldset>
-                  <legend>Deterministische Prüfkriterien</legend>
+                  <legend>{tx("Deterministische Prüfkriterien")}</legend>
                   <p className="coaching-help">
-                    Text- und Statusprüfungen sind messbare Bedingungen, keine Genauigkeitsnote. Bestehende
-                    Run-Nachweise belegen vergangene Arbeit, nicht die Wirksamkeit einer noch nicht eingesetzten
-                    Guidance.
+                    {tx(
+                      "Text- und Statusprüfungen sind messbare Bedingungen, keine Genauigkeitsnote. Bestehende Run-Nachweise belegen vergangene Arbeit, nicht die Wirksamkeit einer noch nicht eingesetzten Guidance.",
+                    )}{" "}
                   </p>
                   {cases.map((check, index) => (
                     <div className="coaching-case" key={index}>
                       <label>
-                        Prüfung {index + 1}: Bezeichnung
+                        {tx("Prüfung")} {index + 1}
+                        {tx(": Bezeichnung")}{" "}
                         <input
                           required
                           maxLength={160}
@@ -253,21 +265,23 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                         />
                       </label>
                       <label>
-                        Prüfung {index + 1}: Typ
+                        {tx("Prüfung")} {index + 1}
+                        {tx(": Typ")}{" "}
                         <select
                           value={check.kind}
                           onChange={(event) => patchCase(index, { kind: event.target.value as CoachingCaseKind })}
                         >
                           {Object.entries(CASE_LABELS).map(([value, label]) => (
                             <option value={value} key={value}>
-                              {label}
+                              {tx(label)}
                             </option>
                           ))}
                         </select>
                       </label>
                       {check.kind !== "run_succeeded" && (
                         <label>
-                          Prüfung {index + 1}: Erwarteter Text oder Skill
+                          {tx("Prüfung")} {index + 1}
+                          {tx(": Erwarteter Text oder Skill")}{" "}
                           <input
                             required
                             maxLength={1000}
@@ -278,7 +292,8 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                       )}
                       {check.kind.startsWith("run_") && (
                         <label>
-                          Prüfung {index + 1}: Run-ID
+                          {tx("Prüfung")} {index + 1}
+                          {tx(": Run-ID")}{" "}
                           <input
                             required
                             maxLength={100}
@@ -293,7 +308,7 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                         disabled={cases.length === 1}
                         onClick={() => setCases((old) => old.filter((_, i) => i !== index))}
                       >
-                        Prüfung {index + 1} entfernen
+                        {tx("Prüfung")} {index + 1} {tx("entfernen")}{" "}
                       </button>
                     </div>
                   ))}
@@ -303,37 +318,41 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                     disabled={cases.length >= 30}
                     onClick={() => setCases((old) => [...old, newCase()])}
                   >
-                    Prüfung hinzufügen
+                    {tx("Prüfung hinzufügen")}{" "}
                   </button>
                 </fieldset>
                 <button className="ic-btn" type="submit" disabled={busy}>
-                  Vorschlag speichern
+                  {tx("Vorschlag speichern")}{" "}
                 </button>
               </form>
             </details>
           )}
           <section className="coaching-section">
-            <h3>Vorschläge und Ergebnisse</h3>
+            <h3>{tx("Vorschläge und Ergebnisse")}</h3>
             {snapshot.proposals.length === 0 && (
-              <p>Noch keine Vorschläge. Eine Beobachtung aus dem nächsten Review kann der Ausgangspunkt sein.</p>
+              <p>
+                {tx("Noch keine Vorschläge. Eine Beobachtung aus dem nächsten Review kann der Ausgangspunkt sein.")}
+              </p>
             )}
             {snapshot.proposals.map((proposal) => (
               <article key={proposal.id} className="coaching-entry">
                 <h4>
-                  {proposal.title} · {STATUS_LABELS[proposal.status]}
+                  {proposal.title} · {tx(STATUS_LABELS[proposal.status])}
                 </h4>
                 <p>
-                  Basisversion {proposal.baseVersion} · {new Date(proposal.createdAt).toLocaleString("de-DE")} ·{" "}
+                  {tx("Basisversion")} {proposal.baseVersion} · {new Date(proposal.createdAt).toLocaleString(locale)} ·{" "}
                   {proposal.createdBy}
                 </p>
                 <details>
-                  <summary>Änderung und Kriterien ansehen</summary>
+                  <summary>{tx("Änderung und Kriterien ansehen")}</summary>
                   <pre>{proposal.guidance}</pre>
-                  <p>Skill-Referenzen: {proposal.skills.join(", ") || "keine"}</p>
+                  <p>
+                    {tx("Skill-Referenzen:")} {proposal.skills.join(", ") || tx("keine")}
+                  </p>
                   <ul>
                     {proposal.cases.map((check, index) => (
                       <li key={index}>
-                        {check.label}: {CASE_LABELS[check.kind]} {check.expected && `„${check.expected}“`}{" "}
+                        {check.label}: {tx(CASE_LABELS[check.kind])} {check.expected && `„${check.expected}“`}{" "}
                         {check.runId && `· Run ${check.runId}`}
                       </li>
                     ))}
@@ -343,17 +362,18 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                   <div>
                     <p>
                       <strong>
-                        {proposal.evaluation.passedCases} von {proposal.evaluation.totalCases} Kriterien bestanden
+                        {proposal.evaluation.passedCases} {tx("von")} {proposal.evaluation.totalCases}{" "}
+                        {tx("Kriterien bestanden")}{" "}
                       </strong>{" "}
-                      · {new Date(proposal.evaluation.createdAt).toLocaleString("de-DE")}
+                      · {new Date(proposal.evaluation.createdAt).toLocaleString(locale)}
                     </p>
                     <ul>
                       {proposal.evaluation.checks.map((check, index) => (
                         <li key={index}>
-                          {check.passed ? "Bestanden" : "Nicht bestanden"}: {check.label} — {check.observed}
+                          {check.passed ? tx("Bestanden") : tx("Nicht bestanden")}: {check.label} — {check.observed}
                           {check.evidenceHash && (
                             <details>
-                              <summary>Gespeicherter Run-Nachweis</summary>
+                              <summary>{tx("Gespeicherter Run-Nachweis")}</summary>
                               <p>Run: {check.runId}</p>
                               <code>SHA-256: {check.evidenceHash}</code>
                             </details>
@@ -375,17 +395,18 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                             method: "POST",
                             body: "{}",
                           }),
-                        "Auswertung gespeichert. Alle Ergebnisse sind im Vorschlag sichtbar.",
+                        tx("Auswertung gespeichert. Alle Ergebnisse sind im Vorschlag sichtbar."),
                       )
                     }
                   >
-                    Kriterien auswerten
+                    {tx("Kriterien auswerten")}{" "}
                   </button>
                 )}
                 {canReview && !["applied", "rejected"].includes(proposal.status) && (
                   <div className="coaching-review">
                     <label>
-                      Begründung für „{proposal.title}“
+                      {tx("Begründung für „")}
+                      {proposal.title}“
                       <textarea
                         required
                         maxLength={4000}
@@ -399,7 +420,7 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                       disabled={busy || proposal.status !== "ready" || !reason[proposal.id]?.trim()}
                       onClick={() => void review(proposal, "approve")}
                     >
-                      Freigeben und übernehmen
+                      {tx("Freigeben und übernehmen")}{" "}
                     </button>
                     <button
                       className="ic-btn"
@@ -407,20 +428,20 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                       disabled={busy || !reason[proposal.id]?.trim()}
                       onClick={() => void review(proposal, "reject")}
                     >
-                      Ablehnen
+                      {tx("Ablehnen")}{" "}
                     </button>
                   </div>
                 )}
                 {proposal.reviewedBy && (
                   <p>
-                    Entscheidung von {proposal.reviewedBy}: {proposal.reviewReason}
+                    {tx("Entscheidung von")} {proposal.reviewedBy}: {proposal.reviewReason}
                   </p>
                 )}
               </article>
             ))}
           </section>
           <section className="coaching-section">
-            <h3>1-on-1, Retrospektiven und Lessons Learned</h3>
+            <h3>{tx("1-on-1, Retrospektiven und Lessons Learned")}</h3>
             {canEdit && (
               <form
                 onSubmit={(event) => {
@@ -437,7 +458,7 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                           ...(noteRun.trim() ? { runId: noteRun.trim() } : {}),
                         }),
                       }),
-                    "Beobachtung gespeichert. Sie verändert die Guidance nicht automatisch.",
+                    tx("Beobachtung gespeichert. Sie verändert die Guidance nicht automatisch."),
                     () => {
                       setNoteTitle("");
                       setNoteBody("");
@@ -447,20 +468,20 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                 }}
               >
                 <label>
-                  Art
+                  {tx("Art")}{" "}
                   <select
                     value={noteKind}
                     onChange={(event) => setNoteKind(event.target.value as CoachingNote["kind"])}
                   >
                     {Object.entries(NOTE_LABELS).map(([value, label]) => (
                       <option key={value} value={value}>
-                        {label}
+                        {tx(label)}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  Titel der Beobachtung
+                  {tx("Titel der Beobachtung")}{" "}
                   <input
                     required
                     maxLength={200}
@@ -469,7 +490,7 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                   />
                 </label>
                 <label>
-                  Beobachtung, Vereinbarungen und nächste Schritte
+                  {tx("Beobachtung, Vereinbarungen und nächste Schritte")}{" "}
                   <textarea
                     required
                     rows={4}
@@ -479,22 +500,22 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
                   />
                 </label>
                 <label>
-                  Run-ID als Quelle (optional)
+                  {tx("Run-ID als Quelle (optional)")}{" "}
                   <input maxLength={100} value={noteRun} onChange={(event) => setNoteRun(event.target.value)} />
                 </label>
                 <button className="ic-btn" type="submit" disabled={busy}>
-                  Beobachtung speichern
+                  {tx("Beobachtung speichern")}{" "}
                 </button>
               </form>
             )}
-            {snapshot.notes.length === 0 && <p>Noch keine Beobachtungen gespeichert.</p>}
+            {snapshot.notes.length === 0 && <p>{tx("Noch keine Beobachtungen gespeichert.")}</p>}
             {snapshot.notes.map((note) => (
               <article className="coaching-entry" key={note.id}>
                 <h4>
-                  {NOTE_LABELS[note.kind]} · {note.title}
+                  {tx(NOTE_LABELS[note.kind])} · {note.title}
                 </h4>
                 <p>
-                  {new Date(note.createdAt).toLocaleString("de-DE")} · {note.createdBy}
+                  {new Date(note.createdAt).toLocaleString(locale)} · {note.createdBy}
                   {note.runId && ` · Run ${note.runId}`}
                 </p>
                 <pre>{note.body}</pre>
@@ -502,16 +523,21 @@ export function CoachingPanel({ agents, canReview = true, canEdit = true, refres
             ))}
           </section>
           <details className="coaching-section">
-            <summary>Versionsverlauf ({snapshot.versions.length})</summary>
+            <summary>
+              {tx("Versionsverlauf (")}
+              {snapshot.versions.length})
+            </summary>
             {snapshot.versions.map((version) => (
               <article className="coaching-entry" key={version.version}>
                 <h4>Version {version.version}</h4>
                 <p>
-                  {new Date(version.createdAt).toLocaleString("de-DE")} · {version.approvedBy} · Vorschlag{" "}
+                  {new Date(version.createdAt).toLocaleString(locale)} · {version.approvedBy} {tx("· Vorschlag")}{" "}
                   {version.proposalId}
                 </p>
                 <pre>{version.guidance}</pre>
-                <p>Skill-Referenzen: {version.skills.join(", ") || "keine"}</p>
+                <p>
+                  {tx("Skill-Referenzen:")} {version.skills.join(", ") || tx("keine")}
+                </p>
               </article>
             ))}
           </details>

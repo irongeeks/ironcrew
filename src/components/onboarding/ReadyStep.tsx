@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n";
 import type { SetupStatus } from "../../api/messaging-runtime-oauth";
 
 interface ReadyStepProps {
@@ -8,28 +9,60 @@ interface ReadyStepProps {
 
 interface CheckDisplay {
   key: string;
-  label: string;
+  label: { en: string; de: string };
   required: boolean;
 }
 
 const REQUIRED_CHECKS: CheckDisplay[] = [
-  { key: "database", label: "Database", required: true },
-  { key: "encryption_secret", label: "Encryption secret", required: true },
-  { key: "webhook_secret", label: "Webhook secret", required: true },
-  { key: "agents_seeded", label: "Agents seeded", required: true },
-  { key: "departments_seeded", label: "Departments seeded", required: true },
-  { key: "cli_provider_configured", label: "CLI provider", required: true },
+  { key: "database", label: { en: "Database", de: "Datenbank" }, required: true },
+  { key: "encryption_secret", label: { en: "Encryption secret", de: "Verschlüsselungsschlüssel" }, required: true },
+  { key: "webhook_secret", label: { en: "Webhook secret", de: "Webhook-Schlüssel" }, required: true },
+  { key: "agents_seeded", label: { en: "Agents seeded", de: "Agenten angelegt" }, required: true },
+  { key: "departments_seeded", label: { en: "Departments seeded", de: "Abteilungen angelegt" }, required: true },
+  { key: "cli_provider_configured", label: { en: "CLI provider", de: "CLI-Anbieter" }, required: true },
 ];
 
 const OPTIONAL_CHECKS: CheckDisplay[] = [
-  { key: "api_key_configured", label: "API key", required: false },
-  { key: "oauth_configured", label: "OAuth connected", required: false },
-  { key: "agents_md_injected", label: "AGENTS.md injected", required: false },
-  { key: "knowledge_vault_configured", label: "Knowledge vault connected", required: false },
+  { key: "api_key_configured", label: { en: "API key", de: "API-Schlüssel" }, required: false },
+  { key: "oauth_configured", label: { en: "OAuth connected", de: "OAuth verbunden" }, required: false },
+  { key: "agents_md_injected", label: { en: "AGENTS.md injected", de: "AGENTS.md eingerichtet" }, required: false },
+  {
+    key: "knowledge_vault_configured",
+    label: { en: "Knowledge vault connected", de: "Wissens-Vault verbunden" },
+    required: false,
+  },
 ];
 
 export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepProps) {
+  const { t } = useI18n();
   const allRequiredOk = setupStatus?.required_ok ?? false;
+
+  const detailTranslations: Record<string, string> = {
+    "No agents found — run setup": "Keine Agenten gefunden — bitte die Einrichtung ausführen",
+    "No departments found — run setup": "Keine Abteilungen gefunden — bitte die Einrichtung ausführen",
+    "No default CLI provider configured in settings": "Kein Standard-CLI-Anbieter in den Einstellungen eingerichtet",
+    "No API provider keys configured (optional)": "Keine API-Schlüssel eingerichtet (optional)",
+    "api_providers table unavailable (optional)": "Tabelle api_providers nicht verfügbar (optional)",
+    "No OAuth credentials configured (optional)": "Keine OAuth-Zugangsdaten eingerichtet (optional)",
+    "oauth_credentials table unavailable (optional)": "Tabelle oauth_credentials nicht verfügbar (optional)",
+    "No knowledge vault configured (optional)": "Kein Wissens-Vault eingerichtet (optional)",
+    "docs_providers table unavailable (optional)": "Tabelle docs_providers nicht verfügbar (optional)",
+    "AGENTS.md exists but missing orchestration rules — run pnpm run setup":
+      "In AGENTS.md fehlen die Orchestrierungsregeln — bitte pnpm run setup ausführen",
+    "AGENTS.md not found — run pnpm run setup": "AGENTS.md nicht gefunden — bitte pnpm run setup ausführen",
+  };
+  const translateDetail = (detail: string) => {
+    let german = detailTranslations[detail];
+    if (!german) {
+      german = detail
+        .replace(/ not found in \.env$/, " nicht in .env gefunden")
+        .replace(/ not configured$/, " nicht eingerichtet")
+        .replace(/^Runtime credentials configured: /, "Laufzeit-Zugangsdaten eingerichtet: ")
+        .replace(/^Database unreachable: /, "Datenbank nicht erreichbar: ")
+        .replace(/^(agents|departments|settings) table error: /, "Fehler in Tabelle $1: ");
+    }
+    return t({ en: detail, de: german });
+  };
 
   const renderCheck = (check: CheckDisplay) => {
     const result = setupStatus?.checks[check.key];
@@ -60,7 +93,7 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
               color: "var(--text-primary)",
             }}
           >
-            {check.label}
+            {t(check.label)}
           </div>
           {detail && (
             <div
@@ -71,7 +104,7 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
                 marginTop: 2,
               }}
             >
-              {detail}
+              {translateDetail(detail)}
             </div>
           )}
         </div>
@@ -84,7 +117,7 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
               flexShrink: 0,
             }}
           >
-            optional
+            {t({ en: "optional", de: "optional" })}
           </span>
         )}
       </div>
@@ -104,7 +137,11 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
             lineHeight: 1.5,
           }}
         >
-          {setupStatus == null ? "Checking..." : allRequiredOk ? "You're All Set!" : "Almost Ready"}
+          {setupStatus == null
+            ? t({ en: "Checking...", de: "Wird geprüft..." })
+            : allRequiredOk
+              ? t({ en: "You're All Set!", de: "Alles bereit!" })
+              : t({ en: "Almost Ready", de: "Fast bereit" })}
         </h2>
         <p
           style={{
@@ -115,8 +152,14 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
           }}
         >
           {allRequiredOk
-            ? "All required checks passed. Your office is ready to launch."
-            : "Some required checks failed. You may still proceed, but some features may not work."}
+            ? t({
+                en: "All required checks passed. Your office is ready to launch.",
+                de: "Alle erforderlichen Prüfungen waren erfolgreich. Dein Büro ist startbereit.",
+              })
+            : t({
+                en: "Some required checks failed. You may still proceed, but some features may not work.",
+                de: "Einige erforderliche Prüfungen sind fehlgeschlagen. Du kannst fortfahren, aber manche Funktionen sind möglicherweise nicht verfügbar.",
+              })}
         </p>
       </div>
 
@@ -132,7 +175,7 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
               marginBottom: 8,
             }}
           >
-            Required
+            {t({ en: "Required", de: "Erforderlich" })}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{REQUIRED_CHECKS.map(renderCheck)}</div>
         </div>
@@ -148,7 +191,7 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
               marginBottom: 8,
             }}
           >
-            Optional
+            {t({ en: "Optional", de: "Optional" })}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{OPTIONAL_CHECKS.map(renderCheck)}</div>
         </div>
@@ -168,7 +211,7 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
             cursor: "pointer",
           }}
         >
-          ← Back
+          {t({ en: "← Back", de: "← Zurück" })}
         </button>
         <button
           onClick={onFinish}
@@ -184,7 +227,7 @@ export default function ReadyStep({ setupStatus, onFinish, onBack }: ReadyStepPr
             letterSpacing: "0.05em",
           }}
         >
-          Launch Office →
+          {t({ en: "Launch Office →", de: "Büro öffnen →" })}
         </button>
       </div>
     </div>

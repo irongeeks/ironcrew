@@ -208,10 +208,7 @@ export default function CliAuthTerminal({ provider, onSuccess, onCancel }: CliAu
       {status === "error" && (
         <div className="rounded-lg border border-rose-500/60 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
           {t({
-            ko: "인증에 실패했습니다. 다시 시도하거나 터미널에서 직접 로그인하세요.",
             en: "Authentication failed. Try again or log in directly from a terminal.",
-            ja: "認証に失敗しました。再試行するか、ターミナルから直接ログインしてください。",
-            zh: "Authentication failed. Try again or log in directly from a terminal.",
             de: "Authentifizierung fehlgeschlagen. Versuchen Sie es erneut oder melden Sie sich direkt im Terminal an.",
           })}
         </div>
@@ -222,17 +219,11 @@ export default function CliAuthTerminal({ provider, onSuccess, onCancel }: CliAu
           <p className="text-[11px]" style={{ color: "var(--th-text-muted)" }}>
             {status === "error"
               ? t({
-                  ko: "터미널에서 오류가 발생했습니다.",
                   en: "The terminal session ended with an error.",
-                  ja: "ターミナルセッションがエラーで終了しました。",
-                  zh: "The terminal session ended with an error.",
                   de: "Die Terminalsitzung wurde mit einem Fehler beendet.",
                 })
               : t({
-                  ko: "터미널을 클릭하고 표시된 코드를 입력하세요.",
                   en: "Click the terminal and type any code shown there.",
-                  ja: "ターミナルをクリックして、表示されたコードを入力してください。",
-                  zh: "Click the terminal and type any code shown there.",
                   de: "Klicken Sie ins Terminal und geben Sie den angezeigten Code ein.",
                 })}
           </p>
@@ -242,7 +233,7 @@ export default function CliAuthTerminal({ provider, onSuccess, onCancel }: CliAu
             className="rounded-lg border px-3 py-1.5 text-xs"
             style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
           >
-            {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+            {t({ en: "Cancel", de: "Abbrechen" })}
           </button>
         </div>
       )}

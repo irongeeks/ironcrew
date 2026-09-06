@@ -72,9 +72,9 @@ function Shell({ initialView = "office" }: { initialView?: View }) {
 }
 
 describe("canonical company navigation", () => {
-  it("keeps the same company and CEO draft while switching Office, Tasks and Command", () => {
+  it("keeps the same company and CEO draft while switching Office, Tasks and Command", async () => {
     render(<Shell />);
-    const company = screen.getByTestId("canonical-company");
+    const company = await screen.findByTestId("canonical-company");
     expect(company).toHaveAttribute("data-view", "office");
     fireEvent.change(screen.getByLabelText("CEO draft"), { target: { value: "Ship the website" } });
     fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
@@ -87,11 +87,12 @@ describe("canonical company navigation", () => {
     expect(screen.getAllByRole("main")).toHaveLength(1);
   });
 
-  it("opens the canonical mission composer from a different screen and on repeated clicks", () => {
+  it("opens the canonical mission composer from a different screen and on repeated clicks", async () => {
     render(<Shell initialView="projects" />);
+    expect(await screen.findByText("Legacy projects")).toBeVisible();
     expect(screen.queryByTestId("canonical-company")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "New Mission" }));
-    expect(screen.getByTestId("canonical-company")).toHaveAttribute("data-mission", "1");
+    expect(await screen.findByTestId("canonical-company")).toHaveAttribute("data-mission", "1");
     fireEvent.click(screen.getByRole("button", { name: "New Mission" }));
     expect(screen.getByTestId("canonical-company")).toHaveAttribute("data-mission", "2");
     expect(screen.queryByText("Legacy projects")).not.toBeInTheDocument();

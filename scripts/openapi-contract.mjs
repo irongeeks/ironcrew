@@ -71,7 +71,7 @@ const REQUEST_EXAMPLE_OVERRIDES = {
   },
   "PUT /api/settings": {
     ceoName: "CEO",
-    language: "ko",
+    language: "en",
   },
   "POST /api/projects": {
     name: "my-project",

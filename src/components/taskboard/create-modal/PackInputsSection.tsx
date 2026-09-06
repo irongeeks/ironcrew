@@ -1,3 +1,4 @@
+import { useUiCopy } from "../../LocalizedText";
 import { useEffect, useRef, useState } from "react";
 import { fetchPackDefinition } from "../../../api/workflow-packs";
 import type { PackInputField, PackDefinitionResponse } from "../../pack-editor/types";
@@ -29,6 +30,7 @@ export default function PackInputsSection({
   onChange,
   onRequiredKeysChange,
 }: PackInputsSectionProps) {
+  const translateUiCopy = useUiCopy();
   const [fields, setFields] = useState<(PackInputField & { _required?: boolean })[]>([]);
 
   const onChangeRef = useRef(onChange);
@@ -83,16 +85,7 @@ export default function PackInputsSection({
 
   if (fields.length === 0) return null;
 
-  const sectionLabel =
-    locale === "ko"
-      ? "팩 설정"
-      : locale === "ja"
-        ? "パック設定"
-        : locale === "zh"
-          ? "包设置"
-          : locale === "de"
-            ? "Pack-Einstellungen"
-            : "Pack Settings";
+  const sectionLabel = locale === "de" ? "Pack-Einstellungen" : translateUiCopy("Pack Settings", "Paketeinstellungen");
 
   return (
     <div className="space-y-3">

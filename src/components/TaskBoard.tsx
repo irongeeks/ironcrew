@@ -152,24 +152,16 @@ export function TaskBoard(props: TaskBoardProps) {
             textTransform: "uppercase",
           }}
         >
-          {t({ ko: "업무 보드", en: "Task Board", ja: "タスクボード", zh: "Task Board", de: "Aufgaben-Board" })}
+          {t({ en: "Task Board", de: "Aufgaben-Board" })}
         </h1>
         <span
           className="rounded-full px-2.5 py-0.5 text-xs"
           style={{ background: "var(--th-card-bg)", color: "var(--th-text-secondary)" }}
         >
-          {t({ ko: "총", en: "Total", ja: "合計", zh: "Total", de: "Gesamt" })} {filteredTasks.length}
-          {t({ ko: "개", en: "", ja: "件", zh: "", de: "" })}
+          {t({ en: "Total", de: "Gesamt" })} {filteredTasks.length}
+          {t({ en: "", de: "" })}
           {activeFilterCount > 0 &&
-            ` (${t({ ko: "필터", en: "filters", ja: "フィルター", zh: "filters", de: "Filter" })} ${activeFilterCount}${t(
-              {
-                ko: "개 적용",
-                en: " applied",
-                ja: "件適用",
-                zh: " applied",
-                de: " angewendet",
-              },
-            )})`}
+            ` (${t({ en: "filters", de: "Filter" })} ${activeFilterCount}${t({ en: " applied", de: " angewendet" })})`}
         </span>
         <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {activeFilterCount > 0 && (
@@ -183,13 +175,7 @@ export function TaskBoard(props: TaskBoardProps) {
               className="min-h-10 rounded-lg border px-3 py-2 text-xs transition hover:text-white"
               style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
             >
-              {t({
-                ko: "필터 초기화",
-                en: "Reset Filters",
-                ja: "フィルターをリセット",
-                zh: "Reset Filters",
-                de: "Filter zurücksetzen",
-              })}
+              {t({ en: "Reset Filters", de: "Filter zurücksetzen" })}
             </button>
           )}
           <button
@@ -200,17 +186,11 @@ export function TaskBoard(props: TaskBoardProps) {
             title={
               showAllTasks
                 ? t({
-                    ko: "진행중 보기로 전환 (숨김 제외)",
                     en: "Switch to active view (exclude hidden)",
-                    ja: "進行中表示へ切替（非表示を除外）",
-                    zh: "Switch to active view (exclude hidden)",
                     de: "Zur aktiven Ansicht wechseln (ausgeblendete ausschließen)",
                   })
                 : t({
-                    ko: "모두보기로 전환 (숨김 포함)",
                     en: "Switch to all view (include hidden)",
-                    ja: "全体表示へ切替（非表示を含む）",
-                    zh: "Switch to all view (include hidden)",
                     de: "Zur Gesamtansicht wechseln (ausgeblendete einschließen)",
                   })
             }
@@ -219,7 +199,7 @@ export function TaskBoard(props: TaskBoardProps) {
               className={showAllTasks ? "" : "text-emerald-200"}
               style={showAllTasks ? { color: "var(--th-text-secondary)" } : undefined}
             >
-              {t({ ko: "진행중", en: "Active", ja: "進行中", zh: "Active", de: "Aktiv" })}
+              {t({ en: "Active", de: "Aktiv" })}
             </span>
             <span className="mx-1" style={{ color: "var(--th-text-muted)" }}>
               /
@@ -228,7 +208,7 @@ export function TaskBoard(props: TaskBoardProps) {
               className={showAllTasks ? "text-cyan-100" : ""}
               style={!showAllTasks ? { color: "var(--th-text-muted)" } : undefined}
             >
-              {t({ ko: "모두보기", en: "All", ja: "すべて", zh: "All", de: "Alle" })}
+              {t({ en: "All", de: "Alle" })}
             </span>
             <span
               className="ml-1 rounded-full px-1.5 py-0.5 text-[10px]"
@@ -242,33 +222,23 @@ export function TaskBoard(props: TaskBoardProps) {
             className="min-h-10 rounded-lg border px-3 py-2 text-xs transition hover:text-white"
             style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
             title={t({
-              ko: "완료/보류/취소 상태 업무 숨기기",
               en: "Hide done/pending/cancelled tasks",
-              ja: "完了/保留/キャンセル状態を非表示",
-              zh: "Hide done/pending/cancelled tasks",
               de: "Erledigte/Ausstehende/Abgebrochene Aufgaben ausblenden",
             })}
           >
-            🙈 {t({ ko: "숨김", en: "Hide", ja: "非表示", zh: "Hide", de: "Ausblenden" })}
+            🙈 {t({ en: "Hide", de: "Ausblenden" })}
           </button>
           <button
             onClick={() => setShowProjectManager(true)}
             className="taskboard-project-manage-btn min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition"
           >
-            🗂{" "}
-            {t({
-              ko: "프로젝트 관리",
-              en: "Project Manager",
-              ja: "プロジェクト管理",
-              zh: "Project Manager",
-              de: "Projektverwaltung",
-            })}
+            🗂 {t({ en: "Project Manager", de: "Projektverwaltung" })}
           </button>
           <button
             onClick={() => setShowCreate(true)}
             className="min-h-10 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-blue-500 active:scale-95"
           >
-            + {t({ ko: "새 업무", en: "New Task", ja: "新規タスク", zh: "New Task", de: "Neue Aufgabe" })}
+            + {t({ en: "New Task", de: "Neue Aufgabe" })}
           </button>
         </div>
       </div>
@@ -295,23 +265,14 @@ export function TaskBoard(props: TaskBoardProps) {
             className="text-lg font-semibold"
             style={{ color: "var(--text-primary)", fontFamily: "'Press Start 2P', monospace" }}
           >
-            {t({
-              ko: "아직 업무가 없습니다",
-              en: "No tasks yet",
-              ja: "タスクがまだありません",
-              zh: "No tasks yet",
-              de: "Noch keine Aufgaben",
-            })}
+            {t({ en: "No tasks yet", de: "Noch keine Aufgaben" })}
           </div>
           <div
             className="max-w-md text-sm"
             style={{ color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}
           >
             {t({
-              ko: "첫 번째 업무를 만들어 AI 에이전트 팀에게 작업을 위임하세요.",
               en: "Create your first task and delegate it to your AI agent team.",
-              ja: "最初のタスクを作成し、AIエージェントチームに委任しましょう。",
-              zh: "Create your first task and delegate it to your AI agent team.",
               de: "Erstelle deine erste Aufgabe und delegiere sie an dein KI-Agenten-Team.",
             })}
           </div>
@@ -319,7 +280,7 @@ export function TaskBoard(props: TaskBoardProps) {
             onClick={() => setShowCreate(true)}
             className="min-h-10 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-blue-500 active:scale-95"
           >
-            + {t({ ko: "새 업무", en: "New Task", ja: "新規タスク", zh: "New Task", de: "Neue Aufgabe" })}
+            + {t({ en: "New Task", de: "Neue Aufgabe" })}
           </button>
         </div>
       ) : (
@@ -372,7 +333,7 @@ export function TaskBoard(props: TaskBoardProps) {
                       className="flex min-h-16 items-center justify-center py-6"
                       style={{ color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}
                     >
-                      {t({ ko: "비어 있음", en: "empty", ja: "空", zh: "empty", de: "leer" })}
+                      {t({ en: "empty", de: "leer" })}
                     </div>
                   ) : (
                     columnTasks.map((task) => (

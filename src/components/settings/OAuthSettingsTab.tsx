@@ -55,16 +55,10 @@ export default function OAuthSettingsTab({
     >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--th-text-secondary)" }}>
-          {t({
-            ko: "OAuth 인증 현황",
-            en: "OAuth Status",
-            ja: "OAuth 認証状態",
-            zh: "OAuth Status",
-            de: "OAuth-Status",
-          })}
+          {t({ en: "OAuth Status", de: "OAuth-Status" })}
         </h3>
         <button onClick={onRefresh} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-          🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "Refresh", de: "Aktualisieren" })}
+          🔄 {t({ en: "Refresh", de: "Aktualisieren" })}
         </button>
       </div>
 
@@ -78,8 +72,8 @@ export default function OAuthSettingsTab({
         >
           <span>
             {oauthResult.error
-              ? `${t({ ko: "OAuth 연결 실패", en: "OAuth connection failed", ja: "OAuth 接続失敗", zh: "OAuth connection failed", de: "OAuth-Verbindung fehlgeschlagen" })}: ${oauthResult.error}`
-              : `${OAUTH_INFO[oauthResult.provider || ""]?.label || oauthResult.provider} ${t({ ko: "연결 완료!", en: "connected!", ja: "接続完了!", zh: "connected!", de: "verbunden!" })}`}
+              ? `${t({ en: "OAuth connection failed", de: "OAuth-Verbindung fehlgeschlagen" })}: ${oauthResult.error}`
+              : `${OAUTH_INFO[oauthResult.provider || ""]?.label || oauthResult.provider} ${t({ en: "connected!", de: "verbunden!" })}`}
           </span>
           <button onClick={() => onOauthResultClear?.()} className="text-xs opacity-60 hover:opacity-100 ml-2">
             ✕
@@ -99,17 +93,11 @@ export default function OAuthSettingsTab({
           <span>
             {oauthStatus.storageReady
               ? t({
-                  ko: "OAuth 저장소 활성화됨 (암호화 키 설정됨)",
                   en: "OAuth storage is active (encryption key configured)",
-                  ja: "OAuth ストレージ有効（暗号化キー設定済み）",
-                  zh: "OAuth storage is active (encryption key configured)",
                   de: "OAuth-Speicher ist aktiv (Verschlüsselungsschlüssel konfiguriert)",
                 })
               : t({
-                  ko: "OAUTH_ENCRYPTION_SECRET 환경변수가 설정되지 않았습니다",
                   en: "OAUTH_ENCRYPTION_SECRET environment variable is not set",
-                  ja: "OAUTH_ENCRYPTION_SECRET 環境変数が設定されていません",
-                  zh: "OAUTH_ENCRYPTION_SECRET environment variable is not set",
                   de: "Die Umgebungsvariable OAUTH_ENCRYPTION_SECRET ist nicht gesetzt",
                 })}
           </span>
@@ -118,7 +106,7 @@ export default function OAuthSettingsTab({
 
       {oauthLoading ? (
         <div className="text-center py-8 text-sm" style={{ color: "var(--th-text-muted)" }}>
-          {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+          {t({ en: "Loading...", de: "Laden..." })}
         </div>
       ) : oauthStatus ? (
         <>

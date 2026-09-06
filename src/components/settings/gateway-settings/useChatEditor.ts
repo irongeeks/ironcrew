@@ -35,15 +35,7 @@ export function useChatEditor({ t, form, setForm, persistSettings, channelsConfi
       persistSettings(nextForm);
       const result = {
         ok: true,
-        msg:
-          successMsg ??
-          t({
-            ko: "채널 설정 저장 완료",
-            en: "Channel settings saved",
-            ja: "チャネル設定を保存しました",
-            zh: "Channel settings saved",
-            de: "Kanaleinstellungen gespeichert",
-          }),
+        msg: successMsg ?? t({ en: "Channel settings saved", de: "Kanaleinstellungen gespeichert" }),
       };
       setSaved(result);
       onSaved(result);
@@ -65,16 +57,7 @@ export function useChatEditor({ t, form, setForm, persistSettings, channelsConfi
       ...next[row.channel],
       sessions: next[row.channel].sessions.filter((session) => session.id !== row.session.id),
     };
-    persistChannelsForm(
-      next,
-      t({
-        ko: "채팅 삭제 완료",
-        en: "Chat deleted",
-        ja: "チャットを削除しました",
-        zh: "Chat deleted",
-        de: "Chat gelöscht",
-      }),
-    );
+    persistChannelsForm(next, t({ en: "Chat deleted", de: "Chat gelöscht" }));
   };
 
   const openCreateModal = () => {
@@ -115,39 +98,15 @@ export function useChatEditor({ t, form, setForm, persistSettings, channelsConfi
     const agentId = editor.agentId.trim();
 
     if (!token) {
-      setEditorError(
-        t({
-          ko: "토큰을 입력해주세요.",
-          en: "Please enter a token.",
-          ja: "トークンを入力してください。",
-          zh: "Please enter a token.",
-          de: "Bitte geben Sie einen Token ein.",
-        }),
-      );
+      setEditorError(t({ en: "Please enter a token.", de: "Bitte geben Sie einen Token ein." }));
       return null;
     }
     if (!name) {
-      setEditorError(
-        t({
-          ko: "채팅 이름을 입력해주세요.",
-          en: "Please enter a chat name.",
-          ja: "チャット名を入力してください。",
-          zh: "Please enter a chat name.",
-          de: "Bitte geben Sie einen Chat-Namen ein.",
-        }),
-      );
+      setEditorError(t({ en: "Please enter a chat name.", de: "Bitte geben Sie einen Chat-Namen ein." }));
       return null;
     }
     if (!targetId) {
-      setEditorError(
-        t({
-          ko: "채널/대상 ID를 입력해주세요.",
-          en: "Please enter a channel/target ID.",
-          ja: "チャンネル/対象 ID を入力してください。",
-          zh: "Please enter a channel/target ID.",
-          de: "Bitte geben Sie eine Kanal-/Ziel-ID ein.",
-        }),
-      );
+      setEditorError(t({ en: "Please enter a channel/target ID.", de: "Bitte geben Sie eine Kanal-/Ziel-ID ein." }));
       return null;
     }
 
@@ -194,23 +153,11 @@ export function useChatEditor({ t, form, setForm, persistSettings, channelsConfi
       sessions: targetSessions,
     };
 
-    const savedOk = persistChannelsForm(
-      next,
-      t({
-        ko: "채팅 설정 저장 완료",
-        en: "Chat saved",
-        ja: "チャット設定を保存しました",
-        zh: "Chat saved",
-        de: "Chat gespeichert",
-      }),
-    );
+    const savedOk = persistChannelsForm(next, t({ en: "Chat saved", de: "Chat gespeichert" }));
     if (!savedOk) {
       setEditorError(
         t({
-          ko: "채팅 저장에 실패했습니다. 다시 시도해주세요.",
           en: "Failed to save chat. Please try again.",
-          ja: "チャット保存に失敗しました。再試行してください。",
-          zh: "Failed to save chat. Please try again.",
           de: "Chat konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
         }),
       );

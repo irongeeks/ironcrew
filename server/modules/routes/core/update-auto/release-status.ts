@@ -1,3 +1,4 @@
+import { normalizeUiLanguage, type UiLanguage } from "../../../../../src/shared/ui-language.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { isRemoteVersionNewer } from "../../update-auto-utils.ts";
@@ -33,7 +34,12 @@ export function detectInstallType(env = process.env, cwd = process.cwd()): Insta
   if (fs.existsSync("/.dockerenv") || env.DOCKER_CONTAINER || env.CONTAINER === "docker") return "docker";
   return fs.existsSync(path.join(cwd, ".git")) ? "source" : "native";
 }
-export function releaseInstructions(type: InstallType, tag: string | null): ReleaseUpdateStatus["instructions"] {
+export function releaseInstructions(
+  type: InstallType,
+  tag: string | null,
+  language: UiLanguage = "en",
+): ReleaseUpdateStatus["instructions"] {
+  const de = normalizeUiLanguage(language) === "de";
   const validTag = tag && /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(tag) ? tag : null;
   const script = type === "docker" ? "ironcrew-docker-update.mjs" : "ironcrew-update.mjs";
   return {
@@ -41,14 +47,26 @@ export function releaseInstructions(type: InstallType, tag: string | null): Rele
       ? `node scripts/${script} --to ${validTag}${type === "docker" ? " --backup-dir /ABS/backups" : ""} --check`
       : null,
     steps: [
-      "Release-Hinweise prüfen und aktuelle Sicherung samt Wiederherstellungsmöglichkeit vorbereiten.",
+      de
+        ? "Release-Hinweise prüfen und aktuelle Sicherung samt Wiederherstellungsmöglichkeit vorbereiten."
+        : "Review the release notes and prepare a current backup and recovery procedure.",
       type === "docker"
-        ? "Den Update-Assistenten auf dem Docker-Host im IronCrew-Verzeichnis starten."
-        : "Den Update-Assistenten auf dem Host im IronCrew-Verzeichnis starten.",
+        ? de
+          ? "Den Update-Assistenten auf dem Docker-Host im IronCrew-Verzeichnis starten."
+          : "Start the update assistant in the IronCrew directory on the Docker host."
+        : de
+          ? "Den Update-Assistenten auf dem Host im IronCrew-Verzeichnis starten."
+          : "Start the update assistant in the IronCrew directory on the host.",
       type === "docker"
-        ? "Im Prüfbefehl /ABS/backups durch einen privaten absoluten Backup-Pfad ersetzen. Nach erfolgreicher Vorprüfung denselben Befehl ohne --check ausführen; der Assistent übernimmt Sicherung und Neustart."
-        : "Nach erfolgreicher Vorprüfung den Dienst stoppen und den Assistenten ohne --check mit --db /ABS/ironcrew.sqlite und --backup-dir /ABS/backups ausführen; Pfade anpassen und den Dienst anschließend starten. Details stehen in der Release-Anleitung.",
-      "Nach der Aktualisierung Version, Systemzustand und laufende Aufgaben prüfen.",
+        ? de
+          ? "Im Prüfbefehl /ABS/backups durch einen privaten absoluten Backup-Pfad ersetzen. Nach erfolgreicher Vorprüfung denselben Befehl ohne --check ausführen; der Assistent übernimmt Sicherung und Neustart."
+          : "Replace /ABS/backups in the check command with a private absolute backup path. After a successful preflight check, run the same command without --check; the assistant handles backup and restart."
+        : de
+          ? "Nach erfolgreicher Vorprüfung den Dienst stoppen und den Assistenten ohne --check mit --db /ABS/ironcrew.sqlite und --backup-dir /ABS/backups ausführen; Pfade anpassen und den Dienst anschließend starten. Details stehen in der Release-Anleitung."
+          : "After a successful preflight check, stop the service and run the assistant without --check, adding --db /ABS/ironcrew.sqlite and --backup-dir /ABS/backups. Adjust the paths and then start the service. See the release guide for details.",
+      de
+        ? "Nach der Aktualisierung Version, Systemzustand und laufende Aufgaben prüfen."
+        : "After the update, check the version, system health and running tasks.",
     ],
     documentation_url: UPDATE_DOCUMENTATION_URL,
   };

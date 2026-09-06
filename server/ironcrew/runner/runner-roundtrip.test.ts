@@ -12,6 +12,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import * as vendorPolicy from "../policy/vendor-policy.ts";
+import { restrictiveVendorPolicy } from "../policy/test-vendor-policy.ts";
 import { RunnerServer } from "./runner-server.ts";
 import { socketPair } from "./__fixtures__/socket-pair.ts";
 import { RunnerRuntime, RunnerUnavailableError } from "./runner-client.ts";
@@ -118,15 +120,21 @@ describe("a job crosses the boundary and comes back", () => {
     expect(events.map((e) => e.type)).toEqual(["run.failed"]);
     expect(events[0].payload.message).toContain("Vendor-Policy");
   });
-  it("does not allow wire restrictions to authorize a blocked alias", async () => {
-    const { client } = connected([new ScriptedRuntime("claude")]);
-    const events = await collect(
-      client.startRun(
-        { prompt: "x", model: "qwen-code" },
-        context({ vendorRestrictions: { allowedFamilies: ["anthropic/*", "qwen/*"], allowedProviders: [] } }),
-      ),
-    );
-    expect(events.map((e) => e.type)).toEqual(["run.failed"]);
+  it("does not allow wire restrictions to authorize an explicitly blocked alias", async () => {
+    const policy = restrictiveVendorPolicy();
+    const baseline = vi.spyOn(vendorPolicy, "getVendorPolicy").mockReturnValue(policy);
+    try {
+      const { client } = connected([new ScriptedRuntime("claude")]);
+      const events = await collect(
+        client.startRun(
+          { prompt: "x", model: "qwen-code" },
+          context({ vendorRestrictions: { allowedFamilies: ["*"], allowedProviders: ["*"] } }),
+        ),
+      );
+      expect(events.map((e) => e.type)).toEqual(["run.failed"]);
+    } finally {
+      baseline.mockRestore();
+    }
   });
 
   it("streams the runner's events to the control plane", async () => {

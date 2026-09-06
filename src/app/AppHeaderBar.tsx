@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import type { WorkflowPackKey } from "../types";
 import type { View } from "./types";
 
@@ -67,6 +68,7 @@ export default function AppHeaderBar({
   onToggleMobileHeaderMenu,
   onCloseMobileHeaderMenu,
 }: AppHeaderBarProps) {
+  const { t } = useI18n();
   return (
     <header
       className="sticky top-0 z-30 flex items-center justify-between px-3 py-2 backdrop-blur-sm sm:px-4 sm:py-3 lg:px-6"
@@ -81,7 +83,7 @@ export default function AppHeaderBar({
             background: "var(--th-bg-surface)",
             color: "var(--th-text-secondary)",
           }}
-          aria-label="Open navigation"
+          aria-label={t({ en: "Open navigation", de: "Navigation öffnen" })}
         >
           ☰
         </button>
@@ -169,8 +171,14 @@ export default function AppHeaderBar({
         <button
           onClick={onToggleTheme}
           className="theme-toggle-btn"
-          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          title={theme === "dark" ? "라이트 모드" : "다크 모드"}
+          aria-label={
+            theme === "dark"
+              ? t({ en: "Switch to light mode", de: "Zum hellen Modus wechseln" })
+              : t({ en: "Switch to dark mode", de: "Zum dunklen Modus wechseln" })
+          }
+          title={
+            theme === "dark" ? t({ en: "Light mode", de: "Heller Modus" }) : t({ en: "Dark mode", de: "Dunkler Modus" })
+          }
         >
           <span className="theme-toggle-icon">
             {theme === "dark" ? (
@@ -219,7 +227,7 @@ export default function AppHeaderBar({
               background: "var(--th-bg-surface)",
               color: "var(--th-text-secondary)",
             }}
-            aria-label="더보기 메뉴"
+            aria-label={t({ en: "More actions", de: "Weitere Aktionen" })}
           >
             <svg
               width="18"
@@ -238,7 +246,11 @@ export default function AppHeaderBar({
           </button>
           {mobileHeaderMenuOpen && (
             <>
-              <button className="fixed inset-0 z-40" onClick={onCloseMobileHeaderMenu} aria-label="Close menu" />
+              <button
+                className="fixed inset-0 z-40"
+                onClick={onCloseMobileHeaderMenu}
+                aria-label={t({ en: "Close menu", de: "Menü schließen" })}
+              />
               <div
                 className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-lg py-1 shadow-lg"
                 style={{ border: "1px solid var(--th-border)", background: "var(--th-bg-surface)" }}
@@ -310,7 +322,9 @@ export default function AppHeaderBar({
         </div>
         <div className="flex items-center gap-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
           <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
-          <span className="hidden sm:inline">{connected ? "Live" : "Offline"}</span>
+          <span className="hidden sm:inline">
+            {connected ? t({ en: "Live", de: "Verbunden" }) : t({ en: "Offline", de: "Getrennt" })}
+          </span>
         </div>
       </div>
     </header>

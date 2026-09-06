@@ -1,3 +1,4 @@
+import { useUiCopy } from "../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import {
   createDocsProvider,
@@ -30,6 +31,7 @@ interface ProviderFormState {
 const EMPTY_PROVIDER_FORM: ProviderFormState = { name: "", vaultPath: "", readOnly: false };
 
 export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings }: KnowledgeSettingsTabProps) {
+  const translateUiCopy = useUiCopy();
   const [providers, setProviders] = useState<DocsProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [addMode, setAddMode] = useState(false);
@@ -91,18 +93,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
   };
 
   const handleDelete = async (id: string) => {
-    if (
-      !window.confirm(
-        t({
-          ko: "이 Vault 연결을 삭제하시겠습니까?",
-          en: "Delete this vault connection?",
-          ja: "この Vault 接続を削除しますか？",
-          zh: "Delete this vault connection?",
-          de: "Diese Vault-Verbindung löschen?",
-        }),
-      )
-    )
-      return;
+    if (!window.confirm(t({ en: "Delete this vault connection?", de: "Diese Vault-Verbindung löschen?" }))) return;
 
     try {
       await deleteDocsProvider(id);
@@ -213,20 +204,11 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
         >
           <div>
             <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "자동 바인딩",
-                en: "Auto-bind Vaults",
-                ja: "自動バインド",
-                zh: "Auto-bind Vaults",
-                de: "Vaults automatisch binden",
-              })}
+              {t({ en: "Auto-bind Vaults", de: "Vaults automatisch binden" })}
             </label>
             <p className="mt-0.5 text-[11px]" style={{ color: "var(--th-text-muted)" }}>
               {t({
-                ko: "새 프로젝트 생성 시 활성화된 모든 Vault를 자동으로 연결합니다",
                 en: "Automatically bind all enabled vaults when creating new projects",
-                ja: "新しいプロジェクト作成時に有効な全 Vault を自動的にバインドします",
-                zh: "Automatically bind all enabled vaults when creating new projects",
                 de: "Beim Erstellen neuer Projekte alle aktivierten Vaults automatisch verknüpfen",
               })}
             </p>
@@ -254,13 +236,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
       >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "Obsidian Vault",
-              en: "Obsidian Vaults",
-              ja: "Obsidian Vault",
-              zh: "Obsidian Vaults",
-              de: "Obsidian Vaults",
-            })}
+            {t({ en: "Obsidian Vaults", de: "Obsidian Vaults" })}
           </h3>
           <div className="flex items-center gap-2">
             <button
@@ -268,7 +244,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
               disabled={loading}
               className="text-xs text-blue-400 transition-colors hover:text-blue-300 disabled:opacity-50"
             >
-              {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "Refresh", de: "Aktualisieren" })}
+              {t({ en: "Refresh", de: "Aktualisieren" })}
             </button>
             {!addMode && (
               <button
@@ -284,14 +260,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                   color: "var(--text-primary, #e4e4e7)",
                 }}
               >
-                +{" "}
-                {t({
-                  ko: "Vault 추가",
-                  en: "Add Vault",
-                  ja: "Vault 追加",
-                  zh: "Add Vault",
-                  de: "Vault hinzufügen",
-                })}
+                + {t({ en: "Add Vault", de: "Vault hinzufügen" })}
               </button>
             )}
           </div>
@@ -299,10 +268,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
 
         <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
           {t({
-            ko: "Obsidian Vault를 연결하면 에이전트가 노트를 읽고 작성할 수 있습니다.",
             en: "Connect Obsidian vaults so agents can read and write notes as a shared knowledge base.",
-            ja: "Obsidian Vault を接続すると、エージェントがノートの読み書きができます。",
-            zh: "Connect Obsidian vaults so agents can read and write notes as a shared knowledge base.",
             de: "Obsidian-Vaults verbinden, damit Agenten Notizen als gemeinsame Wissensdatenbank lesen und schreiben können.",
           })}
         </p>
@@ -315,25 +281,19 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
           >
             <h4 className="text-sm font-medium" style={{ color: "var(--th-text-secondary)" }}>
               {editingId
-                ? t({ ko: "Vault 수정", en: "Edit Vault", ja: "Vault 編集", zh: "Edit Vault", de: "Vault bearbeiten" })
-                : t({
-                    ko: "새 Vault 추가",
-                    en: "Add New Vault",
-                    ja: "新しい Vault 追가",
-                    zh: "Add New Vault",
-                    de: "Neues Vault hinzufügen",
-                  })}
+                ? t({ en: "Edit Vault", de: "Vault bearbeiten" })
+                : t({ en: "Add New Vault", de: "Neues Vault hinzufügen" })}
             </h4>
 
             <div className="space-y-2">
               <label className="block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                {t({ ko: "이름", en: "Name", ja: "名前", zh: "Name", de: "Name" })}
+                {t({ en: "Name", de: "Name" })}
               </label>
               <input
                 type="text"
                 value={providerForm.name}
                 onChange={(e) => setProviderForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="My Vault"
+                placeholder={translateUiCopy("My Vault", "Mein Tresor")}
                 className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none"
                 style={{
                   background: "var(--th-input-bg)",
@@ -345,7 +305,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
 
             <div className="space-y-2">
               <label className="block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                {t({ ko: "Vault 경로", en: "Vault Path", ja: "Vault パス", zh: "Vault Path", de: "Vault-Pfad" })}
+                {t({ en: "Vault Path", de: "Vault-Pfad" })}
               </label>
               <input
                 type="text"
@@ -361,10 +321,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
               />
               <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
                 {t({
-                  ko: "Obsidian Vault 폴더의 절대 경로",
                   en: "Absolute path to the Obsidian vault folder on this machine",
-                  ja: "このマシン上の Obsidian Vault フォルダの絶対パス",
-                  zh: "Absolute path to the Obsidian vault folder on this machine",
                   de: "Absoluter Pfad zum Obsidian-Vault-Ordner auf diesem Gerät",
                 })}
               </p>
@@ -379,22 +336,10 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                   className="rounded"
                   style={{ borderColor: "var(--th-input-border)" }}
                 />
-                {t({
-                  ko: "읽기 전용",
-                  en: "Read-only",
-                  ja: "読み取り専用",
-                  zh: "Read-only",
-                  de: "Nur lesen",
-                })}
+                {t({ en: "Read-only", de: "Nur lesen" })}
               </label>
               <span className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-                {t({
-                  ko: "에이전트가 노트를 수정하지 못하게 합니다",
-                  en: "Prevents agents from modifying notes",
-                  ja: "エージェントによるノート変更を防止します",
-                  zh: "Prevents agents from modifying notes",
-                  de: "Verhindert, dass Agenten Notizen verändern",
-                })}
+                {t({ en: "Prevents agents from modifying notes", de: "Verhindert, dass Agenten Notizen verändern" })}
               </span>
             </div>
 
@@ -409,9 +354,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                   color: "var(--text-primary, #e4e4e7)",
                 }}
               >
-                {saving
-                  ? t({ ko: "저장 중...", en: "Saving...", ja: "保存中...", zh: "Saving...", de: "Speichern..." })
-                  : t({ ko: "저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })}
+                {saving ? t({ en: "Saving...", de: "Speichern..." }) : t({ en: "Save", de: "Speichern" })}
               </button>
               <button
                 onClick={() => {
@@ -422,7 +365,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                 className="rounded-lg border px-4 py-1.5 text-xs transition-colors"
                 style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
               >
-                {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+                {t({ en: "Cancel", de: "Abbrechen" })}
               </button>
             </div>
           </div>
@@ -431,17 +374,11 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
         {/* Provider cards */}
         {loading && providers.length === 0 ? (
           <div className="py-8 text-center text-sm" style={{ color: "var(--th-text-muted)" }}>
-            {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+            {t({ en: "Loading...", de: "Laden..." })}
           </div>
         ) : providers.length === 0 && !addMode ? (
           <div className="py-8 text-center text-sm" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "연결된 Vault가 없습니다",
-              en: "No vaults connected yet",
-              ja: "Vault が接続されていません",
-              zh: "No vaults connected yet",
-              de: "Noch keine Vaults verbunden",
-            })}
+            {t({ en: "No vaults connected yet", de: "Noch keine Vaults verbunden" })}
           </div>
         ) : (
           <div className="space-y-3">
@@ -463,13 +400,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                       </h4>
                       {provider.readOnly && (
                         <span className="rounded bg-amber-900/40 px-1.5 py-0.5 text-[10px] text-amber-400">
-                          {t({
-                            ko: "읽기 전용",
-                            en: "Read-only",
-                            ja: "読み取り専用",
-                            zh: "Read-only",
-                            de: "Nur lesen",
-                          })}
+                          {t({ en: "Read-only", de: "Nur lesen" })}
                         </span>
                       )}
                     </div>
@@ -489,21 +420,15 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                       className="rounded px-2 py-1 text-xs text-blue-400 transition-colors hover:text-blue-300 disabled:opacity-50"
                     >
                       {testingId === provider.id
-                        ? t({
-                            ko: "테스트 중...",
-                            en: "Testing...",
-                            ja: "テスト中...",
-                            zh: "Testing...",
-                            de: "Testen...",
-                          })
-                        : t({ ko: "테스트", en: "Test", ja: "テスト", zh: "Test", de: "Testen" })}
+                        ? t({ en: "Testing...", de: "Testen..." })
+                        : t({ en: "Test", de: "Testen" })}
                     </button>
                     <button
                       onClick={() => handleEditStart(provider)}
                       className="rounded px-2 py-1 text-xs transition-colors"
                       style={{ color: "var(--th-text-secondary)" }}
                     >
-                      {t({ ko: "수정", en: "Edit", ja: "編集", zh: "Edit", de: "Bearbeiten" })}
+                      {t({ en: "Edit", de: "Bearbeiten" })}
                     </button>
                     <button
                       onClick={() => void handleToggle(provider)}
@@ -514,14 +439,14 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                       }`}
                     >
                       {provider.enabled
-                        ? t({ ko: "비활성화", en: "Disable", ja: "無効化", zh: "Disable", de: "Deaktivieren" })
-                        : t({ ko: "활성화", en: "Enable", ja: "有効화", zh: "Enable", de: "Aktivieren" })}
+                        ? t({ en: "Disable", de: "Deaktivieren" })
+                        : t({ en: "Enable", de: "Aktivieren" })}
                     </button>
                     <button
                       onClick={() => void handleDelete(provider.id)}
                       className="rounded px-2 py-1 text-xs text-red-400 transition-colors hover:text-red-300"
                     >
-                      {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "Delete", de: "Löschen" })}
+                      {t({ en: "Delete", de: "Löschen" })}
                     </button>
                   </div>
                 </div>
@@ -545,14 +470,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                     className="text-xs transition-colors"
                     style={{ color: "var(--th-text-secondary)" }}
                   >
-                    {expandedBindings[provider.id] ? "▾" : "▸"}{" "}
-                    {t({
-                      ko: "프로젝트 바인딩",
-                      en: "Project Bindings",
-                      ja: "プロジェクトバインディング",
-                      zh: "Project Bindings",
-                      de: "Projektbindungen",
-                    })}
+                    {expandedBindings[provider.id] ? "▾" : "▸"} {t({ en: "Project Bindings", de: "Projektbindungen" })}
                     {bindings[provider.id] ? ` (${bindings[provider.id].length})` : ""}
                   </button>
 
@@ -560,10 +478,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                     <div className="mt-2 space-y-2 pl-3">
                       <p className="text-[11px]" style={{ color: "var(--th-text-muted)" }}>
                         {t({
-                          ko: "이 Vault를 특정 프로젝트에 바인딩하면 해당 프로젝트 작업 시 자동으로 노트가 제공됩니다.",
                           en: "Bind this vault to specific projects so notes are automatically available during task execution.",
-                          ja: "特定プロジェクトにバインドすると、タスク実行時にノートが自動的に提供されます。",
-                          zh: "Bind this vault to specific projects so notes are automatically available during task execution.",
                           de: "Diesen Vault an bestimmte Projekte binden, damit Notizen während der Aufgabenausführung automatisch verfügbar sind.",
                         })}
                       </p>
@@ -586,7 +501,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                                   onClick={() => void handleDeleteBinding(provider.id, binding.id)}
                                   className="text-xs text-red-400 hover:text-red-300"
                                 >
-                                  {t({ ko: "제거", en: "Remove", ja: "削除", zh: "Remove", de: "Entfernen" })}
+                                  {t({ en: "Remove", de: "Entfernen" })}
                                 </button>
                               </div>
                             );
@@ -607,15 +522,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                               color: "var(--th-text-primary)",
                             }}
                           >
-                            <option value="">
-                              {t({
-                                ko: "프로젝트 선택...",
-                                en: "Select project...",
-                                ja: "プロジェクト選択...",
-                                zh: "Select project...",
-                                de: "Projekt auswählen...",
-                              })}
-                            </option>
+                            <option value="">{t({ en: "Select project...", de: "Projekt auswählen..." })}</option>
                             {projects.map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.name}
@@ -632,7 +539,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                               color: "var(--text-primary, #e4e4e7)",
                             }}
                           >
-                            {t({ ko: "추가", en: "Add", ja: "추가", zh: "Add", de: "Hinzufügen" })}
+                            {t({ en: "Add", de: "Hinzufügen" })}
                           </button>
                           <button
                             onClick={() => {
@@ -642,7 +549,7 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                             className="text-xs"
                             style={{ color: "var(--th-text-secondary)" }}
                           >
-                            {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+                            {t({ en: "Cancel", de: "Abbrechen" })}
                           </button>
                         </div>
                       ) : (
@@ -650,24 +557,14 @@ export default function KnowledgeSettingsTab({ t, form, setForm, persistSettings
                           onClick={() => setBindingProviderId(provider.id)}
                           className="text-xs text-blue-400 hover:text-blue-300"
                         >
-                          +{" "}
-                          {t({
-                            ko: "프로젝트 바인딩 추가",
-                            en: "Add Project Binding",
-                            ja: "プロジェクトバインディング追加",
-                            zh: "Add Project Binding",
-                            de: "Projektbindung hinzufügen",
-                          })}
+                          + {t({ en: "Add Project Binding", de: "Projektbindung hinzufügen" })}
                         </button>
                       )}
 
                       {(bindings[provider.id] ?? []).length === 0 && (
                         <p className="text-[11px] italic" style={{ color: "var(--text-muted, #71717a)" }}>
                           {t({
-                            ko: "바인딩 없음 — 모든 프로젝트에서 사용 가능",
                             en: "No bindings — vault is available to all projects",
-                            ja: "バインディングなし — 全プロジェクトで利用可能",
-                            zh: "No bindings — vault is available to all projects",
                             de: "Keine Bindungen — Vault für alle Projekte verfügbar",
                           })}
                         </p>

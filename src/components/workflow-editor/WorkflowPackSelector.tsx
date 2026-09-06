@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { useEffect, useState } from "react";
 import { fetchPackRegistry } from "../../api/workflow-packs";
 import type { PackRegistryEntry } from "../../types";
@@ -28,7 +29,7 @@ export function WorkflowPackSelector({ activePackKey, onSelect }: WorkflowPackSe
       }}
     >
       <option value="" disabled>
-        Select Workflow Pack...
+        <LocalizedText en="Select Workflow Pack..." de="Workflow-Paket auswählen …" />
       </option>
       {packs.map((p) => (
         <option key={p.key} value={p.key}>

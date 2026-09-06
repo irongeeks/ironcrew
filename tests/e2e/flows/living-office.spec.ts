@@ -6,7 +6,7 @@ test("opens individually furnished department rooms and returns to the building"
   page,
   request,
 }, testInfo) => {
-  await establishSession(request);
+  await establishSession(request, "de");
   const { departments } = await expectOkJson<{ departments: Department[] }>(
     await request.get("/api/crew/company"),
     "Read actual company departments",
@@ -46,7 +46,7 @@ test("opens individually furnished department rooms and returns to the building"
 });
 
 test("walks idle figures through the building and freezes ambient motion on request", async ({ page, request }) => {
-  await establishSession(request);
+  await establishSession(request, "de");
   await page.clock.install();
   await page.setViewportSize({ width: 1440, height: 1080 });
   await page.emulateMedia({ reducedMotion: "no-preference" });

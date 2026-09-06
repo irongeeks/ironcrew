@@ -67,7 +67,7 @@ export default function TaskCard({
 }: TaskCardProps) {
   void onMergeTask;
   void onDiscardTask;
-  const { t, locale: localeTag, language: locale } = useI18n();
+  const { t, locale: localeTag } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const [showSubtasks, setShowSubtasks] = useState(false);
@@ -76,10 +76,8 @@ export default function TaskCard({
   const [approvingPhase, setApprovingPhase] = useState<string | null>(null);
 
   const assignedAgent = task.assigned_agent ?? agents.find((agent) => agent.id === task.assigned_agent_id);
-  const fallbackAssignedName =
-    (locale === "ko" ? task.agent_name_ko || task.agent_name : task.agent_name || task.agent_name_ko) ||
-    task.assigned_agent_id;
-  const assignedDisplayName = assignedAgent ? (locale === "ko" ? assignedAgent.name_ko : assignedAgent.name) : null;
+  const fallbackAssignedName = task.agent_name || task.agent_name_ko || task.assigned_agent_id;
+  const assignedDisplayName = assignedAgent ? assignedAgent.name : null;
   const assignedLabel = assignedDisplayName || fallbackAssignedName || null;
   const department = departments.find((d) => d.id === task.department_id);
   const typeBadge = getTaskTypeBadge(task.task_type, t);
@@ -134,7 +132,7 @@ export default function TaskCard({
         </button>
         <span
           className="flex-shrink-0 text-base"
-          title={`${t({ ko: "우선순위", en: "Priority", ja: "優先度", zh: "Priority", de: "Priorität" })}: ${priorityLabel(task.priority, t)}`}
+          title={`${t({ en: "Priority", de: "Priorität" })}: ${priorityLabel(task.priority, t)}`}
         >
           {priorityIcon(task.priority)}
         </span>
@@ -153,7 +151,7 @@ export default function TaskCard({
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${typeBadge.color}`}>{typeBadge.label}</span>
         {isHiddenTask && (
           <span className="rounded-full bg-cyan-900/60 px-2 py-0.5 text-xs text-cyan-200">
-            🙈 {t({ ko: "숨김", en: "Hidden", ja: "非表示", zh: "Hidden", de: "Ausgeblendet" })}
+            🙈 {t({ en: "Hidden", de: "Ausgeblendet" })}
           </span>
         )}
         {department && (
@@ -161,7 +159,7 @@ export default function TaskCard({
             className="rounded-full px-2 py-0.5 text-xs"
             style={{ background: "var(--th-bg-surface-hover)", color: "var(--th-text-secondary)" }}
           >
-            {department.icon} {locale === "ko" ? department.name_ko : department.name}
+            {department.icon} {department.name}
           </span>
         )}
       </div>
@@ -200,7 +198,7 @@ export default function TaskCard({
             </span>
           ) : (
             <span className="text-xs" style={{ color: "var(--th-text-muted)" }}>
-              {t({ ko: "미배정", en: "Unassigned", ja: "未割り当て", zh: "Unassigned", de: "Nicht zugewiesen" })}
+              {t({ en: "Unassigned", de: "Nicht zugewiesen" })}
             </span>
           )}
         </div>
@@ -238,13 +236,7 @@ export default function TaskCard({
         />
         {agentWarning && (
           <p className="mt-1 text-xs font-medium text-red-400 animate-[shake_0.4s_ease-in-out]">
-            {t({
-              ko: "담당자를 배정해주세요!",
-              en: "Please assign an agent!",
-              ja: "担当者を割り当ててください！",
-              zh: "Please assign an agent!",
-              de: "Bitte weisen Sie einen Agent zu!",
-            })}
+            {t({ en: "Please assign an agent!", de: "Bitte weisen Sie einen Agent zu!" })}
           </p>
         )}
       </div>
@@ -326,13 +318,7 @@ export default function TaskCard({
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-6">
                       {isAwaitingApproval && (
                         <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 bg-amber-500/20">
-                          {t({
-                            ko: "승인 대기",
-                            en: "Awaiting Approval",
-                            ja: "承認待ち",
-                            zh: "待批准",
-                            de: "Genehmigung ausstehend",
-                          })}
+                          {t({ en: "Awaiting Approval", de: "Genehmigung ausstehend" })}
                         </span>
                       )}
                       {targetDepartment && !isAwaitingApproval && (
@@ -344,10 +330,7 @@ export default function TaskCard({
                         </span>
                       )}
                       {subtask.delegated_task_id && subtask.status !== "done" && !isAwaitingApproval && (
-                        <span
-                          className="text-blue-400"
-                          title={t({ ko: "위임됨", en: "Delegated", ja: "委任済み", zh: "Delegated", de: "Delegiert" })}
-                        >
+                        <span className="text-blue-400" title={t({ en: "Delegated", de: "Delegiert" })}>
                           🔗
                         </span>
                       )}
@@ -381,20 +364,8 @@ export default function TaskCard({
                             }}
                           >
                             {approvingPhase === phaseId
-                              ? t({
-                                  ko: "승인 중...",
-                                  en: "Approving...",
-                                  ja: "承認中...",
-                                  zh: "审批中...",
-                                  de: "Genehmige...",
-                                })
-                              : t({
-                                  ko: "✅ 승인 & 계속",
-                                  en: "✅ Approve & Continue",
-                                  ja: "✅ 承認して続行",
-                                  zh: "✅ 批准并继续",
-                                  de: "✅ Genehmigen & Weiter",
-                                })}
+                              ? t({ en: "Approving...", de: "Genehmige..." })
+                              : t({ en: "✅ Approve & Continue", de: "✅ Genehmigen & Weiter" })}
                           </button>
                         )}
                         {canReset && (
@@ -402,13 +373,7 @@ export default function TaskCard({
                             <button
                               className="rounded-md px-2 py-1.5 text-[10px] font-medium transition hover:bg-orange-600/30"
                               style={{ color: "var(--th-text-muted)" }}
-                              title={t({
-                                ko: "이 단계만 재실행",
-                                en: "Reset this phase only",
-                                ja: "このフェーズのみリセット",
-                                zh: "仅重置此阶段",
-                                de: "Nur diese Phase zurücksetzen",
-                              })}
+                              title={t({ en: "Reset this phase only", de: "Nur diese Phase zurücksetzen" })}
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 try {
@@ -418,15 +383,12 @@ export default function TaskCard({
                                 }
                               }}
                             >
-                              {t({ ko: "↩ 재실행", en: "↩ Redo", ja: "↩ やり直し", zh: "↩ 重做", de: "↩ Wiederholen" })}
+                              {t({ en: "↩ Redo", de: "↩ Wiederholen" })}
                             </button>
                             <button
                               className="rounded-md px-2 py-1.5 text-[10px] font-medium text-orange-300/80 transition hover:bg-orange-600/30"
                               title={t({
-                                ko: "이 단계 + 이후 단계 모두 초기화",
                                 en: "Reset this phase and all following phases",
-                                ja: "このフェーズ以降を全てリセット",
-                                zh: "重置此阶段及所有后续阶段",
                                 de: "Diese und alle folgenden Phasen zurücksetzen",
                               })}
                               onClick={async (e) => {
@@ -438,13 +400,7 @@ export default function TaskCard({
                                 }
                               }}
                             >
-                              {t({
-                                ko: "↩ 이후 전부 재실행",
-                                en: "↩ Redo all following",
-                                ja: "↩ 以降すべてやり直し",
-                                zh: "↩ 重做所有后续",
-                                de: "↩ Alle folgenden wiederholen",
-                              })}
+                              {t({ en: "↩ Redo all following", de: "↩ Alle folgenden wiederholen" })}
                             </button>
                           </>
                         )}
@@ -469,25 +425,19 @@ export default function TaskCard({
               }
               onRunTask(task.id);
             }}
-            title={t({ ko: "작업 실행", en: "Run task", ja: "タスク実行", zh: "Run task", de: "Aufgabe ausführen" })}
+            title={t({ en: "Run task", de: "Aufgabe ausführen" })}
             className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg bg-green-700 px-2 py-2 text-xs font-medium text-white transition hover:bg-green-600"
           >
-            ▶ {t({ ko: "실행", en: "Run", ja: "実行", zh: "Run", de: "Ausführen" })}
+            ▶ {t({ en: "Run", de: "Ausführen" })}
           </button>
         )}
         {canPause && (
           <button
             onClick={() => onPauseTask!(task.id)}
-            title={t({
-              ko: "작업 일시중지",
-              en: "Pause task",
-              ja: "タスク一時停止",
-              zh: "Pause task",
-              de: "Aufgabe pausieren",
-            })}
+            title={t({ en: "Pause task", de: "Aufgabe pausieren" })}
             className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg bg-orange-700 px-2 py-2 text-xs font-medium text-white transition hover:bg-orange-600"
           >
-            ⏸ {t({ ko: "일시중지", en: "Pause", ja: "一時停止", zh: "Pause", de: "Pause" })}
+            ⏸ {t({ en: "Pause", de: "Pause" })}
           </button>
         )}
         {canStop && (
@@ -507,31 +457,19 @@ export default function TaskCard({
                 onStopTask(task.id);
               }
             }}
-            title={t({
-              ko: "작업 중지",
-              en: "Cancel task",
-              ja: "タスク停止",
-              zh: "Cancel task",
-              de: "Aufgabe abbrechen",
-            })}
+            title={t({ en: "Cancel task", de: "Aufgabe abbrechen" })}
             className="flex min-h-10 items-center justify-center gap-1 rounded-lg bg-red-800 px-2 py-2 text-xs font-medium text-white transition hover:bg-red-700"
           >
-            ⏹ {t({ ko: "중지", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+            ⏹ {t({ en: "Cancel", de: "Abbrechen" })}
           </button>
         )}
         {canResume && (
           <button
             onClick={() => onResumeTask!(task.id)}
-            title={t({
-              ko: "작업 재개",
-              en: "Resume task",
-              ja: "タスク再開",
-              zh: "Resume task",
-              de: "Aufgabe fortsetzen",
-            })}
+            title={t({ en: "Resume task", de: "Aufgabe fortsetzen" })}
             className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg bg-blue-700 px-2 py-2 text-xs font-medium text-white transition hover:bg-blue-600"
           >
-            ↩ {t({ ko: "재개", en: "Resume", ja: "再開", zh: "Resume", de: "Fortsetzen" })}
+            ↩ {t({ en: "Resume", de: "Fortsetzen" })}
           </button>
         )}
         {(task.status === "in_progress" ||
@@ -541,17 +479,11 @@ export default function TaskCard({
           onOpenTerminal && (
             <button
               onClick={() => onOpenTerminal(task.id)}
-              title={t({
-                ko: "터미널 출력 보기",
-                en: "View terminal output",
-                ja: "ターミナル出力を見る",
-                zh: "View terminal output",
-                de: "Terminal-Ausgabe anzeigen",
-              })}
+              title={t({ en: "View terminal output", de: "Terminal-Ausgabe anzeigen" })}
               className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-[var(--bg-surface)] px-2.5 py-2 text-xs font-medium text-[var(--text-primary)] transition hover:bg-slate-600 hover:text-white"
             >
               <span className="text-sm">🖥</span>
-              {t({ ko: "로그", en: "Log", ja: "ログ", zh: "Log", de: "Log" })}
+              {t({ en: "Log", de: "Protokoll" })}
             </button>
           )}
         {(task.status === "planned" ||
@@ -563,46 +495,28 @@ export default function TaskCard({
           onOpenMeetingMinutes && (
             <button
               onClick={() => onOpenMeetingMinutes(task.id)}
-              title={t({
-                ko: "회의록 보기",
-                en: "View meeting minutes",
-                ja: "会議録を見る",
-                zh: "View meeting minutes",
-                de: "Protokoll anzeigen",
-              })}
+              title={t({ en: "View meeting minutes", de: "Protokoll anzeigen" })}
               className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-cyan-800 px-2.5 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-700 hover:text-white"
             >
               <span className="text-sm">📝</span>
-              {t({ ko: "메모", en: "Notes", ja: "メモ", zh: "Notes", de: "Notizen" })}
+              {t({ en: "Notes", de: "Notizen" })}
             </button>
           )}
         {task.status === "review" && (
           <>
             <button
               onClick={() => onRunTask(task.id)}
-              title={t({
-                ko: "승인하고 다음 단계로",
-                en: "Approve & Continue",
-                ja: "承認して次へ",
-                zh: "Approve & Continue",
-                de: "Genehmigen & Weiter",
-              })}
+              title={t({ en: "Approve & Continue", de: "Genehmigen & Weiter" })}
               className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg bg-green-700 px-2.5 py-2 text-xs font-medium text-white transition hover:bg-green-600"
             >
-              {t({ ko: "승인", en: "Approve", ja: "承認", zh: "Approve", de: "Genehmigen" })}
+              {t({ en: "Approve", de: "Genehmigen" })}
             </button>
             <button
               onClick={() => setShowDiff(true)}
-              title={t({
-                ko: "변경사항 보기 (Git diff)",
-                en: "View changes (Git diff)",
-                ja: "変更を見る (Git diff)",
-                zh: "View changes (Git diff)",
-                de: "Änderungen anzeigen (Git diff)",
-              })}
+              title={t({ en: "View changes (Git diff)", de: "Änderungen anzeigen (Git diff)" })}
               className="flex min-h-10 items-center justify-center gap-1 rounded-lg bg-purple-800 px-2.5 py-2 text-xs font-medium text-purple-200 transition hover:bg-purple-700"
             >
-              {t({ ko: "Diff", en: "Diff", ja: "差分", zh: "Diff", de: "Diff" })}
+              {t({ en: "Diff", de: "Diff" })}
             </button>
           </>
         )}
@@ -610,30 +524,21 @@ export default function TaskCard({
           <button
             onClick={() => onHideTask(task.id)}
             title={t({
-              ko: "완료/보류/취소 작업 숨기기",
               en: "Hide done/pending/cancelled task",
-              ja: "完了/保留/キャンセルのタスクを非表示",
-              zh: "Hide done/pending/cancelled task",
               de: "Erledigte/Ausstehende/Abgebrochene Aufgabe ausblenden",
             })}
             className="flex min-h-10 items-center justify-center gap-1 rounded-lg bg-[var(--bg-surface)] px-2.5 py-2 text-xs text-[var(--text-primary)] transition hover:bg-slate-600"
           >
-            🙈 {t({ ko: "숨김", en: "Hide", ja: "非表示", zh: "Hide", de: "Ausblenden" })}
+            🙈 {t({ en: "Hide", de: "Ausblenden" })}
           </button>
         )}
         {canHideTask && !!isHiddenTask && onUnhideTask && (
           <button
             onClick={() => onUnhideTask(task.id)}
-            title={t({
-              ko: "숨긴 작업 복원",
-              en: "Restore hidden task",
-              ja: "非表示タスクを復元",
-              zh: "Restore hidden task",
-              de: "Ausgeblendete Aufgabe wiederherstellen",
-            })}
+            title={t({ en: "Restore hidden task", de: "Ausgeblendete Aufgabe wiederherstellen" })}
             className="flex min-h-10 items-center justify-center gap-1 rounded-lg bg-blue-800 px-2.5 py-2 text-xs text-blue-200 transition hover:bg-blue-700 hover:text-white"
           >
-            👁 {t({ ko: "복원", en: "Restore", ja: "復元", zh: "Restore", de: "Wiederherstellen" })}
+            👁 {t({ en: "Restore", de: "Wiederherstellen" })}
           </button>
         )}
         {canDelete && (
@@ -652,17 +557,11 @@ export default function TaskCard({
               )
                 onDeleteTask(task.id);
             }}
-            title={t({
-              ko: "작업 삭제",
-              en: "Delete task",
-              ja: "タスク削除",
-              zh: "Delete task",
-              de: "Aufgabe löschen",
-            })}
+            title={t({ en: "Delete task", de: "Aufgabe löschen" })}
             className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-red-800 bg-transparent px-2.5 py-2 text-xs font-medium text-red-400 transition hover:border-red-600 hover:bg-red-900 hover:text-red-200"
           >
             <span className="text-sm">🗑</span>
-            {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "删除", de: "Löschen" })}
+            {t({ en: "Delete", de: "Löschen" })}
           </button>
         )}
       </div>

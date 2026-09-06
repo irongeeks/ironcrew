@@ -112,6 +112,9 @@ describe("ObsidianProvider", () => {
     expect(raw).not.toContain("\nsensitivity: public\n");
     expect(raw).toContain(`id: ${result.externalId}`);
   });
+  // Native filesystem event delivery can be delayed on shared macOS CI workers.
+  // Both notifications must still arrive; only this OS integration case gets
+  // more time than the deterministic reconciliation tests below.
   it("emits file watcher events for externally edited markdown", async () => {
     const written = await provider.write({ kind: "note", title: "watched", content: "before" });
     let notify!: (id: string) => void;
@@ -140,7 +143,7 @@ describe("ObsidianProvider", () => {
     } finally {
       close();
     }
-  });
+  }, 30_000);
 });
 
 describe("Obsidian watcher reconciliation", () => {

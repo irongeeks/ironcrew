@@ -1,3 +1,4 @@
+import { I18nProvider } from "../../i18n";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -30,7 +31,11 @@ beforeEach(() => {
 });
 describe("ReleaseUpdateSection", () => {
   it("shows installed and stable versions plus manual native instructions without apply controls", async () => {
-    render(<ReleaseUpdateSection />);
+    render(
+      <I18nProvider language="de">
+        <ReleaseUpdateSection />
+      </I18nProvider>,
+    );
     expect(await screen.findByText("v2.7.0")).toBeInTheDocument();
     expect(screen.getByText("v2.8.0")).toBeInTheDocument();
     expect(screen.getByText("Nativer Dienst")).toBeInTheDocument();
@@ -38,7 +43,7 @@ describe("ReleaseUpdateSection", () => {
     expect(screen.getByRole("link", { name: "Release-Hinweise öffnen" })).toHaveAttribute("href", snapshot.release_url);
     expect(screen.getAllByRole("button")).toHaveLength(1);
     await userEvent.click(screen.getByRole("button", { name: "Stable Release prüfen" }));
-    expect(getUpdateStatus).toHaveBeenLastCalledWith(true);
+    expect(getUpdateStatus).toHaveBeenLastCalledWith(true, "de");
   });
   it("shows Docker-specific backup and preflight instructions", async () => {
     vi.mocked(getUpdateStatus).mockResolvedValue({
@@ -49,7 +54,11 @@ describe("ReleaseUpdateSection", () => {
         command: "node scripts/ironcrew-docker-update.mjs --to v2.8.0 --backup-dir /ABS/backups --check",
       },
     });
-    render(<ReleaseUpdateSection />);
+    render(
+      <I18nProvider language="de">
+        <ReleaseUpdateSection />
+      </I18nProvider>,
+    );
     expect(await screen.findByText("Docker Compose")).toBeInTheDocument();
     expect(screen.getByText(/ironcrew-docker-update.mjs/)).toHaveTextContent("--backup-dir /ABS/backups --check");
   });
@@ -71,9 +80,47 @@ describe("ReleaseUpdateSection", () => {
       update_available: false,
       instructions: { ...snapshot.instructions!, command: null },
     });
-    render(<ReleaseUpdateSection />);
+    render(
+      <I18nProvider language="de">
+        <ReleaseUpdateSection />
+      </I18nProvider>,
+    );
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.queryByText(/Kein neueres Stable Release/)).not.toBeInTheDocument();
     expect(screen.queryByText(/node scripts/)).not.toBeInTheDocument();
   });
+  it("renders release controls and state in English", async () => {
+    render(
+      <I18nProvider language="en">
+        <ReleaseUpdateSection />
+      </I18nProvider>,
+    );
+    expect(await screen.findByText("Native service")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check stable release" })).toBeInTheDocument();
+    expect(screen.getByText("A newer stable release is available.")).toBeInTheDocument();
+  });
+});
+
+it("requests update instructions in the active UI language after a language switch", async () => {
+  vi.mocked(getUpdateStatus).mockImplementation(async (_refresh, language) => ({
+    ...snapshot,
+    instructions: {
+      ...snapshot.instructions!,
+      steps: [language === "en" ? "Review release notes." : "Release-Hinweise prüfen."],
+    },
+  }));
+  const { rerender } = render(
+    <I18nProvider language="en">
+      <ReleaseUpdateSection />
+    </I18nProvider>,
+  );
+  expect(await screen.findByText("Review release notes.")).toBeInTheDocument();
+  expect(getUpdateStatus).toHaveBeenLastCalledWith(false, "en");
+  rerender(
+    <I18nProvider language="de">
+      <ReleaseUpdateSection />
+    </I18nProvider>,
+  );
+  expect(await screen.findByText("Release-Hinweise prüfen.")).toBeInTheDocument();
+  expect(getUpdateStatus).toHaveBeenLastCalledWith(false, "de");
 });

@@ -5,7 +5,7 @@ test("native company dialog contains keyboard focus, excludes the background, an
   page,
   request,
 }, testInfo) => {
-  await establishSession(request);
+  await establishSession(request, "de");
   await page.setViewportSize({ width: 1440, height: 1080 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
@@ -15,7 +15,7 @@ test("native company dialog contains keyboard focus, excludes the background, an
   const dialog = page.getByRole("dialog", { name: "Provider-Freigaben", exact: true });
   const heading = dialog.getByRole("heading", { name: "Provider-Freigaben", exact: true });
   await expect(heading).toBeFocused();
-  await expect(dialog.getByRole("checkbox", { name: "openai/*", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("checkbox", { name: "Alle Modelle", exact: true })).toBeVisible();
   expect(await dialog.evaluate((element) => element.matches(":modal"))).toBe(true);
   await heading.focus();
   await page.keyboard.press("Tab");
@@ -23,7 +23,7 @@ test("native company dialog contains keyboard focus, excludes the background, an
   await expect(firstControl).toHaveCount(1);
   const firstTag = await firstControl.evaluate((element) => element.outerHTML);
   await page.keyboard.press("Shift+Tab");
-  const close = dialog.getByRole("button", { name: "Schliessen", exact: true });
+  const close = dialog.getByRole("button", { name: "Schließen", exact: true });
   await expect(close).toBeFocused();
   await page.keyboard.press("Tab");
   expect(await dialog.locator(":focus").evaluate((element) => element.outerHTML)).toBe(firstTag);
@@ -51,7 +51,7 @@ test("Escape closes only the topmost employee dialog and returns through the org
   page,
   request,
 }) => {
-  await establishSession(request);
+  await establishSession(request, "de");
   await page.goto("/");
   const opener = page.getByTestId("open-org-chart");
   await opener.click();

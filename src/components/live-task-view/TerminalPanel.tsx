@@ -45,13 +45,7 @@ export default function TerminalPanel({ streamTail }: TerminalPanelProps) {
             letterSpacing: "0.08em",
           }}
         >
-          {t({
-            ko: "터미널 출력",
-            en: "TERMINAL OUTPUT",
-            ja: "ターミナル出力",
-            zh: "终端输出",
-            de: "TERMINAL-AUSGABE",
-          })}
+          {t({ en: "TERMINAL OUTPUT", de: "TERMINAL-AUSGABE" })}
         </span>
         <span style={{ fontSize: 10 }}>{collapsed ? "▸" : "▾"}</span>
       </button>
@@ -79,14 +73,7 @@ export default function TerminalPanel({ streamTail }: TerminalPanelProps) {
               wordBreak: "break-word",
             }}
           >
-            {streamTail ||
-              t({
-                ko: "출력 없음...",
-                en: "No output yet...",
-                ja: "出力なし...",
-                zh: "暂无输出...",
-                de: "Noch keine Ausgabe...",
-              })}
+            {streamTail || t({ en: "No output yet...", de: "Noch keine Ausgabe..." })}
           </pre>
         </div>
       )}

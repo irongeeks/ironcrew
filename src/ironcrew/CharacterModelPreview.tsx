@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AmbientLight,
@@ -32,6 +33,7 @@ export default function CharacterModelPreview({
   status: AgentStatus;
   fallback: ReactNode;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -103,7 +105,11 @@ export default function CharacterModelPreview({
       if (disposed) return;
       cleanupGraphics();
       setLoaded(false);
-      setError(cause instanceof Error ? cause.message : "Das 3D-Modell konnte nicht angezeigt werden.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t({ de: "Das 3D-Modell konnte nicht angezeigt werden.", en: "Could not display the 3D model." }),
+      );
     };
     const animate = () => {
       if (!mixer || !model || disposed) return;
@@ -143,20 +149,40 @@ export default function CharacterModelPreview({
     document.addEventListener("visibilitychange", visibility);
     const contextLost = (event: Event) => {
       event.preventDefault();
-      fail(new Error("WebGL-Kontext verloren. Die 2D-Figur bleibt verfügbar."));
+      fail(
+        new Error(
+          t({
+            de: "WebGL-Kontext verloren. Die 2D-Figur bleibt verfügbar.",
+            en: "WebGL context lost. The 2D character remains available.",
+          }),
+        ),
+      );
     };
     void (async () => {
       try {
         if (!/^\/api\/crew\/character-assets\/char_[a-f0-9]{32}$/.test(url))
-          throw new Error("Nur private, verwaltete GLB-Dateien werden angezeigt.");
+          throw new Error(
+            t({
+              de: "Nur private, verwaltete GLB-Dateien werden angezeigt.",
+              en: "Only private, managed GLB files can be displayed.",
+            }),
+          );
         const response = await fetch(url, { credentials: "same-origin", signal: controller.signal });
-        if (!response.ok) throw new Error("Die private Modelldatei ist nicht erreichbar.");
+        if (!response.ok)
+          throw new Error(
+            t({ de: "Die private Modelldatei ist nicht erreichbar.", en: "The private model file is unavailable." }),
+          );
         const buffer = await response.arrayBuffer();
         validateCharacterGlb(buffer);
         if (disposed) return;
         const manager = new LoadingManager();
         manager.setURLModifier(() => {
-          throw new Error("Zusätzliche Modelldateien und Texturen sind nicht erlaubt.");
+          throw new Error(
+            t({
+              de: "Zusätzliche Modelldateien und Texturen sind nicht erlaubt.",
+              en: "Additional model files and textures are not allowed.",
+            }),
+          );
         });
         const gltf = await new GLTFLoader(manager).parseAsync(buffer, "");
         if (disposed) {
@@ -168,7 +194,12 @@ export default function CharacterModelPreview({
         const size = bounds.getSize(new Vector3());
         const dimension = Math.max(size.x, size.y, size.z);
         if (!Number.isFinite(dimension) || dimension <= 0)
-          throw new Error("GLB enthält keine sichtbare, gültige Geometrie.");
+          throw new Error(
+            t({
+              de: "GLB enthält keine sichtbare, gültige Geometrie.",
+              en: "The GLB contains no visible, valid geometry.",
+            }),
+          );
         const centre = bounds.getCenter(new Vector3());
         model.position.sub(centre);
         model.scale.multiplyScalar(2 / dimension);
@@ -179,7 +210,10 @@ export default function CharacterModelPreview({
         scene.add(light);
         renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-        renderer.domElement.setAttribute("aria-label", "Interaktive 3D-Figur");
+        renderer.domElement.setAttribute(
+          "aria-label",
+          t({ de: "Interaktive 3D-Figur", en: "Interactive 3D character" }),
+        );
         renderer.domElement.setAttribute("role", "img");
         renderer.domElement.addEventListener("webglcontextlost", contextLost);
         mount.appendChild(renderer.domElement);
@@ -224,7 +258,13 @@ export default function CharacterModelPreview({
         animate();
       } catch (cause) {
         if (!disposed)
-          fail(controller.signal.aborted ? new Error("Das Laden des 3D-Modells hat zu lange gedauert.") : cause);
+          fail(
+            controller.signal.aborted
+              ? new Error(
+                  t({ de: "Das Laden des 3D-Modells hat zu lange gedauert.", en: "Loading the 3D model timed out." }),
+                )
+              : cause,
+          );
       } finally {
         clearTimeout(timeout);
       }
@@ -237,12 +277,14 @@ export default function CharacterModelPreview({
       renderer?.domElement.removeEventListener("webglcontextlost", contextLost);
       cleanupGraphics();
     };
-  }, [url, reduced]);
+  }, [url, reduced, t]);
 
   return (
-    <section className="character-model-preview" aria-label="3D-Modellvorschau">
+    <section className="character-model-preview" aria-label={t({ de: "3D-Modellvorschau", en: "3D model preview" })}>
       <div ref={host} className="character-model-canvas" hidden={!!error} />
-      {!loaded && !error && <p role="status">Private 3D-Datei wird geladen …</p>}
+      {!loaded && !error && (
+        <p role="status">{t({ de: "Private 3D-Datei wird geladen …", en: "Loading private 3D file …" })}</p>
+      )}
       {error && (
         <>
           <p role="alert" className="character-editor-error">
@@ -250,32 +292,41 @@ export default function CharacterModelPreview({
           </p>
           <div className="character-model-fallback">
             {fallback}
-            <p>2D-Ersatzdarstellung</p>
+            <p>{t({ de: "2D-Ersatzdarstellung", en: "2D fallback view" })}</p>
           </div>
         </>
       )}
-      <div className="character-model-controls" role="group" aria-label="3D-Kamera">
+      <div className="character-model-controls" role="group" aria-label={t({ de: "3D-Kamera", en: "3D camera" })}>
         <button className="ic-btn" type="button" disabled={!loaded} onClick={() => commands.current?.rotate(-0.3)}>
-          Nach links drehen
+          {t({ de: "Nach links drehen", en: "Rotate left" })}{" "}
         </button>
         <button className="ic-btn" type="button" disabled={!loaded} onClick={() => commands.current?.rotate(0.3)}>
-          Nach rechts drehen
+          {t({ de: "Nach rechts drehen", en: "Rotate right" })}{" "}
         </button>
         <button className="ic-btn" type="button" disabled={!loaded} onClick={() => commands.current?.zoom(0.85)}>
-          Vergrößern
+          {t({ de: "Vergrößern", en: "Zoom in" })}{" "}
         </button>
         <button className="ic-btn" type="button" disabled={!loaded} onClick={() => commands.current?.zoom(1.15)}>
-          Verkleinern
+          {t({ de: "Verkleinern", en: "Zoom out" })}{" "}
         </button>
       </div>
       {loaded && (
         <p className="character-editor-hint">
           {reduced
-            ? "Bewegung reduziert: Animation pausiert."
+            ? t({ de: "Bewegung reduziert: Animation pausiert.", en: "Reduced motion: animation paused." })
             : clips.includes(status) || clips.includes("idle")
-              ? `Status-Animation: ${clips.includes(status) ? status : "idle"}.`
-              : "Kein passender Animationsclip: statische Darstellung."}{" "}
-          Das Büro verwendet weiterhin die 2D-Figur.
+              ? t({
+                  de: `Status-Animation: ${clips.includes(status) ? status : "idle"}.`,
+                  en: `Status animation: ${clips.includes(status) ? status : "idle"}.`,
+                })
+              : t({
+                  de: "Kein passender Animationsclip: statische Darstellung.",
+                  en: "No matching animation clip: static view.",
+                })}{" "}
+          {t({
+            de: "Das Büro verwendet weiterhin die 2D-Figur.",
+            en: "The office continues to use the 2D character.",
+          })}{" "}
         </p>
       )}
     </section>

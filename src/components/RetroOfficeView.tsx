@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "./LocalizedText";
 import { useCallback, useRef, useState } from "react";
 import { type Application, type Container } from "pixi.js";
 import type { TiledObject } from "./office-view/TiledRenderer";
@@ -35,6 +36,7 @@ export default function RetroOfficeView({
   onSelectServer,
   onSelectDepartment,
 }: RetroOfficeViewProps) {
+  const translateUiCopy = useUiCopy();
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const worldRef = useRef<Container | null>(null);
@@ -150,13 +152,16 @@ export default function RetroOfficeView({
         >
           <div className="max-w-sm">
             <p className="text-xs font-pixel mb-2" style={{ color: "var(--text-secondary)" }}>
-              OFFICE-ANSICHT NICHT VERFÜGBAR
+              <LocalizedText en="OFFICE VIEW UNAVAILABLE" de="OFFICE-ANSICHT NICHT VERFÜGBAR" />
             </p>
             <p className="text-[11px] font-mono leading-relaxed" style={{ color: "var(--text-muted)" }}>
               {renderTier.reason}
             </p>
             <p className="text-[11px] font-mono leading-relaxed mt-2" style={{ color: "var(--text-muted)" }}>
-              Alle Funktionen bleiben über die Listen- und Kanban-Ansichten erreichbar.
+              <LocalizedText
+                en="All features remain available in the list and Kanban views."
+                de="Alle Funktionen bleiben über die Listen- und Kanban-Ansichten erreichbar."
+              />
             </p>
           </div>
         </div>
@@ -178,7 +183,7 @@ export default function RetroOfficeView({
           style={{ background: "var(--bg-base)" }}
         >
           <span className="text-xs font-pixel animate-pulse" style={{ color: "var(--text-muted)" }}>
-            LOADING OFFICE...
+            <LocalizedText en="LOADING OFFICE..." de="BÜRO WIRD GELADEN …" />
           </span>
         </div>
       )}
@@ -186,7 +191,10 @@ export default function RetroOfficeView({
       <div
         ref={containerRef}
         role="img"
-        aria-label="Pixel-art office view. Use the agent sidebar or the visually-hidden department list below for keyboard navigation."
+        aria-label={translateUiCopy(
+          "Pixel-art office view. Use the agent sidebar or the visually-hidden department list below for keyboard navigation.",
+          "Pixelgrafik des Büros. Nutze die Agenten-Seitenleiste oder die visuell ausgeblendete Abteilungsliste unten zur Tastaturnavigation.",
+        )}
         className="w-full h-full overflow-hidden flex items-center justify-center"
       />
 
@@ -195,7 +203,7 @@ export default function RetroOfficeView({
        * Mirrors the canvas's clickable team areas as a visually-hidden DOM
        * twin so screen-reader and keyboard users can select departments.
        */}
-      <ul className="sr-only-focusable" aria-label="Departments">
+      <ul className="sr-only-focusable" aria-label={translateUiCopy("Departments", "Abteilungen")}>
         {departments.map((dept) => (
           <li key={dept.id}>
             <button type="button" onClick={() => onSelectDepartment(dept)}>
@@ -232,7 +240,7 @@ export default function RetroOfficeView({
               appRef.current.renderer.resize(Math.round(mw * newZoom), Math.round(mh * newZoom));
             }
           }}
-          aria-label="Zoom out"
+          aria-label={translateUiCopy("Zoom out", "Verkleinern")}
         >
           -
         </button>
@@ -272,7 +280,7 @@ export default function RetroOfficeView({
               appRef.current.renderer.resize(Math.round(mw * newZoom), Math.round(mh * newZoom));
             }
           }}
-          aria-label="Zoom in"
+          aria-label={translateUiCopy("Zoom in", "Vergrößern")}
         >
           +
         </button>

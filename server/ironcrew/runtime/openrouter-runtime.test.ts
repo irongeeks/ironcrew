@@ -1,16 +1,9 @@
-/**
- * The first runtime that is not a CLI.
- *
- * Most of these tests are about one thing: OpenRouter is a *router*. One key
- * reaches hundreds of models from dozens of vendors, including ones this
- * project refuses on principle — so the vendor policy has to be enforced
- * here, before the request is built. A policy checked after the answer comes
- * back is a policy that has already been broken.
- */
+/** The default router accepts every model; explicit owner/operator restrictions are enforced before requests. */
 
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { OpenRouterRuntime } from "./openrouter-runtime.ts";
 import * as vendorPolicy from "../policy/vendor-policy.ts";
+import { restrictiveVendorPolicy } from "../policy/test-vendor-policy.ts";
 import type { RunContext, RunEvent } from "./run-events.ts";
 
 function context(over: Partial<RunContext> = {}): RunContext {
@@ -101,7 +94,7 @@ describe("a normal completion", () => {
 describe("vendor policy is enforced before the request is built", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it.each([true, undefined])("pins providers and privacy for sensitive=%s in the actual request", async (sensitive) => {
+  it.each([true, undefined])("preserves privacy without pinning providers for sensitive=%s", async (sensitive) => {
     let sent: Record<string, unknown> = {};
     const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
       sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -111,15 +104,13 @@ describe("vendor policy is enforced before the request is built", () => {
     await collect(runtime(fetchImpl).startRun({ prompt: "Analyse", model: "openai/gpt-4.1" }, context({ sensitive })));
 
     expect(sent.provider).toEqual({
-      order: vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
-      only: vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
       allow_fallbacks: false,
       data_collection: "deny",
       zdr: true,
     });
   });
 
-  it("keeps provider restrictions for explicitly non-sensitive tasks", async () => {
+  it("allows all providers for explicitly non-sensitive tasks", async () => {
     let sent: Record<string, unknown> = {};
     const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
       sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -128,11 +119,7 @@ describe("vendor policy is enforced before the request is built", () => {
 
     await collect(runtime(fetchImpl).startRun({ prompt: "x" }, context({ sensitive: false })));
 
-    expect(sent.provider).toEqual({
-      order: vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
-      only: vendorPolicy.getVendorPolicy().openrouter.allowed_providers,
-      allow_fallbacks: false,
-    });
+    expect(sent.provider).toEqual({ allow_fallbacks: true });
   });
 
   it("fails closed without a request when no upstream provider is allowed", async () => {
@@ -152,7 +139,10 @@ describe("vendor policy is enforced before the request is built", () => {
   it("refuses a blocked vendor without calling out at all", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(COMPLETION)) as unknown as typeof fetch;
     const events = await collect(
-      runtime(fetchImpl).startRun({ prompt: "x", model: "deepseek/deepseek-chat" }, context()),
+      runtime(fetchImpl, { vendorPolicy: restrictiveVendorPolicy }).startRun(
+        { prompt: "x", model: "deepseek/deepseek-chat" },
+        context(),
+      ),
     );
 
     expect(events.map((e) => e.type)).toEqual(["run.failed"]);
@@ -165,7 +155,10 @@ describe("vendor policy is enforced before the request is built", () => {
   it("names the policy code, so an operator can find the rule", async () => {
     const fetchImpl = vi.fn() as unknown as typeof fetch;
     const events = await collect(
-      runtime(fetchImpl).startRun({ prompt: "x", model: "qwen/qwen-2.5-72b-instruct" }, context()),
+      runtime(fetchImpl, { vendorPolicy: restrictiveVendorPolicy }).startRun(
+        { prompt: "x", model: "qwen/qwen-2.5-72b-instruct" },
+        context(),
+      ),
     );
     expect(events[0].payload.code).toBeTruthy();
   });
@@ -380,7 +373,7 @@ describe("company restrictions inside direct OpenRouter invocation", () => {
     expect(events.map((e) => e.type)).toEqual(["run.failed"]);
   });
   it("pins company provider intersection and cannot relax local privacy or vendor blocks", async () => {
-    const baseline = vendorPolicy.getVendorPolicy();
+    const baseline = restrictiveVendorPolicy();
     const provider = baseline.openrouter.allowed_providers[0];
     let body: Record<string, unknown> = {};
     const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
@@ -393,7 +386,7 @@ describe("company restrictions inside direct OpenRouter invocation", () => {
         allowedProviders: [provider, "unapproved-host"],
       },
     });
-    await collect(runtime(fetchImpl).startRun({ prompt: "x" }, ctx));
+    await collect(runtime(fetchImpl, { vendorPolicy: () => baseline }).startRun({ prompt: "x" }, ctx));
     expect(body.provider).toMatchObject({
       only: [provider],
       order: [provider],
@@ -401,7 +394,9 @@ describe("company restrictions inside direct OpenRouter invocation", () => {
       data_collection: "deny",
       zdr: true,
     });
-    const events = await collect(runtime(fetchImpl).startRun({ prompt: "x", model: "deepseek/example" }, ctx));
+    const events = await collect(
+      runtime(fetchImpl, { vendorPolicy: () => baseline }).startRun({ prompt: "x", model: "deepseek/example" }, ctx),
+    );
     expect(events.at(-1)?.type).toBe("run.failed");
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
@@ -420,5 +415,41 @@ describe("company restrictions inside direct OpenRouter invocation", () => {
     );
     expect(events.map((e) => e.type)).toEqual(["run.failed"]);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe("all OpenRouter models are available by default", () => {
+  it.each(["minimax/minimax-m2.5", "deepseek/deepseek-r1:free", "qwen/qwen3:free", "future/model"])(
+    "sends %s unchanged without a provider allowlist",
+    async (model) => {
+      let body: Record<string, unknown> = {};
+      const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body));
+        return jsonResponse(COMPLETION);
+      }) as unknown as typeof fetch;
+      const events = await collect(runtime(fetchImpl).startRun({ prompt: "x", model }, context({ sensitive: false })));
+      expect(events.at(-1)?.type).toBe("run.completed");
+      expect(body.model).toBe(model);
+      expect(body.provider).toEqual({ allow_fallbacks: true });
+    },
+  );
+  it("honours narrower company provider choices under the wildcard baseline", async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return jsonResponse(COMPLETION);
+    }) as unknown as typeof fetch;
+    const ctx = context({ vendorRestrictions: { allowedFamilies: ["minimax/*"], allowedProviders: ["FutureHost"] } });
+    const events = await collect(runtime(fetchImpl).startRun({ prompt: "x", model: "minimax/example" }, ctx));
+    expect(events.at(-1)?.type).toBe("run.completed");
+    expect(body.provider).toMatchObject({
+      only: ["FutureHost"],
+      order: ["FutureHost"],
+      data_collection: "deny",
+      zdr: true,
+    });
+    const denied = await collect(runtime(fetchImpl).startRun({ prompt: "x", model: "qwen/example" }, ctx));
+    expect(denied.at(-1)?.type).toBe("run.failed");
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 });

@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { createPortal } from "react-dom";
 import type { SkillLearnProvider } from "../../api";
 import type { Agent } from "../../types";
@@ -23,7 +24,9 @@ export default function ClassroomOverlay({ t, show, skillName, providers, agents
       <div className="w-full max-w-2xl">
         <div className="classroom-scene">
           <div className="classroom-blackboard">
-            <div className="classroom-chalk-text">skills!! ✨</div>
+            <div className="classroom-chalk-text">
+              <LocalizedText en="skills!! ✨" de="Skills!" />
+            </div>
           </div>
 
           <div className="classroom-claw-teacher">
@@ -86,15 +89,11 @@ export default function ClassroomOverlay({ t, show, skillName, providers, agents
               en: `Training "${skillName}" skill...`,
               ja: `「${skillName}」スキル教育中...`,
               zh: `Training "${skillName}" skill...`,
+              de: `Skill „${skillName}“ wird trainiert …`,
             })}
           </div>
           <div className="text-[11px] mt-1" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "CLI 대표자들이 열심히 학습하고 있습니다 📖",
-              en: "CLI representatives are studying hard 📖",
-              ja: "CLI代表が一生懸命学習しています 📖",
-              zh: "CLI representatives are studying hard 📖",
-            })}
+            {t({ en: "CLI representatives are studying hard 📖", de: "Die CLI-Agenten lernen fleißig." })}
           </div>
         </div>
       </div>

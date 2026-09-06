@@ -100,18 +100,10 @@ export default function AgentDetailHeader({
                 className="h-3.5 w-3.5 rounded text-blue-500 focus:ring-blue-500/50 disabled:opacity-60"
                 style={{ background: "var(--th-input-bg)", borderColor: "var(--th-input-border)" }}
               />
-              <span>
-                {t({
-                  ko: "Lead (기획 리더)",
-                  en: "Lead (Planning lead)",
-                  ja: "Lead（企画リード）",
-                  zh: "Lead (Planning lead)",
-                  de: "Lead (Planungsleiter)",
-                })}
-              </span>
+              <span>{t({ en: "Lead (Planning lead)", de: "Lead (Planungsleiter)" })}</span>
               {savingPlanningLead && (
                 <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
-                  {t({ ko: "저장중...", en: "Saving...", ja: "保存中...", zh: "Saving...", de: "Wird gespeichert..." })}
+                  {t({ en: "Saving...", de: "Wird gespeichert..." })}
                 </span>
               )}
             </label>

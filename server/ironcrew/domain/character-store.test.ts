@@ -28,13 +28,15 @@ const input = async () => ({
   dataBase64: (await png()).toString("base64"),
 });
 
+// Each fixture applies the full schema to a real SQLite file. Allow for disk
+// contention on shared CI workers without relaxing the individual test budgets.
 beforeEach(() => {
-  directory = fs.mkdtempSync(path.join(os.tmpdir(), "crew-characters-"));
+  directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "crew-characters-")));
   db = createTestDb(path.join(directory, "crew.sqlite"));
   companyId = seedCompany(db);
   agentId = seedAgent(db, companyId);
   store = new CharacterStore(db, path.join(directory, "assets"));
-});
+}, 30_000);
 afterEach(() => {
   vi.restoreAllMocks();
   db.close();

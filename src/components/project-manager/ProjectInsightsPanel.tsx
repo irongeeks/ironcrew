@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { useEffect, useState } from "react";
 import type {
   GitHubPull,
@@ -91,13 +92,7 @@ export default function ProjectInsightsPanel({
       >
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-            {t({
-              ko: "프로젝트 정보",
-              en: "Project Info",
-              ja: "プロジェクト情報",
-              zh: "Project Info",
-              de: "Projektinfo",
-            })}
+            {t({ en: "Project Info", de: "Projektinfo" })}
           </h4>
           {selectedProject?.github_repo && (
             <a
@@ -117,27 +112,15 @@ export default function ProjectInsightsPanel({
         </div>
         {loadingDetail ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "불러오는 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+            {t({ en: "Loading...", de: "Laden..." })}
           </p>
         ) : isCreating ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "신규 프로젝트를 입력 중입니다",
-              en: "Creating a new project",
-              ja: "新規プロジェクトを入力中です",
-              zh: "Creating a new project",
-              de: "Neues Projekt wird erstellt",
-            })}
+            {t({ en: "Creating a new project", de: "Neues Projekt wird erstellt" })}
           </p>
         ) : !selectedProject ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "프로젝트를 선택하세요",
-              en: "Select a project",
-              ja: "プロジェクトを選択",
-              zh: "Select a project",
-              de: "Projekt auswählen",
-            })}
+            {t({ en: "Select a project", de: "Projekt auswählen" })}
           </p>
         ) : (
           <div className="mt-2 space-y-2 text-xs">
@@ -145,10 +128,16 @@ export default function ProjectInsightsPanel({
               <span style={{ color: "var(--th-text-muted)" }}>ID:</span> {selectedProject.id}
             </p>
             <p className="break-all text-[var(--th-text-primary)]">
-              <span style={{ color: "var(--th-text-muted)" }}>Path:</span> {selectedProject.project_path}
+              <span style={{ color: "var(--th-text-muted)" }}>
+                <LocalizedText en="Path:" de="Pfad:" />
+              </span>{" "}
+              {selectedProject.project_path}
             </p>
             <p className="break-all text-[var(--th-text-primary)]">
-              <span style={{ color: "var(--th-text-muted)" }}>Goal:</span> {selectedProject.core_goal}
+              <span style={{ color: "var(--th-text-muted)" }}>
+                <LocalizedText en="Goal:" de="Ziel:" />
+              </span>{" "}
+              {selectedProject.core_goal}
             </p>
           </div>
         )}
@@ -174,21 +163,18 @@ export default function ProjectInsightsPanel({
           style={{ borderColor: "var(--th-border)", background: "var(--th-card-bg)" }}
         >
           <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-            {t({ ko: "Git 상태", en: "Git Status", ja: "Git 状態", zh: "Git Status", de: "Git-Status" })}
+            {t({ en: "Git Status", de: "Git-Status" })}
           </h4>
           <div className="mt-2 space-y-2 text-xs">
             {gitStatus?.current_branch && (
               <p className="text-[var(--th-text-primary)]">
-                <span style={{ color: "var(--th-text-muted)" }}>
-                  {t({ ko: "현재 브랜치", en: "Branch", ja: "ブランチ", zh: "Branch", de: "Branch" })}:
-                </span>{" "}
+                <span style={{ color: "var(--th-text-muted)" }}>{t({ en: "Branch", de: "Branch" })}:</span>{" "}
                 <span className="font-mono">{gitStatus.current_branch}</span>
                 {gitStatus.dirty && (
                   <span className="ml-2 rounded bg-amber-600/20 px-1.5 py-0.5 text-[10px] text-amber-300">
-                    {gitStatus.changed_files}{" "}
-                    {t({ ko: "변경", en: "changed", ja: "変更", zh: "changed", de: "geändert" })}
+                    {gitStatus.changed_files} {t({ en: "changed", de: "geändert" })}
                     {gitStatus.untracked_files > 0 &&
-                      `, ${gitStatus.untracked_files} ${t({ ko: "미추적", en: "untracked", ja: "未追跡", zh: "untracked", de: "nicht verfolgt" })}`}
+                      `, ${gitStatus.untracked_files} ${t({ en: "untracked", de: "nicht verfolgt" })}`}
                   </span>
                 )}
               </p>
@@ -196,8 +182,7 @@ export default function ProjectInsightsPanel({
             {branches.length > 0 && (
               <div>
                 <p style={{ color: "var(--th-text-muted)" }}>
-                  {t({ ko: "브랜치", en: "Branches", ja: "ブランチ一覧", zh: "Branches", de: "Branches" })} (
-                  {branches.length})
+                  {t({ en: "Branches", de: "Branches" })} ({branches.length})
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {(showAllBranches ? branches : branches.slice(0, 6)).map((b) => (
@@ -221,7 +206,7 @@ export default function ProjectInsightsPanel({
                       onClick={() => setShowAllBranches(true)}
                       className="rounded px-1.5 py-0.5 text-[10px] text-blue-400 hover:text-blue-300"
                     >
-                      +{branches.length - 6} {t({ ko: "더보기", en: "more", ja: "もっと", zh: "more", de: "mehr" })}
+                      +{branches.length - 6} {t({ en: "more", de: "mehr" })}
                     </button>
                   )}
                 </div>
@@ -238,7 +223,7 @@ export default function ProjectInsightsPanel({
         >
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-              {t({ ko: "오픈 PR", en: "Open PRs", ja: "オープン PR", zh: "Open PRs", de: "Offene PRs" })}
+              {t({ en: "Open PRs", de: "Offene PRs" })}
               {!loadingPulls && pulls.length > 0 && (
                 <span className="ml-1.5 rounded-full bg-blue-600/20 px-1.5 py-0.5 text-[10px] text-blue-300">
                   {pulls.length}
@@ -252,28 +237,16 @@ export default function ProjectInsightsPanel({
               className="text-[11px] hover:text-[var(--th-text-primary)]"
               style={{ color: "var(--th-text-secondary)" }}
             >
-              {t({
-                ko: "GitHub에서 보기",
-                en: "View on GitHub",
-                ja: "GitHubで表示",
-                zh: "View on GitHub",
-                de: "Auf GitHub ansehen",
-              })}
+              {t({ en: "View on GitHub", de: "Auf GitHub ansehen" })}
             </a>
           </div>
           {loadingPulls ? (
             <p className="mt-2 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-              {t({ ko: "불러오는 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+              {t({ en: "Loading...", de: "Laden..." })}
             </p>
           ) : pulls.length === 0 ? (
             <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
-              {t({
-                ko: "오픈 PR이 없습니다",
-                en: "No open pull requests",
-                ja: "オープン PR はありません",
-                zh: "No open pull requests",
-                de: "Keine offenen Pull Requests",
-              })}
+              {t({ en: "No open pull requests", de: "Keine offenen Pull Requests" })}
             </p>
           ) : (
             <div className="mt-2 max-h-48 space-y-1.5 overflow-y-auto pr-1">
@@ -297,7 +270,7 @@ export default function ProjectInsightsPanel({
                             className="mr-1 rounded px-1 py-0.5 text-[10px]"
                             style={{ background: "var(--bg-glow)", color: "var(--th-text-secondary)" }}
                           >
-                            Draft
+                            <LocalizedText en="Draft" de="Entwurf" />
                           </span>
                         )}
                         {pr.title}
@@ -319,7 +292,7 @@ export default function ProjectInsightsPanel({
         style={{ borderColor: "var(--th-border)", background: "var(--th-card-bg)" }}
       >
         <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-          {t({ ko: "작업 이력", en: "Task History", ja: "作業履歴", zh: "Task History", de: "Aufgabenverlauf" })}
+          {t({ en: "Task History", de: "Aufgabenverlauf" })}
         </h4>
         {!selectedProject ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
@@ -327,13 +300,7 @@ export default function ProjectInsightsPanel({
           </p>
         ) : groupedTaskCards.length === 0 ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "연결된 작업이 없습니다",
-              en: "No mapped tasks",
-              ja: "紐づくタスクなし",
-              zh: "No mapped tasks",
-              de: "Keine zugeordneten Aufgaben",
-            })}
+            {t({ en: "No mapped tasks", de: "Keine zugeordneten Aufgaben" })}
           </p>
         ) : (
           <div className="mt-2 max-h-56 overflow-x-hidden overflow-y-auto space-y-2 pr-1">
@@ -355,12 +322,11 @@ export default function ProjectInsightsPanel({
                   {group.root.status} · {group.root.task_type} · {fmtTime(group.root.created_at)}
                 </p>
                 <p className="mt-1 break-all text-[11px]" style={{ color: "var(--th-text-muted)" }}>
-                  {t({ ko: "담당", en: "Owner", ja: "担当", zh: "Owner", de: "Verantwortlich" })}:{" "}
+                  {t({ en: "Owner", de: "Verantwortlich" })}:{" "}
                   {group.root.assigned_agent_name_ko || group.root.assigned_agent_name || "-"}
                 </p>
                 <p className="mt-1 text-[11px] text-blue-300">
-                  {t({ ko: "하위 작업", en: "Sub tasks", ja: "サブタスク", zh: "Sub tasks", de: "Unteraufgaben" })}:{" "}
-                  {group.children.length}
+                  {t({ en: "Sub tasks", de: "Unteraufgaben" })}: {group.children.length}
                 </p>
                 {group.children.length > 0 && (
                   <div className="mt-1 space-y-1">
@@ -381,13 +347,7 @@ export default function ProjectInsightsPanel({
                   </div>
                 )}
                 <p className="mt-2 text-right text-[11px] text-emerald-300">
-                  {t({
-                    ko: "카드 클릭으로 상세 보기",
-                    en: "Click card for details",
-                    ja: "クリックで詳細表示",
-                    zh: "Click card for details",
-                    de: "Karte anklicken für Details",
-                  })}
+                  {t({ en: "Click card for details", de: "Karte anklicken für Details" })}
                 </p>
               </button>
             ))}
@@ -400,13 +360,7 @@ export default function ProjectInsightsPanel({
         style={{ borderColor: "var(--th-border)", background: "var(--th-card-bg)" }}
       >
         <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-          {t({
-            ko: "보고서 이력(프로젝트 매핑)",
-            en: "Mapped Reports",
-            ja: "紐づくレポート",
-            zh: "Mapped Reports",
-            de: "Zugeordnete Berichte",
-          })}
+          {t({ en: "Mapped Reports", de: "Zugeordnete Berichte" })}
         </h4>
         {!selectedProject ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
@@ -414,13 +368,7 @@ export default function ProjectInsightsPanel({
           </p>
         ) : sortedReports.length === 0 ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "연결된 보고서가 없습니다",
-              en: "No mapped reports",
-              ja: "紐づくレポートなし",
-              zh: "No mapped reports",
-              de: "Keine zugeordneten Berichte",
-            })}
+            {t({ en: "No mapped reports", de: "Keine zugeordneten Berichte" })}
           </p>
         ) : (
           <div className="mt-2 max-h-56 overflow-x-hidden overflow-y-auto space-y-2 pr-1">
@@ -446,7 +394,7 @@ export default function ProjectInsightsPanel({
                   onClick={() => void handleOpenTaskDetail(row.id)}
                   className="shrink-0 rounded-md bg-emerald-700 px-2 py-1 text-[11px] text-white hover:bg-emerald-600"
                 >
-                  {t({ ko: "열람", en: "Open", ja: "表示", zh: "Open", de: "Öffnen" })}
+                  {t({ en: "Open", de: "Öffnen" })}
                 </button>
               </div>
             ))}
@@ -459,13 +407,7 @@ export default function ProjectInsightsPanel({
         style={{ borderColor: "var(--th-border)", background: "var(--th-card-bg)" }}
       >
         <h4 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-          {t({
-            ko: "대표 선택사항",
-            en: "Representative Decisions",
-            ja: "代表選択事項",
-            zh: "Representative Decisions",
-            de: "Wesentliche Entscheidungen",
-          })}
+          {t({ en: "Representative Decisions", de: "Wesentliche Entscheidungen" })}
         </h4>
         {!selectedProject ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
@@ -473,13 +415,7 @@ export default function ProjectInsightsPanel({
           </p>
         ) : sortedDecisionEvents.length === 0 ? (
           <p className="mt-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
-            {t({
-              ko: "기록된 대표 의사결정이 없습니다",
-              en: "No representative decision records",
-              ja: "代表意思決定の記録はありません",
-              zh: "No representative decision records",
-              de: "Keine wesentlichen Entscheidungen erfasst",
-            })}
+            {t({ en: "No representative decision records", de: "Keine wesentlichen Entscheidungen erfasst" })}
           </p>
         ) : (
           <div className="mt-2 max-h-56 overflow-x-hidden overflow-y-auto space-y-2 pr-1">
@@ -520,26 +456,12 @@ export default function ProjectInsightsPanel({
                   </p>
                   {selectedLabels.length > 0 && (
                     <p className="mt-1 whitespace-pre-wrap break-all text-[11px] text-blue-300">
-                      {t({
-                        ko: "선택 내용",
-                        en: "Selected Items",
-                        ja: "選択内容",
-                        zh: "Selected Items",
-                        de: "Ausgewählte Punkte",
-                      })}
-                      : {selectedLabels.join(" / ")}
+                      {t({ en: "Selected Items", de: "Ausgewählte Punkte" })}: {selectedLabels.join(" / ")}
                     </p>
                   )}
                   {event.note && event.note.trim().length > 0 && (
                     <p className="mt-1 whitespace-pre-wrap break-all text-[11px] text-emerald-300">
-                      {t({
-                        ko: "추가 요청사항",
-                        en: "Additional Request",
-                        ja: "追加要請事項",
-                        zh: "Additional Request",
-                        de: "Zusätzliche Anfrage",
-                      })}
-                      : {event.note}
+                      {t({ en: "Additional Request", de: "Zusätzliche Anfrage" })}: {event.note}
                     </p>
                   )}
                 </div>

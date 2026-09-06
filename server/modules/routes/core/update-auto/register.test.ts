@@ -14,11 +14,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function harness() {
+function harness(options: { setting?: string; companyLocale?: string } = {}) {
   const routes = new Map<string, RequestHandler[]>();
   const get = vi.fn((path: string, ...handlers: RequestHandler[]) => routes.set(`GET ${path}`, handlers));
   const post = vi.fn((path: string, ...handlers: RequestHandler[]) => routes.set(`POST ${path}`, handlers));
-  const prepare = vi.fn();
+  const prepare = vi.fn((sql: string) => ({
+    get: vi.fn(() => {
+      if (sql.includes("FROM settings")) return options.setting === undefined ? undefined : { value: options.setting };
+      if (sql.includes("sqlite_master")) return options.companyLocale ? { exists: 1 } : undefined;
+      if (sql.includes("FROM crew_companies")) return { id: "company", locale: options.companyLocale };
+      return undefined;
+    }),
+  }));
   const interval = vi.spyOn(globalThis, "setInterval");
   vi.stubEnv("IRONCREW_INSTALL_TYPE", "native");
   vi.stubEnv("UPDATE_CHECK_ENABLED", "1");
@@ -37,7 +44,13 @@ function harness() {
     },
     {} as UtilContext,
   );
-  const request = async (method: string, path: string, authenticated = true, body = {}) => {
+  const request = async (
+    method: string,
+    path: string,
+    authenticated = true,
+    body = {},
+    query: Record<string, string> = {},
+  ) => {
     let statusCode = 200;
     let payload: unknown;
     const response = {
@@ -50,7 +63,7 @@ function harness() {
         return response;
       },
     };
-    const req = { headers: authenticated ? { authorization: "Bearer test-owner" } : {}, query: {}, body } as Request;
+    const req = { headers: authenticated ? { authorization: "Bearer test-owner" } : {}, query, body } as Request;
     const handlers = routes.get(`${method} ${path}`)!;
     for (const handler of handlers) {
       let nextCalled = false;
@@ -103,7 +116,7 @@ describe("release update routes", () => {
         runtime: { running: false, next_check_at: null },
       },
     });
-    expect(app.prepare).not.toHaveBeenCalled();
+    expect(app.prepare.mock.calls.every(([sql]) => sql.startsWith("SELECT "))).toBe(true);
     expect(app.interval).not.toHaveBeenCalled();
   });
   it("exposes the installed version, stable release, and host preflight to authenticated users", async () => {
@@ -118,6 +131,44 @@ describe("release update routes", () => {
         channel: "stable",
         instructions: { command: "node scripts/ironcrew-update.mjs --to v99.0.0 --check" },
       },
+    });
+  });
+});
+
+describe("release response language", () => {
+  it("localizes each response independently while sharing release discovery", async () => {
+    const app = harness({ setting: '"de"' });
+    const german = await app.request("GET", "/api/update-status");
+    const english = await app.request("GET", "/api/update-status", true, {}, { language: "en" });
+    const germanAgain = await app.request("GET", "/api/update-status");
+    expect(german.payload).toMatchObject({
+      instructions: {
+        steps: expect.arrayContaining(["Nach der Aktualisierung Version, Systemzustand und laufende Aufgaben prüfen."]),
+      },
+    });
+    expect(english.payload).toMatchObject({
+      instructions: {
+        steps: expect.arrayContaining(["After the update, check the version, system health and running tasks."]),
+      },
+    });
+    expect(germanAgain.payload).toEqual(german.payload);
+    expect(app.fetcher).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    [{ setting: "de" }, "de"],
+    [{ companyLocale: "de-DE" }, "de"],
+    [{ setting: '"en"', companyLocale: "de" }, "en"],
+    [{ setting: "ja", companyLocale: "de" }, "en"],
+    [{}, "en"],
+  ] as const)("uses supported saved or company language %j", async (options, language) => {
+    const app = harness(options);
+    const response = await app.request("POST", "/api/update-apply");
+    expect(response.statusCode).toBe(409);
+    expect(response.payload).toMatchObject({
+      message:
+        language === "de"
+          ? "IronCrew aktualisiert sich nicht aus dem laufenden Webprozess. Bitte den Host-Update-Assistenten für ein stabiles Release verwenden."
+          : "IronCrew does not update itself from the running web process. Use the host update assistant for a stable release.",
     });
   });
 });

@@ -2,12 +2,14 @@ import { createContext, createElement, useCallback, useContext, useEffect, useMe
 import type { ReactNode } from "react";
 import { readStoredValue } from "./storage";
 
-export type UiLanguage = "ko" | "en" | "ja" | "zh" | "de";
+import { normalizeUiLanguage, parseUiLanguage as parseLanguage, type UiLanguage } from "./shared/ui-language";
+export { SUPPORTED_UI_LANGUAGES, type UiLanguage } from "./shared/ui-language";
 export const LANGUAGE_STORAGE_KEY = "ironcrew.language";
 export const LANGUAGE_USER_SET_STORAGE_KEY = "ironcrew.language.user_set";
 
 export type LangText = {
-  ko: string;
+  /** Older translation objects may retain these keys; they are never selected. */
+  ko?: string;
   en: string;
   ja?: string;
   zh?: string;
@@ -16,30 +18,20 @@ export type LangText = {
 
 type TranslationInput = LangText | string;
 
-function parseLanguage(value?: string | null): UiLanguage | null {
-  const code = (value ?? "").toLowerCase().replace("_", "-");
-  if (code === "ko" || code.startsWith("ko-")) return "ko";
-  if (code === "en" || code.startsWith("en-")) return "en";
-  if (code === "ja" || code.startsWith("ja-")) return "ja";
-  if (code === "zh" || code.startsWith("zh-")) return "zh";
-  if (code === "de" || code.startsWith("de-")) return "de";
-  return null;
-}
-
-export function normalizeLanguage(value?: string | null): UiLanguage {
-  return parseLanguage(value) ?? "en";
-}
+export const normalizeLanguage = normalizeUiLanguage;
 
 /** Return locale-specific name, falling back to English (name) if empty */
 export function localeName(
   locale: UiLanguage | string,
-  obj: { name: string; name_ko?: string | null; name_ja?: string | null; name_zh?: string | null },
+  obj: {
+    name: string;
+    name_de?: string | null;
+    name_ko?: string | null;
+    name_ja?: string | null;
+    name_zh?: string | null;
+  },
 ): string {
-  const lang = (typeof locale === "string" ? locale : "en").slice(0, 2);
-  if (lang === "ko") return obj.name_ko || obj.name;
-  if (lang === "ja") return obj.name_ja || obj.name;
-  if (lang === "zh") return obj.name_zh || obj.name;
-  return obj.name;
+  return normalizeLanguage(locale) === "de" ? obj.name_de || obj.name : obj.name;
 }
 
 export function detectBrowserLanguage(): UiLanguage {
@@ -54,41 +46,16 @@ export function detectBrowserLanguage(): UiLanguage {
 
 function detectRuntimeLanguage(): UiLanguage {
   if (typeof window === "undefined") return "en";
-  return parseLanguage(readStoredValue(LANGUAGE_STORAGE_KEY)) ?? detectBrowserLanguage();
+  const stored = readStoredValue(LANGUAGE_STORAGE_KEY);
+  return stored ? normalizeLanguage(stored) : detectBrowserLanguage();
 }
 
 export function localeFromLanguage(lang: UiLanguage): string {
-  switch (lang) {
-    case "ko":
-      return "ko-KR";
-    case "en":
-      return "en-US";
-    case "ja":
-      return "ja-JP";
-    case "zh":
-      return "zh-CN";
-    case "de":
-      return "de-DE";
-    default:
-      return "en-US";
-  }
+  return normalizeLanguage(lang) === "de" ? "de-DE" : "en-US";
 }
 
 export function pickLang(lang: UiLanguage, text: LangText): string {
-  switch (lang) {
-    case "ko":
-      return text.ko;
-    case "en":
-      return text.en;
-    case "ja":
-      return text.ja ?? text.en;
-    case "zh":
-      return text.zh ?? text.en;
-    case "de":
-      return text.de ?? text.en;
-    default:
-      return text.en;
-  }
+  return normalizeLanguage(lang) === "de" ? (text.de ?? text.en) : text.en;
 }
 
 export interface I18nContextValue {
@@ -113,6 +80,9 @@ interface I18nProviderProps {
 export function I18nProvider({ language, children }: I18nProviderProps) {
   const normalizedLanguage = normalizeLanguage(language);
   const locale = useMemo(() => localeFromLanguage(normalizedLanguage), [normalizedLanguage]);
+  useEffect(() => {
+    document.documentElement.lang = normalizedLanguage;
+  }, [normalizedLanguage]);
   const t = useCallback(
     (text: TranslationInput) => (typeof text === "string" ? text : pickLang(normalizedLanguage, text)),
     [normalizedLanguage],

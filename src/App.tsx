@@ -1,3 +1,4 @@
+import { lazyFeature } from "./components/lazyFeature";
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
 import type {
@@ -32,7 +33,6 @@ import AppLoadingScreen from "./app/AppLoadingScreen";
 import AppMainLayout from "./app/AppMainLayout";
 import AppOverlays from "./app/AppOverlays";
 import { NotificationToast } from "./components/NotificationToast";
-import DiffModal from "./components/taskboard/DiffModal";
 import { useAppActions } from "./app/useAppActions";
 import { useActiveMeetingTaskId } from "./app/useActiveMeetingTaskId";
 import { useUpdateStatusPolling } from "./app/useUpdateStatusPolling";
@@ -45,9 +45,11 @@ import { RoomThemesProvider, useRoomThemes } from "./app/contexts/RoomThemesCont
 import { DecisionInboxProvider, useDecisionInbox } from "./app/contexts/DecisionInboxContext";
 import { useOfficePackBootstrap } from "./app/hooks/useOfficePackBootstrap";
 import { getSetupStatus, type SetupStatus } from "./api/messaging-runtime-oauth";
-import SetupWizard from "./components/onboarding/SetupWizard";
-import LoginPage from "./pages/LoginPage";
 import { checkAuthStatus, writeStoredCsrfToken } from "./api/core";
+
+const DiffModal = lazyFeature(() => import("./components/taskboard/DiffModal"));
+const SetupWizard = lazyFeature(() => import("./components/onboarding/SetupWizard"));
+const LoginPage = lazyFeature(() => import("./pages/LoginPage"));
 
 export type { OAuthCallbackResult } from "./app/types";
 

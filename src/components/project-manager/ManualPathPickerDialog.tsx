@@ -41,13 +41,7 @@ export default function ManualPathPickerDialog({
           style={{ borderColor: "var(--th-border)" }}
         >
           <h3 className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-            {t({
-              ko: "앱 내 폴더 탐색",
-              en: "In-App Folder Browser",
-              ja: "アプリ内フォルダ閲覧",
-              zh: "In-App Folder Browser",
-              de: "Ordner-Browser",
-            })}
+            {t({ en: "In-App Folder Browser", de: "Ordner-Browser" })}
           </h3>
           <button
             type="button"
@@ -64,13 +58,7 @@ export default function ManualPathPickerDialog({
             style={{ borderColor: "var(--th-border)", background: "var(--th-bg-surface-hover)" }}
           >
             <p className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
-              {t({
-                ko: "현재 위치",
-                en: "Current Location",
-                ja: "現在位置",
-                zh: "Current Location",
-                de: "Aktueller Pfad",
-              })}
+              {t({ en: "Current Location", de: "Aktueller Pfad" })}
             </p>
             <p className="break-all text-xs text-[var(--th-text-primary)]">{manualPathCurrent || "-"}</p>
           </div>
@@ -85,7 +73,7 @@ export default function ManualPathPickerDialog({
               className="rounded-md border px-2.5 py-1 text-xs font-semibold text-[var(--th-text-primary)] transition hover:bg-[var(--th-bg-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               style={{ borderColor: "var(--th-border-strong)" }}
             >
-              {t({ ko: "상위 폴더", en: "Up", ja: "上位フォルダ", zh: "Up", de: "Übergeordneter Ordner" })}
+              {t({ en: "Up", de: "Übergeordneter Ordner" })}
             </button>
             <button
               type="button"
@@ -94,7 +82,7 @@ export default function ManualPathPickerDialog({
               className="rounded-md border px-2.5 py-1 text-xs font-semibold text-[var(--th-text-primary)] transition hover:bg-[var(--th-bg-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               style={{ borderColor: "var(--th-border-strong)" }}
             >
-              {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "Refresh", de: "Aktualisieren" })}
+              {t({ en: "Refresh", de: "Aktualisieren" })}
             </button>
           </div>
           <div
@@ -103,25 +91,13 @@ export default function ManualPathPickerDialog({
           >
             {manualPathLoading ? (
               <p className="px-3 py-2 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                {t({
-                  ko: "폴더 목록을 불러오는 중...",
-                  en: "Loading directories...",
-                  ja: "フォルダ一覧を読み込み中...",
-                  zh: "Loading directories...",
-                  de: "Verzeichnisse werden geladen...",
-                })}
+                {t({ en: "Loading directories...", de: "Verzeichnisse werden geladen..." })}
               </p>
             ) : manualPathError ? (
               <p className="px-3 py-2 text-xs text-rose-300">{manualPathError}</p>
             ) : manualPathEntries.length === 0 ? (
               <p className="px-3 py-2 text-xs" style={{ color: "var(--th-text-secondary)" }}>
-                {t({
-                  ko: "선택 가능한 하위 폴더가 없습니다.",
-                  en: "No selectable subdirectories.",
-                  ja: "選択可能なサブディレクトリがありません。",
-                  zh: "No selectable subdirectories.",
-                  de: "Keine auswählbaren Unterordner.",
-                })}
+                {t({ en: "No selectable subdirectories.", de: "Keine auswählbaren Unterordner." })}
               </p>
             ) : (
               manualPathEntries.map((entry) => (
@@ -145,10 +121,7 @@ export default function ManualPathPickerDialog({
           {manualPathTruncated && (
             <p className="text-[11px]" style={{ color: "var(--th-text-secondary)" }}>
               {t({
-                ko: "항목이 많아 상위 300개 폴더만 표시했습니다.",
                 en: "Only the first 300 directories are shown.",
-                ja: "項目数が多いため先頭300件のみ表示しています。",
-                zh: "Only the first 300 directories are shown.",
                 de: "Es werden nur die ersten 300 Verzeichnisse angezeigt.",
               })}
             </p>
@@ -161,7 +134,7 @@ export default function ManualPathPickerDialog({
             className="rounded-md border px-3 py-1.5 text-xs font-semibold text-[var(--th-text-primary)] transition hover:bg-[var(--th-bg-surface-hover)]"
             style={{ borderColor: "var(--th-border-strong)" }}
           >
-            {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+            {t({ en: "Cancel", de: "Abbrechen" })}
           </button>
           <button
             type="button"
@@ -169,13 +142,7 @@ export default function ManualPathPickerDialog({
             onClick={onSelectCurrent}
             className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {t({
-              ko: "현재 폴더 선택",
-              en: "Select Current Folder",
-              ja: "現在フォルダを選択",
-              zh: "Select Current Folder",
-              de: "Aktuellen Ordner auswählen",
-            })}
+            {t({ en: "Select Current Folder", de: "Aktuellen Ordner auswählen" })}
           </button>
         </div>
       </div>

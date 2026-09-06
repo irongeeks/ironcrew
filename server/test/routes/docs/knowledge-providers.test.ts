@@ -1,7 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import express from "express";
 import request from "supertest";
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { SESSION_AUTH_TOKEN } from "../../../config/runtime.ts";
 import { installSecurityMiddleware } from "../../../security/auth.ts";
 import { registerDocsRoutes } from "../../../modules/routes/docs/routes.ts";
@@ -93,6 +96,39 @@ describe("Knowledge Provider CRUD routes", () => {
 
   beforeEach(() => {
     ({ app, db } = createApp());
+  });
+
+  it("creates the default writable vault on opt-in and connects successfully", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vault-default-"));
+    const cwd = vi.spyOn(process, "cwd").mockReturnValue(dir);
+    try {
+      const created = await authPost(app, "/api/knowledge/docs/providers", {
+        vaultPath: "data/vault",
+        readOnly: false,
+      });
+      expect(created.status).toBe(200);
+      expect(fs.statSync(path.join(dir, "data/vault")).isDirectory()).toBe(true);
+      const result = await authGet(app, `/api/knowledge/docs/providers/${created.body.provider.id}/test`);
+      expect(result.status).toBe(200);
+      expect(result.body).toMatchObject({ ok: true, reachable: true, previewCount: 0 });
+    } finally {
+      cwd.mockRestore();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("explains a missing vault without leaking paths", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vault-error-"));
+    try {
+      const created = await authPost(app, "/api/knowledge/docs/providers", { vaultPath: path.join(dir, "missing") });
+      const result = await authGet(app, `/api/knowledge/docs/providers/${created.body.provider.id}/test`);
+      expect(result.status).toBe(400);
+      expect(result.body).toMatchObject({ error: "vault_not_found", reachable: false });
+      expect(result.body.message).toContain("Create it on the server");
+      expect(JSON.stringify(result.body)).not.toContain(dir);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   // ---- GET /api/knowledge/docs/providers ----

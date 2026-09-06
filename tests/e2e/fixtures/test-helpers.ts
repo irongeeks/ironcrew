@@ -2,32 +2,12 @@ import { type Page, type APIRequestContext, expect } from "@playwright/test";
 
 // ── Navigation ──────────────────────────────────────────────
 
-export type ViewName =
-  | "office"
-  | "tasks"
-  | "workflows"
-  | "operations"
-  | "agents"
-  | "skills"
-  | "projects"
-  | "schedules"
-  | "settings";
-
-const VIEW_LABELS: Record<ViewName, string> = {
-  office: "OFFICE",
-  tasks: "TASKS",
-  workflows: "WORKFLOWS",
-  operations: "OPS",
-  agents: "LEGACY ROSTER",
-  skills: "LIBRARY",
-  projects: "LEGACY PROJECTS",
-  schedules: "LEGACY SCHEDULES",
-  settings: "SETTINGS",
-};
+import { VIEW_LABELS, type ViewName } from "./navigation-labels";
+export type { ViewName } from "./navigation-labels";
 
 export async function navigateTo(page: Page, view: ViewName): Promise<void> {
   const label = VIEW_LABELS[view];
-  const btn = page.getByRole("button", { name: new RegExp(`^${label}$`) });
+  const btn = page.getByRole("banner").getByRole("navigation").getByRole("button", { name: label });
   await btn.click();
   // Wait for the view content to load after navigation
   await expect(page.locator("main, canvas, [class*=view], [class*=View], section").first()).toBeVisible({
@@ -37,7 +17,7 @@ export async function navigateTo(page: Page, view: ViewName): Promise<void> {
 
 // ── Session ─────────────────────────────────────────────────
 
-export async function establishSession(request: APIRequestContext): Promise<string> {
+export async function establishSession(request: APIRequestContext, language: "en" | "de" = "en"): Promise<string> {
   const timeout = 30_000;
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -48,10 +28,12 @@ export async function establishSession(request: APIRequestContext): Promise<stri
       // On fresh databases the SetupWizard (position:fixed; inset:0) overlays the
       // entire UI and intercepts all pointer events, causing every nav click to time out.
       // Mark onboarding complete so the wizard is never rendered during E2E runs.
-      await request.put("/api/settings", {
-        data: { onboarding_completed: true },
+      const settings = await request.put("/api/settings", {
+        // Every test establishes its own locale instead of inheriting another test's settings.
+        data: { onboarding_completed: true, language },
         headers: { "x-csrf-token": csrfToken },
       });
+      await expectOkJson(settings, "Prepare E2E session settings");
       return csrfToken;
     }
     if ([502, 503, 404].includes(res.status())) {

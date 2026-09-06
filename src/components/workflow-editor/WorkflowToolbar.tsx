@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import type { ValidationError } from "../pack-editor/types";
 
 type Mode = "view" | "edit";
@@ -31,6 +32,7 @@ export function WorkflowToolbar({
   monitorEnabled,
   onMonitorToggle,
 }: WorkflowToolbarProps) {
+  const translateUiCopy = useUiCopy();
   return (
     <div
       className="flex items-center gap-2 border-b px-3 py-1.5"
@@ -48,7 +50,7 @@ export function WorkflowToolbar({
               color: mode === m ? "var(--accent)" : "var(--text-muted)",
             }}
           >
-            {m === "view" ? "View" : "Edit"}
+            {m === "view" ? translateUiCopy("View", "Ansicht") : translateUiCopy("Edit", "Bearbeiten")}
           </button>
         ))}
       </div>
@@ -64,7 +66,7 @@ export function WorkflowToolbar({
             color: monitorEnabled ? "var(--accent)" : "var(--text-muted)",
           }}
         >
-          Live Monitor
+          <LocalizedText en="Live Monitor" de="Live-Überwachung" />
         </button>
       )}
 
@@ -77,7 +79,7 @@ export function WorkflowToolbar({
               disabled={!canUndo}
               className="rounded px-2 py-1 text-xs disabled:opacity-30"
               style={{ color: "var(--text-secondary)" }}
-              title="Undo (Ctrl+Z)"
+              title={translateUiCopy("Undo (Ctrl+Z)", "Rückgängig (Strg+Z)")}
             >
               ↶
             </button>
@@ -86,7 +88,7 @@ export function WorkflowToolbar({
               disabled={!canRedo}
               className="rounded px-2 py-1 text-xs disabled:opacity-30"
               style={{ color: "var(--text-secondary)" }}
-              title="Redo (Ctrl+Shift+Z)"
+              title={translateUiCopy("Redo (Ctrl+Shift+Z)", "Wiederholen (Strg+Umschalt+Z)")}
             >
               ↷
             </button>
@@ -114,7 +116,7 @@ export function WorkflowToolbar({
               color: isDirty ? "var(--accent)" : "var(--text-muted)",
             }}
           >
-            Save
+            <LocalizedText en="Save" de="Speichern" />
           </button>
         </>
       )}
@@ -126,7 +128,8 @@ export function WorkflowToolbar({
           style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
           title={errors.map((e) => e.message).join("\n")}
         >
-          {errors.length} issue{errors.length > 1 ? "s" : ""}
+          {errors.length} <LocalizedText en="issue" de="Problem" />
+          {errors.length > 1 ? "s" : ""}
         </span>
       )}
 
@@ -135,7 +138,7 @@ export function WorkflowToolbar({
           className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-medium"
           style={{ background: "rgba(52,211,153,0.15)", color: "var(--accent)" }}
         >
-          Valid
+          <LocalizedText en="Valid" de="Gültig" />
         </span>
       )}
     </div>

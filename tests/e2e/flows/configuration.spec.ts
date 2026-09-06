@@ -17,7 +17,7 @@ test("owner configuration persists with audit and stale-write protection on desk
   page,
   request,
 }, testInfo) => {
-  const headers = { "x-csrf-token": await establishSession(request) };
+  const headers = { "x-csrf-token": await establishSession(request, "de") };
   const before = await snapshot(request);
   cleanups.set(testInfo.testId, async (request) => {
     const current = await snapshot(request);

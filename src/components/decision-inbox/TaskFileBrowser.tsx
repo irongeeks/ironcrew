@@ -35,7 +35,7 @@ export default function TaskFileBrowser({
   onOpenDiff,
   onOpenTerminal,
 }: TaskFileBrowserProps) {
-  const t = (text: { ko: string; en: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; de?: string }) => pickLang(uiLanguage, text);
   const [expanded, setExpanded] = useState(false);
   const [rootData, setRootData] = useState<BrowseDirResult | null>(null);
   const [rootLoading, setRootLoading] = useState(false);
@@ -110,12 +110,12 @@ export default function TaskFileBrowser({
     ? (() => {
         const { modified, added, hasNestedChanges } = countChanges(rootData.entries);
         const parts: string[] = [];
-        if (modified > 0) parts.push(`${modified} ${t({ ko: "수정", en: "modified", de: "geändert" })}`);
-        if (added > 0) parts.push(`${added} ${t({ ko: "추가", en: "added", de: "neu" })}`);
+        if (modified > 0) parts.push(`${modified} ${t({ en: "modified", de: "geändert" })}`);
+        if (added > 0) parts.push(`${added} ${t({ en: "added", de: "neu" })}`);
         if (parts.length === 0 && hasNestedChanges) {
-          return t({ ko: "하위 변경 있음", en: "nested changes", de: "verschachtelte Änderungen" });
+          return t({ en: "nested changes", de: "verschachtelte Änderungen" });
         }
-        return parts.length > 0 ? parts.join(", ") : t({ ko: "변경 없음", en: "no changes", de: "keine Änderungen" });
+        return parts.length > 0 ? parts.join(", ") : t({ en: "no changes", de: "keine Änderungen" });
       })()
     : null;
 
@@ -135,7 +135,7 @@ export default function TaskFileBrowser({
           {expanded ? "▼" : "▶"}
         </span>
         <span className="text-[11px] font-medium" style={{ color: "var(--th-text-primary)" }}>
-          {t({ ko: "작업 결과", en: "Work Result", de: "Arbeitsergebnis" })}
+          {t({ en: "Work Result", de: "Arbeitsergebnis" })}
         </span>
         {agentName && (
           <span className="text-[10px]" style={{ color: "var(--th-text-secondary)" }}>
@@ -159,14 +159,14 @@ export default function TaskFileBrowser({
         <div>
           {rootLoading && (
             <div className="px-3 py-4 text-center text-[11px]" style={{ color: "var(--th-text-muted)" }}>
-              {t({ ko: "로딩 중...", en: "Loading...", de: "Laden..." })}
+              {t({ en: "Loading...", de: "Laden..." })}
             </div>
           )}
           {rootError && (
             <div className="px-3 py-4 text-center text-[11px]" style={{ color: "var(--th-text-muted)" }}>
               {rootError === "no_project_path"
-                ? t({ ko: "프로젝트 경로 없음", en: "No project path", de: "Kein Projektpfad" })
-                : t({ ko: "파일 로드 실패", en: "Failed to load files", de: "Dateien konnten nicht geladen werden" })}
+                ? t({ en: "No project path", de: "Kein Projektpfad" })
+                : t({ en: "Failed to load files", de: "Dateien konnten nicht geladen werden" })}
             </div>
           )}
           {rootData && !rootLoading && (
@@ -215,7 +215,7 @@ export default function TaskFileBrowser({
                 className="rounded px-2 py-0.5 text-[10px] font-medium transition hover:opacity-80"
                 style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
               >
-                {t({ ko: "Diff 보기", en: "View Diff", de: "Diff anzeigen" })}
+                {t({ en: "View Diff", de: "Diff anzeigen" })}
               </button>
             )}
             {onOpenTerminal && taskId && (
@@ -228,7 +228,7 @@ export default function TaskFileBrowser({
                   color: "var(--th-text-secondary)",
                 }}
               >
-                {t({ ko: "터미널 로그", en: "Terminal Log", de: "Terminal-Log" })}
+                {t({ en: "Terminal Log", de: "Terminal-Log" })}
               </button>
             )}
           </div>

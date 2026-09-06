@@ -137,16 +137,7 @@ export default function PhaseSelectionSection({
     }
   }
 
-  const sectionLabel =
-    locale === "ko"
-      ? "단계 선택"
-      : locale === "ja"
-        ? "フェーズ選択"
-        : locale === "zh"
-          ? "阶段选择"
-          : locale === "de"
-            ? "Phasen-Auswahl"
-            : "Phases";
+  const sectionLabel = locale === "de" ? "Phasen-Auswahl" : "Phases";
 
   return (
     <div className="space-y-2">

@@ -7,10 +7,10 @@ import type {
 } from "../../api";
 
 export interface I18nTextMap {
-  ko: string;
+  ko?: string;
   en: string;
-  ja: string;
-  zh: string;
+  ja?: string;
+  zh?: string;
   de?: string;
 }
 

@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../../LocalizedText";
 import type { RefObject } from "react";
 import type { TFunction } from "../types";
 import type { FormState } from "./constants";
@@ -44,6 +45,7 @@ export function WorkflowForm({
   handleSave,
   resetForm,
 }: WorkflowFormProps) {
+  const translateUiCopy = useUiCopy();
   const nodeInputOptions = buildNodeInputOptions(parsedNodes);
 
   return (
@@ -53,26 +55,14 @@ export function WorkflowForm({
     >
       <h4 className="text-sm font-medium text-slate-200">
         {editingId
-          ? t({
-              ko: "워크플로우 편집",
-              en: "Edit Workflow",
-              ja: "ワークフロー編集",
-              zh: "Edit Workflow",
-              de: "Workflow bearbeiten",
-            })
-          : t({
-              ko: "새 워크플로우",
-              en: "New Workflow",
-              ja: "新規ワークフロー",
-              zh: "New Workflow",
-              de: "Neuer Workflow",
-            })}
+          ? t({ en: "Edit Workflow", de: "Workflow bearbeiten" })
+          : t({ en: "New Workflow", de: "Neuer Workflow" })}
       </h4>
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "이름", en: "Name", ja: "名前", zh: "Name", de: "Name" })}
+            {t({ en: "Name", de: "Name" })}
           </span>
           <input
             value={form.name}
@@ -89,7 +79,7 @@ export function WorkflowForm({
 
         <label className="block">
           <span className="mb-1 block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "타입", en: "Type", ja: "タイプ", zh: "Type", de: "Typ" })}
+            {t({ en: "Type", de: "Typ" })}
           </span>
           <select
             value={form.workflow_type}
@@ -101,9 +91,15 @@ export function WorkflowForm({
               color: "var(--th-text-primary)",
             }}
           >
-            <option value="text2img">Text → Image</option>
-            <option value="img2video">Image → Video</option>
-            <option value="custom">Custom</option>
+            <option value="text2img">
+              <LocalizedText en="Text → Image" de="Text → Bild" />
+            </option>
+            <option value="img2video">
+              <LocalizedText en="Image → Video" de="Bild → Video" />
+            </option>
+            <option value="custom">
+              <LocalizedText en="Custom" de="Benutzerdefiniert" />
+            </option>
           </select>
         </label>
       </div>
@@ -111,13 +107,7 @@ export function WorkflowForm({
       {/* ── Workflow JSON upload zone ── */}
       <div>
         <span className="mb-1 block text-xs" style={{ color: "var(--th-text-secondary)" }}>
-          {t({
-            ko: "Workflow JSON (파일 업로드 또는 드래그 & 드롭)",
-            en: "Workflow JSON (upload or drag & drop)",
-            ja: "Workflow JSON (ファイルアップロードまたはドラッグ&ドロップ)",
-            zh: "Workflow JSON (upload or drag & drop)",
-            de: "Workflow JSON (hochladen oder Drag & Drop)",
-          })}
+          {t({ en: "Workflow JSON (upload or drag & drop)", de: "Workflow JSON (hochladen oder Drag & Drop)" })}
         </span>
         <div
           onDragOver={(e) => {
@@ -142,35 +132,24 @@ export function WorkflowForm({
                   en: `Workflow loaded (${parsedNodes.length} nodes with inputs)`,
                   ja: `ワークフローロード済み (${parsedNodes.length}ノード)`,
                   zh: `Workflow loaded (${parsedNodes.length} nodes)`,
+                  de: `Workflow geladen (${parsedNodes.length} Knoten mit Eingaben)`,
                 })}
               </span>
               <p className="mt-1 text-[10px]" style={{ color: "var(--th-text-muted)" }}>
-                {t({
-                  ko: "다시 클릭하여 교체",
-                  en: "Click to replace",
-                  ja: "クリックして差し替え",
-                  zh: "Click to replace",
-                  de: "Zum Ersetzen klicken",
-                })}
+                {t({ en: "Click to replace", de: "Zum Ersetzen klicken" })}
               </p>
             </div>
           ) : (
             <div className="text-center">
               <p className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
                 {t({
-                  ko: "ComfyUI API JSON 파일을 드래그하거나 클릭하세요",
                   en: "Drop ComfyUI API JSON file here or click to browse",
-                  ja: "ComfyUI API JSONファイルをドラッグまたはクリック",
-                  zh: "Drop ComfyUI API JSON file here or click to browse",
                   de: "ComfyUI API JSON-Datei hierher ziehen oder klicken zum Durchsuchen",
                 })}
               </p>
               <p className="mt-1 text-[10px]" style={{ color: "var(--th-text-muted)" }}>
                 {t({
-                  ko: "ComfyUI에서 'Save (API Format)'으로 내보낸 JSON",
                   en: "Export from ComfyUI via 'Save (API Format)'",
-                  ja: "ComfyUIから「Save (API Format)」でエクスポート",
-                  zh: "Export from ComfyUI via 'Save (API Format)'",
                   de: "Export aus ComfyUI über 'Save (API Format)'",
                 })}
               </p>
@@ -185,20 +164,8 @@ export function WorkflowForm({
             style={{ color: "var(--th-text-muted)" }}
           >
             {showRawJson
-              ? t({
-                  ko: "JSON 숨기기",
-                  en: "Hide raw JSON",
-                  ja: "JSONを非表示",
-                  zh: "Hide raw JSON",
-                  de: "Roh-JSON ausblenden",
-                })
-              : t({
-                  ko: "JSON 보기",
-                  en: "Show raw JSON",
-                  ja: "JSONを表示",
-                  zh: "Show raw JSON",
-                  de: "Roh-JSON anzeigen",
-                })}
+              ? t({ en: "Hide raw JSON", de: "Roh-JSON ausblenden" })
+              : t({ en: "Show raw JSON", de: "Roh-JSON anzeigen" })}
           </button>
         )}
         {showRawJson && (
@@ -220,10 +187,7 @@ export function WorkflowForm({
         <div>
           <span className="mb-2 block text-xs font-medium" style={{ color: "var(--th-text-secondary)" }}>
             {t({
-              ko: "파라미터 매핑 — 각 역할에 노드 입력을 할당하세요",
               en: "Parameter Mapping — assign node inputs to each role",
-              ja: "パラメータマッピング — 各役割にノード入力を割り当て",
-              zh: "Parameter Mapping — assign node inputs to each role",
               de: "Parameterzuordnung — Nodeneingaben für jede Rolle zuweisen",
             })}
           </span>
@@ -295,13 +259,7 @@ export function WorkflowForm({
 
       <label className="block">
         <span className="mb-1 block text-xs text-slate-400">
-          {t({
-            ko: "기본 서버 ID (선택)",
-            en: "Default Server ID (optional)",
-            ja: "デフォルトサーバー ID (任意)",
-            zh: "Default Server ID (optional)",
-            de: "Standard-Server-ID (optional)",
-          })}
+          {t({ en: "Default Server ID (optional)", de: "Standard-Server-ID (optional)" })}
         </span>
         <input
           value={form.default_server_id}
@@ -312,7 +270,7 @@ export function WorkflowForm({
             borderColor: "var(--th-input-border)",
             color: "var(--th-text-primary)",
           }}
-          placeholder="Server UUID from Servers settings"
+          placeholder={translateUiCopy("Server UUID from Servers settings", "Server-UUID aus den Servereinstellungen")}
         />
       </label>
 
@@ -322,14 +280,14 @@ export function WorkflowForm({
           disabled={saving || !form.name || !form.workflow_json}
           className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-500 disabled:opacity-50"
         >
-          {saving ? "..." : t({ ko: "저장", en: "Save", ja: "保存", zh: "Save", de: "Speichern" })}
+          {saving ? "..." : t({ en: "Save", de: "Speichern" })}
         </button>
         <button
           onClick={resetForm}
           className="rounded border px-3 py-1.5 text-xs"
           style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
         >
-          {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+          {t({ en: "Cancel", de: "Abbrechen" })}
         </button>
       </div>
     </div>

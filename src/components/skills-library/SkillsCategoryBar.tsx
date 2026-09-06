@@ -47,15 +47,8 @@ export default function SkillsCategoryBar({
 
       <div className="text-xs px-1" style={{ color: "var(--th-text-muted)" }}>
         {filteredLength}
-        {t({
-          ko: "개 스킬 표시중",
-          en: " skills shown",
-          ja: "件のスキルを表示中",
-          zh: " skills shown",
-          de: " Skills angezeigt",
-        })}
-        {search &&
-          ` · "${search}" ${t({ ko: "검색 결과", en: "search results", ja: "検索結果", zh: "search results", de: "Suchergebnisse" })}`}
+        {t({ en: " skills shown", de: " Skills angezeigt" })}
+        {search && ` · "${search}" ${t({ en: "search results", de: "Suchergebnisse" })}`}
       </div>
     </>
   );

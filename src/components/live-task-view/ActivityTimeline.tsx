@@ -77,10 +77,10 @@ function parseCliEvents(streamTail: string): TimelineEvent[] {
 
 function formatRelativeTime(
   timestamp: number,
-  t: (text: { ko: string; en: string; ja?: string; zh?: string; de?: string }) => string,
+  t: (text: { ko?: string; en: string; ja?: string; zh?: string; de?: string }) => string,
 ): string {
   const diff = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-  if (diff < 5) return t({ ko: "방금", en: "now", ja: "今", zh: "刚才", de: "jetzt" });
+  if (diff < 5) return t({ en: "now", de: "jetzt" });
   if (diff < 60)
     return t({ ko: `${diff}초 전`, en: `${diff}s ago`, ja: `${diff}秒前`, zh: `${diff}秒前`, de: `vor ${diff}s` });
   if (diff < 3600)
@@ -156,7 +156,7 @@ export default function ActivityTimeline({ subtasks, taskId, streamTail }: Activ
           flexShrink: 0,
         }}
       >
-        {t({ ko: "활동", en: "ACTIVITY", ja: "アクティビティ", zh: "活动", de: "AKTIVITÄT" })}
+        {t({ en: "ACTIVITY", de: "AKTIVITÄT" })}
       </div>
 
       {displayEvents.length === 0 && (
@@ -170,13 +170,7 @@ export default function ActivityTimeline({ subtasks, taskId, streamTail }: Activ
             textAlign: "center",
           }}
         >
-          {t({
-            ko: "출력 대기 중...",
-            en: "Waiting for output...",
-            ja: "出力待機中...",
-            zh: "等待输出...",
-            de: "Warte auf Ausgabe...",
-          })}
+          {t({ en: "Waiting for output...", de: "Warte auf Ausgabe..." })}
         </div>
       )}
 
@@ -285,7 +279,7 @@ export default function ActivityTimeline({ subtasks, taskId, streamTail }: Activ
             padding: "2px 0",
           }}
         >
-          ▾ {t({ ko: "접기", en: "Collapse", ja: "折りたたむ", zh: "收起", de: "Einklappen" })}
+          ▾ {t({ en: "Collapse", de: "Einklappen" })}
         </button>
       )}
     </div>

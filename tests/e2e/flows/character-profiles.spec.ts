@@ -15,7 +15,7 @@ test.describe("Employee character profiles", () => {
     page,
     request,
   }, testInfo) => {
-    const csrf = await establishSession(request);
+    const csrf = await establishSession(request, "de");
     const { agents } = (await (await request.get("/api/crew/agents")).json()) as { agents: Agent[] };
     const agent = agents.find((a) => a.key === "cto") ?? agents[0];
     const before = {
@@ -100,7 +100,7 @@ test.describe("Employee character profiles", () => {
     page,
     request,
   }, testInfo) => {
-    const csrf = await establishSession(request);
+    const csrf = await establishSession(request, "de");
     const { agents } = (await (await request.get("/api/crew/agents")).json()) as { agents: Agent[] };
     const agent = agents.find((a) => a.key === "cto") ?? agents[0];
     const before = {
@@ -150,7 +150,7 @@ test.describe("Employee character profiles", () => {
     page,
     request,
   }, testInfo) => {
-    const csrf = await establishSession(request);
+    const csrf = await establishSession(request, "de");
     const { agents } = (await (await request.get("/api/crew/agents")).json()) as { agents: Agent[] };
     const agent = agents.find((a) => a.key === "ea") ?? agents[0];
     const before = {

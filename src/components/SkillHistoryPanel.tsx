@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "./LocalizedText";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getAvailableLearnedSkills,
@@ -36,6 +37,7 @@ export default function SkillHistoryPanel({
   className = "",
   onLearningDataChanged,
 }: SkillHistoryPanelProps) {
+  const translateUiCopy = useUiCopy();
   const [tab, setTab] = useState<"history" | "available">("history");
   const [providerFilter, setProviderFilter] = useState<"all" | SkillHistoryProvider>("all");
   const [historyRows, setHistoryRows] = useState<SkillLearningHistoryEntry[]>([]);
@@ -216,7 +218,7 @@ export default function SkillHistoryPanel({
                 : { color: "var(--th-text-secondary)" }
             }
           >
-            Learning History
+            <LocalizedText en="Learning History" de="Lernverlauf" />
           </button>
           <button
             type="button"
@@ -230,7 +232,7 @@ export default function SkillHistoryPanel({
                 : { color: "var(--th-text-secondary)" }
             }
           >
-            Available Skills
+            <LocalizedText en="Available Skills" de="Verfügbare Skills" />
           </button>
         </div>
         <button
@@ -239,7 +241,7 @@ export default function SkillHistoryPanel({
           className="rounded-md border px-2 py-1 text-[11px] transition-all"
           style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
         >
-          Refresh
+          <LocalizedText en="Refresh" de="Aktualisieren" />
         </button>
       </div>
 
@@ -256,7 +258,7 @@ export default function SkillHistoryPanel({
               : { borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }
           }
         >
-          All
+          <LocalizedText en="All" de="Alle" />
         </button>
         {activeProviders.map((provider) => (
           <button
@@ -278,7 +280,7 @@ export default function SkillHistoryPanel({
       </div>
 
       <div className="px-3 pb-2 text-[10px]" style={{ color: "var(--th-text-muted)" }}>
-        Retention: {retentionDays} days
+        <LocalizedText en="Retention:" de="Aufbewahrung:" /> {retentionDays} <LocalizedText en="days" de="Tage" />
       </div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
@@ -291,7 +293,7 @@ export default function SkillHistoryPanel({
               color: "var(--th-text-secondary)",
             }}
           >
-            Loading memory records...
+            <LocalizedText en="Loading memory records..." de="Lerneinträge werden geladen …" />
           </div>
         )}
 
@@ -315,7 +317,7 @@ export default function SkillHistoryPanel({
               color: "var(--th-text-secondary)",
             }}
           >
-            No learning history yet.
+            <LocalizedText en="No learning history yet." de="Noch kein Lernverlauf." />
           </div>
         )}
 
@@ -376,7 +378,9 @@ export default function SkillHistoryPanel({
                             : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
                         }`}
                       >
-                        {isUnlearning ? "Unlearning..." : "Unlearn"}
+                        {isUnlearning
+                          ? translateUiCopy("Unlearning...", "Wird verlernt …")
+                          : translateUiCopy("Unlearn", "Verlernen")}
                       </button>
                     )}
                     <span className="skill-history-time" style={{ color: "var(--th-text-muted)" }}>
@@ -397,7 +401,7 @@ export default function SkillHistoryPanel({
               className="rounded-md border px-2.5 py-1 text-[11px] transition-all hover:text-white"
               style={{ borderColor: "var(--th-border-strong)", color: "var(--th-text-secondary)" }}
             >
-              {historyExpanded ? "Show less" : `Show ${hiddenHistoryCount} more`}
+              {historyExpanded ? translateUiCopy("Show less", "Weniger anzeigen") : `Show ${hiddenHistoryCount} more`}
             </button>
           </div>
         )}
@@ -411,7 +415,7 @@ export default function SkillHistoryPanel({
               color: "var(--th-text-secondary)",
             }}
           >
-            No available skills.
+            <LocalizedText en="No available skills." de="Keine Skills verfügbar." />
           </div>
         )}
 
@@ -462,7 +466,9 @@ export default function SkillHistoryPanel({
                           : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
                       }`}
                     >
-                      {isUnlearning ? "Unlearning..." : "Unlearn"}
+                      {isUnlearning
+                        ? translateUiCopy("Unlearning...", "Wird verlernt …")
+                        : translateUiCopy("Unlearn", "Verlernen")}
                     </button>
                     <span className="skill-history-time" style={{ color: "var(--th-text-muted)" }}>
                       {relativeTime(row.learned_at)}

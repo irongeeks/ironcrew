@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   ObjectiveCase,
@@ -9,6 +10,7 @@ import { requestJson } from "./panel-api";
 import "./ObjectiveEvaluationsPanel.css";
 const emptyCase = (id: number): ObjectiveCase => ({ id: `case-${id}`, label: "", kind: "contains", expected: "" });
 export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number }): React.JSX.Element {
+  const { t, locale } = useI18n();
   const formId = useId();
   const [data, setData] = useState<ObjectiveSnapshot | null>(null);
   const [error, setError] = useState("");
@@ -35,11 +37,15 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
       }
     } catch (cause) {
       if (token === generation.current)
-        setError(cause instanceof Error ? cause.message : "Auswertungen konnten nicht geladen werden.");
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : t({ de: "Auswertungen konnten nicht geladen werden.", en: "Could not load evaluations." }),
+        );
     } finally {
       if (token === generation.current) setLoading(false);
     }
-  }, []);
+  }, [t]);
   const invalidate = useCallback(() => {
     generation.current++;
   }, []);
@@ -56,7 +62,14 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
       await load();
       setNotice(message);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Aktion fehlgeschlagen. Entwurf bleibt erhalten.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t({
+              de: "Aktion fehlgeschlagen. Entwurf bleibt erhalten.",
+              en: "Action failed. Your draft has been preserved.",
+            }),
+      );
     } finally {
       setBusy(false);
     }
@@ -71,66 +84,93 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
   const patchCase = (index: number, value: ObjectiveCase) =>
     setCases((current) => current.map((c, i) => (i === index ? value : c)));
   const replay = (measurement: ObjectiveMeasurement) =>
-    mutate(async () => {
-      const replayed = await requestJson<{ checks: ObjectiveMeasurement["checks"] }>(
-        `/api/crew/evaluations/${encodeURIComponent(measurement.id)}/replay`,
-      );
-      if (JSON.stringify(replayed.checks) !== JSON.stringify(measurement.checks))
-        throw new Error("Wiederholung weicht vom gespeicherten Ergebnis ab.");
-    }, "Gespeicherter Nachweis reproduziert: alle Einzelresultate stimmen überein.");
+    mutate(
+      async () => {
+        const replayed = await requestJson<{ checks: ObjectiveMeasurement["checks"] }>(
+          `/api/crew/evaluations/${encodeURIComponent(measurement.id)}/replay`,
+        );
+        if (JSON.stringify(replayed.checks) !== JSON.stringify(measurement.checks))
+          throw new Error(
+            t({
+              de: "Wiederholung weicht vom gespeicherten Ergebnis ab.",
+              en: "The repeated evaluation differs from the stored result.",
+            }),
+          );
+      },
+      t({
+        de: "Gespeicherter Nachweis reproduziert: alle Einzelresultate stimmen überein.",
+        en: "Stored evidence reproduced: all individual results match.",
+      }),
+    );
   return (
-    <section className="objective-panel" aria-label="Objektive Tests">
+    <section className="objective-panel" aria-label={t({ de: "Objektive Tests", en: "Objective tests" })}>
       <header>
         <div>
-          <p className="objective-eyebrow">Qualität mit Nachweis</p>
-          <h2>Objektive Tests</h2>
+          <p className="objective-eyebrow">{t({ de: "Qualität mit Nachweis", en: "Quality with evidence" })}</p>
+          <h2>{t({ de: "Objektive Tests", en: "Objective tests" })}</h2>
         </div>
         <button type="button" disabled={loading || busy} onClick={() => void load()}>
-          Aktualisieren
+          {t({ de: "Aktualisieren", en: "Refresh" })}{" "}
         </button>
       </header>
       <p>
-        Prüfe gespeicherte Arbeitsergebnisse mit festen Kriterien. Die Erfüllungsquote ist getrennt von den 1–5 Sternen
-        des Leads und ändert keine Mitarbeiterrolle.
+        {t({
+          de: "Prüfe gespeicherte Arbeitsergebnisse mit festen Kriterien. Die Erfüllungsquote ist getrennt von den 1–5 Sternen des Leads und ändert keine Mitarbeiterrolle.",
+          en: "Check stored work results against fixed criteria. The pass rate is separate from the lead’s 1–5 stars and does not change employee roles.",
+        })}{" "}
       </p>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      {loading && !data && <p role="status">Rubriken und Run-Nachweise werden geladen …</p>}
+      {loading && !data && (
+        <p role="status">
+          {t({ de: "Rubriken und Run-Nachweise werden geladen …", en: "Loading rubrics and run evidence …" })}
+        </p>
+      )}
       {data && (
         <>
           <div className="objective-workspace">
-            <section aria-label="Test ausführen">
-              <h3>Gespeicherten Run prüfen</h3>
+            <section aria-label={t({ de: "Test ausführen", en: "Run test" })}>
+              <h3>{t({ de: "Gespeicherten Run prüfen", en: "Check stored run" })}</h3>
               <p>
-                Es startet kein Modellaufruf. Jede Rubrikversion bewertet einen Run einmal; Wiederholung nutzt denselben
-                Nachweis.
+                {t({
+                  de: "Es startet kein Modellaufruf. Jede Rubrikversion bewertet einen Run einmal; Wiederholung nutzt denselben Nachweis.",
+                  en: "No model call is made. Each rubric version evaluates a run once; repeating it uses the same evidence.",
+                })}{" "}
               </p>
-              <label htmlFor={`${formId}-rubric`}>Rubrikversion</label>
+              <label htmlFor={`${formId}-rubric`}>{t({ de: "Rubrikversion", en: "Rubric version" })}</label>
               <select id={`${formId}-rubric`} value={rubricId} onChange={(e) => setRubricId(e.target.value)}>
-                <option value="">Rubrik auswählen</option>
+                <option value="">{t({ de: "Rubrik auswählen", en: "Select rubric" })}</option>
                 {data.rubrics.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.title} · v{r.version}
                   </option>
                 ))}
               </select>
-              <label htmlFor={`${formId}-run`}>Abgeschlossener Run</label>
+              <label htmlFor={`${formId}-run`}>{t({ de: "Abgeschlossener Run", en: "Completed run" })}</label>
               <select id={`${formId}-run`} value={runId} onChange={(e) => setRunId(e.target.value)}>
-                <option value="">Run auswählen</option>
+                <option value="">{t({ de: "Run auswählen", en: "Select run" })}</option>
                 {data.runs.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.agentName} · {r.taskTitle} · {r.runtimeType}/{r.model ?? "Standardmodell nicht erfasst"} · {r.id}
+                    {r.agentName} · {r.taskTitle} · {r.runtimeType}/
+                    {r.model ?? t({ de: "Standardmodell nicht erfasst", en: "Default model not recorded" })} · {r.id}
                   </option>
                 ))}
               </select>
               {!data.runs.length && (
                 <p>
-                  Noch kein abgeschlossener Run vorhanden. Führe zuerst eine Aufgabe mit einer eingerichteten Runtime
-                  aus.
+                  {t({
+                    de: "Noch kein abgeschlossener Run vorhanden. Führe zuerst eine Aufgabe mit einer eingerichteten Runtime aus.",
+                    en: "No completed run yet. First execute a task with a configured runtime.",
+                  })}{" "}
                 </p>
               )}
               {!data.rubrics.length && (
-                <p>Noch keine Rubrik vorhanden. Der Owner legt zuerst überprüfbare Abnahmekriterien an.</p>
+                <p>
+                  {t({
+                    de: "Noch keine Rubrik vorhanden. Der Owner legt zuerst überprüfbare Abnahmekriterien an.",
+                    en: "No rubric yet. The owner must first create verifiable acceptance criteria.",
+                  })}
+                </p>
               )}
               <button
                 disabled={busy || !data.canMeasure || !rubricId || !runId}
@@ -141,32 +181,49 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                         method: "POST",
                         body: JSON.stringify({ rubricId, runId }),
                       }),
-                    "Auswertung gespeichert.",
+                    t({ de: "Auswertung gespeichert.", en: "Evaluation saved." }),
                   )
                 }
               >
-                Run auswerten
+                {t({ de: "Run auswerten", en: "Evaluate run" })}{" "}
               </button>
-              {!data.canMeasure && <p>Auswertungen starten können Owner und Operatoren.</p>}
+              {!data.canMeasure && (
+                <p>
+                  {t({
+                    de: "Auswertungen starten können Owner und Operatoren.",
+                    en: "Owners and operators can start evaluations.",
+                  })}
+                </p>
+              )}
             </section>
             {data.canEdit && (
               <form
-                aria-label="Rubrik bearbeiten"
+                aria-label={t({ de: "Rubrik bearbeiten", en: "Edit rubric" })}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void mutate(async () => {
-                    const result = await requestJson<{ rubric: ObjectiveRubric }>("/api/crew/evaluations/rubrics", {
-                      method: "POST",
-                      body: JSON.stringify({ key, baseVersion, title, reason, cases }),
-                    });
-                    setRubricId(result.rubric.id);
-                    edit(result.rubric);
-                  }, "Unveränderliche Rubrikversion gespeichert.");
+                  void mutate(
+                    async () => {
+                      const result = await requestJson<{ rubric: ObjectiveRubric }>("/api/crew/evaluations/rubrics", {
+                        method: "POST",
+                        body: JSON.stringify({ key, baseVersion, title, reason, cases }),
+                      });
+                      setRubricId(result.rubric.id);
+                      edit(result.rubric);
+                    },
+                    t({ de: "Unveränderliche Rubrikversion gespeichert.", en: "Immutable rubric version saved." }),
+                  );
                 }}
               >
-                <h3>{baseVersion ? `Rubrik überarbeiten · Basis v${baseVersion}` : "Neue Rubrik"}</h3>
+                <h3>
+                  {baseVersion
+                    ? t({
+                        de: `Rubrik überarbeiten · Basis v${baseVersion}`,
+                        en: `Revise rubric · Based on v${baseVersion}`,
+                      })
+                    : t({ de: "Neue Rubrik", en: "New rubric" })}
+                </h3>
                 <label>
-                  Rubrikkennung
+                  {t({ de: "Rubrikkennung", en: "Rubric identifier" })}{" "}
                   <input
                     required
                     pattern="[a-z][a-z0-9_-]{0,63}"
@@ -174,15 +231,15 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                     value={key}
                     disabled={baseVersion > 0}
                     onChange={(e) => setKey(e.target.value)}
-                    placeholder="beispiel-qualitaet"
+                    placeholder={t({ de: "beispiel-qualitaet", en: "example-quality" })}
                   />
                 </label>
                 <label>
-                  Titel
+                  {t({ de: "Titel", en: "Title" })}{" "}
                   <input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} />
                 </label>
                 <label>
-                  Änderungsgrund
+                  {t({ de: "Änderungsgrund", en: "Reason for change" })}{" "}
                   <textarea
                     required
                     minLength={10}
@@ -193,9 +250,11 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                 </label>
                 {cases.map((c, index) => (
                   <fieldset key={c.id}>
-                    <legend>Prüfung {index + 1}</legend>
+                    <legend>
+                      {t({ de: "Prüfung", en: "Check" })} {index + 1}
+                    </legend>
                     <label>
-                      Bezeichnung
+                      {t({ de: "Bezeichnung", en: "Label" })}{" "}
                       <input
                         required
                         maxLength={160}
@@ -204,7 +263,7 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                       />
                     </label>
                     <label>
-                      Prüfart
+                      {t({ de: "Prüfart", en: "Check type" })}{" "}
                       <select
                         value={c.kind}
                         onChange={(e) =>
@@ -221,15 +280,15 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                           )
                         }
                       >
-                        <option value="contains">Enthält Text</option>
-                        <option value="excludes">Enthält keinen Text</option>
-                        <option value="json_field">JSON-Feld hat Typ</option>
+                        <option value="contains">{t({ de: "Enthält Text", en: "Contains text" })}</option>
+                        <option value="excludes">{t({ de: "Enthält keinen Text", en: "Excludes text" })}</option>
+                        <option value="json_field">{t({ de: "JSON-Feld hat Typ", en: "JSON field has type" })}</option>
                       </select>
                     </label>
                     {c.kind === "json_field" ? (
                       <>
                         <label>
-                          Feldpfad (durch Punkt getrennt)
+                          {t({ de: "Feldpfad (durch Punkt getrennt)", en: "Field path (dot separated)" })}{" "}
                           <input
                             required
                             value={c.path.join(".")}
@@ -237,7 +296,7 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                           />
                         </label>
                         <label>
-                          Erwarteter Typ
+                          {t({ de: "Erwarteter Typ", en: "Expected type" })}{" "}
                           <select
                             value={c.valueType}
                             onChange={(e) =>
@@ -252,7 +311,7 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                       </>
                     ) : (
                       <label>
-                        Vergleichstext
+                        {t({ de: "Vergleichstext", en: "Comparison text" })}{" "}
                         <input
                           required
                           maxLength={2000}
@@ -266,7 +325,7 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                         type="button"
                         onClick={() => setCases((current) => current.filter((_, i) => i !== index))}
                       >
-                        Prüfung {index + 1} entfernen
+                        {t({ de: "Prüfung", en: "Check" })} {index + 1} {t({ de: "entfernen", en: "remove" })}{" "}
                       </button>
                     )}
                   </fieldset>
@@ -284,41 +343,49 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                       })
                     }
                   >
-                    Prüfung hinzufügen
+                    {t({ de: "Prüfung hinzufügen", en: "Add check" })}{" "}
                   </button>
                   <button type="submit" disabled={busy}>
-                    Rubrikversion speichern
+                    {t({ de: "Rubrikversion speichern", en: "Save rubric version" })}{" "}
                   </button>
                   <button type="button" disabled={busy} onClick={() => edit()}>
-                    Neue Rubrik beginnen
+                    {t({ de: "Neue Rubrik beginnen", en: "Start new rubric" })}{" "}
                   </button>
                 </div>
                 <p>
-                  Textprüfungen beachten Groß-/Kleinschreibung. JSON-Prüfungen erwarten reines JSON. Kein Code und keine
-                  regulären Ausdrücke werden ausgeführt.
+                  {t({
+                    de: "Textprüfungen beachten Groß-/Kleinschreibung. JSON-Prüfungen erwarten reines JSON. Kein Code und keine regulären Ausdrücke werden ausgeführt.",
+                    en: "Text checks are case-sensitive. JSON checks require plain JSON. No code or regular expressions are executed.",
+                  })}{" "}
                 </p>
               </form>
             )}
           </div>
           <section aria-label="Modellvergleich">
-            <h3>Vergleich nach Rubrikversion</h3>
+            <h3>{t({ de: "Vergleich nach Rubrikversion", en: "Comparison by rubric version" })}</h3>
             <p>
-              Gleiche Kriterien machen Ergebnisse nachvollziehbar. Unterschiedliche Aufgaben bleiben unterschiedlich
-              schwer; diese Quote ist kein allgemeines Modellranking. Unbekannte Standardmodelle werden ausdrücklich
-              ausgewiesen.
+              {t({
+                de: "Gleiche Kriterien machen Ergebnisse nachvollziehbar. Unterschiedliche Aufgaben bleiben unterschiedlich schwer; diese Quote ist kein allgemeines Modellranking. Unbekannte Standardmodelle werden ausdrücklich ausgewiesen.",
+                en: "Shared criteria make results traceable. Different tasks still have different difficulty; this rate is not a general model ranking. Unknown default models are identified explicitly.",
+              })}{" "}
             </p>
             {!data.comparisons.length ? (
-              <p>Noch keine gemessenen Ergebnisse. Es werden keine Beispielwerte angezeigt.</p>
+              <p>
+                {t({
+                  de: "Noch keine gemessenen Ergebnisse. Es werden keine Beispielwerte angezeigt.",
+                  en: "No measured results yet. No sample values are shown.",
+                })}
+              </p>
             ) : (
               <div className="objective-table-wrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>Rubrik</th>
-                      <th>Mitarbeiter</th>
-                      <th>Runtime / Modell</th>
+                      <th>{t({ de: "Rubrik", en: "Rubric" })}</th>
+                      <th>{t({ de: "Mitarbeiter", en: "Employee" })}</th>
+                      <th>{t({ de: "Runtime / Modell", en: "Runtime / model" })}</th>
                       <th>Runs</th>
-                      <th>Erfüllungsquote</th>
+                      <th>{t({ de: "Erfüllungsquote", en: "Pass rate" })}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -330,10 +397,11 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                         </td>
                         <td>{c.agentName}</td>
                         <td>
-                          {c.runtimeType} / {c.model ?? "Standardmodell nicht erfasst"}
+                          {c.runtimeType} /{" "}
+                          {c.model ?? t({ de: "Standardmodell nicht erfasst", en: "Default model not recorded" })}
                         </td>
                         <td>{c.runCount}</td>
-                        <td>{c.score.toLocaleString("de-DE")} %</td>
+                        <td>{c.score.toLocaleString(locale)} %</td>
                       </tr>
                     ))}
                   </tbody>
@@ -341,51 +409,53 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
               </div>
             )}
           </section>
-          <section aria-label="Auswertungsverlauf">
-            <h3>Nachweise und Einzelresultate</h3>
+          <section aria-label={t({ de: "Auswertungsverlauf", en: "Evaluation history" })}>
+            <h3>{t({ de: "Nachweise und Einzelresultate", en: "Evidence and individual results" })}</h3>
             {data.measurements.map((m) => (
               <details key={m.id}>
                 <summary>
-                  {m.run.agentName} · {m.run.taskTitle} · {m.passedCases}/{m.totalCases} erfüllt ·{" "}
-                  {m.score.toLocaleString("de-DE")} %
+                  {m.run.agentName} · {m.run.taskTitle} · {m.passedCases}/{m.totalCases}{" "}
+                  {t({ de: "erfüllt ·", en: "passed ·" })} {m.score.toLocaleString(locale)} %
                 </summary>
                 <p>
-                  Run: <code>{m.run.id}</code> · Runtime: {m.run.runtimeType} · Modell: {m.run.model ?? "nicht erfasst"}
+                  Run: <code>{m.run.id}</code> · Runtime: {m.run.runtimeType} {t({ de: "· Modell:", en: "· Model:" })}{" "}
+                  {m.run.model ?? t({ de: "nicht erfasst", en: "not recorded" })}
                 </p>
                 <p>
-                  Erfasst: {new Date(m.createdAt).toLocaleString("de-DE")} · Bewertet durch: {m.createdBy} · Engine v
-                  {m.engineVersion}
+                  {t({ de: "Erfasst:", en: "Recorded:" })} {new Date(m.createdAt).toLocaleString(locale)}{" "}
+                  {t({ de: "· Bewertet durch:", en: "· Evaluated by:" })} {m.createdBy} · Engine v{m.engineVersion}
                 </p>
                 <p>
-                  Rubrik-Hash: <code>{m.rubricHash}</code>
+                  {t({ de: "Rubrik-Hash:", en: "Rubric hash:" })} <code>{m.rubricHash}</code>
                   <br />
-                  Nachweis-Hash: <code>{m.evidenceHash}</code>
+                  {t({ de: "Nachweis-Hash:", en: "Evidence hash:" })} <code>{m.evidenceHash}</code>
                 </p>
                 <ul>
                   {m.checks.map((c) => (
                     <li key={c.caseId}>
                       <strong>
-                        {c.passed ? "Erfüllt" : "Nicht erfüllt"}: {c.label}
+                        {c.passed ? t({ de: "Erfüllt", en: "Passed" }) : t({ de: "Nicht erfüllt", en: "Failed" })}:{" "}
+                        {c.label}
                       </strong>{" "}
                       — {c.observed}
                     </li>
                   ))}
                 </ul>
                 <button disabled={busy} onClick={() => void replay(m)}>
-                  Nachweis reproduzieren
+                  {t({ de: "Nachweis reproduzieren", en: "Reproduce evidence" })}{" "}
                 </button>
               </details>
             ))}
           </section>
-          <section aria-label="Rubrikverlauf">
-            <h3>Unveränderliche Rubrikversionen</h3>
+          <section aria-label={t({ de: "Rubrikverlauf", en: "Rubric history" })}>
+            <h3>{t({ de: "Unveränderliche Rubrikversionen", en: "Immutable rubric versions" })}</h3>
             {data.rubrics.map((r) => (
               <details key={r.id}>
                 <summary>
-                  {r.title} · v{r.version} · {r.cases.length} Prüfungen
+                  {r.title} · v{r.version} · {r.cases.length} {t({ de: "Prüfungen", en: "Checks" })}{" "}
                 </summary>
                 <p>
-                  {r.reason} · {new Date(r.createdAt).toLocaleString("de-DE")} · {r.createdBy}
+                  {r.reason} · {new Date(r.createdAt).toLocaleString(locale)} · {r.createdBy}
                 </p>
                 <ol>
                   {r.cases.map((c) => (
@@ -393,21 +463,23 @@ export function ObjectiveEvaluationsPanel({ refreshKey }: { refreshKey?: number 
                       {c.label}:{" "}
                       {c.kind === "json_field"
                         ? `${c.path.join(".")} → ${c.valueType}`
-                        : `${c.kind === "contains" ? "enthält" : "enthält nicht"} „${c.expected}“`}
+                        : `${c.kind === "contains" ? t({ de: "enthält", en: "contains" }) : t({ de: "enthält nicht", en: "does not contain" })} „${c.expected}“`}
                     </li>
                   ))}
                 </ol>
                 {data.canEdit && (
                   <button disabled={busy} onClick={() => edit(r)}>
-                    Version {r.version} überarbeiten
+                    Version {r.version} {t({ de: "überarbeiten", en: "revise" })}{" "}
                   </button>
                 )}
               </details>
             ))}
           </section>
           <p className="objective-note">
-            Anzeige: letzte 200 Rubrikversionen, Runs und Messungen; bis zu 500 Vergleichsgruppen. Vergleichswerte
-            umfassen alle gespeicherten Messungen ihrer Gruppe.
+            {t({
+              de: "Anzeige: letzte 200 Rubrikversionen, Runs und Messungen; bis zu 500 Vergleichsgruppen. Vergleichswerte umfassen alle gespeicherten Messungen ihrer Gruppe.",
+              en: "Showing the latest 200 rubric versions, runs and measurements; up to 500 comparison groups. Comparison values include all stored measurements in their group.",
+            })}{" "}
           </p>
         </>
       )}

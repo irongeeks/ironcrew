@@ -35,13 +35,16 @@ const silenceEpipe = (proxy: ProxyLike) => {
   });
 };
 
-const manualChunks = (id: string): string | undefined => {
+const vendorChunkName = (id: string): string | undefined => {
   if (!id.includes("node_modules")) return undefined;
   if (id.includes("/node_modules/@pixi/")) {
     const match = id.match(/\/node_modules\/(@pixi\/[^/]+)\//);
     if (match) return `vendor-${match[1].replace("@pixi/", "pixi-")}`;
   }
   if (id.includes("/node_modules/pixi.js/")) return "vendor-pixi";
+  if (id.includes("/node_modules/three/")) return "vendor-three";
+  if (id.includes("/node_modules/recharts/")) return "vendor-charts";
+  if (id.includes("/node_modules/@xterm/")) return "vendor-terminal";
   if (id.includes("/node_modules/@xyflow/")) return "vendor-xyflow";
   if (
     id.includes("/node_modules/react-dom/") ||
@@ -76,10 +79,18 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    manifest: true,
     chunkSizeWarningLimit: 550,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks,
+        // Preserve dynamic feature boundaries even when libraries share React.
+        // Without entriesAware, Rolldown can pull chart dependencies into startup.
+        codeSplitting: {
+          groups: [
+            { name: "vendor-react", test: (id) => vendorChunkName(id) === "vendor-react", priority: 10 },
+            { name: (id) => vendorChunkName(id) ?? null, entriesAware: true },
+          ],
+        },
       },
     },
   },

@@ -439,6 +439,14 @@ export interface CompanyStats {
     working: number;
     idle: number;
   };
+  legacy_agents?: { total: number; working: number; idle: number };
+  sources?: {
+    agents: "crew_agents" | "agents";
+    tasks: "tasks";
+    tasks_by_department: "tasks";
+    recent_activity: "task_logs";
+    legacy_agents: "agents";
+  };
   tasks_by_department: Array<{
     id: string;
     name: string;

@@ -1,3 +1,5 @@
+import { useCrewLabel } from "./crew-labels";
+import { useI18n } from "../i18n";
 import { lazy, Suspense, useId, useState } from "react";
 import { CHARACTER_SKINS } from "../shared/character-skins";
 import { CharacterAvatar, resolveCharacterId } from "./CharacterAvatar";
@@ -51,6 +53,13 @@ export function CharacterSkinEditor({
   onListAssets,
   onDeleteAsset,
 }: CharacterSkinEditorProps): React.JSX.Element {
+  const { t, language } = useI18n();
+  const crewLabel = useCrewLabel();
+  const skins = CHARACTER_SKINS.map((skin) => ({
+    ...skin,
+    name: language === "de" ? skin.name : skin.name_en,
+    description: language === "de" ? skin.description : skin.description_en,
+  }));
   const previewStatusId = useId();
   const [draft, setDraft] = useState<CharacterAppearance>(() => initialAppearance(agent));
   const [previewStatus, setPreviewStatus] = useState<AgentStatus>(agent.status);
@@ -62,7 +71,7 @@ export function CharacterSkinEditor({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [copyFailed, setCopyFailed] = useState(false);
-  const prompt = buildCharacterPrompt(identity, style);
+  const prompt = buildCharacterPrompt(identity, style, language);
   const selectedId = resolveCharacterId(draft.character_id, agent.key);
 
   const useAsset = (asset: CharacterAsset) => {
@@ -72,7 +81,12 @@ export function CharacterSkinEditor({
         : { ...current, [asset.kind]: asset.url },
     );
     if (asset.kind === "model_3d") setShowModel(true);
-    setNotice("Datei ausgewählt. Vorschau prüfen und die Figur speichern.");
+    setNotice(
+      t({
+        de: "Datei ausgewählt. Vorschau prüfen und die Figur speichern.",
+        en: "File selected. Check the preview and save the character.",
+      }),
+    );
   };
   const upload = async (file: File | undefined, kind: CharacterAsset["kind"]) => {
     if (!file) return;
@@ -81,13 +95,16 @@ export function CharacterSkinEditor({
     if (kind === "model_3d" ? !file.name.toLowerCase().endsWith(".glb") : !UPLOAD_TYPES.has(file.type)) {
       setError(
         kind === "model_3d"
-          ? "Bitte eine eigenständige GLB-Datei ohne Texturen auswählen."
-          : "Bitte eine PNG-, WebP- oder JPEG-Datei auswählen.",
+          ? t({
+              de: "Bitte eine eigenständige GLB-Datei ohne Texturen auswählen.",
+              en: "Select a self-contained GLB file without textures.",
+            })
+          : t({ de: "Bitte eine PNG-, WebP- oder JPEG-Datei auswählen.", en: "Select a PNG, WebP or JPEG file." }),
       );
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setError("Das Bild darf höchstens 5 MiB groß sein.");
+      setError(t({ de: "Das Bild darf höchstens 5 MiB groß sein.", en: "The image must not exceed 5 MiB." }));
       return;
     }
     setBusy(true);
@@ -101,9 +118,18 @@ export function CharacterSkinEditor({
       );
       if (kind === "model_3d") setShowModel(true);
       setAssetsRevision((value) => value + 1);
-      setNotice("Datei hochgeladen. Vorschau prüfen und anschließend die Figur speichern.");
+      setNotice(
+        t({
+          de: "Datei hochgeladen. Vorschau prüfen und anschließend die Figur speichern.",
+          en: "File uploaded. Check the preview, then save the character.",
+        }),
+      );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Das Bild konnte nicht hochgeladen werden.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t({ de: "Das Bild konnte nicht hochgeladen werden.", en: "Could not upload the image." }),
+      );
     } finally {
       setBusy(false);
     }
@@ -115,9 +141,18 @@ export function CharacterSkinEditor({
     setNotice("");
     try {
       await onSave(draft);
-      setNotice("Figur gespeichert. Das Büro verwendet jetzt dieses Erscheinungsbild.");
+      setNotice(
+        t({
+          de: "Figur gespeichert. Das Büro verwendet jetzt dieses Erscheinungsbild.",
+          en: "Character saved. The office now uses this appearance.",
+        }),
+      );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Die Figur konnte nicht gespeichert werden.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t({ de: "Die Figur konnte nicht gespeichert werden.", en: "Could not save the character." }),
+      );
     } finally {
       setBusy(false);
     }
@@ -129,23 +164,39 @@ export function CharacterSkinEditor({
     try {
       if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(prompt);
-      setNotice("Generator-Prompt kopiert. Im Bildmodell deiner Wahl einfügen.");
+      setNotice(
+        t({
+          de: "Generator-Prompt kopiert. Im Bildmodell deiner Wahl einfügen.",
+          en: "Generator prompt copied. Paste it into the image model of your choice.",
+        }),
+      );
     } catch {
       setCopyFailed(true);
     }
   };
 
   return (
-    <section className="character-editor" aria-label={`Figur für ${agent.displayName}`} aria-busy={busy}>
+    <section
+      className="character-editor"
+      aria-label={t({ de: `Figur für ${agent.displayName}`, en: `Character for ${agent.displayName}` })}
+      aria-busy={busy}
+    >
       <header className="character-editor-heading">
         <div>
-          <span className="character-editor-eyebrow">ERSCHEINUNGSBILD</span>
-          <h3>Eine Figur für {agent.displayName}</h3>
-          <p>20 eigene Charaktere oder ein persönliches Bild. Rolle, Tools und Freigaben bleiben getrennt.</p>
+          <span className="character-editor-eyebrow">{t({ de: "ERSCHEINUNGSBILD", en: "APPEARANCE" })}</span>
+          <h3>
+            {t({ de: "Eine Figur für", en: "A character for" })} {agent.displayName}
+          </h3>
+          <p>
+            {t({
+              de: "20 eigene Charaktere oder ein persönliches Bild. Rolle, Tools und Freigaben bleiben getrennt.",
+              en: "20 original characters or a custom image. Role, tools and approvals remain separate.",
+            })}
+          </p>
         </div>
         {onClose && (
           <button type="button" className="ic-btn" onClick={onClose} disabled={busy}>
-            Zurück zum Profil
+            {t({ de: "Zurück zum Profil", en: "Back to profile" })}{" "}
           </button>
         )}
       </header>
@@ -157,9 +208,9 @@ export function CharacterSkinEditor({
             animation={draft.animation_config}
             status={previewStatus}
             className="character-editor-preview-figure"
-            label="Vorschau der Bürofigur"
+            label={t({ de: "Vorschau der Bürofigur", en: "Office character preview" })}
           />
-          <span>Bürofigur</span>
+          <span>{t({ de: "Bürofigur", en: "Office character" })}</span>
         </div>
         <div className="character-editor-portrait">
           <CharacterAvatar
@@ -167,25 +218,35 @@ export function CharacterSkinEditor({
             fullBodyUrl={draft.full_body}
             portraitUrl={draft.portrait}
             mode="portrait"
-            label="Vorschau des Portraits"
+            label={t({ de: "Vorschau des Portraits", en: "Portrait preview" })}
           />
           <span>Portrait</span>
         </div>
         <div className="character-editor-preview-copy">
           <strong>
-            {draft.full_body ? "Eigenes Bild" : CHARACTER_SKINS.find((skin) => skin.id === selectedId)?.name}
+            {draft.full_body
+              ? t({ de: "Eigenes Bild", en: "Custom image" })
+              : skins.find((skin) => skin.id === selectedId)?.name}
           </strong>
           <p>
             {draft.full_body
-              ? "Das vollständige Bild wird im Büro verwendet; Status und Aufgaben kommen weiterhin vom Control Plane."
-              : CHARACTER_SKINS.find((skin) => skin.id === selectedId)?.description}
+              ? t({
+                  de: "Das vollständige Bild wird im Büro verwendet; Status und Aufgaben kommen weiterhin vom Control Plane.",
+                  en: "The full image is used in the office; status and tasks still come from the control plane.",
+                })
+              : skins.find((skin) => skin.id === selectedId)?.description}
           </p>
-          <p className="character-editor-hint">Die Auswahl ist eine Vorschau, bis du speicherst.</p>
+          <p className="character-editor-hint">
+            {t({
+              de: "Die Auswahl ist eine Vorschau, bis du speicherst.",
+              en: "Your selection is a preview until you save it.",
+            })}
+          </p>
         </div>
       </div>
       {(draft.animation_config || draft.model_3d) && (
         <div className="character-preview-status">
-          <label htmlFor={previewStatusId}>Vorschauzustand</label>
+          <label htmlFor={previewStatusId}>{t({ de: "Vorschauzustand", en: "Preview state" })}</label>
           <select
             id={previewStatusId}
             value={previewStatus}
@@ -193,7 +254,7 @@ export function CharacterSkinEditor({
           >
             {(Object.entries(AGENT_STATUS_LABEL) as [AgentStatus, string][]).map(([value, label]) => (
               <option key={value} value={value}>
-                {label}
+                {crewLabel(label)}
               </option>
             ))}
           </select>
@@ -210,9 +271,13 @@ export function CharacterSkinEditor({
         </p>
       )}
       <fieldset disabled={busy} className="character-editor-fieldset">
-        <legend>Charakter auswählen</legend>
-        <div className="character-editor-gallery" role="group" aria-label="Vordefinierte Charaktere">
-          {CHARACTER_SKINS.map((skin) => (
+        <legend>{t({ de: "Charakter auswählen", en: "Select character" })}</legend>
+        <div
+          className="character-editor-gallery"
+          role="group"
+          aria-label={t({ de: "Vordefinierte Charaktere", en: "Preset characters" })}
+        >
+          {skins.map((skin) => (
             <button
               key={skin.id}
               type="button"
@@ -240,14 +305,18 @@ export function CharacterSkinEditor({
         </div>
       </fieldset>
       <fieldset disabled={busy} className="character-editor-fieldset">
-        <legend>Eigene Animation oder optionales 3D-Modell</legend>
+        <legend>
+          {t({ de: "Eigene Animation oder optionales 3D-Modell", en: "Custom animation or optional 3D model" })}
+        </legend>
         <p className="character-editor-hint">
-          Animation: ein Bildraster als PNG, WebP oder JPEG. 3D: eigenständige GLB-2-Datei ohne Texturen, externe
-          Dateien oder Erweiterungen. Maximal 5 MiB. 2D bleibt die Büroansicht.
+          {t({
+            de: "Animation: ein Bildraster als PNG, WebP oder JPEG. 3D: eigenständige GLB-2-Datei ohne Texturen, externe Dateien oder Erweiterungen. Maximal 5 MiB. 2D bleibt die Büroansicht.",
+            en: "Animation: a PNG, WebP or JPEG sprite sheet. 3D: a self-contained GLB 2 file without textures, external files or extensions. Maximum 5 MiB. The office view remains 2D.",
+          })}{" "}
         </p>
         <div className="character-editor-upload-grid">
           <label>
-            Animationsraster hochladen
+            {t({ de: "Animationsraster hochladen", en: "Upload sprite sheet" })}{" "}
             <input
               type="file"
               accept="image/png,image/webp,image/jpeg"
@@ -259,7 +328,7 @@ export function CharacterSkinEditor({
             />
           </label>
           <label>
-            GLB-Modell hochladen
+            {t({ de: "GLB-Modell hochladen", en: "Upload GLB model" })}{" "}
             <input
               type="file"
               accept=".glb,model/gltf-binary"
@@ -285,14 +354,16 @@ export function CharacterSkinEditor({
             disabled={busy}
             onClick={() => setDraft((current) => ({ ...current, animation_config: null }))}
           >
-            Animationszuordnung entfernen
+            {t({ de: "Animationszuordnung entfernen", en: "Remove animation assignment" })}{" "}
           </button>
         </>
       )}
       {draft.model_3d && (
         <div className="character-editor-model">
           <button className="ic-btn" type="button" onClick={() => setShowModel((value) => !value)}>
-            {showModel ? "3D-Vorschau schließen" : "3D-Modell ansehen"}
+            {showModel
+              ? t({ de: "3D-Vorschau schließen", en: "Close 3D preview" })
+              : t({ de: "3D-Modell ansehen", en: "View 3D model" })}
           </button>
           <button
             className="ic-btn"
@@ -303,10 +374,12 @@ export function CharacterSkinEditor({
               setShowModel(false);
             }}
           >
-            3D-Zuordnung entfernen
+            {t({ de: "3D-Zuordnung entfernen", en: "Remove 3D assignment" })}{" "}
           </button>
           {showModel && (
-            <Suspense fallback={<p role="status">3D-Ansicht wird vorbereitet …</p>}>
+            <Suspense
+              fallback={<p role="status">{t({ de: "3D-Ansicht wird vorbereitet …", en: "Preparing 3D view …" })}</p>}
+            >
               <CharacterModelPreview
                 url={draft.model_3d}
                 status={previewStatus}
@@ -315,7 +388,7 @@ export function CharacterSkinEditor({
                     characterId={selectedId}
                     fullBodyUrl={draft.full_body}
                     className="character-editor-preview-figure"
-                    label="2D-Ersatzfigur"
+                    label={t({ de: "2D-Ersatzfigur", en: "2D fallback character" })}
                   />
                 }
               />
@@ -341,15 +414,21 @@ export function CharacterSkinEditor({
         />
       )}
       <fieldset disabled={busy} className="character-editor-fieldset">
-        <legend>Eigene Bilder verwenden</legend>
+        <legend>{t({ de: "Eigene Bilder verwenden", en: "Use custom images" })}</legend>
         <p className="character-editor-hint">
-          PNG oder WebP mit transparentem Hintergrund empfohlen; JPEG ebenfalls möglich. Maximal 5 MiB und 4096 × 4096
-          Pixel. Die Bilder werden privat gespeichert.
+          {t({
+            de: "PNG oder WebP mit transparentem Hintergrund empfohlen; JPEG ebenfalls möglich. Maximal 5 MiB und 4096 × 4096 Pixel. Die Bilder werden privat gespeichert.",
+            en: "PNG or WebP with a transparent background is recommended; JPEG is also supported. Maximum 5 MiB and 4096 × 4096 pixels. Images are stored privately.",
+          })}{" "}
         </p>
         <div className="character-editor-upload-grid">
           {(["full_body", "portrait"] as const).map((kind) => (
             <label key={kind}>
-              <span>{kind === "full_body" ? "Ganzkörperbild für das Büro" : "Portrait für das Profil"}</span>
+              <span>
+                {kind === "full_body"
+                  ? t({ de: "Ganzkörperbild für das Büro", en: "Full-body image for the office" })
+                  : t({ de: "Portrait für das Profil", en: "Portrait for the profile" })}
+              </span>
               <input
                 type="file"
                 accept="image/png,image/webp,image/jpeg"
@@ -371,40 +450,49 @@ export function CharacterSkinEditor({
               setNotice("");
             }}
           >
-            Eigene Bilder aus der Auswahl entfernen
+            {t({ de: "Eigene Bilder aus der Auswahl entfernen", en: "Remove custom images from selection" })}{" "}
           </button>
         )}
       </fieldset>
       <details className="character-editor-prompt">
-        <summary>Prompt für eine eigene Figur erstellen</summary>
+        <summary>
+          {t({ de: "Prompt für eine eigene Figur erstellen", en: "Create a prompt for a custom character" })}
+        </summary>
         <p>
-          Beschreibe die gewünschte Person, Filmfigur oder ein eigenes Wesen. Du kannst dem Bildmodell zusätzlich
-          Referenzbilder geben. IronCrew erstellt hier den Prompt; das Bild erzeugst du im Modell deiner Wahl und lädst
-          es anschließend hoch.
+          {t({
+            de: "Beschreibe die gewünschte Person, Filmfigur oder ein eigenes Wesen. Du kannst dem Bildmodell zusätzlich Referenzbilder geben. IronCrew erstellt hier den Prompt; das Bild erzeugst du im Modell deiner Wahl und lädst es anschließend hoch.",
+            en: "Describe the person, film character or original creature you want. You can also give the image model reference images. IronCrew creates the prompt here; generate the image with your chosen model, then upload it.",
+          })}{" "}
         </p>
         <label>
-          <span>Gewünschte Figur oder Referenz</span>
+          <span>{t({ de: "Gewünschte Figur oder Referenz", en: "Desired character or reference" })}</span>
           <textarea
             value={identity}
             onChange={(event) => setIdentity(event.target.value)}
             rows={3}
-            placeholder="Zum Beispiel Pamela Anderson, Captain America, ein Alien oder eine eigene Figur – dazu Kleidung, Alter, Frisur und gewünschte Details."
+            placeholder={t({
+              de: "Zum Beispiel Pamela Anderson, Captain America, ein Alien oder eine eigene Figur – dazu Kleidung, Alter, Frisur und gewünschte Details.",
+              en: "For example Pamela Anderson, Captain America, an alien or an original character — with clothing, age, hairstyle and desired details.",
+            })}
           />
         </label>
         <label>
-          <span>Zusätzliche Stilwünsche (optional)</span>
+          <span>{t({ de: "Zusätzliche Stilwünsche (optional)", en: "Additional style preferences (optional)" })}</span>
           <textarea
             value={style}
             onChange={(event) => setStyle(event.target.value)}
             rows={2}
-            placeholder="Modern illustriert, natürliche Proportionen, klare Silhouette, dezente Lichtkanten …"
+            placeholder={t({
+              de: "Modern illustriert, natürliche Proportionen, klare Silhouette, dezente Lichtkanten …",
+              en: "Modern illustration, natural proportions, clear silhouette, subtle rim lighting …",
+            })}
           />
         </label>
         <label>
-          <span>Generator-Prompt</span>
+          <span>{t({ de: "Generator-Prompt", en: "Generator prompt" })}</span>
           <textarea
             className="character-editor-prompt-output"
-            aria-label="Generator-Prompt"
+            aria-label={t({ de: "Generator-Prompt", en: "Generator prompt" })}
             value={prompt}
             readOnly
             rows={10}
@@ -412,17 +500,22 @@ export function CharacterSkinEditor({
           />
         </label>
         <button type="button" className="ic-btn" onClick={() => void copyPrompt()}>
-          Generator-Prompt kopieren
+          {t({ de: "Generator-Prompt kopieren", en: "Copy generator prompt" })}{" "}
         </button>
         {copyFailed && (
           <p role="status" className="character-editor-hint">
-            Die Zwischenablage ist hier nicht verfügbar. Den Prompt im Textfeld markieren und kopieren.
+            {t({
+              de: "Die Zwischenablage ist hier nicht verfügbar. Den Prompt im Textfeld markieren und kopieren.",
+              en: "The clipboard is unavailable here. Select and copy the prompt in the text field.",
+            })}{" "}
           </p>
         )}
       </details>
       <footer className="character-editor-actions">
         <button type="button" className="ic-btn" data-variant="primary" onClick={() => void save()} disabled={busy}>
-          {busy ? "Wird verarbeitet …" : "Figur speichern"}
+          {busy
+            ? t({ de: "Wird verarbeitet …", en: "Processing …" })
+            : t({ de: "Figur speichern", en: "Save character" })}
         </button>
         <button
           type="button"
@@ -431,10 +524,10 @@ export function CharacterSkinEditor({
           onClick={() => {
             setDraft(initialAppearance(agent));
             setError(null);
-            setNotice("Auswahl zurückgesetzt.");
+            setNotice(t({ de: "Auswahl zurückgesetzt.", en: "Selection reset." }));
           }}
         >
-          Änderungen verwerfen
+          {t({ de: "Änderungen verwerfen", en: "Discard changes" })}{" "}
         </button>
       </footer>
     </section>

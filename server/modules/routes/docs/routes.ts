@@ -1,3 +1,6 @@
+import { e2ePaths } from "../../../config/e2e-isolation.ts";
+import fs from "node:fs";
+import path from "node:path";
 import type { Express } from "express";
 import { logger } from "../../../observability/logger.ts";
 import { requireAuth } from "../../../security/auth.ts";
@@ -77,6 +80,14 @@ export function registerDocsRoutes(deps: RegisterDocsRoutesDeps): void {
       const parsed = parseBody(DocsProviderCreateSchema, req.body);
       if (!parsed.success) return res.status(400).json({ ok: false, error: parsed.error });
       const body = parsed.data;
+      // Opting into the default writable vault creates its directory. Custom paths
+      // must already exist, so a typo never silently creates a different vault.
+      if (path.resolve(body.vaultPath) === path.resolve("data/vault")) {
+        if (process.env.IRONCREW_E2E === "1") {
+          body.vaultPath = path.join(e2ePaths(process.env.IRONCREW_E2E_RUN_ID ?? "").runtimeDir, "vault");
+        }
+        if (body.readOnly === false) fs.mkdirSync(path.resolve(body.vaultPath), { recursive: true });
+      }
       const provider = createDocsProvider(db, nowMs, {
         name: String(body.name || "").trim() || "Obsidian Vault",
         vaultPath: String(body.vaultPath).trim(),
@@ -125,7 +136,23 @@ export function registerDocsRoutes(deps: RegisterDocsRoutesDeps): void {
       res.json({ ok: true, reachable: true, previewCount: noteCount });
     } catch (err: unknown) {
       logger.error({ module: "docs", err }, "[docs] provider_test_failed");
-      res.status(400).json({ ok: false, reachable: false, error: "provider_test_failed" });
+      const reason = err instanceof Error ? err.message : "";
+      const messages: Record<string, string> = {
+        vault_not_found: "Vault folder not found. Create it on the server or choose an existing folder.",
+        vault_not_directory: "The vault path points to a file. Choose a folder instead.",
+      };
+      const permissionDenied =
+        typeof err === "object" && err !== null && "code" in err && ["EACCES", "EPERM"].includes(String(err.code));
+      res.status(400).json({
+        ok: false,
+        reachable: false,
+        error: messages[reason] ? reason : permissionDenied ? "vault_access_denied" : "provider_test_failed",
+        message:
+          messages[reason] ??
+          (permissionDenied
+            ? "IronCrew cannot access the vault folder. Check the server user's folder permissions."
+            : "The vault connection failed. Check its path and the server log."),
+      });
     }
   });
 

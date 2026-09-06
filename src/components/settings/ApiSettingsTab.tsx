@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import { API_TYPE_PRESETS } from "./constants";
 import ApiAssignModal from "./ApiAssignModal";
 import type { ApiStateBundle, TFunction } from "./types";
@@ -41,13 +42,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
       >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
-              ko: "API 프로바이더",
-              en: "API Providers",
-              ja: "API プロバイダー",
-              zh: "API Providers",
-              de: "API-Anbieter",
-            })}
+            {t({ en: "API Providers", de: "API-Anbieter" })}
           </h3>
           <div className="flex items-center gap-2">
             <button
@@ -55,7 +50,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
               disabled={apiProvidersLoading}
               className="text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
             >
-              🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "Refresh", de: "Aktualisieren" })}
+              🔄 {t({ en: "Refresh", de: "Aktualisieren" })}
             </button>
             {!apiAddMode && (
               <button
@@ -71,7 +66,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                   color: "var(--text-primary, #e4e4e7)",
                 }}
               >
-                + {t({ ko: "추가", en: "Add", ja: "追加", zh: "Add", de: "Hinzufügen" })}
+                + {t({ en: "Add", de: "Hinzufügen" })}
               </button>
             )}
           </div>
@@ -79,10 +74,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
 
         <p className="text-xs" style={{ color: "var(--th-text-muted)" }}>
           {t({
-            ko: "로컬 모델(Ollama 등), 프론티어 모델(OpenAI, Anthropic 등), 기타 서비스의 API를 등록하여 언어모델에 접근합니다.",
             en: "Register APIs for local models (Ollama, etc.), frontier models (OpenAI, Anthropic, etc.), and other services.",
-            ja: "ローカルモデル（Ollama等）、フロンティアモデル（OpenAI, Anthropic等）、その他サービスのAPIを登録します。",
-            zh: "Register APIs for local models (Ollama, etc.), frontier models (OpenAI, Anthropic, etc.), and other services.",
             de: "APIs für lokale Modelle (Ollama usw.), Frontier-Modelle (OpenAI, Anthropic usw.) und andere Dienste registrieren.",
           })}
         </p>
@@ -97,25 +89,13 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
               style={{ fontFamily: "'Press Start 2P', monospace", color: "var(--text-muted, #71717a)" }}
             >
               {apiEditingId
-                ? t({
-                    ko: "프로바이더 수정",
-                    en: "Edit Provider",
-                    ja: "プロバイダー編集",
-                    zh: "Edit Provider",
-                    de: "Anbieter bearbeiten",
-                  })
-                : t({
-                    ko: "새 프로바이더 추가",
-                    en: "Add New Provider",
-                    ja: "新規プロバイダー追加",
-                    zh: "Add New Provider",
-                    de: "Neuen Anbieter hinzufügen",
-                  })}
+                ? t({ en: "Edit Provider", de: "Anbieter bearbeiten" })
+                : t({ en: "Add New Provider", de: "Neuen Anbieter hinzufügen" })}
             </h4>
 
             <div>
               <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
-                {t({ ko: "유형", en: "Type", ja: "タイプ", zh: "Type", de: "Typ" })}
+                {t({ en: "Type", de: "Typ" })}
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {(
@@ -157,19 +137,13 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
 
             <div>
               <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
-                {t({ ko: "이름", en: "Name", ja: "名前", zh: "Name", de: "Name" })}
+                {t({ en: "Name", de: "Name" })}
               </label>
               <input
                 type="text"
                 value={apiForm.name}
                 onChange={(e) => setApiForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder={t({
-                  ko: "예: My OpenAI",
-                  en: "e.g. My OpenAI",
-                  ja: "例: My OpenAI",
-                  zh: "e.g. My OpenAI",
-                  de: "z. B. My OpenAI",
-                })}
+                placeholder={t({ en: "e.g. My OpenAI", de: "z. B. My OpenAI" })}
                 className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-blue-500"
                 style={{
                   background: "var(--th-input-bg)",
@@ -181,7 +155,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
 
             <div>
               <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
-                Base URL
+                <LocalizedText en="Base URL" de="Basis-URL" />
               </label>
               <input
                 type="text"
@@ -199,18 +173,10 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
 
             <div>
               <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
-                API Key{" "}
+                <LocalizedText en="API Key" de="API-Schlüssel" />{" "}
                 {apiForm.type === "ollama" && (
                   <span className="text-[var(--text-muted)]">
-                    (
-                    {t({
-                      ko: "로컬은 보통 불필요",
-                      en: "usually not needed for local",
-                      ja: "ローカルは通常不要",
-                      zh: "usually not needed for local",
-                      de: "für lokale Nutzung meist nicht nötig",
-                    })}
-                    )
+                    ({t({ en: "usually not needed for local", de: "für lokale Nutzung meist nicht nötig" })})
                   </span>
                 )}
               </label>
@@ -220,13 +186,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                 onChange={(e) => setApiForm((prev) => ({ ...prev, api_key: e.target.value }))}
                 placeholder={
                   apiEditingId
-                    ? t({
-                        ko: "변경하려면 입력 (빈칸=유지)",
-                        en: "Enter to change (blank=keep)",
-                        ja: "変更する場合は入力",
-                        zh: "Enter to change (blank=keep)",
-                        de: "Zum Ändern eingeben (leer = beibehalten)",
-                      })
+                    ? t({ en: "Enter to change (blank=keep)", de: "Zum Ändern eingeben (leer = beibehalten)" })
                     : "sk-..."
                 }
                 className="w-full px-3 py-2 border rounded-lg text-sm font-mono focus:outline-none focus:border-blue-500"
@@ -247,10 +207,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
               />
               <span className="text-xs" style={{ color: "var(--th-text-secondary)" }}>
                 {t({
-                  ko: "로컬/사설 네트워크 대상 허용 (Ollama, LM Studio 등)",
                   en: "Allow local/private network targets (Ollama, LM Studio, etc.)",
-                  ja: "ローカル/プライベートネットワーク対象を許可 (Ollama, LM Studio等)",
-                  zh: "Allow local/private network targets (Ollama, LM Studio, etc.)",
                   de: "Lokale/private Netzwerk-Ziele erlauben (Ollama, LM Studio usw.)",
                 })}
               </span>
@@ -268,10 +225,10 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                 }}
               >
                 {apiSaving
-                  ? t({ ko: "저장 중...", en: "Saving...", ja: "保存中...", zh: "Saving...", de: "Speichern..." })
+                  ? t({ en: "Saving...", de: "Speichern..." })
                   : apiEditingId
-                    ? t({ ko: "수정", en: "Update", ja: "更新", zh: "Update", de: "Aktualisieren" })
-                    : t({ ko: "추가", en: "Add", ja: "追가", zh: "Add", de: "Hinzufügen" })}
+                    ? t({ en: "Update", de: "Aktualisieren" })
+                    : t({ en: "Add", de: "Hinzufügen" })}
               </button>
               <button
                 onClick={() => {
@@ -282,7 +239,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                 className="px-4 py-2 text-xs font-medium rounded-lg transition-colors"
                 style={{ background: "var(--th-bg-surface-hover)", color: "var(--th-text-secondary)" }}
               >
-                {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "Cancel", de: "Abbrechen" })}
+                {t({ en: "Cancel", de: "Abbrechen" })}
               </button>
             </div>
           </div>
@@ -290,15 +247,12 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
 
         {apiProvidersLoading ? (
           <div className="text-xs animate-pulse py-4 text-center" style={{ color: "var(--th-text-muted)" }}>
-            {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+            {t({ en: "Loading...", de: "Laden..." })}
           </div>
         ) : apiProviders.length === 0 && !apiAddMode ? (
           <div className="text-xs py-6 text-center" style={{ color: "var(--th-text-muted)" }}>
             {t({
-              ko: "등록된 API 프로바이더가 없습니다. 위의 + 추가 버튼으로 시작하세요.",
               en: "No API providers registered. Click + Add above to get started.",
-              ja: "APIプロバイダーが登録されていません。上の+追加ボタンから始めてください。",
-              zh: "No API providers registered. Click + Add above to get started.",
               de: "Keine API-Anbieter registriert. Klicken Sie oben auf + Hinzufügen.",
             })}
           </div>
@@ -340,17 +294,9 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                           background: "var(--border)",
                           color: "var(--text-secondary, #a1a1aa)",
                         }}
-                        title={t({
-                          ko: "연결 테스트",
-                          en: "Test Connection",
-                          ja: "接続テスト",
-                          zh: "Test Connection",
-                          de: "Verbindung testen",
-                        })}
+                        title={t({ en: "Test Connection", de: "Verbindung testen" })}
                       >
-                        {apiTesting === provider.id
-                          ? "..."
-                          : t({ ko: "테스트", en: "Test", ja: "テスト", zh: "Test", de: "Testen" })}
+                        {apiTesting === provider.id ? "..." : t({ en: "Test", de: "Testen" })}
                       </button>
                       <button
                         onClick={() => handleApiEditStart(provider)}
@@ -361,7 +307,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                           color: "var(--text-secondary, #a1a1aa)",
                         }}
                       >
-                        {t({ ko: "수정", en: "Edit", ja: "編集", zh: "Edit", de: "Bearbeiten" })}
+                        {t({ en: "Edit", de: "Bearbeiten" })}
                       </button>
                       <button
                         onClick={() => void handleApiProviderToggle(provider.id, provider.enabled)}
@@ -373,8 +319,8 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                         }}
                       >
                         {provider.enabled
-                          ? t({ ko: "비활성화", en: "Disable", ja: "無効化", zh: "Disable", de: "Deaktivieren" })
-                          : t({ ko: "활성화", en: "Enable", ja: "有効化", zh: "Enable", de: "Aktivieren" })}
+                          ? t({ en: "Disable", de: "Deaktivieren" })
+                          : t({ en: "Enable", de: "Aktivieren" })}
                       </button>
                       <button
                         onClick={() => void handleApiProviderDelete(provider.id)}
@@ -385,7 +331,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                           color: "#f87171",
                         }}
                       >
-                        {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "Delete", de: "Löschen" })}
+                        {t({ en: "Delete", de: "Löschen" })}
                       </button>
                     </div>
                   </div>
@@ -414,9 +360,7 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                         className="text-[11px] transition-colors"
                         style={{ color: "var(--th-text-secondary)" }}
                       >
-                        {isExpanded ? "▼" : "▶"}{" "}
-                        {t({ ko: "모델 목록", en: "Models", ja: "モデル一覧", zh: "Models", de: "Modelle" })} (
-                        {provider.models_cache.length})
+                        {isExpanded ? "▼" : "▶"} {t({ en: "Models", de: "Modelle" })} ({provider.models_cache.length})
                         {provider.models_cached_at && (
                           <span className="text-[var(--text-muted)] ml-1">
                             ·{" "}
@@ -447,15 +391,9 @@ export default function ApiSettingsTab({ t, localeTag, apiState }: ApiSettingsTa
                                   background: "var(--bg-surface-hover)",
                                   color: "var(--text-primary, #e4e4e7)",
                                 }}
-                                title={t({
-                                  ko: "에이전트에 배정",
-                                  en: "Assign to agent",
-                                  ja: "エージェントに割り当て",
-                                  zh: "Assign to agent",
-                                  de: "Agent zuweisen",
-                                })}
+                                title={t({ en: "Assign to agent", de: "Agent zuweisen" })}
                               >
-                                {t({ ko: "배정", en: "Assign", ja: "割当", zh: "Assign", de: "Zuweisen" })}
+                                {t({ en: "Assign", de: "Zuweisen" })}
                               </button>
                             </div>
                           ))}

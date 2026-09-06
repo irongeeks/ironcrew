@@ -1,0 +1,17 @@
+.ic-model-input {
+  display: inline-flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ic-model-input > input {
+  width: 100%;
+  min-width: 0;
+}
+.ic-model-input-help {
+  color: var(--ic-text-muted, #929eaf);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}

@@ -32,29 +32,20 @@ export default function ChatSessionList({
     >
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold" style={{ color: "var(--th-text-heading)" }}>
-          {t({
-            ko: "채팅 세션",
-            en: "Chat Sessions",
-            ja: "チャットセッション",
-            zh: "Chat Sessions",
-            de: "Chat-Sitzungen",
-          })}
+          {t({ en: "Chat Sessions", de: "Chat-Sitzungen" })}
         </div>
         <button
           onClick={onAdd}
           className="text-xs px-3 py-1 rounded-md bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/40"
         >
-          + {t({ ko: "새 채팅 추가", en: "Add Chat", ja: "チャット追加", zh: "Add Chat", de: "Chat hinzufügen" })}
+          + {t({ en: "Add Chat", de: "Chat hinzufügen" })}
         </button>
       </div>
 
       {chatRows.length === 0 ? (
         <div className="text-xs py-2" style={{ color: "var(--th-text-muted)" }}>
           {t({
-            ko: "등록된 채팅이 없습니다. '새 채팅 추가'로 메신저/토큰/채널을 등록하세요.",
             en: "No chats yet. Use 'Add Chat' to register messenger/token/channel.",
-            ja: "チャットがありません。'チャット追加'でメッセンジャー/トークン/チャネルを登録してください。",
-            zh: "No chats yet. Use 'Add Chat' to register messenger/token/channel.",
             de: "Keine Chats vorhanden. Verwenden Sie 'Chat hinzufügen', um Messenger/Token/Kanal zu registrieren.",
           })}
         </div>
@@ -92,21 +83,15 @@ export default function ChatSessionList({
                         className={`text-[10px] px-1.5 py-0.5 rounded ${meta.transportReady ? "bg-emerald-600/20 text-emerald-300" : "bg-amber-600/20 text-amber-300"}`}
                       >
                         {meta.transportReady
-                          ? t({ ko: "직접연동", en: "Native", ja: "直接連携", zh: "Native", de: "Direkt" })
-                          : t({ ko: "호환설정", en: "Compat", ja: "互換設定", zh: "Compat", de: "Kompatibel" })}
+                          ? t({ en: "Native", de: "Direkt" })
+                          : t({ en: "Compat", de: "Kompatibel" })}
                       </span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-600/20 text-indigo-300">
                         {workflowPackLabel}
                       </span>
                       {!tokenReady && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-300">
-                          {t({
-                            ko: "토큰 없음",
-                            en: "No token",
-                            ja: "トークンなし",
-                            zh: "No token",
-                            de: "Kein Token",
-                          })}
+                          {t({ en: "No token", de: "Kein Token" })}
                         </span>
                       )}
                     </div>
@@ -119,24 +104,14 @@ export default function ChatSessionList({
                     >
                       {assignedAgentName ? (
                         <>
-                          <span>
-                            {t({ ko: "대화 Agent", en: "Agent", ja: "担当Agent", zh: "Agent", de: "Agent" })}:
-                          </span>
+                          <span>{t({ en: "Agent", de: "Agent" })}:</span>
                           {assignedAgent && (
                             <AgentAvatar agent={assignedAgent} spriteMap={spriteMap} size={14} rounded="xl" />
                           )}
                           <span className="truncate">{assignedAgentName}</span>
                         </>
                       ) : (
-                        <span>
-                          {t({
-                            ko: "대화 Agent 미지정",
-                            en: "No agent assigned",
-                            ja: "Agent未指定",
-                            zh: "No agent assigned",
-                            de: "Kein Agent zugewiesen",
-                          })}
-                        </span>
+                        <span>{t({ en: "No agent assigned", de: "Kein Agent zugewiesen" })}</span>
                       )}
                     </div>
                   </div>
@@ -150,13 +125,13 @@ export default function ChatSessionList({
                         color: "var(--th-text-heading)",
                       }}
                     >
-                      {t({ ko: "편집", en: "Edit", ja: "編集", zh: "Edit", de: "Bearbeiten" })}
+                      {t({ en: "Edit", de: "Bearbeiten" })}
                     </button>
                     <button
                       onClick={() => onDelete(row)}
                       className="px-2 py-1 rounded text-[11px] bg-red-600/20 border border-red-500/30 text-red-300 hover:bg-red-600/30"
                     >
-                      {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "Delete", de: "Löschen" })}
+                      {t({ en: "Delete", de: "Löschen" })}
                     </button>
                   </div>
                 </div>
@@ -168,10 +143,7 @@ export default function ChatSessionList({
 
       <div className="text-[11px]" style={{ color: "var(--th-text-muted)" }}>
         {t({
-          ko: "$로 시작하면 전사공지, 일반 메시지는 선택된 Agent에게 1:1 대화로 전달됩니다.",
           en: "Messages starting with $ become company directives; normal messages go 1:1 to the selected agent.",
-          ja: "$ で始まると全社通知、通常メッセージは選択 Agent との 1:1 会話になります。",
-          zh: "Messages starting with $ become company directives; normal messages go 1:1 to the selected agent.",
           de: "Nachrichten mit $ werden zu Unternehmensdirektiven; normale Nachrichten gehen 1:1 an den gewählten Agent.",
         })}
       </div>

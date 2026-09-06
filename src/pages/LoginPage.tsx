@@ -1,3 +1,4 @@
+import { useI18n, type I18nContextValue } from "../i18n";
 import { type FormEvent, useState } from "react";
 import { post } from "../api/core";
 
@@ -10,21 +11,28 @@ interface LoginResponse {
   csrf_token?: string;
 }
 
-function parseErrorMessage(err: unknown): string {
+function parseErrorMessage(err: unknown, t: I18nContextValue["t"]): string {
   const message = err instanceof Error ? err.message : String(err);
   switch (message) {
     case "invalid_password":
-      return "Invalid password";
+      return t({ en: "Invalid password", de: "Ungültiges Passwort" });
     case "too_many_attempts":
-      return "Too many attempts. Try again in 15 minutes.";
+      return t({
+        en: "Too many attempts. Try again in 15 minutes.",
+        de: "Zu viele Versuche. Versuche es in 15 Minuten erneut.",
+      });
     case "remote_access_not_configured":
-      return "Remote access is not configured on this server.";
+      return t({
+        en: "Remote access is not configured on this server.",
+        de: "Der Fernzugriff ist auf diesem Server nicht eingerichtet.",
+      });
     default:
       return message;
   }
 }
 
 export default function LoginPage({ onSuccess }: LoginPageProps) {
+  const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,10 +47,12 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       if (result.ok && result.csrf_token) {
         onSuccess(result.csrf_token);
       } else {
-        setError("Login failed. Please try again.");
+        setError(
+          t({ en: "Login failed. Please try again.", de: "Anmeldung fehlgeschlagen. Bitte versuche es erneut." }),
+        );
       }
     } catch (err) {
-      setError(parseErrorMessage(err));
+      setError(parseErrorMessage(err, t));
     } finally {
       setLoading(false);
     }
@@ -70,7 +80,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             className="text-center text-xs"
             style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--th-text-muted, #71717a)" }}
           >
-            Enter password to access remotely
+            {t({ en: "Enter password to access remotely", de: "Gib das Passwort für den Fernzugriff ein" })}
           </p>
         </div>
 
@@ -81,7 +91,9 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
+              placeholder={t({ en: "Password", de: "Passwort" })}
+              aria-label={t({ en: "Password", de: "Passwort" })}
+              autoComplete="current-password"
               autoFocus
               disabled={loading}
               className="w-full rounded-lg border px-4 py-3 text-sm outline-none transition-colors focus:ring-2"
@@ -115,7 +127,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
               cursor: loading || !password ? "not-allowed" : "pointer",
             }}
           >
-            {loading ? "..." : "Login"}
+            {loading ? "..." : t({ en: "Login", de: "Anmelden" })}
           </button>
         </form>
       </div>

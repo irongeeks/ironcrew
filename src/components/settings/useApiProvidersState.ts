@@ -112,7 +112,7 @@ export function useApiProvidersState({ tab, t }: { tab: SettingsTab; t: TFunctio
           [id]: result.ok
             ? {
                 ok: true,
-                msg: `${result.model_count} ${t({ ko: "개 모델 발견", en: "models found", ja: "モデル検出", zh: "models found", de: "Modelle gefunden" })}`,
+                msg: `${result.model_count} ${t({ en: "models found", de: "Modelle gefunden" })}`,
               }
             : { ok: false, msg: result.error?.slice(0, 200) || `HTTP ${result.status}` },
         }));

@@ -1,10 +1,17 @@
+import type { AgentRuntime } from "../../../ironcrew/runtime/run-events.ts";
 import fs from "node:fs";
 import path from "node:path";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
 
 type CheckResult = { ok: boolean; detail?: string };
 
-function checkSecret(envContent: string, key: string): CheckResult {
+export function checkSecret(
+  envContent: string,
+  key: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): CheckResult {
+  const runtimeValue = environment[key]?.trim();
+  if (runtimeValue && runtimeValue !== "__CHANGE_ME__") return { ok: true };
   const match = envContent.match(new RegExp(`^${key}\\s*=\\s*(.*)$`, "m"));
   if (!match) return { ok: false, detail: `${key} not found in .env` };
   const value = match[1].trim().replace(/^['"]|['"]$/g, "");
@@ -12,7 +19,10 @@ function checkSecret(envContent: string, key: string): CheckResult {
   return { ok: true };
 }
 
-function deriveOverallStatus(checks: Record<string, CheckResult>): { required_ok: boolean; optional_ok: boolean } {
+export function deriveOverallStatus(checks: Record<string, CheckResult>): {
+  required_ok: boolean;
+  optional_ok: boolean;
+} {
   const requiredKeys = [
     "database",
     "encryption_secret",
@@ -29,7 +39,7 @@ function deriveOverallStatus(checks: Record<string, CheckResult>): { required_ok
 export function registerSetupStatusRoutes(ctx: RuntimeContext): void {
   const { app, db } = ctx;
 
-  app.get("/api/ops/setup-status", (_req, res) => {
+  app.get("/api/ops/setup-status", async (_req, res) => {
     try {
       // 1. Read .env for secret checks
       let envContent = "";
@@ -93,6 +103,36 @@ export function registerSetupStatusRoutes(ctx: RuntimeContext): void {
           apiCount > 0 ? { ok: true } : { ok: false, detail: "No API provider keys configured (optional)" };
       } catch {
         checks.api_key_configured = { ok: false, detail: "api_providers table unavailable (optional)" };
+      }
+
+      // Runtime credentials may live in the embedded environment or the native
+      // runner's secret manager rather than in the legacy api_providers table.
+      const runtimes: AgentRuntime[] = app.locals?.ironCrewRuntimes?.() ?? [];
+      const runtimeAuth = await Promise.allSettled(
+        runtimes
+          .filter((runtime) => runtime.type === "openrouter")
+          .map(async (runtime) => {
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            try {
+              const auth = await Promise.race([
+                runtime.authStatus(),
+                new Promise<never>((_resolve, reject) => {
+                  timer = setTimeout(() => reject(new Error("runtime_auth_timeout")), 3000);
+                }),
+              ]);
+              return { type: runtime.type, auth };
+            } finally {
+              clearTimeout(timer);
+            }
+          }),
+      );
+      const apiRuntimes = runtimeAuth.flatMap((result) =>
+        result.status === "fulfilled" && result.value.auth.authenticated && result.value.auth.method === "api-key"
+          ? [result.value.type]
+          : [],
+      );
+      if (apiRuntimes.length > 0) {
+        checks.api_key_configured = { ok: true, detail: `Runtime credentials configured: ${apiRuntimes.join(", ")}` };
       }
 
       // 7. OAuth check (optional) — column is encrypted_data (encrypted blob)

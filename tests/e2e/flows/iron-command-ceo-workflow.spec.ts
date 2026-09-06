@@ -7,12 +7,14 @@
  */
 
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { establishSession } from "../fixtures/test-helpers";
+import { establishSession, expectOkJson, navigateTo } from "../fixtures/test-helpers";
+
+import type { CompanyPolicySnapshot } from "../../../src/shared/company-policy";
 
 const CREW = "/api/crew";
 
 async function session(request: APIRequestContext): Promise<Record<string, string>> {
-  const csrf = await establishSession(request);
+  const csrf = await establishSession(request, "de");
   return { "x-csrf-token": csrf };
 }
 
@@ -123,16 +125,17 @@ test.describe("IronCrew control plane (API)", () => {
     expect(again.status()).toBe(409);
   });
 
-  test("enforces the vendor policy in the backend, not only in the UI", async ({ request }) => {
+  test("allows all model families by default and enforces explicit owner restrictions in the backend", async ({
+    request,
+  }) => {
     const headers = await session(request);
-
-    const allowed = await request.post(`${CREW}/vendor-policy/check`, {
-      headers,
-      data: { model: "anthropic/claude-sonnet-4" },
-    });
-    expect(allowed.status()).toBe(200);
-
-    for (const model of [
+    const policyEndpoint = `${CREW}/policies/vendor`;
+    const readPolicy = async () =>
+      expectOkJson<CompanyPolicySnapshot>(await request.get(policyEndpoint), "Read vendor policy");
+    const original = await readPolicy();
+    expect(original.effectivePolicy.allowed_families).toEqual(["*"]);
+    expect(original.effectivePolicy.openrouter.allowed_providers).toEqual(["*"]);
+    const modelFamilies = [
       "deepseek/deepseek-chat",
       "qwen/qwen-2.5-72b-instruct",
       "moonshotai/kimi-k2",
@@ -140,10 +143,51 @@ test.describe("IronCrew control plane (API)", () => {
       "01-ai/yi-large",
       "bytedance/doubao-pro",
       "mystery/unknown-model",
-    ]) {
-      const res = await request.post(`${CREW}/vendor-policy/check`, { headers, data: { model } });
-      expect(res.status(), `${model} must be refused`).toBe(403);
-      expect((await res.json()).decision.allowed).toBe(false);
+    ];
+    for (const model of ["anthropic/claude-sonnet-4", ...modelFamilies]) {
+      const response = await request.post(`${CREW}/vendor-policy/check`, { headers, data: { model } });
+      expect(response.status(), `${model} must pass the unrestricted default policy`).toBe(200);
+      expect((await response.json()).decision.allowed).toBe(true);
+    }
+
+    try {
+      await expectOkJson(
+        await request.put(policyEndpoint, {
+          headers,
+          data: {
+            baseRevision: original.revision,
+            baselineFingerprint: original.baselineFingerprint,
+            reason: "Verify explicit owner model restrictions in the backend",
+            restrictions: { allowedFamilies: ["anthropic/*"], allowedProviders: ["*"] },
+          },
+        }),
+        "Apply explicit owner restrictions",
+      );
+      const allowed = await request.post(`${CREW}/vendor-policy/check`, {
+        headers,
+        data: { model: "anthropic/claude-sonnet-4" },
+      });
+      expect(allowed.status()).toBe(200);
+      expect((await allowed.json()).decision.allowed).toBe(true);
+      for (const model of modelFamilies) {
+        const response = await request.post(`${CREW}/vendor-policy/check`, { headers, data: { model } });
+        expect(response.status(), `${model} must be refused by the explicit owner restriction`).toBe(403);
+        expect((await response.json()).decision.allowed).toBe(false);
+      }
+    } finally {
+      const current = await readPolicy();
+      await expectOkJson(
+        await request.put(policyEndpoint, {
+          headers,
+          data: {
+            baseRevision: current.revision,
+            baselineFingerprint: current.baselineFingerprint,
+            reason: "Restore original vendor policy after backend enforcement test",
+            restrictions: original.restrictions,
+          },
+        }),
+        "Restore original vendor policy",
+      );
     }
   });
 
@@ -196,7 +240,7 @@ test.describe("IronCrew control plane (API)", () => {
 
 test.describe("Command Center UI", () => {
   test.beforeEach(async ({ request }) => {
-    await establishSession(request);
+    await establishSession(request, "de");
   });
 
   test("renders the command center with live backend state", async ({ page, request }) => {
@@ -207,7 +251,7 @@ test.describe("Command Center UI", () => {
     });
 
     await page.goto("/");
-    await page.getByRole("button", { name: "COMMAND" }).first().click();
+    await navigateTo(page, "command");
 
     const shell = page.getByTestId("command-center");
     await expect(shell).toBeVisible();
@@ -237,7 +281,7 @@ test.describe("Command Center UI", () => {
 
   test("lets the CEO send a message and see the EA reply", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "COMMAND" }).first().click();
+    await navigateTo(page, "command");
     await expect(page.getByTestId("command-center")).toBeVisible();
 
     const message = `E2E Auftrag ${Date.now()}: bitte dokumentiere das Deployment-Verfahren.`;
@@ -258,7 +302,7 @@ test.describe("Command Center UI", () => {
 
   test("shows agent policy separately from persona", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "COMMAND" }).first().click();
+    await navigateTo(page, "command");
     await expect(page.getByTestId("command-center")).toBeVisible();
 
     await page.locator(".ic-agent").filter({ hasText: "Ledger" }).click();

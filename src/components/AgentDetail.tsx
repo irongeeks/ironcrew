@@ -77,14 +77,14 @@ export default function AgentDetail({
 
         <div className="flex" style={{ borderBottom: "1px solid var(--th-border)" }}>
           {[
-            { key: "info", label: t({ ko: "정보", en: "Info", ja: "情報", zh: "Info", de: "Info" }) },
+            { key: "info", label: t({ en: "Info", de: "Info" }) },
             {
               key: "tasks",
-              label: `${t({ ko: "업무", en: "Tasks", ja: "タスク", zh: "Tasks", de: "Aufgaben" })} (${agentTasks.length})`,
+              label: `${t({ en: "Tasks", de: "Aufgaben" })} (${agentTasks.length})`,
             },
             {
               key: "alba",
-              label: `${t({ ko: "알바생", en: "Sub-agents", ja: "サブエージェント", zh: "Sub-agents", de: "Unteragenten" })} (${agentSubAgents.length})`,
+              label: `${t({ en: "Sub-agents", de: "Unteragenten" })} (${agentSubAgents.length})`,
             },
           ].map((tabItem) => (
             <button

@@ -1,3 +1,4 @@
+import { useGovernanceI18n } from "./governance-i18n";
 /**
  * The front door of the Command Center.
  *
@@ -56,6 +57,7 @@ const ROLE_LABEL: Record<CrewUser["role"], string> = {
 };
 
 export function IdentityGate({ children, client = api }: IdentityGateProps): React.JSX.Element {
+  const { tx } = useGovernanceI18n();
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,7 +151,7 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
   if (loading) {
     return (
       <div className="ic-identity-gate" data-state="loading">
-        <p>Anmeldung wird geprüft …</p>
+        <p>{tx("Anmeldung wird geprüft …")}</p>
       </div>
     );
   }
@@ -161,21 +163,22 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
       <>
         <div className="ic-identity-banner" data-state="bootstrap">
           <span>
-            Diese Installation hat noch keine Benutzerkonten. Das Audit-Log schreibt deshalb „ceo" statt eines Namens.
+            {tx(
+              'Diese Installation hat noch keine Benutzerkonten. Das Audit-Log schreibt deshalb „ceo" statt eines Namens.',
+            )}{" "}
           </span>
           <details>
-            <summary>Ersten Inhaber anlegen</summary>
+            <summary>{tx("Ersten Inhaber anlegen")}</summary>
             <form onSubmit={submitFirstOwner} className="ic-identity-form">
               <label>
-                E-Mail
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                {tx("E-Mail")} <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </label>
               <label>
                 Name
                 <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
               </label>
               <label>
-                Passwort
+                {tx("Passwort")}{" "}
                 <input
                   type="password"
                   value={password}
@@ -185,7 +188,7 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
                 />
               </label>
               <button type="submit" disabled={busy}>
-                {busy ? "Wird angelegt …" : "Inhaber anlegen"}
+                {busy ? tx("Wird angelegt …") : tx("Inhaber anlegen")}
               </button>
               {error && <p className="ic-identity-error">{error}</p>}
             </form>
@@ -202,7 +205,7 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
         <form onSubmit={submitLogin} className="ic-identity-form">
           <h2>IronCrew</h2>
           <label>
-            E-Mail
+            {tx("E-Mail")}{" "}
             <input
               type="email"
               value={email}
@@ -212,7 +215,7 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
             />
           </label>
           <label>
-            Passwort
+            {tx("Passwort")}{" "}
             <input
               type="password"
               value={password}
@@ -222,12 +225,12 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
             />
           </label>
           <button type="submit" disabled={busy}>
-            {busy ? "Anmelden …" : "Anmelden"}
+            {busy ? tx("Anmelden …") : tx("Anmelden")}
           </button>
           {error && <p className="ic-identity-error">{error}</p>}
           {ssoError && (
             <p className="ic-identity-error" data-testid="oidc-error">
-              {SSO_ERROR_LABEL[ssoError] ?? "Die Anmeldung über das Verzeichnis ist fehlgeschlagen."}
+              {tx(SSO_ERROR_LABEL[ssoError] ?? "Die Anmeldung über das Verzeichnis ist fehlgeschlagen.")}
             </p>
           )}
 
@@ -242,7 +245,7 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
             // is down is exactly the day somebody has to sign in and fix it.
             <p className="ic-identity-alt">
               <a className="ic-identity-sso" href="/api/crew/auth/oidc/start" data-testid="oidc-start">
-                Mit dem Verzeichnis anmelden
+                {tx("Mit dem Verzeichnis anmelden")}{" "}
               </a>
               {status.oidc.issuer && (
                 // Named, because an operator has to be able to see *which*
@@ -261,16 +264,16 @@ export function IdentityGate({ children, client = api }: IdentityGateProps): Rea
     <>
       <div className="ic-identity-banner" data-state="signed-in">
         <span>
-          {user.displayName || user.email} · {ROLE_LABEL[user.role]}
+          {user.displayName || user.email} · {tx(ROLE_LABEL[user.role])}
         </span>
         <button type="button" onClick={() => setShowPacks(true)}>
-          Gewerke
+          {tx("Gewerke")}{" "}
         </button>
         <button type="button" onClick={() => setShowAccounts(true)}>
-          Konto
+          {tx("Konto")}{" "}
         </button>
         <button type="button" onClick={() => void signOut()} disabled={busy}>
-          Abmelden
+          {tx("Abmelden")}{" "}
         </button>
       </div>
       {showAccounts && <AccountPanel user={user} onClose={() => setShowAccounts(false)} />}

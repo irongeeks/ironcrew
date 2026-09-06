@@ -28,7 +28,7 @@ export default function FilterBar({
   onFilterType,
   onSearch,
 }: FilterBarProps) {
-  const { t, language: locale } = useI18n();
+  const { t } = useI18n();
 
   return (
     <div className="flex flex-wrap items-center gap-2.5">
@@ -43,13 +43,7 @@ export default function FilterBar({
           type="text"
           value={search}
           onChange={(event) => onSearch(event.target.value)}
-          placeholder={t({
-            ko: "업무 검색...",
-            en: "Search tasks...",
-            ja: "タスク検索...",
-            zh: "Search tasks...",
-            de: "Aufgaben suchen...",
-          })}
+          placeholder={t({ en: "Search tasks...", de: "Aufgaben suchen..." })}
           className="min-h-10 w-full rounded-lg border py-2 pl-8 pr-3 text-sm placeholder-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           style={{
             background: "var(--th-input-bg)",
@@ -69,12 +63,10 @@ export default function FilterBar({
           color: "var(--th-text-primary)",
         }}
       >
-        <option value="">
-          {t({ ko: "전체 부서", en: "All Departments", ja: "全部署", zh: "All Departments", de: "Alle Abteilungen" })}
-        </option>
+        <option value="">{t({ en: "All Departments", de: "Alle Abteilungen" })}</option>
         {departments.map((department) => (
           <option key={department.id} value={department.id}>
-            {department.icon} {locale === "ko" ? department.name_ko : department.name}
+            {department.icon} {department.name}
           </option>
         ))}
       </select>
@@ -84,13 +76,7 @@ export default function FilterBar({
         departments={departments}
         value={filterAgent}
         onChange={onFilterAgent}
-        placeholder={t({
-          ko: "전체 에이전트",
-          en: "All Agents",
-          ja: "全エージェント",
-          zh: "All Agents",
-          de: "Alle Agents",
-        })}
+        placeholder={t({ en: "All Agents", de: "Alle Agents" })}
         size="md"
       />
 
@@ -104,9 +90,7 @@ export default function FilterBar({
           color: "var(--th-text-primary)",
         }}
       >
-        <option value="">
-          {t({ ko: "전체 유형", en: "All Types", ja: "全タイプ", zh: "All Types", de: "Alle Typen" })}
-        </option>
+        <option value="">{t({ en: "All Types", de: "Alle Typen" })}</option>
         {TASK_TYPE_OPTIONS.map((typeOption) => (
           <option key={typeOption.value} value={typeOption.value}>
             {taskTypeLabel(typeOption.value, t)}

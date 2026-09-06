@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetApiRuntimeForTests, writeStoredCsrfToken } from "../api/core";
 import { ROUTING_PROFILE_KEYS, type RoutingConfig, type RoutingSnapshot } from "../shared/routing-profiles";
@@ -60,6 +61,7 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string, options?: RequestInit) => {
       if ((options?.method ?? "GET") === "GET" && url === "/api/crew/routing") return reply(server);
+      if (url === "/api/crew/models/openrouter") return reply({ models: [], fetchedAt: Date.now(), stale: false });
       const headers = new Headers(options?.headers);
       const body: unknown = JSON.parse(String(options?.body));
       writes.push({ url, body, headers, credentials: options?.credentials });
@@ -216,3 +218,7 @@ describe("RoutingProfilesPanel", () => {
     expect(writes).toHaveLength(0);
   });
 });
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });

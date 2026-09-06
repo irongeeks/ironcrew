@@ -1,3 +1,4 @@
+import LocalizedText from "../../LocalizedText";
 import { useCallback, useEffect, useState } from "react";
 import { fetchTraces, fetchTraceDetail, type ObsTraceRow, type ObsSpan } from "../../../api/observability";
 import type { TFunction } from "../types";
@@ -55,7 +56,7 @@ export function TracesSegment({ t }: { t: TFunction }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12" style={{ color: "var(--th-text-secondary)" }}>
-        {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+        {t({ en: "Loading...", de: "Laden..." })}
       </div>
     );
   }
@@ -68,13 +69,7 @@ export function TracesSegment({ t }: { t: TFunction }) {
           className="rounded-lg border py-8 text-center text-xs"
           style={{ borderColor: "var(--th-border)", color: "var(--th-text-secondary)" }}
         >
-          {t({
-            ko: "트레이스가 없습니다",
-            en: "No traces found",
-            ja: "トレースがありません",
-            zh: "No traces",
-            de: "Keine Traces",
-          })}
+          {t({ en: "No traces found", de: "Keine Traces" })}
         </div>
       ) : (
         <div className="overflow-auto rounded-lg border" style={{ borderColor: "var(--th-border)" }}>
@@ -82,19 +77,19 @@ export function TracesSegment({ t }: { t: TFunction }) {
             <thead>
               <tr style={{ background: "var(--th-bg-secondary)", color: "var(--th-text-secondary)" }}>
                 <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">Trace ID</th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">Task ID</th>
                 <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">
-                  {t({ ko: "이름", en: "Name", ja: "名前", zh: "Name", de: "Name" })}
+                  <LocalizedText en="Task ID" de="Aufgaben-ID" />
+                </th>
+                <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">{t({ en: "Name", de: "Name" })}</th>
+                <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">
+                  {t({ en: "Status", de: "Status" })}
                 </th>
                 <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">
-                  {t({ ko: "상태", en: "Status", ja: "ステータス", zh: "Status", de: "Status" })}
-                </th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">
-                  {t({ ko: "소요 시간", en: "Duration", ja: "所要時間", zh: "Duration", de: "Dauer" })}
+                  {t({ en: "Duration", de: "Dauer" })}
                 </th>
                 <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">Spans</th>
                 <th className="whitespace-nowrap px-2 py-1.5 text-left font-medium">
-                  {t({ ko: "시작", en: "Started", ja: "開始", zh: "Started", de: "Gestartet" })}
+                  {t({ en: "Started", de: "Gestartet" })}
                 </th>
               </tr>
             </thead>
@@ -156,7 +151,7 @@ export function TracesSegment({ t }: { t: TFunction }) {
           className="rounded px-2 py-1 transition-colors disabled:opacity-30"
           style={{ color: "var(--th-text-primary)" }}
         >
-          &larr; {t({ ko: "이전", en: "Prev", ja: "前", zh: "Prev", de: "Zurück" })}
+          &larr; {t({ en: "Prev", de: "Zurück" })}
         </button>
         <button
           onClick={() => setOffset(offset + LIMIT)}
@@ -164,7 +159,7 @@ export function TracesSegment({ t }: { t: TFunction }) {
           className="rounded px-2 py-1 transition-colors disabled:opacity-30"
           style={{ color: "var(--th-text-primary)" }}
         >
-          {t({ ko: "다음", en: "Next", ja: "次", zh: "Next", de: "Weiter" })} &rarr;
+          {t({ en: "Next", de: "Weiter" })} &rarr;
         </button>
       </div>
 
@@ -175,22 +170,16 @@ export function TracesSegment({ t }: { t: TFunction }) {
           style={{ borderColor: "var(--th-border)", background: "var(--th-bg-secondary)" }}
         >
           <h4 className="mb-2 text-xs font-semibold" style={{ color: "var(--th-text-primary)" }}>
-            {t({
-              ko: "스팬 워터폴",
-              en: "Span Waterfall",
-              ja: "スパン ウォーターフォール",
-              zh: "Span Waterfall",
-              de: "Span-Wasserfall",
-            })}
+            {t({ en: "Span Waterfall", de: "Span-Wasserfall" })}
           </h4>
 
           {spansLoading ? (
             <div className="py-4 text-center text-xs" style={{ color: "var(--th-text-secondary)" }}>
-              {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "Loading...", de: "Laden..." })}
+              {t({ en: "Loading...", de: "Laden..." })}
             </div>
           ) : spans.length === 0 ? (
             <div className="py-4 text-center text-xs" style={{ color: "var(--th-text-secondary)" }}>
-              {t({ ko: "스팬이 없습니다", en: "No spans", ja: "スパンなし", zh: "No spans", de: "Keine Spans" })}
+              {t({ en: "No spans", de: "Keine Spans" })}
             </div>
           ) : (
             <SpanWaterfall spans={spans} selectedSpan={selectedSpan} onSelectSpan={setSelectedSpan} t={t} />
@@ -297,7 +286,9 @@ function SpanWaterfall({
               <span className="font-mono text-[10px]">{selectedSpan.id}</span>
             </div>
             <div>
-              <span style={{ color: "var(--th-text-secondary)" }}>Kind: </span>
+              <span style={{ color: "var(--th-text-secondary)" }}>
+                <LocalizedText en="Kind:" de="Typ:" />{" "}
+              </span>
               {selectedSpan.kind}
             </div>
             <div>
@@ -310,13 +301,17 @@ function SpanWaterfall({
             </div>
             {selectedSpan.end_time && (
               <div>
-                <span style={{ color: "var(--th-text-secondary)" }}>End: </span>
+                <span style={{ color: "var(--th-text-secondary)" }}>
+                  <LocalizedText en="End:" de="Ende:" />{" "}
+                </span>
                 {formatDateTime(selectedSpan.end_time)}
               </div>
             )}
             {selectedSpan.task_id && (
               <div>
-                <span style={{ color: "var(--th-text-secondary)" }}>Task ID: </span>
+                <span style={{ color: "var(--th-text-secondary)" }}>
+                  <LocalizedText en="Task ID:" de="Aufgaben-ID:" />{" "}
+                </span>
                 <span className="font-mono text-[10px]">{selectedSpan.task_id}</span>
               </div>
             )}
@@ -326,7 +321,7 @@ function SpanWaterfall({
           {selectedSpan.attributes && (
             <div className="mt-2">
               <div className="mb-1 text-[10px] font-semibold" style={{ color: "var(--th-text-secondary)" }}>
-                Attributes
+                <LocalizedText en="Attributes" de="Attribute" />
               </div>
               <pre
                 className="overflow-auto rounded p-1.5 text-[10px]"
@@ -347,7 +342,7 @@ function SpanWaterfall({
           {selectedSpan.events && (
             <div className="mt-2">
               <div className="mb-1 text-[10px] font-semibold" style={{ color: "var(--th-text-secondary)" }}>
-                Events
+                <LocalizedText en="Events" de="Ereignisse" />
               </div>
               <pre
                 className="overflow-auto rounded p-1.5 text-[10px]"

@@ -29,7 +29,7 @@ const getAvailableLearnedSkillsMock = vi.mocked(getAvailableLearnedSkills);
 const getCustomSkillsMock = vi.mocked(getCustomSkills);
 const unlearnSkillMock = vi.mocked(unlearnSkill);
 const LANGUAGE_STORAGE_KEY = "ironcrew.language";
-type TestLocale = "ko" | "en" | "ja" | "zh";
+type TestLocale = "en" | "de";
 
 const UI_TEXT: Record<
   TestLocale,
@@ -40,29 +40,17 @@ const UI_TEXT: Record<
     running: string;
   }
 > = {
-  ko: {
-    learn: "학습",
-    modalHeading: "스킬 학습 스쿼드",
-    startLearning: "학습 시작",
-    running: "학습중",
-  },
   en: {
     learn: "Learn",
     modalHeading: "Skill Learning Squad",
     startLearning: "Start Learning",
     running: "Running",
   },
-  ja: {
-    learn: "学習",
-    modalHeading: "スキル学習スクワッド",
-    startLearning: "学習開始",
-    running: "実行中",
-  },
-  zh: {
-    learn: "Learn",
-    modalHeading: "Skill Learning Squad",
-    startLearning: "Start Learning",
-    running: "Running",
+  de: {
+    learn: "Lernen",
+    modalHeading: "Skill-Lernteam",
+    startLearning: "Lernen starten",
+    running: "Läuft",
   },
 };
 
@@ -130,7 +118,7 @@ describe("SkillsLibrary learning modal ESC close", () => {
     vi.clearAllMocks();
   });
 
-  for (const locale of ["ko", "en", "ja", "zh"] as const) {
+  for (const locale of ["en", "de"] as const) {
     it(`closes the learning modal when Escape is pressed (${locale})`, async () => {
       currentLocale = locale;
       Object.defineProperty(window, "localStorage", {
@@ -154,7 +142,7 @@ describe("SkillsLibrary learning modal ESC close", () => {
     });
   }
 
-  for (const locale of ["ko", "en", "ja", "zh"] as const) {
+  for (const locale of ["en", "de"] as const) {
     it(`keeps the learning modal open on Escape while learning is running (${locale})`, async () => {
       currentLocale = locale;
       Object.defineProperty(window, "localStorage", {
@@ -196,7 +184,7 @@ describe("SkillsLibrary learning modal ESC close", () => {
   }
 
   it("shows learned state and unlearn action in the modal when already learned", async () => {
-    currentLocale = "ko";
+    currentLocale = "de";
     Object.defineProperty(window, "localStorage", {
       value: createStorageMock({ [LANGUAGE_STORAGE_KEY]: currentLocale }),
       configurable: true,
@@ -221,12 +209,12 @@ describe("SkillsLibrary learning modal ESC close", () => {
     });
 
     render(<SkillsLibrary agents={[TEST_AGENT]} />);
-    await screen.findByRole("button", { name: exactText(UI_TEXT.ko.learn) });
-    fireEvent.click(screen.getByRole("button", { name: exactText(UI_TEXT.ko.learn) }));
+    await screen.findByRole("button", { name: exactText(UI_TEXT.de.learn) });
+    fireEvent.click(screen.getByRole("button", { name: exactText(UI_TEXT.de.learn) }));
 
-    await screen.findByText(/^학습됨$/);
-    expect(screen.getByText(/^0명 선택됨$/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "학습 취소" }));
+    await screen.findByText(/^Gelernt$/);
+    expect(screen.getByText(/^0 ausgewählt$/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Verlernen" }));
 
     await waitFor(() => {
       expect(unlearnSkillMock).toHaveBeenCalledWith({
@@ -235,5 +223,14 @@ describe("SkillsLibrary learning modal ESC close", () => {
         skillId: "superpowers:using-superpowers",
       });
     });
+  });
+  it("falls back to English for an unsupported stored language", async () => {
+    Object.defineProperty(window, "localStorage", {
+      value: createStorageMock({ [LANGUAGE_STORAGE_KEY]: "ja" }),
+      configurable: true,
+    });
+    render(<SkillsLibrary agents={[TEST_AGENT]} />);
+    fireEvent.click(await screen.findByRole("button", { name: exactText(UI_TEXT.en.learn) }));
+    expect(screen.getByRole("heading", { name: exactText(UI_TEXT.en.modalHeading) })).toBeInTheDocument();
   });
 });

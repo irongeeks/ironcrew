@@ -1,3 +1,4 @@
+import { useUiCopy } from "../LocalizedText";
 import { useEffect, type MutableRefObject } from "react";
 import type { Application } from "pixi.js";
 import { Container, Graphics, Text } from "pixi.js";
@@ -12,6 +13,7 @@ export function useServerLayer(
   serverSpritesRef: MutableRefObject<Map<string, Container>>,
   serverSlotsRef: MutableRefObject<Array<{ x: number; y: number; name: string }>>,
 ) {
+  const translateUiCopy = useUiCopy();
   useEffect(() => {
     if (!appRef.current || loading) return;
     const world = worldRef.current;
@@ -41,7 +43,10 @@ export function useServerLayer(
         const nameText = existing.getChildByLabel("name") as Text | null;
         if (nameText) nameText.text = server.name.toUpperCase().slice(0, 12);
         const bindText = existing.getChildByLabel("bind") as Text | null;
-        if (bindText) bindText.text = active?.agent_name ? active.agent_name.toUpperCase().slice(0, 10) : "IDLE";
+        if (bindText)
+          bindText.text = active?.agent_name
+            ? active.agent_name.toUpperCase().slice(0, 10)
+            : translateUiCopy("IDLE", "INAKTIV");
         const indicator = existing.getChildByLabel("indicator") as Graphics | null;
         if (indicator) indicator.clear().circle(0, 0, 2.5).fill(statusColor(server.status));
         return;
@@ -78,7 +83,7 @@ export function useServerLayer(
       cont.addChild(name);
 
       const bind = new Text({
-        text: active?.agent_name ? active.agent_name.toUpperCase().slice(0, 10) : "IDLE",
+        text: active?.agent_name ? active.agent_name.toUpperCase().slice(0, 10) : translateUiCopy("IDLE", "INAKTIV"),
         style: {
           fontFamily: '"Upheaval TT BRK", "Press Start 2P", monospace',
           fontSize: 10,
@@ -99,5 +104,5 @@ export function useServerLayer(
       world.removeChild(sprite);
       serverSpritesRef.current.delete(id);
     });
-  }, [loading, serverAllocations, servers, appRef, worldRef, serverSpritesRef, serverSlotsRef]);
+  }, [translateUiCopy, loading, serverAllocations, servers, appRef, worldRef, serverSpritesRef, serverSlotsRef]);
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import IronCrewTopBar from "./IronCrewTopBar";
+import { VIEW_LABELS } from "../../tests/e2e/fixtures/navigation-labels";
 
 function createBaseProps(): ComponentProps<typeof IronCrewTopBar> {
   return {
@@ -83,11 +84,11 @@ describe("IronCrewTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
       "OFFICE",
       "TASKS",
       "WORKFLOWS",
-      "OPS",
-      "LEGACY ROSTER",
+      "OPERATIONS",
+      "AGENTS",
       "LIBRARY",
-      "LEGACY PROJECTS",
-      "LEGACY SCHEDULES",
+      "PROJECTS",
+      "SCHEDULES",
       "SETTINGS",
     ];
     for (const label of tabLabels) {
@@ -126,5 +127,33 @@ describe("IronCrewTopBar — WCAG 2.5.8 target sizes (E-005)", () => {
 
     const select = screen.getByRole("combobox", { name: /workflow pack/i }) as HTMLSelectElement;
     expect(parsePx(select.style.height)).toBeGreaterThanOrEqual(36);
+  });
+});
+
+describe("IronCrewTopBar language selection", () => {
+  it.each(["en", "de"] as const)("supports E2E navigation by its actual %s accessible names", (language) => {
+    const props = createBaseProps();
+    render(<IronCrewTopBar {...props} language={language} />);
+    const navigation = within(within(screen.getByRole("banner")).getByRole("navigation"));
+    for (const [view, name] of Object.entries(VIEW_LABELS)) {
+      const button = navigation.getByRole("button", { name });
+      fireEvent.click(button);
+      expect(props.onChangeView).toHaveBeenLastCalledWith(view);
+    }
+  });
+
+  it("switches only between English and German and localizes navigation", () => {
+    const props = createBaseProps();
+    const { rerender } = render(<IronCrewTopBar {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: /current language/i }));
+    expect(props.onLanguageChange).toHaveBeenLastCalledWith("de");
+    rerender(<IronCrewTopBar {...props} language="de" />);
+    expect(screen.getByRole("button", { name: "BÜRO" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AUFGABEN" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "EINSTELLUNGEN" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ NEUER AUFTRAG" })).toBeInTheDocument();
+    expect(screen.queryByText(/LEGACY/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Aktuelle Sprache/ }));
+    expect(props.onLanguageChange).toHaveBeenLastCalledWith("en");
   });
 });

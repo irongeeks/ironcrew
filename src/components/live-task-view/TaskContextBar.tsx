@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 import type { Task, SubTask } from "../../types";
 
 interface TaskContextBarProps {
@@ -57,7 +58,7 @@ export default function TaskContextBar({ task, subtasks }: TaskContextBarProps) 
         {phaseLabel && <span>{phaseLabel}</span>}
         {totalCount > 0 && (
           <span>
-            Subtask {doneCount}/{totalCount}
+            <LocalizedText en="Subtask" de="Teilaufgabe" /> {doneCount}/{totalCount}
           </span>
         )}
       </div>

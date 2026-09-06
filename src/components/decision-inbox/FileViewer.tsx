@@ -1,3 +1,4 @@
+import LocalizedText, { useUiCopy } from "../LocalizedText";
 import { useState } from "react";
 import type { BrowseFileResult } from "../../api/task-browse";
 import MessageContent from "../MessageContent";
@@ -52,7 +53,8 @@ function TextViewer({ content, language: _language }: { content: string; languag
           className="border-t px-3 py-1.5 text-center text-[10px]"
           style={{ borderColor: "var(--th-border)", color: "var(--th-text-muted)" }}
         >
-          File truncated — showing first {MAX_DISPLAY_LINES} of {lines.length} lines
+          <LocalizedText en="File truncated — showing first" de="Datei gekürzt — angezeigt werden die ersten" />{" "}
+          {MAX_DISPLAY_LINES} of {lines.length} <LocalizedText en="lines" de="Zeilen" />
         </div>
       )}
     </div>
@@ -61,7 +63,7 @@ function TextViewer({ content, language: _language }: { content: string; languag
 
 function MarkdownViewer({ content, uiLanguage }: { content: string; uiLanguage: UiLanguage }) {
   const [showRaw, setShowRaw] = useState(false);
-  const t = (text: { ko: string; en: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; de?: string }) => pickLang(uiLanguage, text);
 
   return (
     <div>
@@ -72,9 +74,7 @@ function MarkdownViewer({ content, uiLanguage }: { content: string; uiLanguage: 
           className="rounded px-2 py-0.5 text-[10px] font-medium transition hover:opacity-80"
           style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
         >
-          {showRaw
-            ? t({ ko: "미리보기", en: "Preview", de: "Vorschau" })
-            : t({ ko: "소스 보기", en: "View Source", de: "Quelltext" })}
+          {showRaw ? t({ en: "Preview", de: "Vorschau" }) : t({ en: "View Source", de: "Quelltext" })}
         </button>
       </div>
       <div className="overflow-auto px-3 pb-2" style={{ maxHeight: "320px" }}>
@@ -142,15 +142,20 @@ function AudioViewer({ streamUrl, mimeType }: { streamUrl: string; mimeType: str
 }
 
 function PdfViewer({ streamUrl }: { streamUrl: string }) {
+  const translateUiCopy = useUiCopy();
   return (
     <div className="overflow-hidden rounded" style={{ height: "340px" }}>
-      <iframe src={streamUrl} className="h-full w-full border-0" title="PDF preview" />
+      <iframe
+        src={streamUrl}
+        className="h-full w-full border-0"
+        title={translateUiCopy("PDF preview", "PDF-Vorschau")}
+      />
     </div>
   );
 }
 
 function BinaryViewer({ file, uiLanguage }: { file: BrowseFileResult; uiLanguage: UiLanguage }) {
-  const t = (text: { ko: string; en: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; de?: string }) => pickLang(uiLanguage, text);
   return (
     <div className="flex flex-col items-center justify-center gap-2 p-6" style={{ color: "var(--th-text-secondary)" }}>
       <span className="text-3xl">📦</span>
@@ -163,7 +168,7 @@ function BinaryViewer({ file, uiLanguage }: { file: BrowseFileResult; uiLanguage
           className="mt-1 rounded px-3 py-1 text-[11px] font-medium transition hover:opacity-80"
           style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
         >
-          {t({ ko: "다운로드", en: "Download", de: "Herunterladen" })}
+          {t({ en: "Download", de: "Herunterladen" })}
         </a>
       )}
     </div>
@@ -171,12 +176,12 @@ function BinaryViewer({ file, uiLanguage }: { file: BrowseFileResult; uiLanguage
 }
 
 export default function FileViewer({ file, loading, uiLanguage }: FileViewerProps) {
-  const t = (text: { ko: string; en: string; de?: string }) => pickLang(uiLanguage, text);
+  const t = (text: { ko?: string; en: string; de?: string }) => pickLang(uiLanguage, text);
 
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-6" style={{ color: "var(--th-text-muted)" }}>
-        <span className="text-xs">{t({ ko: "로딩 중...", en: "Loading...", de: "Laden..." })}</span>
+        <span className="text-xs">{t({ en: "Loading...", de: "Laden..." })}</span>
       </div>
     );
   }
@@ -184,13 +189,7 @@ export default function FileViewer({ file, loading, uiLanguage }: FileViewerProp
   if (!file) {
     return (
       <div className="flex h-full items-center justify-center p-6" style={{ color: "var(--th-text-muted)" }}>
-        <span className="text-xs">
-          {t({
-            ko: "파일을 선택하세요",
-            en: "Select a file to preview",
-            de: "Datei auswählen",
-          })}
-        </span>
+        <span className="text-xs">{t({ en: "Select a file to preview", de: "Datei auswählen" })}</span>
       </div>
     );
   }

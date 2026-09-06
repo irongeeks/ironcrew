@@ -1,3 +1,4 @@
+import LocalizedText from "./LocalizedText";
 import { useMemo } from "react";
 import type { Agent, AgentRole, Department } from "../types";
 
@@ -267,7 +268,7 @@ export default function AgentSidebar({
                   paddingTop: 32,
                 }}
               >
-                No agents assigned
+                <LocalizedText en="No agents assigned" de="Keine Agenten zugewiesen" />
               </p>
             )}
 
@@ -296,7 +297,7 @@ export default function AgentSidebar({
                     letterSpacing: "0.16em",
                   }}
                 >
-                  IDLE
+                  <LocalizedText en="IDLE" de="INAKTIV" />
                 </span>
               </div>
             )}

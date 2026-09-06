@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { memo, useId } from "react";
 import type { OfficeBuildingLayout, BuildingRoom } from "./office-building-layout";
 
@@ -348,6 +349,7 @@ export const OfficeBuilding = memo(function OfficeBuilding({
   layout: OfficeBuildingLayout;
   activeAgentIds: ReadonlySet<string>;
 }) {
+  const { t } = useI18n();
   const id = useId().replace(/:/g, "");
   const { width, height, rooms } = layout;
   return (
@@ -399,13 +401,13 @@ export const OfficeBuilding = memo(function OfficeBuilding({
       />
       <path d="M50 30h205m65 0h210m70 0h210m62 0h203" stroke="#89acb3" strokeWidth="4" opacity=".8" />
       <text x="40" y={layout.northHall + 4} className="crew-office-hall-label">
-        NORD / TECHNIK
+        {t({ de: "NORD / TECHNIK", en: "NORTH / TECHNOLOGY" })}{" "}
       </text>
       <text x="879" y={layout.middleHall + 4} className="crew-office-hall-label">
-        TEAM / AUSTAUSCH
+        {t({ de: "TEAM / AUSTAUSCH", en: "TEAM / COLLABORATION" })}{" "}
       </text>
       <text x="40" y={layout.southHall + 4} className="crew-office-hall-label">
-        SÜD / STUDIO
+        {t({ de: "SÜD / STUDIO", en: "SOUTH / STUDIO" })}{" "}
       </text>
       {rooms.map((room) => (
         <RoomShell key={room.id} room={room} floorId={id}>
@@ -470,10 +472,10 @@ export const OfficeBuilding = memo(function OfficeBuilding({
               <Plant x={room.width - 30} y={90} size={1.2} />
               <Plant x={255} y={room.height - 35} size={1.2} />
               <text x="32" y={room.height - 20} className="crew-office-scene-note">
-                KAFFEEBAR
+                {t({ de: "KAFFEEBAR", en: "COFFEE BAR" })}{" "}
               </text>
               <text x="325" y={room.height - 20} className="crew-office-scene-note">
-                TREFFPUNKT
+                {t({ de: "TREFFPUNKT", en: "MEETING POINT" })}{" "}
               </text>
             </>
           )}
@@ -482,7 +484,7 @@ export const OfficeBuilding = memo(function OfficeBuilding({
       <path d={`M470 ${height - 17}h180`} stroke="#9bb8ba" strokeWidth="5" />
       <path d={`M530 ${height - 20}v-24m60 24v-24`} stroke="#90afb3" strokeWidth="2" />
       <text x="560" y={height - 29} textAnchor="middle" className="crew-office-hall-label">
-        EINGANG / IRONCREW
+        {t({ de: "EINGANG / IRONCREW", en: "ENTRANCE / IRONCREW" })}{" "}
       </text>
     </svg>
   );

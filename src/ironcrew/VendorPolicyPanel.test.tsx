@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { I18nProvider } from "../i18n";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetApiRuntimeForTests, writeStoredCsrfToken } from "../api/core";
 import type { CompanyPolicySnapshot, SaveCompanyPolicyInput } from "../shared/company-policy";
@@ -120,6 +121,34 @@ afterEach(() => {
 });
 
 describe("VendorPolicyPanel", () => {
+  it("keeps saved choices available while editing an unrestricted baseline and can restore all models", async () => {
+    server.baseline = { allowedFamilies: ["*"], allowedProviders: ["*"] };
+    await ready();
+    const choice = screen.getByRole("checkbox", { name: "Anthropic — gespeicherte Einschränkung" });
+    fireEvent.click(choice);
+    expect(choice).toBeInTheDocument();
+    expect(choice).not.toBeChecked();
+    fireEvent.click(choice);
+    expect(choice).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Alle Anbieter" }));
+    expect(choice).not.toBeChecked();
+    fireEvent.click(choice);
+    expect(screen.getByRole("checkbox", { name: "Alle Anbieter" })).not.toBeChecked();
+    reason();
+    save();
+    await screen.findByText(/Freigaben gespeichert. Revision 3/);
+    expect(writes[0].body.restrictions).toEqual({
+      allowedFamilies: ["openai/*", "anthropic/*"],
+      allowedProviders: ["Anthropic"],
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Alle Modelle" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Alle Anbieter" }));
+    reason();
+    save();
+    await screen.findByText(/Freigaben gespeichert. Revision 4/);
+    expect(writes[1].body.restrictions).toEqual({ allowedFamilies: ["*"], allowedProviders: ["*"] });
+  });
+
   it("shows immutable baseline and saves only explicit restrictions with reason, version and CSRF", async () => {
     await ready();
     const baseline = screen.getByRole("region", { name: "Zentrale Schutzregeln" });
@@ -253,3 +282,7 @@ describe("VendorPolicyPanel", () => {
     expect(writes).toHaveLength(2);
   });
 });
+
+// Existing behavior fixtures explicitly exercise German UI copy.
+const render = (ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: ({ children }) => <I18nProvider language="de">{children}</I18nProvider>, ...options });

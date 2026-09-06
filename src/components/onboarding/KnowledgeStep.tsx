@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n";
 import { useRef, useState } from "react";
 import { createDocsProvider, deleteDocsProvider, testDocsProvider, updateDocsProvider } from "../../api/knowledge-docs";
 import { saveSettingsPatch } from "../../api/messaging-runtime-oauth";
@@ -9,7 +10,8 @@ interface KnowledgeStepProps {
 }
 
 export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
-  const [vaultPath, setVaultPath] = useState("workspaces/knowledge");
+  const { t } = useI18n();
+  const [vaultPath, setVaultPath] = useState("data/vault");
   const [autoBind, setAutoBind] = useState(true);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<DocsTestResult | null>(null);
@@ -24,24 +26,25 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
       let providerId = createdProviderIdRef.current;
       if (providerId) {
         // Update existing provider with new path instead of creating duplicate
-        await updateDocsProvider(providerId, { vaultPath });
+        await updateDocsProvider(providerId, { vaultPath, enabled: false });
       } else {
         const provider = await createDocsProvider({
           name: "Obsidian Vault",
           vaultPath,
-          enabled: true,
+          enabled: false,
           readOnly: false,
         });
         providerId = provider.id;
         createdProviderIdRef.current = providerId;
       }
       const result = await testDocsProvider(providerId);
+      if (result.ok) await updateDocsProvider(providerId, { enabled: true });
       setTestResult(result);
     } catch (err: unknown) {
       setTestResult({
         ok: false,
         reachable: false,
-        error: err instanceof Error ? err.message : "Unknown error",
+        error: err instanceof Error ? err.message : t({ en: "Unknown error", de: "Unbekannter Fehler" }),
       });
     } finally {
       setTesting(false);
@@ -76,7 +79,7 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
       <div style={{ textAlign: "center" }}>
         <svg
           role="img"
-          aria-label="Obsidian logo"
+          aria-label={t({ en: "Obsidian logo", de: "Obsidian-Logo" })}
           width="40"
           height="40"
           viewBox="0 0 100 100"
@@ -104,7 +107,7 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
             lineHeight: 1.5,
           }}
         >
-          Knowledge Base
+          {t({ en: "Knowledge Base", de: "Wissensbasis" })}
         </h2>
         <p
           style={{
@@ -114,7 +117,10 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
             lineHeight: 1.6,
           }}
         >
-          Connect an Obsidian vault so agents can read and write shared knowledge.
+          {t({
+            en: "Optional: connect an Obsidian vault so agents can read and write shared knowledge.",
+            de: "Optional: Verbinde einen Obsidian-Vault, damit Agenten gemeinsames Wissen lesen und ergänzen können.",
+          })}
         </p>
         <p
           style={{
@@ -125,22 +131,27 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
             marginTop: 8,
           }}
         >
-          i Using Obsidian Sync? Just point to the local synced vault folder — it works automatically.
+          {t({
+            en: "The default data/vault folder is created when you test it. For Obsidian Sync, choose your existing local\n          folder. You can also skip this step and configure knowledge later.",
+            de: "Der Standardordner data/vault wird beim Testen erstellt. Wähle für Obsidian Sync deinen vorhandenen lokalen Ordner. Du kannst diesen Schritt auch überspringen und die Wissensbasis später einrichten.",
+          })}
         </p>
       </div>
 
       {/* Vault path input */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <label
+          htmlFor="wizard-vault-path"
           style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 11,
             color: "var(--text-muted)",
           }}
         >
-          Vault Path
+          {t({ en: "Vault Path", de: "Vault-Pfad" })}
         </label>
         <input
+          id="wizard-vault-path"
           type="text"
           value={vaultPath}
           onChange={handlePathChange}
@@ -175,7 +186,7 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
           onChange={(e) => setAutoBind(e.target.checked)}
           style={{ accentColor: "var(--accent)" }}
         />
-        Auto-bind vault to all new tasks
+        {t({ en: "Auto-bind vault to all new tasks", de: "Vault automatisch mit allen neuen Aufgaben verknüpfen" })}
       </label>
 
       {/* Test Connection button */}
@@ -194,7 +205,9 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
           opacity: testing ? 0.7 : 1,
         }}
       >
-        {testing ? "Testing..." : "Test Connection"}
+        {testing
+          ? t({ en: "Testing...", de: "Wird getestet..." })
+          : t({ en: "Test Connection", de: "Verbindung testen" })}
       </button>
 
       {/* Test result display */}
@@ -211,8 +224,11 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
           }}
         >
           {testResult.ok
-            ? `\u2705 ${testResult.previewCount} notes found`
-            : `\u274c ${testResult.error || "Connection failed"}`}
+            ? t({
+                en: `${testResult.previewCount ?? 0} notes found`,
+                de: `${testResult.previewCount ?? 0} Notizen gefunden`,
+              })
+            : `${testResult.error || t({ en: "Connection failed", de: "Verbindung fehlgeschlagen" })}`}
         </div>
       )}
 
@@ -231,7 +247,7 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
             cursor: "pointer",
           }}
         >
-          ← Back
+          {t({ en: "← Back", de: "← Zurück" })}
         </button>
 
         <div style={{ display: "flex", gap: 10 }}>
@@ -248,7 +264,7 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
               cursor: "pointer",
             }}
           >
-            Skip
+            {t({ en: "Skip", de: "Überspringen" })}
           </button>
           <button
             onClick={handleContinue}
@@ -266,7 +282,7 @@ export default function KnowledgeStep({ onNext, onBack }: KnowledgeStepProps) {
               opacity: testSucceeded ? 1 : 0.5,
             }}
           >
-            Continue
+            {t({ en: "Continue", de: "Weiter" })}
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import LocalizedText from "../LocalizedText";
 interface TokenBarsProps {
   inputTokens: number;
   outputTokens: number;
@@ -79,7 +80,7 @@ export default function TokenBars({
             fontWeight: 700,
           }}
         >
-          OUT
+          <LocalizedText en="OUT" de="AUSGABE" />
         </span>
         <div style={{ flex: 1, height: 4, background: "var(--bg-surface-hover)", borderRadius: 2, overflow: "hidden" }}>
           <div
@@ -119,7 +120,8 @@ export default function TokenBars({
             padding: "4px 8px",
           }}
         >
-          {isCritical ? "🛑" : "⚠"} {budgetPct}% budget
+          {isCritical ? "🛑" : "⚠"} {budgetPct}
+          <LocalizedText en="% budget" de="% des Budgets" />
         </div>
       )}
     </div>
