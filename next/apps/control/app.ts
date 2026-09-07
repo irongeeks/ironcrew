@@ -293,7 +293,7 @@ export function createApp(options: Options) {
     res.json({
       status: "ok",
       database: await repo.health(),
-      version: options.releaseIdentity?.version ?? "0.4.0-dev.0",
+      version: options.releaseIdentity?.version ?? "0.4.0",
       ...(options.releaseIdentity ? { releaseManifestSha256: options.releaseIdentity.releaseManifestSha256 } : {}),
       instanceId,
     }),
@@ -770,7 +770,7 @@ export function createApp(options: Options) {
               outputDirectory: path.resolve(b.outputDirectory),
               ageExecutable: path.resolve(b.ageExecutable),
               recipient: b.recipient,
-              appVersion: options.releaseIdentity?.version ?? "0.4.0-dev.0",
+              appVersion: options.releaseIdentity?.version ?? "0.4.0",
               configuration: config,
             },
           },

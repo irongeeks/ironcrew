@@ -1,6 +1,6 @@
 # IronCrew — neuer Produktkern
 
-Eigenständiger Neubau nach dem Entwicklungspaket vom 7. September 2026. Der alte Root bleibt Referenz; dieser Workspace verwendet eine eigene SQLite-Datenbank und eigene Modell-/Werkzeugausführung. **Entwicklungsstand, noch kein freigegebener Release.** Den detaillierten Abnahmezustand führen `../docs/progress.md` und `docs/release-readiness.md`.
+IronCrew **0.4.0** ist der eigenständige Neubau nach dem Entwicklungspaket vom 7. September 2026 und wird als [Quellrelease](../docs/releases/v0.4.0.md) veröffentlicht. Dieser Workspace verwendet eine eigene SQLite-Datenbank und eigene Modell-/Werkzeugausführung; der alte Root bleibt als Legacy-Referenz erhalten. Es gibt keinen Altdatenimport. Der Quellrelease enthält kein neues OCI-Image und kein produktiv signiertes natives Installationspaket. Den detaillierten Abnahmezustand führen `../docs/progress.md` und [Releasebereitschaft](docs/release-readiness.md).
 
 ## Lokal starten
 

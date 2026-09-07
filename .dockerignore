@@ -24,3 +24,6 @@ coverage/
 playwright-report/
 test-results/
 service-preview/
+
+# The separate 0.4 workspace is released from source, not bundled into the legacy 0.3 image.
+next/

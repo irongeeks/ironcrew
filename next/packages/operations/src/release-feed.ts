@@ -302,7 +302,7 @@ export class ReleaseFeedService {
         "maintenance-installed-release",
         scope.companyId,
       );
-      const current = installed?.data.version ?? this.options.currentVersion ?? "0.4.0-dev.0";
+      const current = installed?.data.version ?? this.options.currentVersion ?? "0.4.0";
       const candidates: ReleaseCandidate[] = [];
       for (const release of feed.releases) {
         this.allowedUrl(release.archiveUrl);

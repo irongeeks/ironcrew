@@ -1,10 +1,22 @@
 name: Linux isolation adversarial gate
 on:
   push:
-    branches: ['rebuild/ironcrew']
-    paths: ['next/**', '.github/workflows/isolation.yml']
+    branches: ["main", "rebuild/ironcrew"]
+    paths: ["next/**", ".github/workflows/isolation.yml"]
   pull_request:
-    paths: ['next/packages/tools/isolation/**', 'next/packages/tools/remote-execution/**', 'next/apps/worker/**', 'next/apps/control/worker-server.ts', 'next/packages/tools/workspace.ts', 'next/tests/isolation/**', 'next/packages/tools/site-build.ts', 'next/packages/tools/site-assets/**', 'next/packages/domain/workflows/website.ts', '.github/workflows/isolation.yml']
+    paths:
+      [
+        "next/packages/tools/isolation/**",
+        "next/packages/tools/remote-execution/**",
+        "next/apps/worker/**",
+        "next/apps/control/worker-server.ts",
+        "next/packages/tools/workspace.ts",
+        "next/tests/isolation/**",
+        "next/packages/tools/site-build.ts",
+        "next/packages/tools/site-assets/**",
+        "next/packages/domain/workflows/website.ts",
+        ".github/workflows/isolation.yml",
+      ]
   workflow_dispatch:
 permissions:
   contents: read

@@ -141,7 +141,7 @@ export class WorkerClient {
     await this.send({
       type: "hello",
       capabilities: this.options.capabilities,
-      appVersion: "0.4.0-dev.0",
+      appVersion: "0.4.0",
       maxConcurrent: this.options.maxConcurrent ?? 1,
     });
     if (this.options.attestation && this.remote)

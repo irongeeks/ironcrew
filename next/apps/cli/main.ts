@@ -62,7 +62,7 @@ async function main() {
           outputDirectory: path.resolve(required(values.output, "output")),
           ageExecutable: path.resolve(required(values.age, "age")),
           recipient: required(values.recipient, "recipient"),
-          appVersion: "0.4.0-dev.0",
+          appVersion: "0.4.0",
           configuration,
           quiesce: async () => async () => {}, // The outer shared instance lease already freezes the offline operation.
         });

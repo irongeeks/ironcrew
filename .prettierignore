@@ -25,3 +25,6 @@ docs/reports/Sample_Slides
 # Format-checking a file a script regenerates is a race the script always
 # wins — the template is formatted instead, which is the copy a human edits.
 AGENTS.md
+
+# The next workspace has its own strict formatter and three-OS gates; preserve imported raw evidence.
+next/

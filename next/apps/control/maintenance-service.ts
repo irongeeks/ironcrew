@@ -506,7 +506,7 @@ export class MaintenanceService {
       "maintenance-installed-release",
       scope.companyId,
     );
-    const fromVersion = installed?.data.version ?? this.options.currentVersion ?? "0.4.0-dev.0",
+    const fromVersion = installed?.data.version ?? this.options.currentVersion ?? "0.4.0",
       kind = updateClass(fromVersion, manifest.version);
     if (!policy.data.allowedClasses.includes(kind)) throw new DomainError("update_class_denied");
     const plan: UpdatePlan = {
@@ -576,7 +576,7 @@ export class MaintenanceService {
       "maintenance-installed-release",
       scope.companyId,
     );
-    if (plan.data.fromVersion !== (installed?.data.version ?? this.options.currentVersion ?? "0.4.0-dev.0"))
+    if (plan.data.fromVersion !== (installed?.data.version ?? this.options.currentVersion ?? "0.4.0"))
       throw new DomainError("update_base_changed");
     const policy = await this.repo.getDocument<UpdatePolicy>(scope, "update-policy", plan.data.policyId);
     if (
