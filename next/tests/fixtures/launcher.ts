@@ -33,25 +33,47 @@ async function buildWindowsLauncher() {
     await writeFile(
       source,
       `using System;
-using System.Diagnostics;
-using System.Reflection;
-using System.Text;
+using System.ComponentModel;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
+
+// Fixture-only PE: only the three child pipe ends may cross this process boundary.
 class Launcher {
-  [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr GetStdHandle(int kind);
-  [DllImport("kernel32.dll", SetLastError=true)] static extern bool SetHandleInformation(IntPtr handle, uint mask, uint flags);
-  // Outer execFile pipes must not leak into the detached service grandchild. Give Node
-  // its own redirected pipes and relay raw bytes; text line events would corrupt age output.
-  static void PreventOuterPipeInheritance() {
-    foreach (int kind in new int[] {-10, -11, -12}) {
-      IntPtr handle = GetStdHandle(kind);
-      if (handle != IntPtr.Zero && handle != new IntPtr(-1) && !SetHandleInformation(handle, 1, 0))
-        throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-    }
+  [StructLayout(LayoutKind.Sequential)] struct SECURITY_ATTRIBUTES {
+    public int nLength; public IntPtr lpSecurityDescriptor; public int bInheritHandle;
   }
-  // Windows argv quoting: double backslashes preceding a quote or closing delimiter.
+  [StructLayout(LayoutKind.Sequential)] struct STARTUPINFO {
+    public uint cb;
+    public IntPtr lpReserved, lpDesktop, lpTitle;
+    public uint dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+    public ushort wShowWindow, cbReserved2;
+    public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+  }
+  [StructLayout(LayoutKind.Sequential)] struct STARTUPINFOEX {
+    public STARTUPINFO StartupInfo; public IntPtr lpAttributeList;
+  }
+  [StructLayout(LayoutKind.Sequential)] struct PROCESS_INFORMATION {
+    public IntPtr hProcess, hThread; public uint dwProcessId, dwThreadId;
+  }
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool CreatePipe(out IntPtr read, out IntPtr write, ref SECURITY_ATTRIBUTES attributes, uint size);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool SetHandleInformation(IntPtr handle, uint mask, uint flags);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, uint flags, ref UIntPtr size);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool UpdateProcThreadAttribute(IntPtr list, uint flags, UIntPtr attribute, IntPtr value, UIntPtr size, IntPtr previous, IntPtr returned);
+  [DllImport("kernel32.dll")] static extern void DeleteProcThreadAttributeList(IntPtr list);
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true, ExactSpelling=true)] static extern bool CreateProcessW(string application, StringBuilder commandLine, IntPtr processAttributes, IntPtr threadAttributes, [MarshalAs(UnmanagedType.Bool)] bool inheritHandles, uint flags, IntPtr environment, string directory, ref STARTUPINFOEX startup, out PROCESS_INFORMATION process);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool CloseHandle(IntPtr handle);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool GetExitCodeProcess(IntPtr process, out uint code);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool TerminateProcess(IntPtr process, uint code);
+
+  static void Check(bool success) { if(!success) throw new Win32Exception(Marshal.GetLastWin32Error()); }
+  static void Close(ref IntPtr handle) {
+    if(handle != IntPtr.Zero && handle != new IntPtr(-1)) { CloseHandle(handle); handle = IntPtr.Zero; }
+  }
   static string Quote(string value) {
     var result = new StringBuilder(); result.Append('"'); int slashes = 0;
     foreach(char character in value) {
@@ -62,35 +84,115 @@ class Launcher {
     }
     result.Append('\\\\', slashes * 2); result.Append('"'); return result.ToString();
   }
+  static FileStream Transfer(ref IntPtr handle, FileAccess access) {
+    var owned = new SafeFileHandle(handle, true); handle = IntPtr.Zero;
+    try { return new FileStream(owned, access, 4096, false); }
+    catch { owned.Dispose(); throw; }
+  }
+  static void CheckLayouts() {
+    bool x64 = IntPtr.Size == 8;
+    if(Marshal.SizeOf(typeof(SECURITY_ATTRIBUTES)) != (x64 ? 24 : 12) ||
+       Marshal.SizeOf(typeof(STARTUPINFO)) != (x64 ? 104 : 68) ||
+       Marshal.SizeOf(typeof(STARTUPINFOEX)) != (x64 ? 112 : 72) ||
+       Marshal.SizeOf(typeof(PROCESS_INFORMATION)) != (x64 ? 24 : 16))
+      throw new InvalidOperationException("Invalid Win32 structure layout");
+  }
   static int Main(string[] args) {
+    IntPtr childInput = IntPtr.Zero, parentInput = IntPtr.Zero;
+    IntPtr parentOutput = IntPtr.Zero, childOutput = IntPtr.Zero;
+    IntPtr parentError = IntPtr.Zero, childError = IntPtr.Zero;
+    IntPtr list = IntPtr.Zero, handles = IntPtr.Zero;
+    bool initialized = false, started = false, exited = false;
+    var process = new PROCESS_INFORMATION();
+    FileStream stdin = null, stdout = null, stderr = null;
     try {
-      var arguments = new StringBuilder(Quote(Assembly.GetExecutingAssembly().Location + ".mjs"));
-      foreach(string argument in args) arguments.Append(" ").Append(Quote(argument));
-      var start = new ProcessStartInfo(${csharpString(process.execPath)}, arguments.ToString());
-      start.UseShellExecute = false;
-      start.RedirectStandardInput = true;
-      start.RedirectStandardOutput = true;
-      start.RedirectStandardError = true;
-      PreventOuterPipeInheritance();
-      // .NET Framework initializes redirected stdin with an AutoFlush StreamWriter using
-      // Console.InputEncoding. A BOM-emitting UTF-8 console would prepend bytes even though
-      // we only access BaseStream. Prevent the preamble before Process.Start creates it.
-      Console.InputEncoding = new UTF8Encoding(false);
-      using(var child = Process.Start(start)) {
-        Task stdout = child.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput());
-        Task stderr = child.StandardError.BaseStream.CopyToAsync(Console.OpenStandardError());
-        // Input may remain open after a short-lived broker exits. It must not hold Main open.
-        Task.Run(async () => {
-          try { await Console.OpenStandardInput().CopyToAsync(child.StandardInput.BaseStream); }
-          catch(IOException) { }
-          catch(ObjectDisposedException) { }
-          finally { try { child.StandardInput.Close(); } catch(ObjectDisposedException) { } }
-        });
-        child.WaitForExit();
-        Task.WaitAll(stdout, stderr);
-        return child.ExitCode;
+      CheckLayouts();
+      var attributes = new SECURITY_ATTRIBUTES();
+      attributes.nLength = Marshal.SizeOf(typeof(SECURITY_ATTRIBUTES));
+      attributes.bInheritHandle = 1;
+      Check(CreatePipe(out childInput, out parentInput, ref attributes, 0));
+      Check(CreatePipe(out parentOutput, out childOutput, ref attributes, 0));
+      Check(CreatePipe(out parentError, out childError, ref attributes, 0));
+      // Parent ends never enter the inherited child handle set.
+      Check(SetHandleInformation(parentInput, 1, 0));
+      Check(SetHandleInformation(parentOutput, 1, 0));
+      Check(SetHandleInformation(parentError, 1, 0));
+      UIntPtr size = UIntPtr.Zero;
+      bool queried = InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size);
+      int queryError = Marshal.GetLastWin32Error();
+      if(queried || queryError != 122 || size.ToUInt64() == 0)
+        throw new Win32Exception(queryError);
+      list = Marshal.AllocHGlobal(checked((int)size.ToUInt64()));
+      Check(InitializeProcThreadAttributeList(list, 1, 0, ref size));
+      initialized = true;
+      handles = Marshal.AllocHGlobal(3 * IntPtr.Size);
+      Marshal.WriteIntPtr(handles, 0, childInput);
+      Marshal.WriteIntPtr(handles, IntPtr.Size, childOutput);
+      Marshal.WriteIntPtr(handles, 2 * IntPtr.Size, childError);
+      // PROC_THREAD_ATTRIBUTE_HANDLE_LIST. Both the attribute buffer and handle array
+      // remain alive until CreateProcess returns and the attribute list is deleted.
+      Check(UpdateProcThreadAttribute(list, 0, new UIntPtr(0x00020002), handles,
+        new UIntPtr((uint)(3 * IntPtr.Size)), IntPtr.Zero, IntPtr.Zero));
+      var startup = new STARTUPINFOEX();
+      startup.StartupInfo.cb = (uint)Marshal.SizeOf(typeof(STARTUPINFOEX));
+      startup.StartupInfo.dwFlags = 0x00000100; // STARTF_USESTDHANDLES
+      startup.StartupInfo.hStdInput = childInput;
+      startup.StartupInfo.hStdOutput = childOutput;
+      startup.StartupInfo.hStdError = childError;
+      startup.lpAttributeList = list;
+      string node = ${csharpString(process.execPath)};
+      var command = new StringBuilder(Quote(node));
+      command.Append(" ").Append(Quote(Assembly.GetExecutingAssembly().Location + ".mjs"));
+      foreach(string argument in args) command.Append(" ").Append(Quote(argument));
+      // Explicit application path; inherited environment/cwd; no shell. TRUE is
+      // required by the handle-list contract, while the list bounds inheritance.
+      Check(CreateProcessW(node, command, IntPtr.Zero, IntPtr.Zero, true,
+        0x00080000, IntPtr.Zero, null, ref startup, out process));
+      started = true;
+      DeleteProcThreadAttributeList(list); initialized = false;
+      Marshal.FreeHGlobal(list); list = IntPtr.Zero;
+      Marshal.FreeHGlobal(handles); handles = IntPtr.Zero;
+      Close(ref childInput); Close(ref childOutput); Close(ref childError);
+      Close(ref process.hThread);
+      stdin = Transfer(ref parentInput, FileAccess.Write);
+      stdout = Transfer(ref parentOutput, FileAccess.Read);
+      stderr = Transfer(ref parentError, FileAccess.Read);
+      // Anonymous pipes are synchronous handles. Copies run independently so binary
+      // output on one pipe cannot block draining the other; there are no text writers.
+      Task output = stdout.CopyToAsync(Console.OpenStandardOutput());
+      Task error = stderr.CopyToAsync(Console.OpenStandardError());
+      FileStream input = stdin;
+      Task.Run(async () => {
+        try { await Console.OpenStandardInput().CopyToAsync(input); }
+        catch(IOException) { } catch(ObjectDisposedException) { }
+        finally { input.Dispose(); }
+      });
+      uint wait = WaitForSingleObject(process.hProcess, 0xffffffff);
+      if(wait != 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+      exited = true;
+      uint exitCode; Check(GetExitCodeProcess(process.hProcess, out exitCode));
+      Task.WaitAll(output, error);
+      return unchecked((int)exitCode);
+    } catch(Exception error) {
+      Console.Error.WriteLine("Fixture launcher failed: " + error.GetType().Name);
+      return 125;
+    } finally {
+      if(started && !exited) {
+        // Only the child process created by this invocation can be terminated here.
+        TerminateProcess(process.hProcess, 125); WaitForSingleObject(process.hProcess, 5000);
       }
-    } catch(Exception) { Console.Error.WriteLine("Fixture launcher failed"); return 125; }
+      // A still-open console stdin must not hold the exited broker wrapper open.
+      if(stdin != null) stdin.Dispose();
+      if(stdout != null) stdout.Dispose();
+      if(stderr != null) stderr.Dispose();
+      Close(ref childInput); Close(ref parentInput);
+      Close(ref childOutput); Close(ref parentOutput);
+      Close(ref childError); Close(ref parentError);
+      if(initialized) DeleteProcThreadAttributeList(list);
+      if(list != IntPtr.Zero) Marshal.FreeHGlobal(list);
+      if(handles != IntPtr.Zero) Marshal.FreeHGlobal(handles);
+      Close(ref process.hThread); Close(ref process.hProcess);
+    }
   }
 }
 `,

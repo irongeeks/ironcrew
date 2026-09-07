@@ -68,6 +68,43 @@ const inheritedWithSystemPaths = {
   ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !controlledKeys.has(name.toLowerCase()))),
   ...systemPathEnvironment,
 };
+const ordinaryExtraEnvironment = selectEnvironment([
+  "USERNAME",
+  "USERDOMAIN",
+  "USERDOMAIN_ROAMINGPROFILE",
+  "LOGONSERVER",
+  "PUBLIC",
+  "SESSIONNAME",
+  "PROCESSOR_ARCHITEW6432",
+  "PSModuleAnalysisCachePath",
+  "PSDisableModuleAnalysisCacheCleanup",
+  "POWERSHELL_DISTRIBUTION_CHANNEL",
+  "POWERSHELL_TELEMETRY_OPTOUT",
+  "DOTNET_ROOT",
+  "DOTNET_ROOT_X64",
+  "DOTNET_MULTILEVEL_LOOKUP",
+  "DOTNET_CLI_HOME",
+  "LANG",
+  "LC_ALL",
+  "MSYSTEM",
+  "MSYSTEM_CARCH",
+  "MSYSTEM_CHOST",
+  "MSYSTEM_PREFIX",
+  "MINGW_PREFIX",
+  "MINGW_CHOST",
+  "MINGW_PACKAGE_PREFIX",
+  "SHELL",
+  "HOME",
+]);
+const gEnvironment = { ...systemPathEnvironment, ...systemIdentityEnvironment, ...profileArchitectureEnvironment };
+const ordinaryEnvironment = {
+  ...systemIdentityEnvironment,
+  ...profileArchitectureEnvironment,
+  ...ordinaryExtraEnvironment,
+};
+const withoutProcessPolicy = Object.fromEntries(
+  Object.entries(inheritedWithSystemPaths).filter(([name]) => name.toLowerCase() !== "psexecutionpolicypreference"),
+);
 const prelude = `
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -148,10 +185,125 @@ const probes = [
     env: { ...systemPathEnvironment, ...profileArchitectureEnvironment },
     command: prelude + directModule + query,
   },
+  {
+    name: "J-controlled-account-identity",
+    env: {
+      ...gEnvironment,
+      ...selectEnvironment([
+        "USERNAME",
+        "USERDOMAIN",
+        "USERDOMAIN_ROAMINGPROFILE",
+        "LOGONSERVER",
+        "PUBLIC",
+        "SESSIONNAME",
+      ]),
+    },
+    command: prelude + directModule + query,
+  },
+  {
+    name: "J2-controlled-literal-system-ComSpec",
+    env: { ...gEnvironment, COMSPEC: path.win32.join(systemRoot, "System32", "cmd.exe") },
+    command: prelude + directModule + query,
+  },
+  {
+    // Remove a possible inherited policy override; do not introduce any policy bypass.
+    name: "K-inherited-fixed-paths-without-process-policy",
+    env: withoutProcessPolicy,
+    command: prelude + directModule + query,
+    inheritedEnvironment: true,
+  },
+  {
+    name: "L-controlled-private-module-analysis-cache",
+    env: { ...gEnvironment, PSModuleAnalysisCachePath: path.join(diagnosticDirectory, "ModuleAnalysisCache") },
+    command: prelude + directModule + query,
+  },
+  {
+    // Microsoft documents NUL as disabling only this performance cache, not execution policy.
+    name: "L2-controlled-module-analysis-cache-disabled",
+    env: { ...gEnvironment, PSModuleAnalysisCachePath: "NUL" },
+    command: prelude + directModule + query,
+  },
+  {
+    name: "M-controlled-ordinary-environment-candidates",
+    env: { ...systemPathEnvironment, ...ordinaryEnvironment },
+    command: prelude + directModule + query,
+  },
 ];
 const results = [];
 const notRunProbes = [];
-const failed = (result) => result.killed || result.signal || result.exitCode !== 0;
+const failed = (result) => result.killed || result.signal || result.exitCode !== 0 || !result.completed;
+const runProbe = async (probe) => {
+  const startedAt = new Date().toISOString();
+  const start = performance.now();
+  console.log(JSON.stringify({ probe: probe.name, event: "spawn", startedAt }));
+  const result = await new Promise((resolve) => {
+    const child = execFile(
+      executable,
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", probe.command],
+      { env: probe.env, timeout: 15000, maxBuffer: 8192, encoding: "utf8", windowsHide: true },
+      (error, stdout, stderr) => {
+        const phases = stdout
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith("IRONCREW_PHASE "))
+          .map((line) => {
+            try {
+              return JSON.parse(line.slice("IRONCREW_PHASE ".length));
+            } catch {
+              return { invalidPhaseOutput: line };
+            }
+          });
+        let completed = probe.name === "A-minimal-startup" && phases.some((phase) => phase.name === "ready");
+        if (phases.some((phase) => phase.name === "queryDone")) {
+          try {
+            const value = JSON.parse(stdout.split(/\r?\n/).find((line) => line.startsWith("{")) ?? "null");
+            completed =
+              value !== null &&
+              ["Version", "BuildNumber", "ProductType", "OperatingSystemSKU", "Caption"].every(
+                (field) => typeof value[field] === "string" || typeof value[field] === "number",
+              );
+          } catch {
+            completed = false;
+          }
+        }
+        resolve({
+          name: probe.name,
+          startedAt,
+          durationMs: Math.round(performance.now() - start),
+          environmentMode: probe.inheritedEnvironment ? "inherited-runner-diagnostic-only" : "controlled",
+          ...(probe.inheritedEnvironment ? {} : { environmentKeys: Object.keys(probe.env) }),
+          exitCode: error ? (error.code ?? null) : 0,
+          killed: error?.killed ?? false,
+          signal: error?.signal ?? null,
+          completed,
+          phases,
+          stdout,
+          stderr,
+        });
+      },
+    );
+    // Emit only bounded fixed-command output as it arrives; keep timing before timeout visible.
+    child.stdout?.on("data", (bytes) => {
+      console.log(
+        JSON.stringify({
+          probe: probe.name,
+          event: "stdout",
+          elapsedMs: Math.round(performance.now() - start),
+          text: bytes.toString(),
+        }),
+      );
+    });
+  });
+  results.push(result);
+  console.log(JSON.stringify({ probe: probe.name, event: "result", ...result }));
+  return result;
+};
+const reduction = {
+  maximumAdditionalProbes: 12,
+  attempted: 0,
+  outcome: "not-started",
+  sufficientVariableNames: [],
+  trials: [],
+};
 try {
   for (const probe of probes) {
     if (probe.onlyIfControlsFailed && results.some((result) => /^(D|E)-/.test(result.name) && !failed(result))) {
@@ -161,54 +313,50 @@ try {
       });
       continue;
     }
-    const startedAt = new Date().toISOString();
-    const start = performance.now();
-    console.log(JSON.stringify({ probe: probe.name, event: "spawn", startedAt }));
-    const result = await new Promise((resolve) => {
-      const child = execFile(
-        executable,
-        ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", probe.command],
-        { env: probe.env, timeout: 15000, maxBuffer: 8192, encoding: "utf8", windowsHide: true },
-        (error, stdout, stderr) => {
-          const phases = stdout
-            .split(/\r?\n/)
-            .filter((line) => line.startsWith("IRONCREW_PHASE "))
-            .map((line) => {
-              try {
-                return JSON.parse(line.slice("IRONCREW_PHASE ".length));
-              } catch {
-                return { invalidPhaseOutput: line };
-              }
-            });
-          resolve({
-            name: probe.name,
-            startedAt,
-            durationMs: Math.round(performance.now() - start),
-            environmentMode: probe.inheritedEnvironment ? "inherited-runner-diagnostic-only" : "controlled",
-            ...(probe.inheritedEnvironment ? {} : { environmentKeys: Object.keys(probe.env) }),
-            exitCode: error ? (error.code ?? null) : 0,
-            killed: error?.killed ?? false,
-            signal: error?.signal ?? null,
-            phases,
-            stdout,
-            stderr,
-          });
-        },
-      );
-      // Emit only bounded fixed-command output as it arrives; keep timing before timeout visible.
-      child.stdout?.on("data", (bytes) => {
-        console.log(
-          JSON.stringify({
-            probe: probe.name,
-            event: "stdout",
-            elapsedMs: Math.round(performance.now() - start),
-            text: bytes.toString(),
-          }),
-        );
-      });
-    });
-    results.push(result);
-    console.log(JSON.stringify({ probe: probe.name, event: "result", ...result }));
+    await runProbe(probe);
+  }
+  const broadResult = results.find((result) => result.name === "M-controlled-ordinary-environment-candidates");
+  if (broadResult && !failed(broadResult)) {
+    let candidates = Object.keys(ordinaryEnvironment);
+    let granularity = 2;
+    // Bounded delta debugging: retain a combination only after that actual child completed the CIM query.
+    while (candidates.length > 0 && reduction.attempted < reduction.maximumAdditionalProbes) {
+      const chunkSize = Math.ceil(candidates.length / granularity);
+      let reduced = false;
+      for (
+        let offset = 0;
+        offset < candidates.length && reduction.attempted < reduction.maximumAdditionalProbes;
+        offset += chunkSize
+      ) {
+        const kept = candidates.filter((_, index) => index < offset || index >= offset + chunkSize);
+        const result = await runProbe({
+          name: `N-reduce-ordinary-environment-${++reduction.attempted}`,
+          env: {
+            ...systemPathEnvironment,
+            ...Object.fromEntries(kept.map((name) => [name, ordinaryEnvironment[name]])),
+          },
+          command: prelude + directModule + query,
+        });
+        reduction.trials.push({ name: result.name, variableNames: kept, succeeded: !failed(result) });
+        if (!failed(result)) {
+          candidates = kept;
+          granularity = Math.max(2, granularity - 1);
+          reduced = true;
+          break;
+        }
+      }
+      if (!reduced) {
+        if (granularity >= candidates.length) break;
+        granularity = Math.min(candidates.length, granularity * 2);
+      }
+    }
+    reduction.outcome =
+      reduction.attempted >= reduction.maximumAdditionalProbes
+        ? "bounded-sufficient-set-not-minimal"
+        : "locally-minimal-sufficient-set";
+    reduction.sufficientVariableNames = candidates;
+  } else {
+    reduction.outcome = "ordinary-candidates-insufficient-no-unbounded-environment-search";
   }
   const report = {
     measuredAt: new Date().toISOString(),
@@ -218,7 +366,8 @@ try {
     timeoutMsPerProbe: 15000,
     maximumOutputBytesPerStream: 8192,
     scope:
-      "Read-only diagnostic; ordered A-F/F2/B2/G/H/I probes may warm Windows components. D adds only system PATH to C; E removes only Join-Path from D; F conditionally contrasts B with inherited runner environment. F2 fixes system paths and directly imports the system Cim module with remaining inherited variables. B2 exactly repeats B after inherited controls to expose warming. G adds only named Windows system/profile/architecture variables to E; H and I split those groups. Inherited environments are never printed. No product fix or OS acceptance is inferred.",
+      "Read-only diagnostic; ordered A-F/F2/B2/G/H/I probes may warm Windows components. D adds only system PATH to C; E removes only Join-Path from D; F conditionally contrasts B with inherited runner environment. F2 fixes system paths and directly imports the system Cim module with remaining inherited variables. B2 exactly repeats B after inherited controls to expose warming. G adds only named Windows system/profile/architecture variables to E; H and I split those groups. J/J2 isolate account identity and fixed ComSpec; K removes inherited process execution policy; L/L2 test private/disabled module analysis cache; M and bounded N reduction test only a fixed ordinary-name allowlist. Inherited environments and all variable values are never printed. No product fix or OS acceptance is inferred.",
+    reduction,
     probes: results,
     notRunProbes,
   };

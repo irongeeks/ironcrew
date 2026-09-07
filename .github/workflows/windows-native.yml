@@ -47,6 +47,7 @@ jobs:
           set -o pipefail
           pnpm exec vitest run tests/integration/fixture-launcher.test.ts --reporter verbose 2>&1 | tee .var/windows-launcher-tests.log
       - name: Verify real host detection and one full native update
+        if: ${{ !cancelled() }}
         env:
           IRONCREW_TEST_UPDATER_DIAGNOSTICS: '1'
         run: |
