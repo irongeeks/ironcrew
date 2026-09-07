@@ -1,3 +1,5 @@
+import { createFixtureLauncher } from "../fixtures/launcher.ts";
+import { fixtureGitExecutable } from "../fixtures/git.ts";
 import { beforeEach, afterEach, it, expect } from "vitest";
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -64,11 +66,16 @@ async function approve(actionId: string) {
   );
 }
 async function gitConfig() {
+  const gitExecutable = await fixtureGitExecutable();
   const source = path.join(directory, "source"),
     remote = path.join(directory, "remote.git");
   await mkdir(source);
   const git = (args: string[]) =>
-    exec("/usr/bin/git", ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.org", ...args], { cwd: source });
+    exec(
+      gitExecutable,
+      ["-c", "core.autocrlf=false", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.org", ...args],
+      { cwd: source },
+    );
   await git(["init", "--initial-branch=main"]);
   await git(["init", "--bare", "--initial-branch=main", remote]);
   await writeFile(path.join(source, "README.md"), "Seed\n");
@@ -81,7 +88,7 @@ async function gitConfig() {
     scope,
     repositoryPath: source,
     workspaceRoot: path.join(directory, "workspaces"),
-    gitExecutable: "/usr/bin/git",
+    gitExecutable,
     sourceBranch: "main",
     remoteName: "origin",
     remoteUrl: remote,
@@ -94,13 +101,14 @@ async function gitConfig() {
   await saveConfiguration(directory, config);
   return { target, config, head, git };
 }
-async function serviceConfig() {
-  const executable = path.join(directory, "docker-fixture"),
-    log = path.join(directory, "broker.log");
-  await writeFile(
-    executable,
-    `#!${process.execPath}\nimport fs from 'node:fs'; fs.appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ')+'\\n'); if(process.argv.includes('inspect')) console.log(JSON.stringify({Status:'running',Running:true,ExitCode:0}));\n`,
-    { mode: 0o700 },
+async function serviceConfig(failRestart = false) {
+  const log = path.join(directory, "broker.log");
+  const executable = await createFixtureLauncher(
+    directory,
+    "docker-fixture",
+    failRestart
+      ? `import fs from 'node:fs'; fs.appendFileSync(${JSON.stringify(log)}, 'attempt\\n'); process.exit(2);\n`
+      : `import fs from 'node:fs'; fs.appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ')+'\\n'); if(process.argv.includes('inspect')) console.log(JSON.stringify({Status:'running',Running:true,ExitCode:0}));\n`,
   );
   const target = { id: randomUUID(), scope, kind: "docker" as const, resourceName: "fixture-container", executable };
   const config = configSchema.parse({ liveExecutionEnabled: true, serviceTargets: [target] });
@@ -284,13 +292,8 @@ it("invalidates pending service approval when the administrative target mapping 
   await expect(readFile(f.log)).rejects.toMatchObject({ code: "ENOENT" });
 });
 it("keeps an uncertain native restart unknown and never reruns it blindly", async () => {
-  const f = await serviceConfig(),
+  const f = await serviceConfig(true),
     m = await mandate(f.target.id, ["docker.container.restart"]);
-  await writeFile(
-    f.target.executable,
-    `#!${process.execPath}\nimport fs from 'node:fs'; fs.appendFileSync(${JSON.stringify(f.log)}, 'attempt\\n'); process.exit(2);\n`,
-    { mode: 0o700 },
-  );
   const port = await workflowIntegrationPort(repo, directory, scope, orderId, m.id);
   const input = { id: randomUUID(), scope, targetId: f.target.id, toolId: "docker.container.restart", args: {} };
   await expect(port.execute(input)).rejects.toMatchObject({ code: "approval_required" });

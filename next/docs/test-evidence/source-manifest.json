@@ -601,7 +601,7 @@
   },
   {
     "path": "packages/integrations/src/git.ts",
-    "sha256": "a37dfd36d21e98fdb1e1e39a402aff72113417dc1489f89725691b2fce514033"
+    "sha256": "efb64de319828004d79cac90cd41c1d6eaa397b4a72cf81918a4b0c549f9a1ad"
   },
   {
     "path": "packages/integrations/src/google-workspace.ts",
@@ -888,6 +888,10 @@
     "sha256": "abd2bd7c4bff885218bf02a3c3cca19d898e1237b1f01aec181d7d1a1a313ae5"
   },
   {
+    "path": "scripts/ci-chromium-apparmor.ts",
+    "sha256": "8e21f206194a114ccddc76c205885e5f962b56c1d3fc7c3f0d53e0d7958e49b2"
+  },
+  {
     "path": "scripts/ci-tools.py",
     "sha256": "db713e83d87f064601c1df6a62c4b0d8f06b7adc583de6d20af0377f0f535762"
   },
@@ -925,7 +929,7 @@
   },
   {
     "path": "scripts/verify-local.py",
-    "sha256": "d57f39c1437c2cf23c1578241ba7fd4a1742980232fd22085b79bfa868cb198e"
+    "sha256": "d21a922bdfb965d3b3bef125c0899f3ba5ab180820b8c01532398ccbac1e0e32"
   },
   {
     "path": "scripts/verify-site-browser.ts",
@@ -941,7 +945,7 @@
   },
   {
     "path": "tests/contracts/integrations-git.test.ts",
-    "sha256": "690ee3a3f2d8746ace47c01b8d31490d5d0aa41c590a855474c8f1c9c1216e10"
+    "sha256": "cbad688d16e5e32f7f6dea3fa315ac1e34f7d47ab26c902e4b01092375ea1488"
   },
   {
     "path": "tests/contracts/integrations-google-workspace.test.ts",
@@ -1024,8 +1028,16 @@
     "sha256": "e73f0399cc5cedee932f07d82fa512bda5479a55b7dc660946c4fc59273aa314"
   },
   {
+    "path": "tests/fixtures/git.ts",
+    "sha256": "76e7505ec01216e25ea5ed22081e3756a6e649647d92834c5adc0350f392880a"
+  },
+  {
     "path": "tests/fixtures/google-workspace.ts",
     "sha256": "f42aa9a89fb002729fde6220a61e5f2b119ed3b141041cf46e5cbd264a08d5fb"
+  },
+  {
+    "path": "tests/fixtures/launcher.ts",
+    "sha256": "3de5a02d0592ff8243ebabf776f5f6c516609ee03af19a7d9d4b97d3ed5ca8b1"
   },
   {
     "path": "tests/fixtures/mailbox.ts",
@@ -1033,7 +1045,7 @@
   },
   {
     "path": "tests/fixtures/updater.ts",
-    "sha256": "e8cbbd66c8d27d14b4e81418fc9f8ccdc1d84e0588b53f34338ddf4b3f1c2948"
+    "sha256": "d1fb47e021136c381e729ea37eb2b1b95da04f175b6fa5fb8ca56a0f1d74e662"
   },
   {
     "path": "tests/install/distribution.test.ts",
@@ -1128,8 +1140,12 @@
     "sha256": "3d496cb2d265a172fe99ab41c6666adc903131fadd713627f586623248262e98"
   },
   {
+    "path": "tests/integration/fixture-launcher.test.ts",
+    "sha256": "acb3150a8ead9f073fd7b195bbac807dbd79c6c965f4976b1eae5dab69c23869"
+  },
+  {
     "path": "tests/integration/git-broker-control.test.ts",
-    "sha256": "7333594f56af3adfc7d3fd8df51e0a2c75ef1662f0382011745d528ec966f34a"
+    "sha256": "209c3a1849576db7464d3077be0abe1ba9d2421b42e8a5735a75f8b69747702a"
   },
   {
     "path": "tests/integration/hosting.test.ts",
@@ -1137,7 +1153,7 @@
   },
   {
     "path": "tests/integration/incident-control.test.ts",
-    "sha256": "e95dd4f006b71f342819606a9fd5f8f9b68b89abc1b75f73df1b1bb5108d0b14"
+    "sha256": "05a2387d342764e5264f009572972cc1107f1279c88dc808b82b75cae802eeb2"
   },
   {
     "path": "tests/integration/incident-process.test.ts",
@@ -1145,7 +1161,7 @@
   },
   {
     "path": "tests/integration/instance-lock.test.ts",
-    "sha256": "a0e90e3c744fcef45293cc5888b9f501cb6e115ad7c17fa094d366923a6e4943"
+    "sha256": "6ec00ee0c7bafd94dd72370d6fde6b243cca1d6694323e9da490c1f2ffd9c395"
   },
   {
     "path": "tests/integration/integration-costs.test.ts",
@@ -1161,7 +1177,7 @@
   },
   {
     "path": "tests/integration/mail-inbox-control.test.ts",
-    "sha256": "3c22026a1edacda28c3ca4463a39c4067860f4c623fb0a66aa6258e7706fa771"
+    "sha256": "2533449229610a11a93d602fcdf9d82451d6c92621ebbb345ae252df203ef8d2"
   },
   {
     "path": "tests/integration/mail-starttls.test.ts",
@@ -1197,7 +1213,7 @@
   },
   {
     "path": "tests/integration/remote-execution.test.ts",
-    "sha256": "146bd8f9e4e503d4f37ddf294d6775d5d5e628de6436f3fc94582aa05128c51a"
+    "sha256": "1a52b35751f965e64e5d52ed2409645bb7f09ecaa0a647377cb56de3d621d382"
   },
   {
     "path": "tests/integration/research-google-workspace.test.ts",
@@ -1290,6 +1306,10 @@
   {
     "path": "tests/recovery/runtime.test.ts",
     "sha256": "ea7a8deadfceffd324e064b4eea777bc82cb3da511c92ce2dba2b80b470e4cc1"
+  },
+  {
+    "path": "tests/unit/ci-chromium-apparmor.test.ts",
+    "sha256": "53ddf8610bf9188a56751b8a72640f4c750dc5b2bc9168ca8b16add19ffba452"
   },
   {
     "path": "tests/unit/core-domain.test.ts",

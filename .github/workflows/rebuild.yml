@@ -40,8 +40,29 @@ jobs:
         run: python scripts/ci-tools.py "$RUNNER_TEMP/ironcrew-ci-age" --github-env "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
+      - name: Permit user namespaces only for the installed Playwright Chromium
+        if: runner.os == 'Linux'
+        run: |
+          node scripts/ci-chromium-apparmor.ts "$RUNNER_TEMP/ironcrew-chromium.apparmor"
+          sudo apparmor_parser -r "$RUNNER_TEMP/ironcrew-chromium.apparmor"
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright-core';
+          const browser = await chromium.launch({ executablePath: chromium.executablePath(), chromiumSandbox: true });
+          try {
+            const page = await browser.newPage();
+            await page.setContent('<title>IronCrew sandbox fixture</title>');
+            if (await page.title() !== 'IronCrew sandbox fixture') throw new Error('Sandboxed Chromium did not render');
+            console.log('Exact-path AppArmor profile: sandboxed Chromium launch and render passed');
+          } finally { await browser.close(); }
+          NODE
       - name: Complete release gates, no skipped tests, dependency audit and source integrity
         run: python scripts/verify-local.py --require-tools
+      - name: Remove the dedicated Chromium AppArmor profile
+        if: always() && runner.os == 'Linux'
+        run: |
+          if test -f "$RUNNER_TEMP/ironcrew-chromium.apparmor"; then
+            sudo apparmor_parser -R "$RUNNER_TEMP/ironcrew-chromium.apparmor"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -52,6 +73,7 @@ jobs:
             next/docs/test-evidence/*.log
             next/docs/test-evidence/audit.json
             ${{ runner.temp }}/ironcrew-ci-age/ci-tools.json
+            ${{ runner.temp }}/ironcrew-chromium.apparmor
             next/playwright-report
             next/test-results
           if-no-files-found: error

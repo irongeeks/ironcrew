@@ -1,3 +1,4 @@
+import { fixtureGitExecutable } from "../fixtures/git.ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promises";
 import path from "node:path";
@@ -13,17 +14,22 @@ const exec = promisify(execFile);
 const directories: string[] = [];
 const repositories: Repository[] = [];
 async function fixture() {
+  const gitExecutable = await fixtureGitExecutable();
   const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "ironcrew-git-fixture-")));
   directories.push(directory);
   const source = path.join(directory, "source");
   const remote = path.join(directory, "remote.git");
   await mkdir(source);
-  await exec("/usr/bin/git", ["init", "--initial-branch=main", source]);
-  await exec("/usr/bin/git", ["init", "--bare", "--initial-branch=main", remote]);
+  await exec(gitExecutable, ["init", "--initial-branch=main", source]);
+  await exec(gitExecutable, ["init", "--bare", "--initial-branch=main", remote]);
   const git = (args: string[]) =>
-    exec("/usr/bin/git", ["-c", "user.name=Fixture Author", "-c", "user.email=fixture@example.org", ...args], {
-      cwd: source,
-    });
+    exec(
+      gitExecutable,
+      ["-c", "core.autocrlf=false", "-c", "user.name=Fixture Author", "-c", "user.email=fixture@example.org", ...args],
+      {
+        cwd: source,
+      },
+    );
   await writeFile(path.join(source, "README.md"), "seed\n");
   await git(["add", "README.md"]);
   await git(["commit", "-m", "Initial fixture"]);
@@ -63,7 +69,7 @@ async function fixture() {
     scope,
     repositoryPath: source,
     workspaceRoot: path.join(directory, "worktrees"),
-    gitExecutable: "/usr/bin/git",
+    gitExecutable,
     sourceBranch: "main",
     remoteName: "origin",
     remoteUrl: remote,

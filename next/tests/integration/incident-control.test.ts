@@ -1,6 +1,7 @@
+import { createFixtureLauncher } from "../fixtures/launcher.ts";
 import { beforeEach, afterEach, it, expect } from "vitest";
 import { createServer, type Server } from "node:http";
-import { mkdtemp, writeFile, readFile, rm, chmod } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { once } from "node:events";
@@ -28,14 +29,13 @@ beforeEach(async () => {
   now = new Date();
   reads = 0;
   probeAdvanceMs = 0;
-  const healthState = path.join(directory, "health-state.txt"),
-    executable = path.join(directory, "fixture-systemctl.mjs");
+  const healthState = path.join(directory, "health-state.txt");
   await writeFile(healthState, "down");
-  await writeFile(
-    executable,
-    `#!${process.execPath}\nimport {writeFile,appendFile} from 'node:fs/promises';\nif(JSON.stringify(process.argv.slice(2))!==JSON.stringify(['restart','--','fixture.service']))process.exit(42);\nawait writeFile(${JSON.stringify(healthState)},'healthy');await appendFile(${JSON.stringify(path.join(directory, "broker-calls.txt"))},'restart\\n');\n`,
+  const executable = await createFixtureLauncher(
+    directory,
+    "fixture-systemctl",
+    `import {writeFile,appendFile} from 'node:fs/promises';\nif(JSON.stringify(process.argv.slice(2))!==JSON.stringify(['restart','--','fixture.service']))process.exit(42);\nawait writeFile(${JSON.stringify(healthState)},'healthy');await appendFile(${JSON.stringify(path.join(directory, "broker-calls.txt"))},'restart\\n');\n`,
   );
-  await chmod(executable, 0o700);
   server = createServer(async (_req, res) => {
     reads++;
     now = new Date(now.getTime() + probeAdvanceMs);

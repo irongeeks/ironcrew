@@ -76,6 +76,9 @@ def require_test_tools():
 
 
 def main():
+    # Preserve diagnostics on Windows hosts whose default console encoding is cp1252.
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--require-tools', action='store_true', help='Fail before gates when any native test prerequisite is missing')
     parser.add_argument('resume', nargs='?', choices=[name for name, _ in COMMANDS])

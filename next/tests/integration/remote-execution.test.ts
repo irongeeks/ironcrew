@@ -32,7 +32,7 @@ let sequence = 0;
 const messages: RemoteControlMessage[] = [];
 const sha = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 const waitFor = async <T>(query: () => T | undefined): Promise<T> => {
-  const deadline = Date.now() + 5000;
+  const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
     const result = query();
     if (result !== undefined) return result;
@@ -158,8 +158,11 @@ beforeEach(async () => {
   evidence = attestation();
   await connect();
   send({ type: "remote.hello", attestation: evidence });
-  for (let i = 0; i < 100 && !(await repo.getDocument(scope, "worker-attestation", enrollment.workerId)); i++)
-    await new Promise((r) => setTimeout(r, 5));
+  await expect
+    .poll(async () => Boolean(await repo.getDocument(scope, "worker-attestation", enrollment.workerId)), {
+      timeout: 15000,
+    })
+    .toBe(true);
 });
 afterEach(async () => {
   ws?.terminate();
@@ -241,20 +244,21 @@ it("streams files larger than the WSS control limit and imports only verified ce
   const { promise, dispatch, input, request } = await start();
   const got = await http("GET", `/api/v1/worker-transfers/${dispatch.jobId}/input/0`, dispatch.inputToken);
   expect(got.status).toBe(200);
-  expect(got.body).toEqual(input);
+  // Native equality is still byte-for-byte, without millions of JS matcher comparisons under CI load.
+  expect(got.body.equals(input)).toBe(true);
   const bytes = Buffer.alloc(2 * 1024 * 1024, 61),
     { files, ticket } = await output(dispatch, bytes);
   const sent = await http("PUT", `/api/v1/worker-transfers/${dispatch.jobId}/output/0`, ticket.token, bytes);
   expect(sent.status).toBe(204);
   const commit = send({ type: "remote.complete", jobId: dispatch.jobId, manifestSha256: manifestHash(files) });
   const result = await promise;
-  expect(await readFile(path.join(result.outputDirectory, "dist/result.bin"))).toEqual(bytes);
+  expect((await readFile(path.join(result.outputDirectory, "dist/result.bin"))).equals(bytes)).toBe(true);
   expect(result.outputDirectory.startsWith(directory)).toBe(true);
   ws.send(JSON.stringify(commit));
   const replay = await workers.remoteExecutionPort(enrollment.workerId, directory).execute(request);
   expect(replay).toEqual(result);
   expect((await repo.events(scope)).filter((e) => e.type === "worker.remote_completed")).toHaveLength(1);
-});
+}, 60000);
 it("rejects forged tickets, wrong hashes, cross-job indexes and changed generations", async () => {
   const { dispatch, promise } = await start();
   const prefix = `/api/v1/worker-transfers/${dispatch.jobId}`;
@@ -334,7 +338,7 @@ it("restores upload receipts across control restart and rejects corrupt replay o
   await waitFor(() => messages.find((m) => m.payload.type === "remote.upload"));
   send({ type: "remote.complete", jobId: dispatch.jobId, manifestSha256: manifestHash(files) });
   const result = await promise;
-  expect(await readFile(path.join(result.outputDirectory, "dist/result.bin"))).toEqual(bytes);
+  expect((await readFile(path.join(result.outputDirectory, "dist/result.bin"))).equals(bytes)).toBe(true);
   await writeFile(path.join(result.outputDirectory, "dist/result.bin"), "tampered");
   await expect(workers.remoteExecutionPort(enrollment.workerId, directory).execute(request)).rejects.toThrow(
     "file_hash_mismatch",

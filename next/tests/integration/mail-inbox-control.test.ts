@@ -1,8 +1,9 @@
+import { createFixtureLauncher } from "../fixtures/launcher.ts";
 import { it, expect } from "vitest";
 import express from "express";
 import request from "supertest";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createApp } from "../../apps/control/app.ts";
@@ -220,11 +221,10 @@ it("rejects a changed target, expired policy and restore generation before conne
 it("uses the real control session, CSRF, idempotency and configured secret broker before actual TLS inbox delivery", async () => {
   const f = await fixture();
   try {
-    const executable = path.join(f.directory, "fixture-pass-cli.mjs");
-    await writeFile(
-      executable,
-      `#!${process.execPath}\nprocess.stdout.write(process.argv.includes('--version')?'2.3.3\\n':'fixture-password\\n');\n`,
-      { mode: 0o700 },
+    const executable = await createFixtureLauncher(
+      f.directory,
+      "fixture-pass-cli",
+      `process.stdout.write(process.argv.includes('--version')?'2.3.3\\n':'fixture-password\\n');\n`,
     );
     await saveConfiguration(f.directory, {
       liveExecutionEnabled: true,

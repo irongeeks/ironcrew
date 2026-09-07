@@ -1,6 +1,6 @@
 {
-  "date": "2026-09-07T12:16:07.231328+00:00",
-  "baseCommit": "76160c0e56324d1ec16ebf2956cbeadbc544cfc4",
+  "date": "2026-09-07T12:42:26.050833+00:00",
+  "baseCommit": "7889953ec0d6f864dc070c9203a3a2d5b5dab10a",
   "branch": "rebuild/ironcrew",
   "workspace": "uncommitted next/ implementation",
   "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
@@ -11,44 +11,44 @@
       "name": "install",
       "command": "npx --yes pnpm@10.30.1 install --frozen-lockfile",
       "exitCode": 0,
-      "durationSeconds": 1.41,
+      "durationSeconds": 0.71,
       "log": "docs/test-evidence/install.log"
     },
     {
       "name": "format",
       "command": "npx --yes pnpm@10.30.1 format:check",
       "exitCode": 0,
-      "durationSeconds": 6.37,
+      "durationSeconds": 2.75,
       "log": "docs/test-evidence/format.log"
     },
     {
       "name": "lint",
       "command": "npx --yes pnpm@10.30.1 lint",
       "exitCode": 0,
-      "durationSeconds": 5.22,
+      "durationSeconds": 2.68,
       "log": "docs/test-evidence/lint.log"
     },
     {
       "name": "typecheck",
       "command": "npx --yes pnpm@10.30.1 typecheck",
       "exitCode": 0,
-      "durationSeconds": 7.76,
+      "durationSeconds": 4.12,
       "log": "docs/test-evidence/typecheck.log"
     },
     {
       "name": "unit",
       "command": "npx --yes pnpm@10.30.1 test:unit",
       "exitCode": 0,
-      "durationSeconds": 2.9,
+      "durationSeconds": 1.91,
       "log": "docs/test-evidence/unit.log",
-      "passedTests": 51,
+      "passedTests": 53,
       "skippedTests": 0
     },
     {
       "name": "contracts",
       "command": "npx --yes pnpm@10.30.1 test:contracts",
       "exitCode": 0,
-      "durationSeconds": 6.33,
+      "durationSeconds": 3.62,
       "log": "docs/test-evidence/contracts.log",
       "passedTests": 46,
       "skippedTests": 0
@@ -57,23 +57,23 @@
       "name": "integration",
       "command": "npx --yes pnpm@10.30.1 test:integration",
       "exitCode": 0,
-      "durationSeconds": 37.13,
+      "durationSeconds": 19.12,
       "log": "docs/test-evidence/integration.log",
-      "passedTests": 272,
+      "passedTests": 274,
       "skippedTests": 0
     },
     {
       "name": "build",
       "command": "npx --yes pnpm@10.30.1 build",
       "exitCode": 0,
-      "durationSeconds": 6.42,
+      "durationSeconds": 3.91,
       "log": "docs/test-evidence/build.log"
     },
     {
       "name": "e2e",
       "command": "npx --yes pnpm@10.30.1 test:e2e",
       "exitCode": 0,
-      "durationSeconds": 68.23,
+      "durationSeconds": 50.47,
       "log": "docs/test-evidence/e2e.log",
       "passedTests": 46,
       "skippedTests": 0
@@ -82,7 +82,7 @@
       "name": "recovery",
       "command": "npx --yes pnpm@10.30.1 test:recovery",
       "exitCode": 0,
-      "durationSeconds": 3.73,
+      "durationSeconds": 2.35,
       "log": "docs/test-evidence/recovery.log",
       "passedTests": 20,
       "skippedTests": 0
@@ -91,7 +91,7 @@
       "name": "install-tests",
       "command": "npx --yes pnpm@10.30.1 test:install",
       "exitCode": 0,
-      "durationSeconds": 34.02,
+      "durationSeconds": 30.5,
       "log": "docs/test-evidence/install-tests.log",
       "passedTests": 54,
       "skippedTests": 0
@@ -100,7 +100,7 @@
       "name": "openapi",
       "command": "npx --yes pnpm@10.30.1 openapi:check",
       "exitCode": 0,
-      "durationSeconds": 1.12,
+      "durationSeconds": 1.09,
       "log": "docs/test-evidence/openapi.log"
     }
   ],
@@ -115,8 +115,8 @@
   },
   "sourceIntegrity": {
     "status": "stable",
-    "fileCount": 333,
-    "manifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04"
+    "fileCount": 338,
+    "manifestSha256": "64afb630c86fd426c79d51921f7251880ccb8999c8674a90090b82f8fcf46f83"
   },
-  "passedTests": 489
+  "passedTests": 493
 }

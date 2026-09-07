@@ -128,7 +128,9 @@ export class GitConnector {
         "configuration",
         "Repository besitzt nicht zugelassene externe Programme, Zugangsdatenkonfiguration oder Remote-Umleitungen.",
       );
-    if ((await this.command(["rev-parse", "--show-toplevel"], root)) !== root)
+    const reportedRoot = await this.command(["rev-parse", "--show-toplevel"], root);
+    // Git for Windows reports forward slashes; compare canonical filesystem paths.
+    if (!path.isAbsolute(reportedRoot) || (await realpath(reportedRoot)) !== root)
       throw new IntegrationError(
         "configuration",
         "Git-Repositorypfad muss exakt der konfigurierte Repository-Root sein.",
