@@ -190,6 +190,9 @@ it("requires a full-duration mandate and denies changed repair targets before ex
   config = { ...config, serviceTargets: [{ ...config.serviceTargets[0]!, resourceName: "different.service" }] };
   await expect(service.repair(scope, f.id, repairInput(f))).rejects.toThrow("incident_target_changed");
   await expect(readFile(path.join(directory, "broker-calls.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  // Persist a still-valid mandate, then move the injected workflow clock to its final second.
+  // Host setup/SQLite latency must not expire it before the duration guard is exercised.
+  const expiresAt = new Date(Date.now() + 60000);
   const short = await repo.createMandate({
     id: randomUUID(),
     version: 1,
@@ -197,11 +200,12 @@ it("requires a full-duration mandate and denies changed repair targets before ex
     allowedToolIds: ["incident.check"],
     targetIds: [profile.targetId],
     parameterConstraints: {},
-    expiresAt: new Date(now.getTime() + 1000).toISOString(),
+    expiresAt: expiresAt.toISOString(),
     maxAttempts: 1,
     maxDurationSeconds: 2,
     maxCostUsdMicros: "0",
   });
+  now = new Date(expiresAt.getTime() - 1000);
   expect((await service.check(scope, f.id, { ...checkInput(f), mandateId: short.id })).state).toBe("failed");
   expect(reads).toBe(0);
 });
