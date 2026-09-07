@@ -31,6 +31,43 @@ const systemPathEnvironment = {
     systemRoot,
   ].join(";"),
 };
+// Copy only named, existing Windows metadata variables. Never copy a caller's search paths.
+const selectEnvironment = (names) =>
+  Object.fromEntries(
+    names.flatMap((name) => (typeof process.env[name] === "string" ? [[name, process.env[name]]] : [])),
+  );
+const systemIdentityEnvironment = selectEnvironment([
+  "COMSPEC",
+  "SystemDrive",
+  "ProgramFiles",
+  "ProgramFiles(x86)",
+  "ProgramW6432",
+  "CommonProgramFiles",
+  "CommonProgramFiles(x86)",
+  "CommonProgramW6432",
+  "ProgramData",
+  "ALLUSERSPROFILE",
+  "COMPUTERNAME",
+  "OS",
+]);
+const profileArchitectureEnvironment = selectEnvironment([
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "PROCESSOR_ARCHITECTURE",
+  "PROCESSOR_IDENTIFIER",
+  "PROCESSOR_LEVEL",
+  "PROCESSOR_REVISION",
+  "NUMBER_OF_PROCESSORS",
+]);
+// Windows keys are case-insensitive; remove aliases before applying the fixed paths.
+const controlledKeys = new Set(Object.keys(systemPathEnvironment).map((name) => name.toLowerCase()));
+const inheritedWithSystemPaths = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !controlledKeys.has(name.toLowerCase()))),
+  ...systemPathEnvironment,
+};
 const prelude = `
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -83,6 +120,33 @@ const probes = [
     command: prelude + query,
     inheritedEnvironment: true,
     onlyIfControlsFailed: true,
+  },
+  {
+    name: "F2-inherited-runner-fixed-system-paths-direct-module",
+    env: inheritedWithSystemPaths,
+    command: prelude + directModule + query,
+    inheritedEnvironment: true,
+  },
+  {
+    // Exact B repetition after F/F2: distinguish environment changes from component warming.
+    name: "B2-original-minimal-cim-autoload-after-inherited-controls",
+    env: minimalEnvironment,
+    command: prelude + query,
+  },
+  {
+    name: "G-controlled-system-and-profile-architecture-whitelist",
+    env: { ...systemPathEnvironment, ...systemIdentityEnvironment, ...profileArchitectureEnvironment },
+    command: prelude + directModule + query,
+  },
+  {
+    name: "H-controlled-system-identity-whitelist",
+    env: { ...systemPathEnvironment, ...systemIdentityEnvironment },
+    command: prelude + directModule + query,
+  },
+  {
+    name: "I-controlled-profile-architecture-whitelist",
+    env: { ...systemPathEnvironment, ...profileArchitectureEnvironment },
+    command: prelude + directModule + query,
   },
 ];
 const results = [];
@@ -154,7 +218,7 @@ try {
     timeoutMsPerProbe: 15000,
     maximumOutputBytesPerStream: 8192,
     scope:
-      "Read-only diagnostic; ordered A-F probes may warm Windows components. D adds only system PATH to C; E removes only Join-Path from D; F conditionally contrasts B with inherited runner environment and never prints that environment. No product fix or OS acceptance is inferred.",
+      "Read-only diagnostic; ordered A-F/F2/B2/G/H/I probes may warm Windows components. D adds only system PATH to C; E removes only Join-Path from D; F conditionally contrasts B with inherited runner environment. F2 fixes system paths and directly imports the system Cim module with remaining inherited variables. B2 exactly repeats B after inherited controls to expose warming. G adds only named Windows system/profile/architecture variables to E; H and I split those groups. Inherited environments are never printed. No product fix or OS acceptance is inferred.",
     probes: results,
     notRunProbes,
   };

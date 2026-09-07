@@ -67,7 +67,23 @@ it("returns broker stdout before an owned detached service exits", async () => {
       process.stdout.write(JSON.stringify({servicePid:service.pid,state:'running'}));
     `,
     );
-    const result = await promisify(execFile)(executable, [pidFile], { timeout: 5000, maxBuffer: 4096 });
+    // execFile may close inherited pipes at its own timeout yet return an earlier exit code 0.
+    // An independent earlier deadline must prove prompt EOF, without that timeout cleanup.
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    let result: { stdout: string; stderr: string };
+    try {
+      result = await Promise.race([
+        promisify(execFile)(executable, [pidFile], { timeout: 10000, maxBuffer: 4096 }),
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(
+            () => reject(new Error("Detached starter did not close its pipes before the independent deadline")),
+            5000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(deadline);
+    }
     servicePid = Number(await readFile(pidFile, "utf8"));
     expect(JSON.parse(result.stdout)).toEqual({ servicePid, state: "running" });
     expect(() => process.kill(servicePid!, 0)).not.toThrow();

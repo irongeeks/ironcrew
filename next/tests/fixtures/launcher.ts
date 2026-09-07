@@ -72,6 +72,10 @@ class Launcher {
       start.RedirectStandardOutput = true;
       start.RedirectStandardError = true;
       PreventOuterPipeInheritance();
+      // .NET Framework initializes redirected stdin with an AutoFlush StreamWriter using
+      // Console.InputEncoding. A BOM-emitting UTF-8 console would prepend bytes even though
+      // we only access BaseStream. Prevent the preamble before Process.Start creates it.
+      Console.InputEncoding = new UTF8Encoding(false);
       using(var child = Process.Start(start)) {
         Task stdout = child.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput());
         Task stderr = child.StandardError.BaseStream.CopyToAsync(Console.OpenStandardError());
