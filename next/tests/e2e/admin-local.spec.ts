@@ -280,7 +280,8 @@ test.describe("Real local administration (HTTP, SQLite, TLS worker; no mocked AP
         timeout: 20000,
       });
       await row.getByRole("button", { name: "Geprüften Sicherungsplan aktivieren", exact: true }).click();
-      await expect(row.getByText("Sicherungsplan aktiv", { exact: false })).toBeVisible();
+      // Match the persisted status paragraph, not the still-visible "... aktivieren" button.
+      await expect(row.getByText(/^Sicherungsplan aktiv · /)).toBeVisible();
       const state = await (await page.request.get("/api/v1/maintenance")).json();
       expect(
         state.backupPolicies.find((policy: { name: string }) => policy.name === "Echte lokale Sicherungsprobe").enabled,
@@ -290,7 +291,7 @@ test.describe("Real local administration (HTTP, SQLite, TLS worker; no mocked AP
         true,
       );
       await row.getByRole("button", { name: "Sicherungsplan pausieren", exact: true }).click();
-      await expect(row.getByText("Sicherungsplan nicht aktiv", { exact: false })).toBeVisible();
+      await expect(row.getByText(/^Sicherungsplan nicht aktiv · /)).toBeVisible();
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

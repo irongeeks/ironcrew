@@ -478,13 +478,21 @@ test("GLB asset pipeline loads nine checksum-verified local drafts with reduced 
 
 test("GLB asset checksum failure retains an explicit procedural fallback and crew navigation", async ({ page }) => {
   await fixtures(page);
+  // This case checks fallback rendering and access; animation/FPS have their own live tests.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.route("**/crew/cersei-lannister.glb", (route) =>
     route.fulfill({ contentType: "model/gltf-binary", body: "tampered local fixture" }),
   );
   await page.goto("/hq");
   await expect(page.locator('[data-crew-assets="fallback"]')).toBeVisible();
+  await expect(page.locator('[data-crew-assets="fallback"]')).toHaveAttribute("data-motion", "reduced");
   await expect(page.getByText(/GLB nicht verfügbar, Ersatzdarstellung aktiv/)).toBeVisible();
   await expect(page.locator("canvas")).toBeVisible();
-  await expect(page.getByRole("link", { name: "CL Cersei Lannister", exact: true })).toBeVisible();
+  const profile = page.getByRole("link", { name: "CL Cersei Lannister", exact: true });
+  await expect(profile).toBeVisible();
+  await profile.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/crew\/crew-0$/);
+  await expect(page.getByRole("heading", { name: "Cersei Lannister", exact: true })).toBeVisible();
 });
