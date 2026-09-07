@@ -124,11 +124,28 @@ for (const viewport of [
 ])
   test(`HQ visual fixture ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await fixtures(page, true);
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.setViewportSize(viewport);
     await page.goto("/hq");
     await expect(page.getByRole("heading", { name: "Alles im Blick." })).toBeVisible();
-    if (viewport.width >= 768) await expect(page.locator("canvas")).toBeVisible();
-    await page.screenshot({ path: `apps/web/evidence/hq-${viewport.width}.png`, fullPage: true });
+    if (viewport.width >= 768) {
+      const hall = page.getByRole("region", { name: "Räumliche Einsatzzentrale", exact: true });
+      // A visible canvas can still be loading its GLBs and replacing the initial scene.
+      await expect(hall).toHaveAttribute("data-crew-assets", "verified");
+      await expect(hall).toHaveAttribute("data-motion", "reduced");
+      await expect(hall.locator("canvas")).toBeVisible();
+    }
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await Promise.all(Array.from(document.images, (image) => image.decode()));
+      // Let the loaded static scene and final layout reach the compositor before capture.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    });
+    await page.screenshot({
+      path: `apps/web/evidence/hq-${viewport.width}.png`,
+      fullPage: true,
+      animations: "disabled",
+    });
   });
 test("model configuration stores only SecretRefs and requires explicit live activation", async ({ page }) => {
   await fixtures(page);
