@@ -1,0 +1,10 @@
+{
+  "date": "2026-09-07T10:18:52.407107+00:00",
+  "sourceFilesUnchanged": 233,
+  "sourceManifestSha256": "486571ab76d8a9b078ae45cab0cd23733857e89730e267b1a3e20b66b5e1ddef",
+  "passedTests": 313,
+  "skippedTests": 0,
+  "allGatesPassed": true,
+  "acceptanceCriteria": 59,
+  "missingEvidencePaths": []
+}

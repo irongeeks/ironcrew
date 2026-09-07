@@ -1,0 +1,22 @@
+{
+  "testedAt": "2026-09-07T10:03:29.293Z",
+  "kind": "real local backend, fresh page at top, no API mocking",
+  "checks": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 1000,
+      "scrollY": 0,
+      "overflow": false,
+      "skipLinkBottom": -52
+    },
+    {
+      "name": "mobile",
+      "width": 360,
+      "height": 800,
+      "scrollY": 0,
+      "overflow": false,
+      "skipLinkBottom": -52
+    }
+  ]
+}

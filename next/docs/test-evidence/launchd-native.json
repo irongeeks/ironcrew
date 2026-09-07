@@ -1,0 +1,18 @@
+{
+  "testedAt": "2026-09-07T11:03:44.799Z",
+  "platform": "darwin",
+  "node": "v26.4.0",
+  "domain": "gui/501",
+  "nativeLaunchctl": true,
+  "systemDaemonInstalled": false,
+  "dedicatedSystemAccountTested": false,
+  "registrationIdempotent": true,
+  "actualHttp": true,
+  "stopSignal": "SIGTERM",
+  "restart": true,
+  "definitionSha256": "17a7efa81c50bacc2e45b873574f4f9709754f3d0f226145b99f4878fd6e419d",
+  "cleanup": {
+    "ownLabelUnloaded": true,
+    "temporaryDirectoryRemoved": true
+  }
+}

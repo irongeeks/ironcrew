@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.var/
+playwright-report/
+test-results/
+*.tsbuildinfo
+# Public, disposable localhost-only test PKI. Never use these credentials outside tests.
+!tests/integration/worker-fixtures/cert.pem
+!tests/integration/worker-fixtures/key.pem
+
+# Local Python verification/lab bytecode
+__pycache__/
+*.pyc

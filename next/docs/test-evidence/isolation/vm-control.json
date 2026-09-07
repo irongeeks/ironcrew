@@ -1,0 +1,15 @@
+{
+  "testedAt": "2026-09-07T08:31:41.628Z",
+  "url": "https://localhost:8790",
+  "status": 200,
+  "actualVmCompiledControl": true,
+  "actualReactSetupScreen": true,
+  "fixtureCertificateOnly": true,
+  "curlCertificateValidationPassed": true,
+  "hostMounts": [],
+  "forwardedGuiPorts": [
+    8790,
+    8792
+  ],
+  "liveExecutionEnabled": false
+}

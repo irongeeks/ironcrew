@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-07T12:16:07.233264+00:00",
+  "signature": "verified-ed25519-temporary-test-key; separate verifyRelease rerun passed",
+  "verifiedFiles": 12763,
+  "independentReader": "Python stdlib tarfile streaming; independent SHA256 of every archived file",
+  "version": "0.4.3",
+  "platform": "darwin",
+  "arch": "arm64",
+  "archiveBytes": 90815205,
+  "archiveSha256": "ea8f4bc11b3a49cd893080e385f8b6a12b0eb7ebf42709add53f85c2e7aa1af2",
+  "manifestSha256": "6f00ef9c16cb2c1e41d82a94233ff7372b75e5ddfce1f73b61267cd59ad42433",
+  "sourceManifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04",
+  "sourceFiles": 333,
+  "distFilesMatchedCurrentBuild": 315,
+  "noArchiveSymlinksOrDuplicatePaths": true,
+  "finalGateSourceManifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04",
+  "finalGateSourceFiles": 333,
+  "finalGateTestsPassed": 489,
+  "finalGateTestsSkipped": 0,
+  "rebuiltDistFilesStillIdentical": 315,
+  "ownPrivateSigningKeyAbsent": true
+}

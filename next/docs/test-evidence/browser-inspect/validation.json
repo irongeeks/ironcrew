@@ -1,0 +1,22 @@
+{
+  "testedAt": "2026-09-07T11:27:26.202624+00:00",
+  "platform": "darwin-arm64",
+  "testsPassed": 5,
+  "skippedTests": 0,
+  "actualBrowser": "149.0.7827.55",
+  "sandboxEnabled": true,
+  "externalFixtureRequests": 0,
+  "hashChecks": {
+    "screenshot.png": true,
+    "dom.json": true,
+    "mobile.png": true,
+    "mobile-dom.json": true,
+    "source/index.html": true,
+    "source/app.mjs": true
+  },
+  "limitations": [
+    "Linux/Windows native sandbox not yet tested",
+    "No arbitrary URL or browser action support",
+    "No hard OS memory quota"
+  ]
+}

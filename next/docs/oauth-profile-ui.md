@@ -1,0 +1,11 @@
+# OAuth-Profile einrichten
+
+Unter **Einstellungen → Integrationen → OAuth-Profile** lassen sich bestehende Google-Drive-, Microsoft-Graph- und Mailverbindungen mit dem vorhandenen OAuth-Broker verbinden. Die Firmenkonfiguration enthält ausschließlich Proton-Pass-Referenzen für Client-Secret, Refresh-Token und den kanonisch Base64-kodierten 32-Byte-Verschlüsselungsschlüssel. Im Browser werden keine Access-/Refresh-Tokens oder Secret-Werte abgefragt oder angezeigt.
+
+Die Provider-Anwendung wird zunächst außerhalb dieser Oberfläche beim Provider autorisiert. Anschließend werden Client-ID, HTTPS-Token-Endpunkt, Authentifizierungsmethode und konkrete Provider-Scopes eingegeben. Referenzfelder beachten die Grenzen des Backendvertrags. Der Speichervorgang verlangt ausdrücklich die CEO-Bestätigung für den angezeigten Wiederherstellungsstand. Er liest Konfiguration und Recovery-Generation vor dem Schreiben erneut und bricht bei zwischenzeitlicher Änderung ab.
+
+Ein vorhandenes Profil zu ändern erfordert ausdrücklich einen neuen lokalen Token-Speicher. Die neue Profil-UUID verhindert, dass der Broker einen früheren rotierten Token-Stand mit geänderter Verschlüsselungsbindung weiterverwendet. Die referenzierten Providerzugänge müssen zuvor erneut geprüft beziehungsweise autorisiert werden. Nach einer Wiederherstellung zeigt die Oberfläche eine abweichende Generation und verlangt die erneute Bestätigung; die passende Generation wird nicht bei bloßem Öffnen automatisch übernommen. Ein gespeichertes Profil behauptet keinen erfolgreichen Provideraufruf.
+
+`tests/e2e/oauth-profiles-local.spec.ts` prüft den Browser gegen die echte lokale Anwendung und deren geschützte Konfigurations-API: Profile für alle drei Zielarten, Pflichtbestätigung vor jedem Schreiben, persistierte Referenzen ohne Tokenfelder, explizite Profilrotation und englische mobile Bedienung. Die Verbindungen verwenden ausdrücklich nicht erreichbare Testadressen und Referenzen. Es erfolgen keine externen Provideranmeldungen. Token-Rotation, Scopebindung und Restore-Sperren des Brokers werden durch dessen separate Integrationstests geprüft.
+
+[Mobile Ansicht der lokalen Konfigurationsprüfung](test-evidence/oauth-profile-local-mobile.png).

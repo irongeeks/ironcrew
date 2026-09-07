@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "status": "planned-not-executed",
+  "criteria": [
+    {
+      "prdId": "FIN-01",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-02",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-03",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-04",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-05",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-06",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-07",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-08",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-09",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-10",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "FIN-11",
+      "workPackage": "AP-11",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-01",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-02",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-03",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-04",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-05",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-06",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-07",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-08",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "OPS-09",
+      "workPackage": "AP-10",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-01",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-02",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-03",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-04",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-05",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-06",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-07",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-08",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "RES-09",
+      "workPackage": "AP-08",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-01",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-02",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-03",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-04",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-05",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-06",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-07",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-08",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    },
+    {
+      "prdId": "WEB-09",
+      "workPackage": "AP-09",
+      "testStatus": "not_implemented",
+      "evidence": []
+    }
+  ]
+}

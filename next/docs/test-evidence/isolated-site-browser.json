@@ -1,0 +1,39 @@
+{
+  "testedAt": "2026-09-07T08:20:12.493Z",
+  "node": "v26.4.0",
+  "sourceArchive": "react.tar.gz",
+  "artifactVersionId": "0b9e70b1-cbd1-47c4-a747-dcd4bf08b4eb",
+  "checks": [
+    {
+      "mode": "selfhost",
+      "width": 1440,
+      "layout": {
+        "color": "rgb(18, 52, 86)",
+        "scroll": 1440,
+        "width": 1440,
+        "root": 1
+      },
+      "pageErrors": []
+    },
+    {
+      "mode": "selfhost",
+      "width": 390,
+      "layout": {
+        "color": "rgb(18, 52, 86)",
+        "scroll": 390,
+        "width": 390,
+        "root": 1
+      },
+      "pageErrors": []
+    },
+    {
+      "mode": "control-preview",
+      "security": {
+        "origin": "null",
+        "parentBlocked": true,
+        "networkBlocked": true
+      }
+    }
+  ],
+  "passed": true
+}

@@ -1,0 +1,12 @@
+{
+  "observedAt": "2026-09-07T12:19:32.058553+00:00",
+  "result": "harness_timeout_not_success",
+  "harness": "tests/install/production-update-smoke.mjs",
+  "harnessSha256": "27298cf14958d03ec2f2ae77b4a46f20a777ab109ec67838446e884b19f5ad2f",
+  "overallWaitMs": 90000,
+  "productHealthTimeoutMs": 30000,
+  "lastObservedPersistedPhase": "backed_up",
+  "error": "ECONNREFUSED during downtime before overall test deadline",
+  "concurrentWork": "Root complete acceptance suite and rebuild",
+  "cleanupCompleted": true
+}

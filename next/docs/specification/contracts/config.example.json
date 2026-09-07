@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "mode": "setup",
+  "company": {
+    "name": "Iron Geeks",
+    "ceoDisplayName": "Bumblebeeman",
+    "locale": "de",
+    "timeZone": null
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8790,
+    "publicUrl": null
+  },
+  "execution": {
+    "liveEnabled": false,
+    "maxConcurrentModelCalls": 2,
+    "maxAttemptsPerAction": 3,
+    "unknownEffectPolicy": "block_and_reconcile"
+  },
+  "budget": {
+    "currency": "USD",
+    "period": null,
+    "limitMicros": null,
+    "eurConversion": null
+  },
+  "openrouter": {
+    "secretRef": null,
+    "catalogRefreshSeconds": 900,
+    "catalogProviderAllowlist": null
+  },
+  "research": {
+    "provider": "brave",
+    "secretRef": null
+  },
+  "worker": {
+    "heartbeatSeconds": 10,
+    "leaseSeconds": 45,
+    "protocolVersion": 1,
+    "executionProfile": null
+  },
+  "backup": {
+    "enabled": false,
+    "destination": null,
+    "recipient": null,
+    "schedule": null,
+    "retention": null
+  },
+  "updates": {
+    "enabled": false,
+    "trustedReleaseKey": null,
+    "releaseClasses": null,
+    "window": null
+  },
+  "integrations": []
+}

@@ -1,0 +1,126 @@
+{
+  "attestation": {
+    "id": "1acabe92-d5a6-4e6c-b7d7-5862a79764d3",
+    "profileSha256": "f5289876e1309f34e681ce9ef1f6a61aa89361df437f219051d047556be50dd1",
+    "toolchainSha256": "ddcb4cc97a08995eb6c3bab9f3a2faf3c9e2706369064707f4d0842704ff5b56",
+    "bwrapSha256": "661f59614f168cceb265d16386ca2c596932233971ac51c2b9bcc21a2b8d049e",
+    "seccompSha256": "6624801ae741da18a5319b44491238689f48c6d102bd93c8a7da048b2704eb59",
+    "kernel": "6.8.0-117-generic",
+    "bootId": "b17bd66e-3a3d-498f-ab7b-121ccb71b41d",
+    "createdAt": "2026-09-07T08:34:50.196Z",
+    "expiresAt": "2026-09-07T09:34:50.197Z",
+    "probes": {
+      "trusted_program_runs": {
+        "passed": true,
+        "detail": "exited"
+      },
+      "node_version": {
+        "passed": true,
+        "detail": "v26.4.0"
+      },
+      "php_toolchain": {
+        "passed": true,
+        "detail": "PHP 8.3.6"
+      },
+      "seccomp_syscall": {
+        "passed": true,
+        "detail": "self process_vm_readv, otherwise permitted, returns EPERM"
+      },
+      "kernel_namespaces": {
+        "passed": true,
+        "detail": "mount/user/pid/net/ipc/uts/cgroup namespaces differ from supervisor"
+      },
+      "capabilities_seccomp": {
+        "passed": true,
+        "detail": "kernel reports zero effective capabilities, no_new_privs and seccomp filter"
+      },
+      "environment": {
+        "passed": true,
+        "detail": "only the rebuilt execution allowlist exists"
+      },
+      "filesystem": {
+        "passed": true,
+        "detail": "host secrets, runtime sockets and toolchain writes are inaccessible"
+      },
+      "network": {
+        "passed": true,
+        "detail": "host loopback listener received no connection"
+      },
+      "host_process": {
+        "passed": true,
+        "detail": "host supervisor PID is inaccessible from the workload PID namespace"
+      },
+      "process_limit": {
+        "passed": true,
+        "detail": "cgroup pids.events confirms denied process creation"
+      },
+      "memory_limit": {
+        "passed": true,
+        "detail": "kernel memory.events confirms the workload was OOM-killed inside its group"
+      },
+      "cpu_timeout": {
+        "passed": true,
+        "detail": "CPU quota throttled the workload and wall-time cancellation killed its cgroup"
+      },
+      "output_limit": {
+        "passed": true,
+        "detail": "unbounded logs are killed without unbounded supervisor buffering"
+      },
+      "workspace_quota": {
+        "passed": true,
+        "detail": "workspace tmpfs rejects writes above its independent size limit"
+      },
+      "symlink_export": {
+        "passed": true,
+        "detail": "symlink outputs are rejected before any host import"
+      },
+      "nested_namespace": {
+        "passed": true,
+        "detail": "nested namespace creation remains denied by seccomp and userns policy"
+      }
+    }
+  },
+  "actualOutput": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "termination": "exited",
+    "attestationId": "1acabe92-d5a6-4e6c-b7d7-5862a79764d3",
+    "profileSha256": "f5289876e1309f34e681ce9ef1f6a61aa89361df437f219051d047556be50dd1",
+    "toolchainSha256": "ddcb4cc97a08995eb6c3bab9f3a2faf3c9e2706369064707f4d0842704ff5b56",
+    "outputDirectory": "/home/robert.guest/ironcrew-isolation/profile-v4/jobs/job-kA271L/output",
+    "outputHashes": {
+      "dist/result.txt": "887dbb0818c17d6d32b0ecddf67ea0f8ff441bf585a8806460b74ec1d721396d"
+    },
+    "resources": {
+      "memoryEvents": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "pidsEvents": {
+        "max": 0
+      },
+      "cpuStat": {
+        "usage_usec": 31891,
+        "user_usec": 24387,
+        "system_usec": 7503,
+        "core_sched.force_idle_usec": 0,
+        "nr_periods": 0,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      }
+    }
+  },
+  "inputSymlinkRejected": true,
+  "inputHardlinkRejected": true,
+  "traversalRejected": true,
+  "detachedChildrenReaped": true,
+  "forgedPortRejected": true,
+  "immutableAttestation": true
+}

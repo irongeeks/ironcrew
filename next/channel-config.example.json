@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "proton": {
+    "executable": "/ABSOLUTE/PATH/TO/pass-cli",
+    "sessionDirectory": "/ABSOLUTE/PATH/TO/DEDICATED/SESSION"
+  },
+  "channels": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "enabled": false,
+      "provider": "telegram",
+      "scope": {
+        "companyId": "22222222-2222-4222-8222-222222222222",
+        "areaId": "33333333-3333-4333-8333-333333333333"
+      },
+      "accountId": "REPLACE_WITH_TELEGRAM_BOT_ACCOUNT_ID",
+      "conversationIds": ["REPLACE_WITH_ALLOWED_CHAT_ID"],
+      "secretRef": {
+        "provider": "proton-pass",
+        "shareId": "REPLACE_SHARE_ID",
+        "itemId": "REPLACE_WEBHOOK_ITEM_ID",
+        "field": "password"
+      },
+      "kind": "research",
+      "budgetLimitUsdMicros": "0"
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "enabled": false,
+      "provider": "discord",
+      "scope": {
+        "companyId": "22222222-2222-4222-8222-222222222222",
+        "areaId": "33333333-3333-4333-8333-333333333333"
+      },
+      "accountId": "REPLACE_WITH_DISCORD_APPLICATION_ID",
+      "conversationIds": ["REPLACE_WITH_ALLOWED_CHANNEL_ID"],
+      "publicKeyHex": "0000000000000000000000000000000000000000000000000000000000000000",
+      "kind": "research",
+      "budgetLimitUsdMicros": "0"
+    },
+    {
+      "id": "55555555-5555-4555-8555-555555555555",
+      "enabled": false,
+      "provider": "email",
+      "scope": {
+        "companyId": "22222222-2222-4222-8222-222222222222",
+        "areaId": "33333333-3333-4333-8333-333333333333"
+      },
+      "accountId": "REPLACE_WITH_MAILBOX_ACCOUNT_ID",
+      "secretRef": {
+        "provider": "proton-pass",
+        "shareId": "REPLACE_SHARE_ID",
+        "itemId": "REPLACE_BRIDGE_ITEM_ID",
+        "field": "password"
+      },
+      "kind": "research",
+      "budgetLimitUsdMicros": "0"
+    }
+  ]
+}

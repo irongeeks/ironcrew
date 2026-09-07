@@ -1,0 +1,810 @@
+{
+  "schemaVersion": 1,
+  "status": "development-not-release-approved",
+  "date": "2026-09-07",
+  "baseCommit": "76160c0e56324d1ec16ebf2956cbeadbc544cfc4",
+  "branch": "rebuild/ironcrew",
+  "workspace": "uncommitted next/",
+  "platform": "macOS arm64 / Node 26.4.0; separate real Linux Lima VM evidence",
+  "criteria": [
+    {
+      "prdId": "FIN-01",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-02",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-03",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-04",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-05",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-06",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-07",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-08",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-09",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-10",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "FIN-11",
+      "workPackage": "AP-11",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-01",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-02",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-03",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-04",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-05",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-06",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-07",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-08",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "OPS-09",
+      "workPackage": "AP-10",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/unit/integrations-broker.test.ts",
+        "tests/contracts/integrations-http.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "RES-01",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "RES-02",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "RES-03",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "RES-04",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "RES-05",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "RES-06",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts",
+        "tests/integration/research-watch.test.ts",
+        "tests/integration/background.test.ts"
+      ],
+      "limitation": "Automatische lokale Quellenbeobachtung mit echtem HTTP-Testserver; vollständige Provider-/Nutzerabnahme offen."
+    },
+    {
+      "prdId": "RES-07",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts",
+        "tests/integration/research-watch.test.ts",
+        "tests/integration/background.test.ts"
+      ],
+      "limitation": "Automatische lokale Quellenbeobachtung mit echtem HTTP-Testserver; vollständige Provider-/Nutzerabnahme offen."
+    },
+    {
+      "prdId": "RES-08",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts",
+        "tests/integration/research-watch.test.ts",
+        "tests/integration/background.test.ts"
+      ],
+      "limitation": "Automatische lokale Quellenbeobachtung mit echtem HTTP-Testserver; vollständige Provider-/Nutzerabnahme offen."
+    },
+    {
+      "prdId": "RES-09",
+      "workPackage": "AP-08",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/git-broker-control.test.ts",
+        "tests/integration/research-watch.test.ts",
+        "tests/integration/background.test.ts"
+      ],
+      "limitation": "Automatische lokale Quellenbeobachtung mit echtem HTTP-Testserver; vollständige Provider-/Nutzerabnahme offen."
+    },
+    {
+      "prdId": "WEB-01",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "WEB-02",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "WEB-03",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "WEB-04",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "WEB-05",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "WEB-06",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "WEB-07",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "WEB-08",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "WEB-09",
+      "workPackage": "AP-09",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/e2e/website-local.spec.ts"
+      ],
+      "limitation": "Lokale Komponenten- und Vertragsprüfungen; vollständige fachliche Liveabnahme steht aus."
+    },
+    {
+      "prdId": "CORE-01",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/integration/api.test.ts",
+        "tests/e2e/website-local.spec.ts",
+        "tests/integration/control-hardening.test.ts"
+      ],
+      "limitation": "Einmalige Firma/CEO, Seed-Crew, Setupfortsetzung und persistente Browser-/APIzustände lokal geprüft.",
+      "sourceEvidence": [
+        "apps/control/app.ts",
+        "packages/persistence/src/store.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "CORE-02",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/integration/core.test.ts",
+        "tests/integration/control-hardening.test.ts"
+      ],
+      "limitation": "Genau ein Lead; konkurrierende Plan-/Leadänderungen verwenden atomare Revisionen.",
+      "sourceEvidence": [
+        "packages/persistence/src/store.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "CORE-03",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/integration/core.test.ts",
+        "tests/integration/control-hardening.test.ts",
+        "tests/integration/remote-execution.test.ts"
+      ],
+      "limitation": "Company/Area/Customer/Project werden exakt geprüft; native Isolation ist separat SEC-01.",
+      "sourceEvidence": [
+        "packages/domain/src/index.ts",
+        "packages/persistence/src/store.ts",
+        "apps/control/app.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "RUN-01",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/recovery/runtime.test.ts",
+        "tests/integration/workspace.test.ts",
+        "tests/integration/execution-artifacts.test.ts",
+        "tests/integration/research-tools.test.ts",
+        "tests/integration/artifact-approval-tools.test.ts",
+        "tests/integration/coordination.test.ts"
+      ],
+      "limitation": "Echte lokale Dateiarbeit, persistente Modell-/Toolschleifen und HTTP-Ablage; kein kostenpflichtiger Produktivmodelllauf behauptet.",
+      "sourceEvidence": [
+        "packages/runtime/src/engine.ts",
+        "packages/tools/workspace.ts",
+        "apps/control/research-tools.ts",
+        "apps/control/artifact-approval-tools.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "RUN-02",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/recovery/runtime-hardening.test.ts",
+        "tests/integration/worker.test.ts",
+        "tests/recovery/runtime.test.ts",
+        "tests/integration/coordination.test.ts"
+      ],
+      "limitation": "Crashzustände bleiben unklar bis Reconciliation; vollständige gespeicherte Beiträge werden rekonstruiert, fehlende Antworten nicht erfunden.",
+      "sourceEvidence": [
+        "packages/runtime/src/engine.ts",
+        "packages/tools/journal.ts",
+        "packages/runtime/src/coordination.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "RUN-03",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/recovery/runtime.test.ts",
+        "tests/integration/core.test.ts",
+        "tests/integration/artifact-approval-tools.test.ts",
+        "tests/recovery/runtime-hardening.test.ts"
+      ],
+      "limitation": "Konkrete Freigabe bindet Ziel/Scope/Auftrag/Mandatsversion/Argumenthash; Run wartet persistent. Requestnachrichten werden vor Antwortmutation geklont.",
+      "sourceEvidence": [
+        "packages/runtime/src/engine.ts",
+        "packages/domain/workflows/artifact-delivery.ts",
+        "packages/persistence/src/store.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "RUN-04",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/integration/worker.test.ts",
+        "tests/integration/remote-execution.test.ts",
+        "docs/test-evidence/remote-execution/remote-execution.json",
+        "tests/recovery/remote-update-fencing.test.ts"
+      ],
+      "limitation": "Echtes WSS plus separat begrenzter HTTPS-Dateitransport Mac-Zentrale/Linux-Worker; Generation, Quittierung, Reconnect und Abbruch geprüft.",
+      "sourceEvidence": [
+        "apps/control/worker-server.ts",
+        "apps/worker/client.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "BUD-01",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/integration/core.test.ts",
+        "tests/integration/budget-periods.test.ts",
+        "tests/integration/coordination.test.ts"
+      ],
+      "limitation": "Atomare Firmen-/Auftrags-/kumulative Mandatslimits und expliziter Periodenwechsel; keine implizite Budgeterhöhung.",
+      "sourceEvidence": [
+        "packages/persistence/src/store.ts",
+        "packages/runtime/src/engine.ts",
+        "packages/runtime/src/coordination.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "BUD-02",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/contracts/openrouter.test.ts",
+        "tests/recovery/runtime-hardening.test.ts",
+        "tests/integration/model-costs.test.ts",
+        "tests/contracts/model-concurrency.test.ts",
+        "tests/integration/coordination.test.ts"
+      ],
+      "limitation": "Provider-/manuelle Kostenklärung bindet Generation/Request/Reservation; fehlende Usage bleibt reserviert. Keine kostenpflichtigen Livefixtures.",
+      "sourceEvidence": [
+        "packages/runtime/src/openrouter.ts",
+        "apps/control/model-cost-service.ts",
+        "packages/runtime/src/coordination.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "SEC-01",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/integration/workspace.test.ts",
+        "tests/integration/isolation.test.ts",
+        "docs/test-evidence/isolation/linux-evidence.json",
+        "docs/test-evidence/isolation/reboot-and-stop.json",
+        "tests/isolation/linux.ts",
+        "tests/integration/browser-inspect.test.ts"
+      ],
+      "limitation": "17 echte Linux-Angriffsproben und Neustart; macOS-Chromium-Sandbox für begrenzte eigene Artefakte. Windows/übrige OS-Live-Matrix bleibt offen.",
+      "sourceEvidence": [
+        "packages/tools/isolation/probes.ts",
+        "packages/tools/isolation/index.ts",
+        "packages/tools/workspace.ts",
+        "packages/tools/browser-inspect.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "SEC-02",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/unit/integrations-security.test.ts",
+        "tests/integration/control-hardening.test.ts",
+        "docs/test-evidence/isolation/linux-evidence.json",
+        "tests/integration/execution-artifacts.test.ts",
+        "docs/test-evidence/remote-execution/remote-execution.json",
+        "tests/contracts/integrations-http.test.ts",
+        "tests/integration/oauth-refresh.test.ts",
+        "tests/integration/browser-inspect.test.ts",
+        "tests/integration/remote-execution.test.ts"
+      ],
+      "limitation": "Secretauflösung erst am autorisierten Connector; isolierte Prozesse, private Browserkontexte, Redaction und begrenzte Datei-/Logausgabe lokal geprüft.",
+      "sourceEvidence": [
+        "packages/integrations/src/secrets.ts",
+        "packages/integrations/src/transport.ts",
+        "packages/tools/browser-inspect.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "MOD-01",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/unit/runtime.test.ts",
+        "tests/contracts/openrouter.test.ts",
+        "tests/unit/model-ratings.test.ts",
+        "tests/integration/coordination.test.ts"
+      ],
+      "limitation": "Vollständiger Katalog, erklärbare Auswahl und getrennte Ratings lokal geprüft; reale repräsentative Nutzungsstichprobe nicht ersetzt.",
+      "sourceEvidence": [
+        "packages/runtime/src/openrouter.ts",
+        "packages/runtime/src/ratings.ts",
+        "apps/control/configuration.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "KNOW-01",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/integration/research.test.ts",
+        "tests/integration/workflows.test.ts"
+      ],
+      "limitation": "Wissensvorschläge/Reviews bleiben scoped; Firmenregeln benötigen CEO-Entscheidung.",
+      "sourceEvidence": [
+        "packages/domain/workflows/automation.ts",
+        "apps/control/workflow-tools.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "CHAN-01",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/integration/channels-http.test.ts",
+        "tests/integration/mail-inbound.test.ts",
+        "tests/integration/mail-inbox-control.test.ts",
+        "tests/integration/mail-starttls.test.ts",
+        "tests/integration/mail-tls.test.ts"
+      ],
+      "limitation": "Signaturen, Challenges, Inbound-Deduplizierung sowie echte lokale IMAP/SMTP/TLS geprüft. Externe Kontorechte/Botzustellung bleiben Liveabnahme.",
+      "sourceEvidence": [
+        "apps/control/channel-routes.ts",
+        "apps/control/mail-inbox-routes.ts",
+        "apps/control/mail-inbox-service.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "JOB-01",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/integration/workflows.test.ts",
+        "tests/integration/background.test.ts",
+        "tests/integration/background-lifecycle.test.ts",
+        "tests/integration/research-watch.test.ts"
+      ],
+      "limitation": "Persistente UTC-Fälligkeit/IANA-Zone, DST-/Nachholregeln, keine Überlappung; Wiederanlauf-/Wartungsbarrieren und Recherchebeobachtung geprüft.",
+      "sourceEvidence": [
+        "packages/domain/workflows/automation.ts",
+        "apps/control/background.ts",
+        "packages/domain/workflows/research-watch.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "OPSYS-01",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/install/operations-release.test.ts",
+        "docs/test-evidence/isolation/reboot-and-stop.json",
+        "docs/test-evidence/isolation/vm-control.json",
+        "tests/install/host-platform.test.ts",
+        "tests/install/native-service-hardening.test.ts",
+        "tests/install/launchd-product.mjs",
+        "docs/test-evidence/launchd-product.json"
+      ],
+      "limitation": "OS-Version/Edition/Architektur werden im Registrierungsweg vor Mutation geprüft. Echte macOS-GUI-LaunchAgent-Produktzentrale und Linux-VM geprüft; privilegierter macOS-LaunchDaemon sowie Windows/HyperV nativ noch nicht ausgeführt.",
+      "sourceEvidence": [
+        "packages/operations/src/services.ts",
+        "packages/operations/src/host-platform.ts",
+        "packages/operations/src/install-preflight.ts",
+        "packages/operations/src/preflight.ts",
+        "packages/operations/src/service-control.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "BAK-01",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/recovery/operations-backup.test.ts",
+        "tests/integration/online-backup.test.ts",
+        "tests/integration/execution-artifacts.test.ts"
+      ],
+      "limitation": "Echte age-Verschlüsselung, falsche Identität/Manipulation und Restore in neues Datenverzeichnis geprüft; unabhängiges frisches produktives Fremdsystem bleibt offen.",
+      "sourceEvidence": [
+        "packages/operations/src/backup.ts",
+        "packages/operations/src/recovery.ts",
+        "apps/control/app.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "BAK-02",
+      "testStatus": "local_pass",
+      "evidence": [
+        "tests/recovery/operations-backup.test.ts",
+        "tests/recovery/core-recovery.test.ts",
+        "tests/recovery/remote-update-fencing.test.ts",
+        "tests/integration/finance-automation.test.ts"
+      ],
+      "limitation": "Restore pausiert Dispatch und Routinen firmenglobal; alte Sitzungs-/Worker-/Mandatsgenerationen laufen nicht unbemerkt weiter.",
+      "sourceEvidence": [
+        "packages/operations/src/recovery.ts",
+        "packages/persistence/src/store.ts",
+        "apps/control/background.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "UPD-01",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/install/operations-release.test.ts",
+        "tests/integration/maintenance.test.ts",
+        "tests/e2e/admin-local.spec.ts",
+        "tests/install/updater-service.test.ts",
+        "tests/install/distribution.test.ts",
+        "tests/integration/update-scheduler.test.ts",
+        "docs/production-updater.md",
+        "tests/install/production-update-smoke.mjs",
+        "docs/test-evidence/self-update/full-product-smoke.json",
+        "docs/test-evidence/self-update/README.md",
+        "docs/test-evidence/self-update/independent-artifact-check.json",
+        "tests/integration/release-feed.test.ts",
+        "tests/integration/production-update.test.ts",
+        "tests/isolation/updater-systemd.test.ts"
+      ],
+      "limitation": "Signierte Feedentdeckung erstellt nur Kandidaten; Staging/Plan/Freigabe bleiben getrennt. Echte Produktupdate-/Rollback-/Linuxsystemd-Nachweise mit lokalen Testsignaturen; Produktivschlüssel und vollständige Zielmatrix offen.",
+      "sourceEvidence": [
+        "packages/operations/src/release-feed.ts",
+        "apps/control/release-feed-routes.ts",
+        "packages/operations/src/updater.ts",
+        "packages/operations/src/releases.ts"
+      ],
+      "implementationStatus": "implemented_with_local_evidence"
+    },
+    {
+      "prdId": "UI-01",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/e2e/ui.spec.ts",
+        "tests/e2e/live-local.spec.ts"
+      ],
+      "limitation": "360px/CSS-Zoom/Tastatur/DE-EN/WebGL-Ausfall; manuelle Screenreader/native-Zoom-Abnahme offen."
+    },
+    {
+      "prdId": "UI-02",
+      "testStatus": "partial_local_evidence",
+      "evidence": [
+        "tests/e2e/ui.spec.ts",
+        "apps/web/public/crew/manifest.json"
+      ],
+      "limitation": "Neun reproduzierbare GLB-Entwürfe und Zustandsbewegung; finale Gestaltung/Rigs/Animation/Referenz-FPS fehlen."
+    }
+  ],
+  "technicalAudit": {
+    "date": "2026-09-07",
+    "requirements": [
+      "docs/specification/01-ARCHITEKTUR.md",
+      "docs/specification/03-INTEGRATIONEN.md",
+      "docs/specification/06-BETRIEB.md"
+    ],
+    "scope": "Technische und Betriebskriterien; lokale Implementierung und belegte Plattformabnahmen werden getrennt. Fach-/UI-Endabnahmen bleiben separat.",
+    "explicitTools": {
+      "workspace.list/read/apply_patch/execute": [
+        "packages/runtime/src/engine.ts",
+        "packages/tools/workspace.ts"
+      ],
+      "browser.inspect": [
+        "apps/control/browser-inspect-tools.ts",
+        "packages/tools/browser-inspect.ts"
+      ],
+      "research.search/fetch/source/report/deliver": [
+        "packages/integrations/src/service.ts",
+        "apps/control/research-tools.ts"
+      ],
+      "knowledge.propose/review": [
+        "apps/control/workflow-tools.ts"
+      ],
+      "artifact.stage/deliver": [
+        "packages/runtime/src/engine.ts",
+        "apps/control/artifact-approval-tools.ts"
+      ],
+      "approval.request": [
+        "apps/control/artifact-approval-tools.ts"
+      ]
+    },
+    "storageContracts": [
+      "packages/integrations/src/service.ts",
+      "packages/integrations/src/result-contracts.ts",
+      "tests/contracts/storage-operations.test.ts"
+    ],
+    "reuseRegister": "../docs/reuse-register.md",
+    "knownValidationBoundaries": [
+      "Kein bezahlter OpenRouter-/Brave-Produktivlauf und keine vollständige Kontorechte-/Tarifabnahme aller Fremdsysteme.",
+      "Windows/HyperV und privilegierter macOS-LaunchDaemon benötigen weiterhin echte Zielsystemabnahme.",
+      "Lokale Testsignaturen ersetzen keine administrativen Produktivschlüssel oder echte Veröffentlichung.",
+      "Generisches artifact.deliver ist auf UTF-8-Text bis 1 MB begrenzt; binäre Websitepakete verwenden ihren eigenen getesteten Ablage-/Hostingpfad."
+    ]
+  }
+}

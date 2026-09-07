@@ -1,0 +1,24 @@
+{
+  "id": "2d3a2016-9dcc-4ea6-aaa6-bd0f34b8e467",
+  "orderId": "334a7cfe-d44f-48d9-a318-80b671507f6b",
+  "scope": {
+    "companyId": "0ab109a0-ec26-495a-8cbb-90e697639347",
+    "areaId": "514b2f39-8e74-4479-b3d8-4c280110f57f"
+  },
+  "sha256": "1187bd610c53c50868b874dc8a722c0981755adfda7b4f513adaa381d61ca269",
+  "packageSha256": "5b7c843178cb0fbbac07389786f0b2064542bdffddbdf3e7123bb26266d696eb",
+  "stack": "react",
+  "previewPath": "index.html",
+  "files": [
+    {
+      "path": "index.html",
+      "sha256": "1187bd610c53c50868b874dc8a722c0981755adfda7b4f513adaa381d61ca269",
+      "bytes": 419
+    },
+    {
+      "path": "app.mjs",
+      "sha256": "2dca9fa1c7e1fc1c5f5546d3ead4e211c2a91d9c7666ab145d8503543c8ab029",
+      "bytes": 284
+    }
+  ]
+}

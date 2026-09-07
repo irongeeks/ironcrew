@@ -1,0 +1,22 @@
+{
+  "testedAt": "2026-09-07T11:57:19.733Z",
+  "platform": "darwin",
+  "node": "v26.4.0",
+  "domain": "gui/501",
+  "nativeLaunchctl": true,
+  "systemDaemonInstalled": false,
+  "dedicatedSystemAccountTested": false,
+  "registrationIdempotent": true,
+  "actualHttp": true,
+  "actualProductEntrypoint": "dist/apps/control/main.js",
+  "entrypointSha256": "bf1ffd081cf09664596aa87e402eb5d9146c001ae685321182f6b8a2c4250f4c",
+  "nativeOsPreflight": true,
+  "isolatedControlAndPreviewPorts": true,
+  "stopSignal": "SIGTERM",
+  "restart": true,
+  "definitionSha256": "2ae71c5ff18638d4b9a018af2771d040b3afaa6de12f09d0214403391a4212c1",
+  "cleanup": {
+    "ownLabelUnloaded": true,
+    "temporaryDirectoryRemoved": true
+  }
+}

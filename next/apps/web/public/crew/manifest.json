@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "provenance": "repository-authored-articulated-characters",
+  "visualApproval": "requires-owner-review",
+  "finalApproved": false,
+  "models": [
+    {
+      "id": "cersei-lannister",
+      "seedKey": "chief_of_staff",
+      "features": ["golden-braids", "burgundy-dress", "gold-belt"],
+      "url": "/crew/cersei-lannister.glb",
+      "sha256": "b420bdcfcddcb2ebe3a01b24de1881925f685bc8d0dbb39894f34423e12adfbf",
+      "byteLength": 19184
+    },
+    {
+      "id": "mr-robot",
+      "seedKey": "software",
+      "features": ["work-jacket", "dark-cap", "beard", "glasses"],
+      "url": "/crew/mr-robot.glb",
+      "sha256": "444954eea9b3988ef87c4f8615c86defd86cfbe352bfcb7de7e5f09090879836",
+      "byteLength": 17684
+    },
+    {
+      "id": "morpheus",
+      "seedKey": "operations",
+      "features": ["bald", "rimless-sunglasses", "long-overcoat"],
+      "url": "/crew/morpheus.glb",
+      "sha256": "159249f990a3be4871b568b875b14d7b9beff92366646465cc81f6c0cbd6e3dd",
+      "byteLength": 16788
+    },
+    {
+      "id": "steve-jobs",
+      "seedKey": "design",
+      "features": ["black-turtleneck", "round-glasses", "jeans", "sneakers"],
+      "url": "/crew/steve-jobs.glb",
+      "sha256": "69193f2e0285deaa3069c693e3a9cf79cf97115a2d8328abea5a28da4516fb3d",
+      "byteLength": 19720
+    },
+    {
+      "id": "tyrion-lannister",
+      "seedKey": "marketing",
+      "features": ["short-stature", "wavy-hair", "beard", "burgundy-vest", "gold-buttons"],
+      "url": "/crew/tyrion-lannister.glb",
+      "sha256": "a51d78fad4d6ca3437bc4ea8bf24a5c52f269e3668983df5836a64c0602409c7",
+      "byteLength": 15892
+    },
+    {
+      "id": "saul-goodman",
+      "seedKey": "finance",
+      "features": ["swept-hair", "blue-suit", "patterned-tie", "pocket-square"],
+      "url": "/crew/saul-goodman.glb",
+      "sha256": "1bc03c7ceb57cd74747408c19027d649fa612bb0461cb9210329724cfddcda58",
+      "byteLength": 16548
+    },
+    {
+      "id": "karla-kolumna",
+      "seedKey": "research",
+      "features": ["short-dark-hair", "round-glasses", "red-jacket", "camera", "notebook"],
+      "url": "/crew/karla-kolumna.glb",
+      "sha256": "7028f26d0ade684a93d059540c618fdde006c1f9dda9744a5199196b2353c540",
+      "byteLength": 21160
+    },
+    {
+      "id": "der-professor",
+      "seedKey": "quality",
+      "features": ["tousled-hair", "beard", "angular-glasses", "rolled-shirt"],
+      "url": "/crew/der-professor.glb",
+      "sha256": "809030b66d10a5d7e58b5ae3ef4121070f3f79e5ae201dd1aad96a6684dad485",
+      "byteLength": 17376
+    },
+    {
+      "id": "nick-fury",
+      "seedKey": "security",
+      "features": ["bald", "eye-patch", "broad-shoulders", "leather-coat"],
+      "url": "/crew/nick-fury.glb",
+      "sha256": "048b844aca56d9f69cb876b638c6136e63d9d0a20a7dd16ba40efb194df433e1",
+      "byteLength": 17256
+    }
+  ]
+}

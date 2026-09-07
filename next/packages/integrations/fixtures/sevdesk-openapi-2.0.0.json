@@ -1,0 +1,874 @@
+{
+  "source": "https://api.sevdesk.de/openapi.yaml?format=yaml",
+  "version": "2.0.0",
+  "retrievedAt": "2026-09-07",
+  "sourceSha256": "a32cec0fecea1ef4d2f8a429c817bfe01b576c3980828db9c12aa694c1e53366",
+  "paths": {
+    "/Invoice/Factory/createInvoiceReminder": {
+      "post": {
+        "tags": ["Invoice"],
+        "summary": "Create invoice reminder",
+        "operationId": "createInvoiceReminder",
+        "parameters": [
+          {
+            "name": "invoice[id]",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "invoice[objectName]",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": ["invoice"],
+                "properties": {
+                  "invoice": {
+                    "required": ["id", "objectName"],
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "objectName": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model_InvoiceResponse"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {},
+          "500": {}
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/Invoice/{invoiceId}/sendViaEmail": {
+      "post": {
+        "tags": ["Invoice"],
+        "summary": "Send invoice via email",
+        "operationId": "sendInvoiceViaEMail",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": ["toEmail", "subject", "text"],
+                "properties": {
+                  "toEmail": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "copy": {
+                    "type": "boolean"
+                  },
+                  "additionalAttachments": {
+                    "type": "string"
+                  },
+                  "ccEmail": {
+                    "type": "string"
+                  },
+                  "bccEmail": {
+                    "type": "string"
+                  },
+                  "sendXml": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model_Email"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {},
+          "500": {}
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/Voucher/Factory/saveVoucher": {
+      "post": {
+        "tags": ["Voucher"],
+        "summary": "Create a new voucher",
+        "operationId": "voucherFactorySaveVoucher",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/saveVoucher"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/saveVoucherResponse"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {},
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/validationError"
+                }
+              }
+            }
+          },
+          "500": {}
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/Voucher/{voucherId}/bookAmount": {
+      "put": {
+        "tags": ["Voucher"],
+        "summary": "Book a voucher",
+        "operationId": "bookVoucher",
+        "parameters": [
+          {
+            "name": "voucherId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": ["amount", "date", "type", "checkAccount"],
+                "properties": {
+                  "amount": {
+                    "type": "number"
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": false
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["FULL_PAYMENT", "N", "CB", "CF", "O", "OF", "MTC"]
+                  },
+                  "checkAccount": {
+                    "required": ["id", "objectName"],
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "objectName": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "checkAccountTransaction": {
+                    "required": ["id", "objectName"],
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "objectName": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "createFeed": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "objectName": {
+                      "type": "string"
+                    },
+                    "create": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "voucher": {
+                      "type": "object",
+                      "required": ["id", "objectName"],
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "objectName": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "fromStatus": {
+                      "type": "string"
+                    },
+                    "toStatus": {
+                      "type": "string"
+                    },
+                    "amountPayed": {
+                      "type": "string"
+                    },
+                    "bookingDate": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "sevClient": {
+                      "type": "object",
+                      "required": ["id", "objectName"],
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "objectName": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {},
+          "500": {}
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    }
+  },
+  "schemas": {
+    "Model_Email": {
+      "required": ["from", "to", "subject"],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "readOnly": true,
+          "nullable": false
+        },
+        "objectName": {
+          "type": "string",
+          "readOnly": true,
+          "nullable": false
+        },
+        "create": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "update": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "object": {
+          "$ref": "#/components/schemas/Model_InvoiceResponse"
+        },
+        "from": {
+          "type": "string",
+          "nullable": false
+        },
+        "to": {
+          "type": "string",
+          "nullable": false
+        },
+        "subject": {
+          "type": "string",
+          "nullable": false
+        },
+        "text": {
+          "type": "string",
+          "nullable": true
+        },
+        "sevClient": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "readOnly": true
+        },
+        "cc": {
+          "type": "string",
+          "nullable": true
+        },
+        "bcc": {
+          "type": "string",
+          "nullable": true
+        },
+        "arrived": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true
+        }
+      },
+      "type": "object"
+    },
+    "Model_Voucher": {
+      "required": ["creditDebit", "taxType", "taxRule", "status", "voucherType", "mapAll", "objectName"],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "readOnly": true,
+          "nullable": false
+        },
+        "objectName": {
+          "type": "string",
+          "nullable": false
+        },
+        "mapAll": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "create": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "update": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "sevClient": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "readOnly": true
+        },
+        "createUser": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "readOnly": true
+        },
+        "voucherDate": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true
+        },
+        "supplier": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "nullable": true
+        },
+        "supplierName": {
+          "type": "string",
+          "nullable": true
+        },
+        "payDate": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true
+        },
+        "status": {
+          "type": "number",
+          "enum": [50, 100, 1000],
+          "nullable": false
+        },
+        "sumNet": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": false
+        },
+        "sumTax": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": false
+        },
+        "sumGross": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": false
+        },
+        "sumNetAccounting": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": false
+        },
+        "sumTaxAccounting": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": false
+        },
+        "sumGrossAccounting": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": false
+        },
+        "sumDiscounts": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": false
+        },
+        "sumDiscountsForeignCurrency": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": false
+        },
+        "paidAmount": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true,
+          "nullable": true
+        },
+        "taxRule": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "enum": ["1", "2", "3", "4", "5", "11"]
+            },
+            "objectName": {
+              "type": "string",
+              "enum": ["TaxRule"]
+            }
+          },
+          "type": "object",
+          "nullable": false
+        },
+        "taxType": {
+          "type": "string",
+          "nullable": false
+        },
+        "creditDebit": {
+          "type": "string",
+          "enum": ["C", "D"],
+          "nullable": false
+        },
+        "voucherType": {
+          "type": "string",
+          "enum": ["VOU", "RV"],
+          "nullable": false
+        },
+        "currency": {
+          "type": "string",
+          "nullable": true
+        },
+        "propertyForeignCurrencyDeadline": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true
+        },
+        "propertyExchangeRate": {
+          "type": "number",
+          "format": "float",
+          "nullable": true
+        },
+        "recurringInterval": {
+          "type": "string",
+          "enum": [
+            "P0Y0M1W",
+            "P0Y0M2W",
+            "P0Y1M0W",
+            "P0Y3M0W",
+            "P0Y6M0W",
+            "P1Y0M0W",
+            "P2Y0M0W",
+            "P3Y0M0W",
+            "P4Y0M0W",
+            "P5Y0M0W"
+          ],
+          "nullable": true,
+          "readOnly": true
+        },
+        "recurringStartDate": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true,
+          "readOnly": true
+        },
+        "recurringNextVoucher": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true,
+          "readOnly": true
+        },
+        "recurringLastVoucher": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true,
+          "readOnly": true
+        },
+        "recurringEndDate": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true,
+          "readOnly": true
+        },
+        "enshrined": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "taxSet": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "nullable": true
+        },
+        "paymentDeadline": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true
+        },
+        "deliveryDate": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": false
+        },
+        "deliveryDateUntil": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true
+        },
+        "document": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "nullable": true
+        },
+        "costCentre": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "Model_VoucherPos": {
+      "required": [
+        "accountDatev",
+        "accountingType",
+        "voucher",
+        "taxRate",
+        "sumGross",
+        "sumNet",
+        "net",
+        "mapAll",
+        "objectName"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "readOnly": true,
+          "nullable": false
+        },
+        "objectName": {
+          "type": "string",
+          "nullable": false
+        },
+        "mapAll": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "create": {
+          "type": "string",
+          "readOnly": true
+        },
+        "update": {
+          "type": "string",
+          "readOnly": true
+        },
+        "sevClient": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "readOnly": true
+        },
+        "voucher": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "readOnly": true
+        },
+        "accountDatev": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "accountingType": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "estimatedAccountingType": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "readOnly": true
+        },
+        "taxRate": {
+          "type": "number",
+          "format": "float"
+        },
+        "net": {
+          "type": "boolean"
+        },
+        "isAsset": {
+          "type": "boolean"
+        },
+        "sumNet": {
+          "type": "number",
+          "format": "float"
+        },
+        "sumTax": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true
+        },
+        "sumGross": {
+          "type": "number",
+          "format": "float"
+        },
+        "sumNetAccounting": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true
+        },
+        "sumTaxAccounting": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true
+        },
+        "sumGrossAccounting": {
+          "type": "number",
+          "format": "float",
+          "readOnly": true
+        },
+        "comment": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "type": "object"
+    },
+    "saveVoucher": {
+      "type": "object",
+      "required": ["voucher", "voucherPos"],
+      "properties": {
+        "voucher": {
+          "$ref": "#/components/schemas/Model_Voucher"
+        },
+        "voucherPosSave": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Model_VoucherPos"
+          }
+        },
+        "voucherPosDelete": {
+          "required": ["id", "objectName"],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "objectName": {
+              "type": "string"
+            }
+          },
+          "default": null
+        },
+        "filename": {
+          "type": "string",
+          "format": "binary"
+        }
+      }
+    },
+    "saveVoucherResponse": {
+      "type": "object",
+      "properties": {
+        "voucher": {
+          "$ref": "#/components/schemas/Model_VoucherResponse"
+        },
+        "voucherPos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Model_VoucherPosResponse"
+          }
+        },
+        "filename": {
+          "type": "string",
+          "format": "binary"
+        }
+      }
+    }
+  }
+}

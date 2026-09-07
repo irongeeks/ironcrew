@@ -1,0 +1,43 @@
+{
+  "passed": true,
+  "nativeWorkerProcess": true,
+  "authenticatedWss": true,
+  "generatedExecution": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "termination": "exited",
+    "attestationId": "becc397a-db66-4cfb-b1c1-68e2a12b3af7",
+    "profileSha256": "f5289876e1309f34e681ce9ef1f6a61aa89361df437f219051d047556be50dd1",
+    "toolchainSha256": "ddcb4cc97a08995eb6c3bab9f3a2faf3c9e2706369064707f4d0842704ff5b56",
+    "outputDirectory": "/home/robert.guest/ironcrew-isolation/profile-v4/jobs/job-7pylYR/output",
+    "outputHashes": {
+      "actual.txt": "e3e09cec870fccde4ae18061a5c3adc0423f9047831d2decbac7a55707048e72"
+    },
+    "resources": {
+      "memoryEvents": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "pidsEvents": {
+        "max": 0
+      },
+      "cpuStat": {
+        "usage_usec": 30596,
+        "user_usec": 23457,
+        "system_usec": 7139,
+        "core_sched.force_idle_usec": 0,
+        "nr_periods": 1,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      }
+    }
+  },
+  "remoteArtifactTransport": false
+}

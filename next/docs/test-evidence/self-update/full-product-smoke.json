@@ -1,0 +1,53 @@
+{
+  "temporaryTestKey": true,
+  "kind": "full-built-control-http-ceo-approval-external-signed-daemon",
+  "harness": {
+    "originalSha256": "27298cf14958d03ec2f2ae77b4a46f20a777ab109ec67838446e884b19f5ad2f",
+    "overallWaitMs": 180000,
+    "productHealthTimeoutMs": 30000,
+    "repositorySourceUnchanged": true,
+    "executedCopySha256": "206bc9b8865e46bc843e14cbe778e55ddf592e088ac573360d967cdd14c1f612",
+    "executedCopyPath": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/production-update-proof-180s.mjs"
+  },
+  "baseRelease": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/release",
+  "before": {
+    "status": "ok",
+    "database": {
+      "schemaVersion": 1,
+      "journalMode": "wal",
+      "foreignKeys": true
+    },
+    "version": "0.4.3",
+    "releaseManifestSha256": "6f00ef9c16cb2c1e41d82a94233ff7372b75e5ddfce1f73b61267cd59ad42433",
+    "instanceId": "1e56a988-7a54-42fa-a822-d9328d39e89d"
+  },
+  "after": {
+    "status": "ok",
+    "database": {
+      "schemaVersion": 1,
+      "journalMode": "wal",
+      "foreignKeys": true
+    },
+    "version": "0.4.4",
+    "releaseManifestSha256": "6963732be61556f87cdc42f12b5e373b55c38ebba0b0e34e9391cbc4b2cb560b",
+    "instanceId": "1a99a363-b4f8-4b36-b620-80ffd6985f15"
+  },
+  "manifestSha256": "6963732be61556f87cdc42f12b5e373b55c38ebba0b0e34e9391cbc4b2cb560b",
+  "probeState": "passed",
+  "queued": {
+    "state": "queued",
+    "jobId": "2b5b9905-c3cd-45ca-bbbf-7a3f2875f24c",
+    "planId": "38bbcd20-6678-46d2-b9b6-ce49ca32d32c"
+  },
+  "finalPlanState": "applied",
+  "offlineBackupSha256": "01e407068ed27347e85e49fd17406e0c28e7ba993277925799c7bc94bc544a54",
+  "offlineBackupBytes": 225016,
+  "daemonLog": [],
+  "completedAt": "2026-09-07T12:23:56.588942+00:00",
+  "cleanup": {
+    "daemonExited": true,
+    "controlStopped": true,
+    "ownTemporaryDirectoryRemoved": true
+  },
+  "finalGateSourceManifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04"
+}

@@ -1,0 +1,122 @@
+{
+  "date": "2026-09-07T12:16:07.231328+00:00",
+  "baseCommit": "76160c0e56324d1ec16ebf2956cbeadbc544cfc4",
+  "branch": "rebuild/ironcrew",
+  "workspace": "uncommitted next/ implementation",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "node": "v26.4.0",
+  "pnpm": "10.30.1",
+  "gates": [
+    {
+      "name": "install",
+      "command": "npx --yes pnpm@10.30.1 install --frozen-lockfile",
+      "exitCode": 0,
+      "durationSeconds": 1.41,
+      "log": "docs/test-evidence/install.log"
+    },
+    {
+      "name": "format",
+      "command": "npx --yes pnpm@10.30.1 format:check",
+      "exitCode": 0,
+      "durationSeconds": 6.37,
+      "log": "docs/test-evidence/format.log"
+    },
+    {
+      "name": "lint",
+      "command": "npx --yes pnpm@10.30.1 lint",
+      "exitCode": 0,
+      "durationSeconds": 5.22,
+      "log": "docs/test-evidence/lint.log"
+    },
+    {
+      "name": "typecheck",
+      "command": "npx --yes pnpm@10.30.1 typecheck",
+      "exitCode": 0,
+      "durationSeconds": 7.76,
+      "log": "docs/test-evidence/typecheck.log"
+    },
+    {
+      "name": "unit",
+      "command": "npx --yes pnpm@10.30.1 test:unit",
+      "exitCode": 0,
+      "durationSeconds": 2.9,
+      "log": "docs/test-evidence/unit.log",
+      "passedTests": 51,
+      "skippedTests": 0
+    },
+    {
+      "name": "contracts",
+      "command": "npx --yes pnpm@10.30.1 test:contracts",
+      "exitCode": 0,
+      "durationSeconds": 6.33,
+      "log": "docs/test-evidence/contracts.log",
+      "passedTests": 46,
+      "skippedTests": 0
+    },
+    {
+      "name": "integration",
+      "command": "npx --yes pnpm@10.30.1 test:integration",
+      "exitCode": 0,
+      "durationSeconds": 37.13,
+      "log": "docs/test-evidence/integration.log",
+      "passedTests": 272,
+      "skippedTests": 0
+    },
+    {
+      "name": "build",
+      "command": "npx --yes pnpm@10.30.1 build",
+      "exitCode": 0,
+      "durationSeconds": 6.42,
+      "log": "docs/test-evidence/build.log"
+    },
+    {
+      "name": "e2e",
+      "command": "npx --yes pnpm@10.30.1 test:e2e",
+      "exitCode": 0,
+      "durationSeconds": 68.23,
+      "log": "docs/test-evidence/e2e.log",
+      "passedTests": 46,
+      "skippedTests": 0
+    },
+    {
+      "name": "recovery",
+      "command": "npx --yes pnpm@10.30.1 test:recovery",
+      "exitCode": 0,
+      "durationSeconds": 3.73,
+      "log": "docs/test-evidence/recovery.log",
+      "passedTests": 20,
+      "skippedTests": 0
+    },
+    {
+      "name": "install-tests",
+      "command": "npx --yes pnpm@10.30.1 test:install",
+      "exitCode": 0,
+      "durationSeconds": 34.02,
+      "log": "docs/test-evidence/install-tests.log",
+      "passedTests": 54,
+      "skippedTests": 0
+    },
+    {
+      "name": "openapi",
+      "command": "npx --yes pnpm@10.30.1 openapi:check",
+      "exitCode": 0,
+      "durationSeconds": 1.12,
+      "log": "docs/test-evidence/openapi.log"
+    }
+  ],
+  "live": {
+    "status": "not_run",
+    "reason": "No provider test profile or paid test budget supplied."
+  },
+  "osMatrix": "This suite runs on the named local host. Separate real Linux VM evidence is recorded under docs/test-evidence/isolation. Remote GitHub CI and the remaining OS installation matrix are not covered.",
+  "audit": {
+    "exitCode": 0,
+    "log": "docs/test-evidence/audit.json"
+  },
+  "sourceIntegrity": {
+    "status": "stable",
+    "fileCount": 333,
+    "manifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04"
+  },
+  "passedTests": 489
+}

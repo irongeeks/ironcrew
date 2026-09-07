@@ -1,0 +1,36 @@
+{
+  "recordedAt": "2026-09-07T10:17:50.251412+00:00",
+  "scope": "Only the explicitly named private test VM; no commands target other Lima homes or Colima.",
+  "limaHome": "/Users/robert/git/ironcrew/repo/next/.var/isolation-lab/lima",
+  "before": {
+    "name": "ic-lab",
+    "status": "Running",
+    "dir": "/Users/robert/git/ironcrew/repo/next/.var/isolation-lab/lima/ic-lab",
+    "vmType": "vz",
+    "cpus": 2,
+    "memory": 4294967296,
+    "hostAgentPID": 83239,
+    "driverPID": 83239,
+    "LimaHome": "/Users/robert/git/ironcrew/repo/next/.var/isolation-lab/lima"
+  },
+  "command": [
+    "limactl",
+    "stop",
+    "ic-lab"
+  ],
+  "exitCode": 0,
+  "stopLog": "time=\"2026-09-07T12:17:49+02:00\" level=info msg=\"Sending SIGINT to hostagent process 83239\"\ntime=\"2026-09-07T12:17:49+02:00\" level=info msg=\"Waiting for the host agent and the driver processes to shut down\"\ntime=\"2026-09-07T12:17:49+02:00\" level=info msg=\"[hostagent] Received SIGINT, shutting down the host agent\"\ntime=\"2026-09-07T12:17:49+02:00\" level=info msg=\"[hostagent] Shutting down the host agent\"\ntime=\"2026-09-07T12:17:49+02:00\" level=info msg=\"[hostagent] Shutting down VZ\"\ntime=\"2026-09-07T12:17:49+02:00\" level=info msg=\"[hostagent] [VZ] - vm state change: stopped\"\ntime=\"2026-09-07T12:17:49+02:00\" level=error msg=\"[hostagent] accept tcp 127.0.0.1:62487: use of closed network connection\"\ntime=\"2026-09-07T12:17:49+02:00\" level=info msg=\"Waiting for the instance to shut down\"\ntime=\"2026-09-07T12:17:50+02:00\" level=info msg=\"The instance ic-lab has shut down\"\n",
+  "after": {
+    "name": "ic-lab",
+    "status": "Stopped",
+    "dir": "/Users/robert/git/ironcrew/repo/next/.var/isolation-lab/lima/ic-lab",
+    "vmType": "vz",
+    "cpus": 2,
+    "memory": 4294967296,
+    "hostAgentPID": null,
+    "driverPID": null,
+    "LimaHome": "/Users/robert/git/ironcrew/repo/next/.var/isolation-lab/lima"
+  },
+  "graceful": true,
+  "otherVirtualMachinesModified": false
+}

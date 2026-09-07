@@ -1,0 +1,53 @@
+import { it, expect } from "vitest";
+import { mkdtemp, rm, access } from "node:fs/promises";
+import path from "node:path";
+import { tmpdir } from "node:os";
+import { spawn } from "node:child_process";
+import { Repository } from "../../packages/persistence/src/index.ts";
+it("native control process drains and releases database and instance lock on SIGTERM", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "ironcrew-control-lifecycle-"));
+  const child = spawn(process.execPath, ["--experimental-strip-types", "apps/control/main.ts"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      IRONCREW_DATA_DIR: directory,
+      IRONCREW_HOST: "127.0.0.1",
+      IRONCREW_PORT: "0",
+      IRONCREW_PREVIEW_PORT: "0",
+      IRONCREW_PUBLIC_URL: "http://127.0.0.1:0",
+      IRONCREW_TLS_CERT: "",
+      IRONCREW_TLS_KEY: "",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let output = "";
+      const timer = setTimeout(() => reject(new Error("Control startup timeout")), 5000);
+      child.once("exit", (code) => {
+        clearTimeout(timer);
+        reject(new Error(`Control exited before ready: ${code}`));
+      });
+      child.stdout.on("data", (bytes) => {
+        output += bytes.toString();
+        if (output.includes("IronCrew:")) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+    const exit = new Promise<number | null>((resolve) => child.once("exit", resolve));
+    child.kill("SIGTERM");
+    expect(await exit).toBe(0);
+    await expect(access(path.join(directory, "instance.lock"))).rejects.toMatchObject({ code: "ENOENT" });
+    const repo = await Repository.open(path.join(directory, "company.sqlite"));
+    try {
+      expect(await repo.setupState()).toBeNull();
+    } finally {
+      await repo.close();
+    }
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 10000);

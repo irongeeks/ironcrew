@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "testedAt": "2026-09-07T08:24:31Z",
+  "wordpressVersion": "7.0.4",
+  "wordpressTarSha256": "26b99abfc65427fbab52b24315539b944dcef1467899a5256b6c1de2c4ae7e46",
+  "officialFileChecksumsVerified": 3945,
+  "themeArchiveSha256": "e3e45fcf72ca315a6ce6e28b9cbb43311a99df404046c2870f40135aeba4cb02",
+  "phpVersion": "8.3.6",
+  "databaseVersion": "10.11.14-MariaDB-0ubuntu0.24.04.1",
+  "installation": {
+    "installed": true,
+    "theme": "ironcrew-customer-site",
+    "wordpress": "7.0.4",
+    "blockTheme": true
+  },
+  "http": {
+    "homepage": 200,
+    "themeCss": 200,
+    "restApi": 200,
+    "fixtureHeading": true
+  },
+  "externalMailDisabled": true,
+  "cronAndExternalHttpDisabled": true,
+  "productionDeployment": false
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": true
+  },
+  "include": [
+    "apps/control/**/*.ts",
+    "apps/worker/**/*.ts",
+    "apps/cli/**/*.ts",
+    "apps/updater/**/*.ts",
+    "packages/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "packages/ui"]
+}

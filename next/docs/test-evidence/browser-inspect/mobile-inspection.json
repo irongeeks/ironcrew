@@ -1,0 +1,35 @@
+{
+  "id": "7316e78d-9939-4e52-a182-cf5fb5ae6c4c",
+  "orderId": "76f9a184-7ee4-4449-9a52-4be18e551b91",
+  "actionId": "f8b412b5-9a46-4949-9c8a-6abadb7228a9",
+  "artifactPreviewId": "0224de58-5cc6-488e-b053-023ef50983a7",
+  "packageSha256": "6c46872c6c1d7646d026471253dbf72f998f3bfe2694c7b35f2e2f4501528421",
+  "viewport": "mobile",
+  "createdAt": "2026-09-07T11:26:13.733Z",
+  "browserVersion": "149.0.7827.55",
+  "executableSha256": "b1b9e2dd063115031f08eadc10ed381ca0fa05b2284baff8f721d87f5f0f61b7",
+  "sandboxEnabled": true,
+  "source": "untrusted_artifact_preview",
+  "state": "review_required",
+  "checks": {
+    "titlePresent": true,
+    "languagePresent": true,
+    "headingPresent": true,
+    "noHorizontalOverflow": false,
+    "allImagesHaveAlt": true,
+    "imagesLoaded": false,
+    "opaqueOrigin": true,
+    "noSessionStorage": true
+  },
+  "blockedRequests": {
+    "websocket": 1
+  },
+  "errors": [
+    "page_script_error"
+  ],
+  "screenshotArtifactId": "769979d9-8662-460f-a606-f93209e3efa5",
+  "screenshotSha256": "fb049c4c483c6f1f1476a4260930348428b38e31d6207f4265b2f88dc56783a6",
+  "domArtifactId": "5e3a41f3-b693-461e-a4e1-8ef8c9c824c8",
+  "domSha256": "eb72a1ea3755a1aec77f4434448d887c47d12243527f653e746aa1c3f1a328a9",
+  "reportSha256": "ea6e858f6369a5d0a2e5829a9419f8a1a57dc9dccf3882f1ce0507bd7838e383"
+}

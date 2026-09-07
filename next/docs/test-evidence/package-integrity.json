@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-09-07T12:17:41.927999+00:00",
+  "sourcePackage": "IronCrew-Entwicklungspaket 1.0 / PRD0.9",
+  "checkedFiles": 21,
+  "manifestCopyMatches": true,
+  "mismatches": 0,
+  "brandAssets": {
+    "emblem.png": {
+      "sha256": "f4952485ff59834e46d87197d080ba7f21a17d6f9210b45155d86b0bb4e8a33c",
+      "original": "irongeeks-logo-farbe.png"
+    },
+    "wordmark.png": {
+      "sha256": "565d74b9a7707c3e0825cbbc455c25e0d0050cc8cdc430f7c4c0bedd3c680b28",
+      "original": "irongeeks-schriftzug.png"
+    }
+  }
+}

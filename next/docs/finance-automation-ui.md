@@ -1,0 +1,22 @@
+# Finanzregeln bedienen
+
+Unter **Finanzen → Belegregeln und Erinnerungen** werden gespeicherte Regeln, Freigaben und Ausführungsstände aus der Finanz-API angezeigt. Die Oberfläche ist auf Deutsch und Englisch verfügbar.
+
+1. **Belegregel aus Original vorschlagen:** Ein erfasster Originalbeleg mit Lieferant, Währung und unterstütztem Dateityp legt Quelle und Bereich fest. Der Betrag bleibt als exakte kleinste Währungseinheit erhalten. Nur sevdesk-Verbindungen dieses Bereichs mit den benötigten Werkzeugen sowie passende, nicht abgelaufene Mandate stehen zur Auswahl. sevdesk-Lieferant, DATEV-Konto, Steuerregel, Steuersatz und Begründung werden ausdrücklich angegeben.
+2. **Fachliche Prüfung:** Der Status bleibt „Vorgeschlagen“, bis der Finanzlead einen echten Prüfnachweis gespeichert hat. Es gibt keinen Button, der diese Rolle oder Prüfung vortäuscht. Auftrag und Originalbeleg bleiben nachvollziehbar. Erst „Vom Finanzlead geprüft“ bietet die gesonderte CEO-Aktivierung an; die Regelbedingungen und der Nachweis sind dabei sichtbar.
+3. **Zahlungserinnerung vorbereiten:** Ein Finanzauftrag bestimmt den Bereich. Ziel, Mandat, Rechnungs-ID, konkreter Empfänger, Stufe, Mindestüberfälligkeit, Höchstalter des Zahlungsstands, Prüfintervall sowie genauer Betreff und mehrzeiliger Nachrichtentext werden gespeichert. Der Vorschlag zeigt diese Bedingungen erneut. Erst „Diesen Empfänger und Text aktivieren“ aktiviert die konkrete Richtlinie.
+4. **Zahlungspause oder Widerspruch:** Beide Flags werden mit Rechnung, Ziel, Bereich und Pflichtquelle gespeichert. Beide Häkchen entfernen hebt die gespeicherte Sperre auf; der Hinweis im Formular macht diese Wirkung ausdrücklich sichtbar.
+5. **Ausführung verfolgen:** Gespeicherte Schritte zeigen Status, Gründe und Zeitstempel. Fehlende Regel, mehrdeutige Regeln, Belegausnahme, Zahlungspause, veränderte Zahlungsdaten und fehlende Verbindung werden verständlich erklärt. Gespeicherte Korrekturen werden getrennt ausgewiesen. Die Anzeige behauptet weder einen Bankstand noch eine erfolgte Zahlung.
+
+`tests/e2e/finance-automation.spec.ts` enthält vier explizite UI-Vertragsfixtures (Original-/Scopebindung und keine fingierte Prüfung; exakte Reminder-Aktivierung und Sperrstatus; gespeicherter Prüfnachweis und englische 360px-Bedienung) einschließlich typisierter Korrekturrevision und ausdrücklicher Aktivierung, sowie eine Prüfung des API-angebundenen Leerzustands gegen die echte lokale Anwendung ohne API-Abfangen. Externe sevdesk-Aktionen und fachliche Prüfergebnisse werden durch diese UI-Fixtures nicht als live abgenommen bezeichnet; dafür gelten die unabhängigen Service-/Integrationstests.
+
+Abbildungen: [Belegregel, UI-Vertragsfixture](test-evidence/finance-rule-ui-fixture.png), [mobile Erinnerung, UI-Vertragsfixture](test-evidence/finance-reminder-mobile-ui-fixture.png), [echte Anwendung, leerer Automatisierungsstand](test-evidence/finance-automation-real-empty.png).
+
+
+## Wirksame Korrekturen
+
+Die Einzelkorrektur erlaubt ausschließlich sevdesk-Lieferanten-ID, DATEV-Konto-ID, sevdesk-Steuerregel und Steuersatz mit feldgenauen Typen. Sie speichert eine unveränderliche Korrektur mit Original- und Rechnungs-Hash im exakten Bereich. Der tatsächliche `saveVoucher`-Aufruf verwendet diese Zuordnung; Originaldatei, Rechnungsbetrag und Zahlungsstatus werden dadurch nicht verändert. Einmal zur Übertragung gebundene Belege lassen sich nicht rückwirkend still überschreiben.
+
+Nur ausdrücklich gewünschte Wiederverwendung erzeugt einen Regelvorschlag. Das tatsächliche Finanzlead-Werkzeug `finance.correction_rule.review` prüft Quelle und Konflikte; danach aktiviert der CEO separat. Aktive Regeln gelten für den exakten Bereich, Lieferanten, Währung und Dateityp. Eine Einzelkorrektur hat für ihren Beleg Vorrang. Exportnachweise enthalten angewandte Feldwerte, Korrektur-/Regel-IDs und Regelversionen. Basisregel, Betragsgrenzen, Ziel und Mandat bleiben Voraussetzung der Ausführung.
+
+Über „Zuordnung für künftige Belege ändern“ entsteht eine neue Version mit eigener Quelle, eigenem Nachweis und erneuter Prüfung. Bei Aktivierung ersetzt sie ihren Vorgänger atomar. Bereits exportierte Belege behalten ihren gespeicherten Nachweis. Die Deaktivierung beendet die Wiederverwendung. Integrationstests prüfen diese Wirkung am tatsächlich an den lokalen sevdesk-HTTP-Testserver gesendeten Request; das ist kein Abruf eines produktiven sevdesk-Kontos.

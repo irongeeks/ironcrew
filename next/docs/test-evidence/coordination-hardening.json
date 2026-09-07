@@ -1,0 +1,22 @@
+{
+  "testedAt": "2026-09-07T11:27:26.202801+00:00",
+  "testsPassed": 14,
+  "skippedTests": 0,
+  "command": "npx pnpm exec vitest run tests/integration/coordination.test.ts tests/contracts/model-concurrency.test.ts tests/contracts/openrouter.test.ts",
+  "checks": [
+    "actual parallel local HTTP participant calls",
+    "firm and mandate reservations",
+    "explicit profile model override",
+    "restart recovery without repeated provider calls",
+    "interrupted pending usage remains reserved",
+    "repository-local active projection",
+    "known costs survive response/redaction errors",
+    "revocation after secret resolution causes zero HTTP dispatch"
+  ],
+  "sha256": {
+    "packages/runtime/src/coordination.ts": "66a345044b0ef0cdcccc69df8febb1ee98cd0f52d7a332f7eda8c136470f4f7c",
+    "packages/runtime/src/openrouter.ts": "962b554c98268483bd87bbac52cc3057671d05e2a84d5ab48d6e2ec2c509ed01",
+    "tests/integration/coordination.test.ts": "f3ba433fdb72870b17b1bbe694f5fcf1a9a871c0a200fae76ac82446b1bd795c",
+    "tests/contracts/model-concurrency.test.ts": "02cd39967e7b269c70415bff50507e810ad83fbf633072ae495d88166386da17"
+  }
+}

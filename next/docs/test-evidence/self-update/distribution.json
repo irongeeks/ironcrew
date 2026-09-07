@@ -1,0 +1,22 @@
+{
+  "directory": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/release",
+  "manifestSha256": "6f00ef9c16cb2c1e41d82a94233ff7372b75e5ddfce1f73b61267cd59ad42433",
+  "archivePath": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/ironcrew-0.4.3-darwin-arm64-TEST.tgz",
+  "archiveSha256": "ea8f4bc11b3a49cd893080e385f8b6a12b0eb7ebf42709add53f85c2e7aa1af2",
+  "archiveBytes": 90815205,
+  "files": 12763,
+  "temporaryTestKey": true,
+  "publicKeyPath": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/TEMPORARY-TEST-PUBLIC.pem",
+  "version": "0.4.3",
+  "createdAt": "2026-09-07T12:14:58.820Z",
+  "sourceManifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04",
+  "sourceFiles": 333,
+  "distFilesMatchedCurrentBuild": 315,
+  "finalGateSourceManifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04",
+  "finalGateSourceFiles": 333,
+  "finalGateTestsPassed": 489,
+  "finalGateTestsSkipped": 0,
+  "rebuiltDistFilesStillIdentical": 315,
+  "sourceManifestPath": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/source-manifest.json",
+  "ownPrivateSigningKeyAbsent": true
+}

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "variant": "B",
+  "colors": {
+    "background": "#111416",
+    "surface": "#1A2024",
+    "surfaceRaised": "#242B30",
+    "text": "#F3F0E8",
+    "textMuted": "#B6BEC4",
+    "accent": "#EFB34B",
+    "onAccent": "#111416",
+    "success": "#77C5A1",
+    "error": "#F18E8E"
+  },
+  "spacingPx": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48
+  ],
+  "font": {
+    "family": "system-ui, -apple-system, Segoe UI, sans-serif",
+    "bodyPx": 16,
+    "minimumPx": 14
+  },
+  "controlMinHeightPx": 44,
+  "radiusPx": 8,
+  "breakpointsPx": {
+    "mobile": 768,
+    "desktop": 1200
+  },
+  "motion": {
+    "uiMs": 160,
+    "reducedMotionSupported": true
+  },
+  "hq": {
+    "defaultFpsTarget": 30,
+    "lazyLoad": true,
+    "compactFallback": true
+  }
+}

@@ -1,0 +1,85 @@
+import { execFile } from "node:child_process";
+import path from "node:path";
+import { z } from "zod";
+import { IntegrationError } from "./transport.ts";
+
+export const secretRefSchema = z
+  .object({
+    provider: z.literal("proton-pass"),
+    shareId: z.string().min(1).max(300),
+    itemId: z.string().min(1).max(300),
+    field: z.string().min(1).max(200),
+  })
+  .strict();
+export type SecretRef = z.infer<typeof secretRefSchema>;
+export interface SecretResolver {
+  resolve(ref: SecretRef, reason: string): Promise<string>;
+}
+export const PROTON_PASS_VERSION = "2.3.3";
+export type SecretCliRunner = (
+  executable: string,
+  args: string[],
+  options: { env: NodeJS.ProcessEnv; timeout: number; maxBuffer: number },
+) => Promise<string>;
+const runCli: SecretCliRunner = (executable, args, options) =>
+  new Promise((resolve, reject) => {
+    execFile(executable, args, options, (error, stdout) =>
+      error
+        ? reject(new IntegrationError("auth", "Proton-Pass-Zugriff fehlgeschlagen. Sitzung, Ablauf und Rechte prüfen."))
+        : resolve(stdout),
+    );
+  });
+/** Dedicated broker only. The supplied environment is explicit and never extends process.env. */
+export class ProtonPassResolver implements SecretResolver {
+  private readonly environment: NodeJS.ProcessEnv;
+  private readonly run: SecretCliRunner;
+  private readonly options: { executable: string; environment: NodeJS.ProcessEnv; run?: SecretCliRunner };
+  constructor(options: { executable: string; environment: NodeJS.ProcessEnv; run?: SecretCliRunner }) {
+    this.options = options;
+    if (!path.isAbsolute(options.executable))
+      throw new IntegrationError(
+        "configuration",
+        "pass-cli benötigt einen absoluten administrativ konfigurierten Pfad.",
+      );
+    const allowed = new Set([
+      "HOME",
+      "USERPROFILE",
+      "APPDATA",
+      "LOCALAPPDATA",
+      "SYSTEMROOT",
+      "PATH",
+      "PROTON_PASS_SESSION_DIR",
+      "PROTON_PASS_KEY_PROVIDER",
+      "PROTON_PASS_PERSONAL_ACCESS_TOKEN",
+    ]);
+    this.environment = Object.fromEntries(Object.entries(options.environment).filter(([key]) => allowed.has(key)));
+    this.run = options.run ?? runCli;
+  }
+  async resolve(input: SecretRef, reason: string): Promise<string> {
+    const ref = secretRefSchema.parse(input);
+    if (!reason.trim() || reason.length > 300)
+      throw new IntegrationError("validation", "Secretzugriff benötigt einen Grund mit höchstens 300 Zeichen.");
+    const options = {
+      env: { ...this.environment, PROTON_PASS_AGENT_REASON: reason },
+      timeout: 15000,
+      maxBuffer: 64 * 1024,
+    };
+    try {
+      const version = (await this.run(this.options.executable, ["--version"], options)).trim();
+      if (!new RegExp(`^(?:pass-cli\\s+)?${PROTON_PASS_VERSION.replaceAll(".", "\\.")}$`).test(version))
+        throw new IntegrationError("configuration", `pass-cli ${PROTON_PASS_VERSION} ist erforderlich.`);
+      // Pinned upstream implementation prints the selected field as plain text, even with --output json.
+      const output = await this.run(
+        this.options.executable,
+        ["item", "view", "--share-id", ref.shareId, "--item-id", ref.itemId, "--field", ref.field],
+        options,
+      );
+      const value = output.replace(/\r?\n$/, "");
+      if (!value) throw new IntegrationError("auth", "Proton-Pass-Feld ist leer oder nicht zugänglich.");
+      return value;
+    } catch (error) {
+      if (error instanceof IntegrationError && error.code === "configuration") throw error;
+      throw new IntegrationError("auth", "Proton-Pass-Zugriff fehlgeschlagen. Sitzung, Ablauf und Rechte prüfen.");
+    }
+  }
+}

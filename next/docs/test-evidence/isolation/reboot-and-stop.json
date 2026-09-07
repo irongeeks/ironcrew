@@ -1,0 +1,19 @@
+{
+  "testedAt": "2026-09-07T08:36:38.580Z",
+  "differentBootIds": true,
+  "compiledBootId": "dc7e17e0-9503-477b-b59d-a9341e0145aa",
+  "finalProbeBootId": "b17bd66e-3a3d-498f-ab7b-121ccb71b41d",
+  "finalProbesPassed": true,
+  "vmState": "Stopped",
+  "colimaState": "Stopped",
+  "colimaUnmodified": true,
+  "hostMounts": [],
+  "forwardAgent": false,
+  "propagateProxyEnv": false,
+  "allOtherForwards": {
+    "guestIP": "0.0.0.0",
+    "guestIPMustBeZero": false,
+    "proto": "any",
+    "ignore": true
+  }
+}

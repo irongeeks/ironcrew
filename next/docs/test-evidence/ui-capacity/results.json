@@ -1,0 +1,367 @@
+{
+  "measuredAt": "2026-09-07T12:24:09.878Z",
+  "device": {
+    "cpu": "Apple M5",
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64"
+  },
+  "dataScope": "Dedicated temporary local company; exactly 1000 orders created via authenticated HTTP API. No external provider calls or API interception.",
+  "compression": "Gzip-equivalent budget using node:zlib gzipSync on actual loaded HTTP response bodies; local Express serves identity encoding. This is not a claim of on-wire HTTP compression.",
+  "checks": [
+    {
+      "name": "non3d-initial-javascript",
+      "actualGzipBytes": 151682,
+      "maximumBytes": 358400,
+      "pass": true,
+      "resources": [
+        {
+          "url": "/assets/index-CzCNFlIS.js",
+          "type": "text/javascript; charset=utf-8",
+          "bytes": 531879,
+          "gzipBytes": 151682,
+          "sha256": "68a914d2d9115f8fe396eeb550fb218666b5899e04eba99902bad8aef3bf92e6"
+        }
+      ]
+    },
+    {
+      "name": "hq-initial-assets",
+      "actualGzipBytes": 1778584,
+      "maximumBytes": 15728640,
+      "pass": true,
+      "resources": [
+        {
+          "url": "/orders",
+          "type": "text/html; charset=utf-8",
+          "bytes": 462,
+          "gzipBytes": 301,
+          "sha256": "78524dd799848974c54b6b1f639f95e15e175a9e20814b1559f29625a5b5368f"
+        },
+        {
+          "url": "/assets/index-BjSwfxjV.css",
+          "type": "text/css; charset=utf-8",
+          "bytes": 23721,
+          "gzipBytes": 5287,
+          "sha256": "52bd0bded327866a0fe2de53809eea0084fc0d005676f00e4c89720dc827d92b"
+        },
+        {
+          "url": "/assets/index-CzCNFlIS.js",
+          "type": "text/javascript; charset=utf-8",
+          "bytes": 531879,
+          "gzipBytes": 151682,
+          "sha256": "68a914d2d9115f8fe396eeb550fb218666b5899e04eba99902bad8aef3bf92e6"
+        },
+        {
+          "url": "/brand/emblem.png",
+          "type": "image/png",
+          "bytes": 1166685,
+          "gzipBytes": 1164438,
+          "sha256": "f4952485ff59834e46d87197d080ba7f21a17d6f9210b45155d86b0bb4e8a33c"
+        },
+        {
+          "url": "/brand/wordmark.png",
+          "type": "image/png",
+          "bytes": 167032,
+          "gzipBytes": 162114,
+          "sha256": "565d74b9a7707c3e0825cbbc455c25e0d0050cc8cdc430f7c4c0bedd3c680b28"
+        },
+        {
+          "url": "/hq",
+          "type": "text/html; charset=utf-8",
+          "bytes": 462,
+          "gzipBytes": 301,
+          "sha256": "78524dd799848974c54b6b1f639f95e15e175a9e20814b1559f29625a5b5368f"
+        },
+        {
+          "url": "/assets/Hall-C4-wd1TT.css",
+          "type": "text/css; charset=utf-8",
+          "bytes": 280,
+          "gzipBytes": 225,
+          "sha256": "e1af6e143332cef8c1c4ed3a3990253c2dacd60b2edf39b3e1881e54912f9f86"
+        },
+        {
+          "url": "/assets/Hall.module-GWtPICP5.js",
+          "type": "text/javascript; charset=utf-8",
+          "bytes": 78,
+          "gzipBytes": 78,
+          "sha256": "11902a013a014d779fd902c9ddf902809095cd760016d4d5b53b65724dde795e"
+        },
+        {
+          "url": "/assets/Hall-mib-gytv.js",
+          "type": "text/javascript; charset=utf-8",
+          "bytes": 964955,
+          "gzipBytes": 256033,
+          "sha256": "682e241b95b6f79efa711dc71bf9acae3acdd5cf5d7bbf89f2314a98c2dee0e5"
+        },
+        {
+          "url": "/crew/cersei-lannister.glb",
+          "type": "model/gltf-binary",
+          "bytes": 19184,
+          "gzipBytes": 4322,
+          "sha256": "b420bdcfcddcb2ebe3a01b24de1881925f685bc8d0dbb39894f34423e12adfbf"
+        },
+        {
+          "url": "/crew/mr-robot.glb",
+          "type": "model/gltf-binary",
+          "bytes": 17684,
+          "gzipBytes": 3951,
+          "sha256": "444954eea9b3988ef87c4f8615c86defd86cfbe352bfcb7de7e5f09090879836"
+        },
+        {
+          "url": "/crew/morpheus.glb",
+          "type": "model/gltf-binary",
+          "bytes": 16788,
+          "gzipBytes": 3988,
+          "sha256": "159249f990a3be4871b568b875b14d7b9beff92366646465cc81f6c0cbd6e3dd"
+        },
+        {
+          "url": "/crew/steve-jobs.glb",
+          "type": "model/gltf-binary",
+          "bytes": 19720,
+          "gzipBytes": 5014,
+          "sha256": "69193f2e0285deaa3069c693e3a9cf79cf97115a2d8328abea5a28da4516fb3d"
+        },
+        {
+          "url": "/crew/tyrion-lannister.glb",
+          "type": "model/gltf-binary",
+          "bytes": 15892,
+          "gzipBytes": 3659,
+          "sha256": "a51d78fad4d6ca3437bc4ea8bf24a5c52f269e3668983df5836a64c0602409c7"
+        },
+        {
+          "url": "/crew/saul-goodman.glb",
+          "type": "model/gltf-binary",
+          "bytes": 16548,
+          "gzipBytes": 3874,
+          "sha256": "1bc03c7ceb57cd74747408c19027d649fa612bb0461cb9210329724cfddcda58"
+        },
+        {
+          "url": "/crew/karla-kolumna.glb",
+          "type": "model/gltf-binary",
+          "bytes": 21160,
+          "gzipBytes": 5312,
+          "sha256": "7028f26d0ade684a93d059540c618fdde006c1f9dda9744a5199196b2353c540"
+        },
+        {
+          "url": "/crew/der-professor.glb",
+          "type": "model/gltf-binary",
+          "bytes": 17376,
+          "gzipBytes": 3910,
+          "sha256": "809030b66d10a5d7e58b5ae3ef4121070f3f79e5ae201dd1aad96a6684dad485"
+        },
+        {
+          "url": "/crew/nick-fury.glb",
+          "type": "model/gltf-binary",
+          "bytes": 17256,
+          "gzipBytes": 4095,
+          "sha256": "048b844aca56d9f69cb876b638c6136e63d9d0a20a7dd16ba40efb194df433e1"
+        }
+      ]
+    },
+    {
+      "name": "input-response-1000-orders",
+      "method": "Input event to second requestAnimationFrame after React state update and browser render; actual keyboard typing/deletion",
+      "samplesMs": [
+        5.899999998509884,
+        7.4000000059604645,
+        9.399999998509884,
+        1.2000000029802322,
+        1.2999999970197678,
+        1.3000000044703484,
+        1.2000000029802322,
+        12.600000001490116,
+        1.3999999985098839,
+        2.100000001490116,
+        1.4000000059604645,
+        3.100000001490116,
+        10.299999997019768,
+        7.799999997019768,
+        9.700000002980232,
+        11.399999998509884,
+        1.2999999970197678,
+        1.1999999955296516,
+        2.2000000029802322,
+        5,
+        23,
+        15.5,
+        13.399999998509884,
+        11,
+        10.800000004470348,
+        8,
+        21.899999998509884,
+        20.399999998509884,
+        17.5,
+        13.399999998509884,
+        7,
+        19.100000001490116,
+        12,
+        2.0999999940395355,
+        1.7000000029802322,
+        7.399999998509884,
+        6.399999998509884,
+        5.299999997019768,
+        5.600000001490116,
+        25.900000005960464,
+        19.69999999552965,
+        14.299999997019768,
+        9.600000001490116,
+        4.4000000059604645,
+        15.100000001490116,
+        9.899999998509884,
+        1.8999999985098839,
+        17.100000001490116,
+        11.899999998509884,
+        6.800000004470348,
+        1.1000000014901161,
+        6.899999998509884,
+        21.899999998509884,
+        14.399999998509884,
+        6,
+        16.700000002980232,
+        9.299999997019768,
+        1.2999999970197678,
+        11.700000002980232,
+        1,
+        10.199999995529652,
+        2.5,
+        12.600000001490116,
+        6.199999995529652,
+        15.5,
+        20.100000001490116,
+        12,
+        0.6999999955296516,
+        4.700000002980232,
+        11.399999998509884,
+        15.600000001490116,
+        4.399999998509884,
+        10.400000005960464,
+        13.899999998509884,
+        4.899999998509884,
+        14.5,
+        5.799999997019768,
+        15.100000001490116,
+        24.700000002980232,
+        17.299999997019768,
+        9,
+        1.6000000014901161,
+        9.200000002980232,
+        1,
+        7.800000004470348,
+        11.399999998509884,
+        25.200000002980232,
+        14.900000005960464,
+        9.099999994039536,
+        2.600000001490116,
+        9.700000002980232,
+        24.700000002980232,
+        18.5,
+        12.399999998509884,
+        6.699999995529652,
+        0.5,
+        10.699999995529652,
+        4.600000001490116,
+        11.899999998509884,
+        0.5,
+        9.899999998509884,
+        12.899999998509884,
+        5.899999998509884,
+        14.600000001490116,
+        24.700000002980232,
+        17,
+        7.100000001490116,
+        14.299999997019768,
+        4.100000001490116,
+        9,
+        15.799999997019768,
+        4.299999997019768,
+        9.799999997019768,
+        0.9000000059604645,
+        7.699999995529652,
+        2,
+        11.800000004470348,
+        22.69999999552965
+      ],
+      "sampleCount": 118,
+      "p95Ms": 23,
+      "maximumP95Ms": 200,
+      "pass": true
+    }
+  ],
+  "axe": {
+    "version": "4.10.3",
+    "sha256": "880970c081707360e64f34cea25ff91892f5bc95675b0776925b9709dd8a68bb",
+    "scope": "Automated WCAG2/2.1/2.2 A/AA DOM checks; not a physical screenreader listening test."
+  },
+  "dataset": {
+    "count": 1000,
+    "creation": "1000 POST /api/v1/orders, 10 concurrent requests per batch; paginated GET count verified",
+    "creationMs": 682.4552090000002
+  },
+  "blockedSetup": "Existing HTTP-created order transitioned with the real Repository domain command to blocked/budget; no UI or API response fixture.",
+  "keyboard": {
+    "commandPaletteFocusAndEscapeRestoration": true,
+    "priorHallSuite": "tests/e2e/hall-live.spec.ts"
+  },
+  "accessibility": [
+    {
+      "state": "orders-empty",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "violations": [],
+      "passedRules": 24,
+      "incompleteRules": 1
+    },
+    {
+      "state": "orders-empty",
+      "viewport": {
+        "width": 1024,
+        "height": 768
+      },
+      "violations": [],
+      "passedRules": 25,
+      "incompleteRules": 1
+    },
+    {
+      "state": "orders-empty",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "violations": [],
+      "passedRules": 24,
+      "incompleteRules": 0
+    },
+    {
+      "state": "order-blocked",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "violations": [],
+      "passedRules": 26,
+      "incompleteRules": 2
+    },
+    {
+      "state": "order-blocked",
+      "viewport": {
+        "width": 1024,
+        "height": 768
+      },
+      "violations": [],
+      "passedRules": 27,
+      "incompleteRules": 2
+    },
+    {
+      "state": "order-blocked",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "violations": [],
+      "passedRules": 26,
+      "incompleteRules": 1
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+document.querySelector('#proof').textContent='Script executed in '+globalThis.origin;fetch('http://127.0.0.1:55051/fetch').catch(()=>{});try{new WebSocket('ws://127.0.0.1:55051/ws')}catch{};try{localStorage.setItem('secret','must fail')}catch{document.body.dataset.storage='blocked'};

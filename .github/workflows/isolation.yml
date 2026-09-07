@@ -1,0 +1,55 @@
+name: Linux isolation adversarial gate
+on:
+  push:
+    branches: ['rebuild/ironcrew']
+    paths: ['next/**', '.github/workflows/isolation.yml']
+  pull_request:
+    paths: ['next/packages/tools/isolation/**', 'next/packages/tools/remote-execution/**', 'next/apps/worker/**', 'next/apps/control/worker-server.ts', 'next/packages/tools/workspace.ts', 'next/tests/isolation/**', 'next/packages/tools/site-build.ts', 'next/packages/tools/site-assets/**', 'next/packages/domain/workflows/website.ts', '.github/workflows/isolation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  kernel-boundaries:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: next
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build pinned toolchain in dedicated CI runner
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential meson ninja-build pkg-config libcap-dev curl xz-utils busybox-static php-cli
+          bash packages/tools/isolation/bootstrap-lab.sh "$RUNNER_TEMP/ironcrew-isolation"
+      - name: Permit only the pinned bwrap path to create user namespaces
+        run: |
+          printf 'profile ironcrew-ci-bwrap "%s/tooling/bwrap-build/bwrap" flags=(unconfined) {\n userns,\n}\n' "$RUNNER_TEMP/ironcrew-isolation" > "$RUNNER_TEMP/ironcrew-bwrap.apparmor"
+          sudo apparmor_parser -r "$RUNNER_TEMP/ironcrew-bwrap.apparmor"
+      - name: Prepare profile and run mandatory real kernel probes
+        run: |
+          lab="$RUNNER_TEMP/ironcrew-isolation"
+          "$lab/tooling/node/bin/node" packages/tools/isolation/cli.ts prepare "$lab/profile" "$lab/tooling/node" "$lab/tooling/bwrap-build/bwrap" /sys/fs/cgroup/ironcrew-ci /usr/bin/php
+          sudo bash packages/tools/isolation/run-delegated.sh "$(id -un)" /sys/fs/cgroup/ironcrew-ci "$lab/tooling/node/bin/node" "$PWD/tests/isolation/linux.ts" "$lab/profile/profile.json" "$lab/evidence.json"
+      - name: Actual WSS worker and offline website builds
+        run: |
+          lab="$RUNNER_TEMP/ironcrew-isolation"
+          PATH="$lab/tooling/node/bin:$PATH" npx --yes pnpm@10.30.1 install --frozen-lockfile
+          sudo bash packages/tools/isolation/run-delegated.sh "$(id -un)" /sys/fs/cgroup/ironcrew-ci "$lab/tooling/node/bin/node" "$PWD/tests/isolation/worker-native.ts" "$lab/profile/profile.json" "$lab/worker-native-evidence.json"
+          sudo bash packages/tools/isolation/run-delegated.sh "$(id -un)" /sys/fs/cgroup/ironcrew-ci "$lab/tooling/node/bin/node" "$PWD/scripts/site-build-lab.ts" "$lab/profile/profile.json" "$lab/site-evidence"
+      - name: Native remote byte streams, replay, cancellation and website builds
+        run: |
+          lab="$RUNNER_TEMP/ironcrew-isolation"
+          mkdir -p "$lab/remote-fixture"
+          cp tests/integration/worker-fixtures/{cert,key}.pem "$lab/remote-fixture/"
+          sudo bash packages/tools/isolation/run-delegated.sh "$(id -un)" /sys/fs/cgroup/ironcrew-ci "$lab/tooling/node/bin/node" "$PWD/tests/isolation/remote-host.ts" "$lab/remote-fixture" "$lab/remote-evidence" "$lab/profile/profile.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-isolation-evidence
+          path: |
+            ${{ runner.temp }}/ironcrew-isolation/*evidence.json
+            ${{ runner.temp }}/ironcrew-isolation/site-evidence
+            ${{ runner.temp }}/ironcrew-isolation/remote-evidence
+          if-no-files-found: error

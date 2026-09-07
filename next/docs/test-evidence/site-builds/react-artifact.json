@@ -1,0 +1,135 @@
+{
+  "id": "0b9e70b1-cbd1-47c4-a747-dcd4bf08b4eb",
+  "artifactId": "4863aeaa-4309-4b31-95c8-3745e7f16a4e",
+  "scope": {
+    "companyId": "9ab63388-1da1-4bd3-bac8-98d4d387940e",
+    "areaId": "4894e780-058a-4e10-a202-370f18ace2b0"
+  },
+  "orderId": "4863aeaa-4309-4b31-95c8-3745e7f16a4e",
+  "sha256": "3e7288434c0f8429e62c074e291f6bb8ffeb5757a7acbf8b5a9d253a89ba676c",
+  "packageSha256": "abe7a04e3f123e858afa11f3b96e26f87769a636eb4b098892a7ab19430c9893",
+  "mediaType": "text/html",
+  "bytes": 244,
+  "stack": "react",
+  "previewPath": "dist/index.html",
+  "buildEvidence": {
+    "exitCode": 0,
+    "stdout": "React offline build complete\n",
+    "stderr": "",
+    "termination": "exited",
+    "attestationId": "c1dcd199-f870-4a0f-ace5-8ecf1174b857",
+    "profileSha256": "f5289876e1309f34e681ce9ef1f6a61aa89361df437f219051d047556be50dd1",
+    "toolchainSha256": "ddcb4cc97a08995eb6c3bab9f3a2faf3c9e2706369064707f4d0842704ff5b56",
+    "outputHashes": {
+      "dist/app.mjs": "137732ad5d586f83ee5573b35015863cc25f05f2d3b01d468c30314dcbf25a77",
+      "dist/concept.mjs": "238748d20e2d769822cc181aa77902889a1cbdc4b9380be04b9e98fe78a17f28",
+      "dist/index.html": "3e7288434c0f8429e62c074e291f6bb8ffeb5757a7acbf8b5a9d253a89ba676c",
+      "dist/vendor/LICENSE.txt": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "dist/vendor/react-runtime.mjs": "a10fd8fcccb9fe3665f8de4a6c48e4f49e7f75db103173bad8a0ef642ba79fd3"
+    },
+    "resources": {
+      "memoryEvents": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "pidsEvents": {
+        "max": 0
+      },
+      "cpuStat": {
+        "usage_usec": 42272,
+        "user_usec": 35055,
+        "system_usec": 7217,
+        "core_sched.force_idle_usec": 0,
+        "nr_periods": 1,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      }
+    }
+  },
+  "canonicalStore": "internal",
+  "delivery": "staged",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "8a28b92c5382327c230e2883a90f738590843a6d77a43f2da22263b54378a0d3",
+      "bytes": 723
+    },
+    {
+      "path": "build.mjs",
+      "sha256": "085b78ed2e8d130c78a80cfe8a608c6118821102f7284010c0148a4a80621276",
+      "bytes": 722
+    },
+    {
+      "path": "dist/app.mjs",
+      "sha256": "137732ad5d586f83ee5573b35015863cc25f05f2d3b01d468c30314dcbf25a77",
+      "bytes": 579
+    },
+    {
+      "path": "dist/concept.mjs",
+      "sha256": "238748d20e2d769822cc181aa77902889a1cbdc4b9380be04b9e98fe78a17f28",
+      "bytes": 242
+    },
+    {
+      "path": "dist/index.html",
+      "sha256": "3e7288434c0f8429e62c074e291f6bb8ffeb5757a7acbf8b5a9d253a89ba676c",
+      "bytes": 244
+    },
+    {
+      "path": "dist/vendor/LICENSE.txt",
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "bytes": 1088
+    },
+    {
+      "path": "dist/vendor/react-runtime.mjs",
+      "sha256": "a10fd8fcccb9fe3665f8de4a6c48e4f49e7f75db103173bad8a0ef642ba79fd3",
+      "bytes": 257958
+    },
+    {
+      "path": "package.json",
+      "sha256": "eb2c6ab6ab1b107ffa5464eda53abf642feff972990b5af80b9222d17891d30f",
+      "bytes": 201
+    },
+    {
+      "path": "public/index.html",
+      "sha256": "3e7288434c0f8429e62c074e291f6bb8ffeb5757a7acbf8b5a9d253a89ba676c",
+      "bytes": 244
+    },
+    {
+      "path": "server.mjs",
+      "sha256": "dd4a669a46ec2474f822da54bbbf87840250afa48417703019b1e552b0b539a5",
+      "bytes": 1018
+    },
+    {
+      "path": "src/app.mjs",
+      "sha256": "137732ad5d586f83ee5573b35015863cc25f05f2d3b01d468c30314dcbf25a77",
+      "bytes": 579
+    },
+    {
+      "path": "src/concept.mjs",
+      "sha256": "238748d20e2d769822cc181aa77902889a1cbdc4b9380be04b9e98fe78a17f28",
+      "bytes": 242
+    },
+    {
+      "path": "vendor/LICENSE.txt",
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "bytes": 1088
+    },
+    {
+      "path": "vendor/manifest.json",
+      "sha256": "de677d679e342e80f51776f6de4295dc01b3abb53013a49a82858af27a865231",
+      "bytes": 128
+    },
+    {
+      "path": "vendor/react-runtime.mjs",
+      "sha256": "a10fd8fcccb9fe3665f8de4a6c48e4f49e7f75db103173bad8a0ef642ba79fd3",
+      "bytes": 257958
+    }
+  ],
+  "createdAt": "2026-09-07T08:17:46.020Z"
+}

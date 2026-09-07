@@ -1,0 +1,115 @@
+{
+  "package": "IronCrew-Entwicklungspaket",
+  "version": "1.0",
+  "prdVersion": "0.9",
+  "date": "2026-09-07",
+  "kind": "implementation-specification-not-application",
+  "referenceCommit": "76160c0e56324d1ec16ebf2956cbeadbc544cfc4",
+  "files": [
+    {
+      "path": "00-START-HIER.md",
+      "bytes": 3293,
+      "sha256": "bc2f049e09da3ec84793190fbde047b3b8acf6c134a153905ae26ee84205fda0"
+    },
+    {
+      "path": "01-ARCHITEKTUR.md",
+      "bytes": 16313,
+      "sha256": "f6f9c5496fad68c3116511f8a564877bb71b27264bf3b8bf3becdfd6a81de20a"
+    },
+    {
+      "path": "02-OBERFLAECHE.md",
+      "bytes": 9615,
+      "sha256": "8c94ad96bf7220776e366f17d00d3a15b5083817da3d7d79fb91b20b9e6063a9"
+    },
+    {
+      "path": "03-INTEGRATIONEN.md",
+      "bytes": 12607,
+      "sha256": "6822569f91f389a9a71a42e1b797ef582606ccb4555be1f0407384b152b7f313"
+    },
+    {
+      "path": "04-ARBEITSPAKETE.md",
+      "bytes": 5709,
+      "sha256": "d7e19af839cf171364797215b7aa1f41b67a8f16f1d2653cab4c709ef60ef74e"
+    },
+    {
+      "path": "05-ABNAHME.md",
+      "bytes": 7140,
+      "sha256": "f3ef1fb13667c7280bf511cbb1c903359b46897f7973bbd4324f6cb134ee8a90"
+    },
+    {
+      "path": "06-BETRIEB.md",
+      "bytes": 8475,
+      "sha256": "accc689569fb61304326b1e38b9bed7f6ab9c2c0694350bc19bfde25d60f1ae2"
+    },
+    {
+      "path": "ASSET-HERKUNFT.md",
+      "bytes": 873,
+      "sha256": "21db67af26c61ab91da616107b532f897f09e59437b011ca98eb087b0892b1c0"
+    },
+    {
+      "path": "IronCrew-PRD-Entwurf-01.md",
+      "bytes": 67258,
+      "sha256": "619c53918548e20c500fbac5c0000651f3f579fca98265f04b54d871ff55ca61"
+    },
+    {
+      "path": "IronCrew-Technikpruefung-und-Neubauempfehlung.md",
+      "bytes": 20705,
+      "sha256": "5a8ccde2672dba371667baf01f3db0f1ca00a130e472baae16474a76fb48f3d9"
+    },
+    {
+      "path": "PAKETPRUEFUNG.md",
+      "bytes": 1013,
+      "sha256": "e5c296d27ff25b5643cb27f05f6342766275a90d97f254fd36dc900727888048"
+    },
+    {
+      "path": "STARTPROMPT.md",
+      "bytes": 5514,
+      "sha256": "2c7dc3c9e5b2673189f3d4472e5bf9b6b23bac7c82e230b6340ffd656196192d"
+    },
+    {
+      "path": "assets/entwurf-b.png",
+      "bytes": 2269891,
+      "sha256": "4c2a227327733ddc98655fad7d04051fb6c9def39b037c94f33dd3704fb1ca36"
+    },
+    {
+      "path": "assets/irongeeks-logo-farbe.png",
+      "bytes": 1166685,
+      "sha256": "f4952485ff59834e46d87197d080ba7f21a17d6f9210b45155d86b0bb4e8a33c"
+    },
+    {
+      "path": "assets/irongeeks-logo-sw.png",
+      "bytes": 422163,
+      "sha256": "beba30f4db97dae60e6bd236563bd22972d614d7de461f25ba8e4fdba1eb0dd0"
+    },
+    {
+      "path": "assets/irongeeks-schriftzug.png",
+      "bytes": 167032,
+      "sha256": "565d74b9a7707c3e0825cbbc455c25e0d0050cc8cdc430f7c4c0bedd3c680b28"
+    },
+    {
+      "path": "contracts/acceptance-map.json",
+      "bytes": 4945,
+      "sha256": "17f1dce38c0b66a884a5275f6124af4f3aab1e1550ddd83748fe96f76d82ead6"
+    },
+    {
+      "path": "contracts/config.example.json",
+      "bytes": 1114,
+      "sha256": "fc92e1c7527dbe360e4b9e540da33d5aa88c855c6e7d225cbd960c39f500191e"
+    },
+    {
+      "path": "contracts/contracts.ts",
+      "bytes": 4580,
+      "sha256": "c88c0318b3361bfc10e16aa3d1c4d98d04f9c843208699b91c4cd704985ce074"
+    },
+    {
+      "path": "contracts/crew.seed.json",
+      "bytes": 3641,
+      "sha256": "790696eeb7e7a0d85927d5d9cda79b672ad98627203a4fbb185d3bb0a123be47"
+    },
+    {
+      "path": "contracts/design.tokens.json",
+      "bytes": 769,
+      "sha256": "d106dfd91b30ecc553bd786ceb967214ca13bb2f3d66ad2be515198891c17fe8"
+    }
+  ]
+}

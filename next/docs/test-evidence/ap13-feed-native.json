@@ -1,0 +1,47 @@
+{
+  "testedAt": "2026-09-07T11:08:33.877155+00:00",
+  "commands": [
+    {
+      "command": "npx pnpm exec vitest run tests/install/operations-release.test.ts tests/install/native-service-hardening.test.ts tests/integration/release-feed.test.ts tests/integration/finance-automation.test.ts tests/integration/online-backup.test.ts",
+      "passedTests": 46,
+      "skippedTests": 0
+    },
+    {
+      "command": "node tests/install/launchd-native.mjs docs/test-evidence/launchd-native.json",
+      "result": "passed; own label and temporary directory removed"
+    },
+    {
+      "command": "npx pnpm exec tsc --noEmit",
+      "result": "passed"
+    },
+    {
+      "command": "npx pnpm exec eslint (changed AP13/Finance files)",
+      "result": "passed"
+    }
+  ],
+  "nativeEvidence": "launchd-native.json",
+  "verified": [
+    "signed HTTPS index/archive and replay after SQLite restart",
+    "atomic concurrent staging with one planned update and no approval",
+    "persistent discovery cadence/redacted errors",
+    "actual encrypted backup and restore to new directory",
+    "native macOS user launchd registration/idempotency/SIGTERM/restart/cleanup",
+    "atomic reminder uniqueness and processing activation under concurrency",
+    "HTTP send blocked after config disable during secret resolution"
+  ],
+  "notExecuted": [
+    "privileged macOS LaunchDaemon account installation",
+    "native Windows WinSW/ACL/HyperV execution"
+  ],
+  "releasedOrPublished": false,
+  "sha256": {
+    "packages/operations/src/release-feed.ts": "29c33506772ac63dfdb36d3e83e866e267dbbfd8d61f0f78d05616eff4d3117d",
+    "apps/control/release-feed-routes.ts": "52cb1e91ed932813750b9bb04aaf31b14f8b0e74a36b32eccbf25192db3d0f2d",
+    "packages/operations/src/services.ts": "49df4d3acf10e9fe08af3fa18f44c0c996c005269a1bdf99d832cadb4dd9fa56",
+    "packages/operations/src/service-control.ts": "499d83df2a15ad58962b6e16832d4a5d2432bce2177caba3df573928f1df07f7",
+    "packages/operations/src/preflight.ts": "db0e77730739b87d99a061ac1963e32a02ced10fde522ec5390db451936ac326",
+    "packages/tools/isolation/vm-hyperv.ps1": "33bec745fd58d979818271db54bb286cf8811c6b9f7022b86f5c17475e3a7a1e",
+    "packages/domain/workflows/finance-automation.ts": "8950991a39e7f6b5f639dd14a168b9bf44119d2c94f9fa0af3242d520e718357",
+    "apps/control/finance-service.ts": "c3498418cdfd9cc1dcf4f837f7fc6fdc0389a635c677c53248378bab1bb6fb22"
+  }
+}
