@@ -1,0 +1,57 @@
+name: Windows native diagnostics
+on:
+  push:
+    branches: ['rebuild/ironcrew']
+    paths:
+      - 'next/tests/fixtures/updater.ts'
+      - 'next/tests/fixtures/launcher.ts'
+      - 'next/tests/install/**'
+      - 'next/packages/operations/**'
+      - 'next/scripts/windows-native-diagnostics.mjs'
+      - '.github/workflows/windows-native.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: next
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+          package_json_file: next/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.4.0
+          cache: pnpm
+          cache-dependency-path: next/pnpm-lock.yaml
+      - name: Install checksum-pinned native test tools
+        run: python scripts/ci-tools.py "$RUNNER_TEMP/ironcrew-ci-age" --github-env "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+      # Observational probes include the failing minimal environment; the real tests remain mandatory.
+      - name: Diagnose bounded PowerShell startup and CIM query phases
+        continue-on-error: true
+        run: node scripts/windows-native-diagnostics.mjs
+      - name: Verify real host detection and one full native update
+        env:
+          IRONCREW_TEST_UPDATER_DIAGNOSTICS: '1'
+        run: |
+          set -o pipefail
+          pnpm exec vitest run tests/install/host-platform.test.ts tests/install/updater-service.test.ts --testNamePattern 'runs real host detection|external child updater stops own service' --reporter verbose 2>&1 | tee .var/windows-native-tests.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-native-diagnostics
+          path: |
+            next/.var/windows-native-diagnostics.json
+            next/.var/windows-native-tests.log
+          if-no-files-found: error

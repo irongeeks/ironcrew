@@ -42,6 +42,30 @@ afterEach(async () => {
 export async function fixture(unhealthy = false, aliases = false) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), "ironcrew-updater-real-")));
   cleanup.push(() => rm(root, { recursive: true, force: true }));
+  const diagnostics = process.env.IRONCREW_TEST_UPDATER_DIAGNOSTICS === "1";
+  const brokerDiagnostic = path.join(root, "broker-diagnostic.json");
+  const phase = (value: string) => {
+    if (diagnostics) process.stderr.write(`[updater-fixture] ${value}\n`);
+  };
+  const inspectBroker = async () => {
+    if (!diagnostics) return;
+    const record = JSON.parse(await readFile(brokerDiagnostic, "utf8").catch(() => "null"));
+    if (record) {
+      const alive = (pid: number) => {
+        try {
+          process.kill(pid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      process.stderr.write(
+        `[updater-fixture] cleanup broker=${JSON.stringify(record)} alive=${JSON.stringify({ broker: alive(record.pid), launcher: alive(record.ppid), service: record.servicePid ? alive(record.servicePid) : false })}\n`,
+      );
+    }
+  };
+  cleanup.push(inspectBroker);
+  phase("prepare releases");
   const fixtureAge = path.join(root, process.platform === "win32" ? "trusted-age.exe" : "trusted-age");
   await copyFile(age, fixtureAge);
   await chmod(fixtureAge, 0o755);
@@ -91,9 +115,16 @@ export async function fixture(unhealthy = false, aliases = false) {
         .replaceAll('"zod"', JSON.stringify(new URL("../../node_modules/zod/index.js", import.meta.url).href));
       await writeFile(path.join(directory, "dist/apps/updater", helper + ".js"), source);
     }
+    // The native broker below controls this fixture. WinSW is manifest-only and never executed.
+    const executableFiles = [runtimeRelative];
+    if (process.platform === "win32") {
+      await mkdir(path.join(directory, "winsw"));
+      await writeFile(path.join(directory, "winsw/WinSW-x64.exe"), "Inert signed wrapper fixture; never executed.");
+      executableFiles.push("winsw/WinSW-x64.exe");
+    }
     const files = [];
     for (const file of [
-      runtimeRelative,
+      ...executableFiles,
       "dist/apps/control/main.js",
       "package.json",
       "dist/apps/updater/backup.js",
@@ -105,7 +136,7 @@ export async function fixture(unhealthy = false, aliases = false) {
         path: file,
         bytes: content.length,
         sha256: await hashFile(path.join(directory, file)),
-        executable: file === runtimeRelative,
+        executable: executableFiles.includes(file),
       });
     }
     const bytes = Buffer.from(
@@ -128,16 +159,20 @@ export async function fixture(unhealthy = false, aliases = false) {
   const candidate = path.join(root, "candidate");
   await release(candidate, "0.4.1");
   if (process.env.IRONCREW_TEST_SYSTEMD === "1") await chown(path.join(candidate, "runtime/node"), 501, 501);
+  phase("compile broker launcher");
   const broker = await createFixtureLauncher(
     root,
     "service-broker",
     `import fs from 'node:fs/promises'; import path from 'node:path'; import {spawn} from 'node:child_process';
  const argv=process.argv.slice(2), get=k=>argv[argv.indexOf(k)+1], op=get('--operation'), data=get('--data-dir'), program=get('--program-dir'); const pidFile=path.join(data,'fixture.pid');
+ const report=async(stage,servicePid)=>{if(${JSON.stringify(diagnostics)})await fs.writeFile(${JSON.stringify(brokerDiagnostic)},JSON.stringify({stage,operation:op,pid:process.pid,ppid:process.ppid,servicePid}));};
+ await report('entered');
  const wait=async(check)=>{const deadline=Date.now()+15000;while(Date.now()<deadline){if(await check())return;await new Promise(r=>setTimeout(r,25));}throw Error('Fixture service transition timed out');};
- if(op==='start'){ const child=spawn(path.join(program,${JSON.stringify(runtimeRelative)}),[path.join(program,'dist/apps/control/main.js'),data,'${port}'],{cwd:program,env:{...(process.platform==='win32'?{SystemRoot:process.env.SystemRoot??process.env.SYSTEMROOT}:{})},detached:true,stdio:'ignore'});child.unref(); await wait(async()=>{try{await fs.access(pidFile);return true;}catch{return false;}}); }
+ if(op==='start'){ const child=spawn(path.join(program,${JSON.stringify(runtimeRelative)}),[path.join(program,'dist/apps/control/main.js'),data,'${port}'],{cwd:program,env:{...(process.platform==='win32'?{SystemRoot:process.env.SystemRoot??process.env.SYSTEMROOT}:{})},detached:true,stdio:'ignore'});child.unref(); await report('spawned',child.pid); await wait(async()=>{try{await fs.access(pidFile);return true;}catch{return false;}}); await report('ready',child.pid); }
  if(op==='stop'){let pid;try{pid=Number(await fs.readFile(pidFile,'utf8'));}catch{} if(pid){if(process.platform==='win32'){const r=await fetch('http://127.0.0.1:${port}/fixture-shutdown',{method:'POST',headers:{'x-fixture-token':${JSON.stringify(shutdownToken)}},signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('Fixture shutdown denied');}else process.kill(pid,'SIGTERM');await wait(async()=>{try{process.kill(pid,0);return false;}catch(e){if(e.code==='ESRCH')return true;throw e;}});try{await fs.access(pidFile);throw Error('still running');}catch(e){if(e.code!=='ENOENT')throw e;}}}
- console.log(JSON.stringify({serviceName:get('--service'),state:op==='stop'?'stopped':'running'}));`,
+ await report('returning',Number(await fs.readFile(pidFile,'utf8').catch(()=>'0'))); console.log(JSON.stringify({serviceName:get('--service'),state:op==='stop'?'stopped':'running'}));`,
   );
+  phase("open repository");
   const repo = await Repository.open(path.join(data, "company.sqlite"));
   const setup = await repo.setup({
     companyName: "Updater local fixture",
@@ -151,6 +186,7 @@ export async function fixture(unhealthy = false, aliases = false) {
   cleanup.push(async () => {
     if (!repoClosed) await repo.close();
   });
+  phase("generate age identity");
   const identity = path.join(root, "age-identity");
   await run(
     process.env.IRONCREW_TEST_AGE_KEYGEN ??
@@ -213,9 +249,12 @@ export async function fixture(unhealthy = false, aliases = false) {
   const config = await readUpdaterConfiguration(configPath);
   const controller = new NativeServiceControl(config.service, install, data);
   cleanup.push(async () => {
+    await inspectBroker();
     await controller.invoke("stop").catch(() => {});
   });
+  phase("controller start");
   await controller.invoke("start");
+  phase("controller start returned");
   for (let i = 0; i < 100; i++) {
     try {
       await fetch(config.healthUrl);
@@ -263,7 +302,9 @@ export async function fixture(unhealthy = false, aliases = false) {
     recipient,
     destination: policyBackup,
   });
+  phase("backup restore probe");
   await service.probeBackupPolicy(scope, setup.ceo.id, backup.id, { identityPath: identity });
+  phase("backup restore probe returned");
   await service.activateBackupPolicy(scope, setup.ceo.id, backup.id);
   if (process.env.IRONCREW_TEST_SYSTEMD === "1")
     for (const name of await readdir(path.join(root, "backups")))
@@ -276,9 +317,11 @@ export async function fixture(unhealthy = false, aliases = false) {
     allowedClasses: ["patch"],
     window: { cron: "* * * * *", timezone: "UTC", durationMinutes: 10 },
   });
+  phase("propose signed update");
   const plan = await service.proposeUpdate(scope, setup.ceo.id, policy.id, candidate);
   await service.approveUpdate(scope, setup.ceo.id, plan.id);
   await updaterTick(configPath);
+  phase("ready");
   return {
     root,
     repo,
