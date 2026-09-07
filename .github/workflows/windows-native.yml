@@ -6,6 +6,7 @@ on:
       - 'next/tests/fixtures/updater.ts'
       - 'next/tests/fixtures/launcher.ts'
       - 'next/tests/install/**'
+      - 'next/tests/integration/fixture-launcher.test.ts'
       - 'next/packages/operations/**'
       - 'next/scripts/windows-native-diagnostics.mjs'
       - '.github/workflows/windows-native.yml'
@@ -41,6 +42,10 @@ jobs:
       - name: Diagnose bounded PowerShell startup and CIM query phases
         continue-on-error: true
         run: node scripts/windows-native-diagnostics.mjs
+      - name: Verify native launcher lifetime and binary streams
+        run: |
+          set -o pipefail
+          pnpm exec vitest run tests/integration/fixture-launcher.test.ts --reporter verbose 2>&1 | tee .var/windows-launcher-tests.log
       - name: Verify real host detection and one full native update
         env:
           IRONCREW_TEST_UPDATER_DIAGNOSTICS: '1'
@@ -54,4 +59,5 @@ jobs:
           path: |
             next/.var/windows-native-diagnostics.json
             next/.var/windows-native-tests.log
+            next/.var/windows-launcher-tests.log
           if-no-files-found: error

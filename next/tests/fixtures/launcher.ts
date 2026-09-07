@@ -36,7 +36,21 @@ async function buildWindowsLauncher() {
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 class Launcher {
+  [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr GetStdHandle(int kind);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool SetHandleInformation(IntPtr handle, uint mask, uint flags);
+  // Outer execFile pipes must not leak into the detached service grandchild. Give Node
+  // its own redirected pipes and relay raw bytes; text line events would corrupt age output.
+  static void PreventOuterPipeInheritance() {
+    foreach (int kind in new int[] {-10, -11, -12}) {
+      IntPtr handle = GetStdHandle(kind);
+      if (handle != IntPtr.Zero && handle != new IntPtr(-1) && !SetHandleInformation(handle, 1, 0))
+        throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+    }
+  }
   // Windows argv quoting: double backslashes preceding a quote or closing delimiter.
   static string Quote(string value) {
     var result = new StringBuilder(); result.Append('"'); int slashes = 0;
@@ -54,7 +68,24 @@ class Launcher {
       foreach(string argument in args) arguments.Append(" ").Append(Quote(argument));
       var start = new ProcessStartInfo(${csharpString(process.execPath)}, arguments.ToString());
       start.UseShellExecute = false;
-      using(var child = Process.Start(start)) { child.WaitForExit(); return child.ExitCode; }
+      start.RedirectStandardInput = true;
+      start.RedirectStandardOutput = true;
+      start.RedirectStandardError = true;
+      PreventOuterPipeInheritance();
+      using(var child = Process.Start(start)) {
+        Task stdout = child.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput());
+        Task stderr = child.StandardError.BaseStream.CopyToAsync(Console.OpenStandardError());
+        // Input may remain open after a short-lived broker exits. It must not hold Main open.
+        Task.Run(async () => {
+          try { await Console.OpenStandardInput().CopyToAsync(child.StandardInput.BaseStream); }
+          catch(IOException) { }
+          catch(ObjectDisposedException) { }
+          finally { try { child.StandardInput.Close(); } catch(ObjectDisposedException) { } }
+        });
+        child.WaitForExit();
+        Task.WaitAll(stdout, stderr);
+        return child.ExitCode;
+      }
     } catch(Exception) { Console.Error.WriteLine("Fixture launcher failed"); return 125; }
   }
 }

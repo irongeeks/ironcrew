@@ -22,6 +22,15 @@ const controlledEnvironment = {
   TMP: diagnosticDirectory,
   PSModulePath: path.win32.join(powershellHome, "Modules"),
 };
+const systemPathEnvironment = {
+  ...controlledEnvironment,
+  PATH: [
+    path.win32.join(systemRoot, "System32"),
+    path.win32.join(systemRoot, "System32", "Wbem"),
+    powershellHome,
+    systemRoot,
+  ].join(";"),
+};
 const prelude = `
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -37,25 +46,57 @@ $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop | Select-Object Ve
 Phase 'queryDone'
 $os | ConvertTo-Json -Compress
 `;
+const explicitModule = `
+Phase 'importStarted'
+Import-Module -Name (Join-Path $PSHOME 'Modules\\CimCmdlets\\CimCmdlets.psd1') -ErrorAction Stop
+Phase 'importDone'
+`;
+const directModule = `
+Phase 'importStarted'
+Import-Module -Name ($PSHOME + '\\Modules\\CimCmdlets\\CimCmdlets.psd1') -ErrorAction Stop
+Phase 'importDone'
+`;
 const probes = [
   { name: "A-minimal-startup", env: minimalEnvironment, command: prelude + "Phase 'ready'" },
   { name: "B-original-cim-autoload", env: minimalEnvironment, command: prelude + query },
   {
     name: "C-controlled-temp-system-cim-module",
     env: controlledEnvironment,
-    command:
-      prelude +
-      `
-Phase 'importStarted'
-Import-Module -Name (Join-Path $PSHOME 'Modules\\CimCmdlets\\CimCmdlets.psd1') -ErrorAction Stop
-Phase 'importDone'
-` +
-      query,
+    command: prelude + explicitModule + query,
+  },
+  {
+    // Only PATH differs from C. This tests a dependency hypothesis, not an established cause.
+    name: "D-controlled-system-path",
+    env: systemPathEnvironment,
+    command: prelude + explicitModule + query,
+  },
+  {
+    // Only the module-path expression differs from D: no Join-Path cmdlet/autoload.
+    name: "E-controlled-system-path-direct-module-expression",
+    env: systemPathEnvironment,
+    command: prelude + directModule + query,
+  },
+  {
+    // Diagnostic control only, never a product environment policy or an environment dump.
+    name: "F-original-query-inherited-runner-environment",
+    env: process.env,
+    command: prelude + query,
+    inheritedEnvironment: true,
+    onlyIfControlsFailed: true,
   },
 ];
 const results = [];
+const notRunProbes = [];
+const failed = (result) => result.killed || result.signal || result.exitCode !== 0;
 try {
   for (const probe of probes) {
+    if (probe.onlyIfControlsFailed && results.some((result) => /^(D|E)-/.test(result.name) && !failed(result))) {
+      notRunProbes.push({
+        name: probe.name,
+        reason: "A controlled D/E probe succeeded; inherited control unnecessary.",
+      });
+      continue;
+    }
     const startedAt = new Date().toISOString();
     const start = performance.now();
     console.log(JSON.stringify({ probe: probe.name, event: "spawn", startedAt }));
@@ -79,8 +120,9 @@ try {
             name: probe.name,
             startedAt,
             durationMs: Math.round(performance.now() - start),
-            environmentKeys: Object.keys(probe.env),
-            exitCode: error?.code ?? 0,
+            environmentMode: probe.inheritedEnvironment ? "inherited-runner-diagnostic-only" : "controlled",
+            ...(probe.inheritedEnvironment ? {} : { environmentKeys: Object.keys(probe.env) }),
+            exitCode: error ? (error.code ?? null) : 0,
             killed: error?.killed ?? false,
             signal: error?.signal ?? null,
             phases,
@@ -112,14 +154,15 @@ try {
     timeoutMsPerProbe: 15000,
     maximumOutputBytesPerStream: 8192,
     scope:
-      "Read-only diagnostic; ordered A/B/C probes may warm Windows components. No product fix or OS acceptance is inferred.",
+      "Read-only diagnostic; ordered A-F probes may warm Windows components. D adds only system PATH to C; E removes only Join-Path from D; F conditionally contrasts B with inherited runner environment and never prints that environment. No product fix or OS acceptance is inferred.",
     probes: results,
+    notRunProbes,
   };
   const reportPath = path.resolve(".var/windows-native-diagnostics.json");
   await mkdir(path.dirname(reportPath), { recursive: true });
   await writeFile(reportPath, JSON.stringify(report, null, 2) + "\n", { flag: "wx" });
   console.log(JSON.stringify({ event: "summary", ...report }));
-  if (results.some((result) => result.exitCode !== 0)) process.exitCode = 1;
+  if (results.some(failed)) process.exitCode = 1;
 } finally {
   await rm(diagnosticDirectory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 }
