@@ -174,11 +174,29 @@ test("model configuration stores only SecretRefs and requires explicit live acti
 });
 test("WebGL loss preserves crew navigation and order access", async ({ page }) => {
   await fixtures(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/hq");
-  const canvas = page.locator("canvas");
+  const hall = page.getByRole("region", { name: "Räumliche Einsatzzentrale", exact: true });
+  await expect(hall).toHaveAttribute("data-crew-assets", "verified");
+  await expect(hall).toHaveAttribute("data-motion", "reduced");
+  const canvas = hall.locator("canvas[data-engine]");
   await expect(canvas).toBeVisible();
-  await canvas.evaluate((element) => element.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
+  // Canvas visibility precedes renderer creation/onCreated; wait for an actual GL render program.
+  await expect
+    .poll(() =>
+      canvas.evaluate((element) => {
+        const gl = (element as HTMLCanvasElement).getContext("webgl2");
+        return !!gl && !gl.isContextLost() && gl.getParameter(gl.CURRENT_PROGRAM) !== null;
+      }),
+    )
+    .toBe(true);
+  await canvas.evaluate((element) => {
+    const gl = (element as HTMLCanvasElement).getContext("webgl2");
+    const extension = gl?.getExtension("WEBGL_lose_context");
+    if (!extension) throw new Error("Real WebGL context loss is unavailable");
+    extension.loseContext();
+  });
   await expect(page.getByRole("heading", { name: "Kompakte Ansicht bleibt verfügbar." })).toBeVisible();
   await expect(page.getByRole("link", { name: "CL Cersei Lannister" })).toBeVisible();
   await page.getByRole("link", { name: /Recherche zur eigenen Wissensablage/ }).click();

@@ -91,7 +91,7 @@ def main():
         'date': datetime.datetime.now(datetime.timezone.utc).isoformat(),
         'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         'branch': subprocess.check_output(['git', 'branch', '--show-current'], cwd=ROOT, text=True).strip(),
-        'workspace': 'GitHub Actions checkout' if os.environ.get('GITHUB_ACTIONS') == 'true' else 'uncommitted next/ implementation',
+        'workspace': 'GitHub Actions checkout' if os.environ.get('GITHUB_ACTIONS') == 'true' else 'local next/ working tree; exact files recorded in sourceIntegrity',
         'platform': platform.platform(),
         'node': subprocess.check_output(['node', '--version'], text=True).strip(),
         'pnpm': '10.30.1', 'gates': [],
