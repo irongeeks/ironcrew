@@ -329,19 +329,37 @@ test.describe("Real local administration (HTTP, SQLite, TLS worker; no mocked AP
     await page
       .getByLabel("Ziel, Kosten und konkrete Version geprüft; separate Freigabe anfordern.", { exact: true })
       .check();
+    // The local intent renders before the write finishes; only the HTTP receipt proves persistence.
+    const provisionResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === `/api/v1/orders/${order.id}/hosting/provision`,
+    );
     await page.getByRole("button", { name: "Konkrete Hostingfreigabe anfordern", exact: true }).click();
+    const provision = await provisionResponse;
+    expect(provision.status()).toBe(200);
+    const receipt = await provision.json();
+    expect(receipt.state).toBe("approval");
     await expect(page.getByText(/Gespeicherte Hostingaktion: provision/)).toBeVisible();
     const before = await (await page.request.get(`/api/v1/orders/${order.id}/hosting`)).json();
     expect(before.resources).toHaveLength(0);
     expect(before.pendingActions).toHaveLength(1);
     const actionId = before.pendingActions[0].id;
+    expect(actionId).toBe(receipt.id);
     await page.evaluate(() => localStorage.clear());
     await page.reload();
     await page.getByText("Hosting und Veröffentlichung", { exact: true }).click();
     await expect(page.getByText(actionId, { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Gebundene Freigabe in Entscheidungen prüfen", exact: true }).click();
     const approval = page.getByRole("article").filter({ has: page.getByText(actionId, { exact: true }) });
+    const denialResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /^\/api\/v1\/approvals\/[^/]+\/decision$/.test(new URL(response.url()).pathname) &&
+        response.request().postDataJSON()?.decision === "denied",
+    );
     await approval.getByRole("button", { name: "Ablehnen", exact: true }).click();
+    expect((await denialResponse).status()).toBe(200);
     await page.goto(`/orders/${order.id}`);
     await page.getByText("Hosting und Veröffentlichung", { exact: true }).click();
     const after = await (await page.request.get(`/api/v1/orders/${order.id}/hosting`)).json();

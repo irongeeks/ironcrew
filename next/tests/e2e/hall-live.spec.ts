@@ -1,29 +1,45 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
+async function renderedHall(hall: Locator) {
+  await expect(hall).toHaveAttribute("data-crew-assets", "verified");
+  const canvas = hall.locator("canvas[data-engine]");
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(() =>
+      canvas.evaluate((element) => {
+        const gl = (element as HTMLCanvasElement).getContext("webgl2");
+        return !!gl && !gl.isContextLost() && gl.getParameter(gl.CURRENT_PROGRAM) !== null;
+      }),
+    )
+    .toBe(true);
+  return canvas;
+}
 // Real local application and SQLite setup via e2e-server.ts. No API interception.
 test("real hall preserves keyboard access, reduced motion, camera and WebGL-loss fallback", async ({ page }) => {
+  // Keep evidence capture and navigation static; animation is explicitly enabled and checked below.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/hq");
   await page.getByLabel("Passwort", { exact: true }).fill("local-e2e-fixture-password");
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   const hall = page.getByRole("region", { name: "Räumliche Einsatzzentrale" });
-  await expect(hall).toHaveAttribute("data-crew-assets", "verified");
-  await expect(hall.locator("canvas")).toBeVisible();
+  await renderedHall(hall);
+  await expect(hall).toHaveAttribute("data-motion", "reduced");
   await expect(page.getByRole("link", { name: "NF Nick Fury", exact: true })).toBeVisible();
   const camera = hall.getByRole("button", { name: "Kamera wechseln", exact: true });
   await camera.focus();
   await page.keyboard.press("Enter");
   await expect(camera).toBeFocused();
   await page.screenshot({ path: "docs/test-evidence/crew-hall-desktop.png", fullPage: true });
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(hall).toHaveAttribute("data-motion", "reduced");
   await expect(hall.getByRole("button", { name: "Bewegung an", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Tab");
   await expect(hall.getByRole("button", { name: "Grafik reduzieren", exact: true })).toBeFocused();
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");
   await expect(hall).toHaveAttribute("data-motion", "animated");
+  await page.keyboard.press("Enter");
+  await expect(hall).toHaveAttribute("data-motion", "reduced");
   await page.getByRole("link", { name: "NF Nick Fury", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/crew\//);
@@ -42,8 +58,7 @@ test("real hall preserves keyboard access, reduced motion, camera and WebGL-loss
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: "docs/test-evidence/crew-hall-mobile-compact.png", fullPage: true });
   await page.getByRole("button", { name: "3D", exact: true }).click();
-  await expect(hall).toHaveAttribute("data-crew-assets", "verified");
-  await expect(hall.locator("canvas")).toBeVisible();
+  await renderedHall(hall);
   await page.evaluate(() => {
     (document.activeElement as HTMLElement)?.blur();
     scrollTo(0, 0);
@@ -61,15 +76,20 @@ test("real hall preserves keyboard access, reduced motion, camera and WebGL-loss
 });
 
 test("measure actual WebGL hall frame rate on the named local browser and device", async ({ page }) => {
+  // Slow CI renderers must not animate during driver roundtrips and trace capture outside the measured phase.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/hq");
   await page.getByLabel("Passwort", { exact: true }).fill("local-e2e-fixture-password");
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   const hall = page.getByRole("region", { name: "Räumliche Einsatzzentrale" });
-  await expect(hall).toHaveAttribute("data-crew-assets", "verified");
-  await expect(hall.locator("canvas")).toBeVisible();
-  const sample = await page.evaluate(async () => {
-    const canvas = document.querySelector("canvas")!;
+  await renderedHall(hall);
+  await expect(hall).toHaveAttribute("data-motion", "reduced");
+  const motion = hall.getByRole("button", { name: "Bewegung an", exact: true });
+  const sample = await motion.evaluate(async (element) => {
+    const button = element as HTMLButtonElement;
+    const region = button.closest('[role="region"]') as HTMLElement;
+    const canvas = region.querySelector("canvas")!;
     const gl = canvas.getContext("webgl2")!;
     const debug = gl.getExtension("WEBGL_debug_renderer_info");
     const frameTimes: number[] = [];
@@ -80,8 +100,15 @@ test("measure actual WebGL hall frame rate on the named local browser and device
       draws++;
       return original(...args);
     };
+    button.click();
+    const animationStartDeadline = performance.now() + 5000;
+    while (region.dataset.motion !== "animated") {
+      if (performance.now() >= animationStartDeadline) throw new Error("Hall animation did not start for measurement");
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     await wait(2000);
+    if (region.dataset.motion !== "animated") throw new Error("Hall animation did not start for measurement");
     draws = 0;
     let renderedFrames = 0,
       previousDraws = 0;
@@ -102,7 +129,12 @@ test("measure actual WebGL hall frame rate on the named local browser and device
     });
     const durationMs = performance.now() - started;
     gl.drawElements = original;
+    const animatedDuringSample = region.dataset.motion === "animated";
+    // Stop only after recording the complete six-second animated sample, before the driver captures its trace.
+    button.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     return {
+      animatedDuringSample,
       renderedFrames,
       durationMs,
       fps: renderedFrames / (durationMs / 1000),
@@ -123,13 +155,16 @@ test("measure actual WebGL hall frame rate on the named local browser and device
         measuredAt: new Date().toISOString(),
         source: "actual WebGL drawElements calls during real local application rendering",
         device: { platform: os.platform(), release: os.release(), arch: os.arch(), cpu: os.cpus()[0]?.model },
-        scope: "9 idle personas, default quality, headless Chromium on this device only; not a cross-device guarantee",
+        scope:
+          "9 idle personas, default quality; static setup followed by explicitly enabled animation throughout 2s warmup and 6s measurement, paused afterward; headless Chromium on this device only, not a cross-device guarantee",
         ...sample,
       },
       null,
       2,
     ) + "\n",
   );
+  expect(sample.animatedDuringSample).toBe(true);
+  await expect(hall).toHaveAttribute("data-motion", "reduced");
   expect(sample.drawCalls).toBeGreaterThan(1000);
   expect(sample.fps).toBeGreaterThanOrEqual(Number(process.env.IRONCREW_PERFORMANCE_MIN_FPS ?? 1));
 });
