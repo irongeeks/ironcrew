@@ -51,6 +51,7 @@ jobs:
       - name: Verify native launcher lifetime and binary streams
         run: |
           set -o pipefail
+          mkdir -p .var
           pnpm exec vitest run tests/integration/fixture-launcher.test.ts --reporter verbose 2>&1 | tee .var/windows-launcher-tests.log
       - name: Verify real host detection and one full native update
         if: ${{ !cancelled() }}
@@ -58,6 +59,7 @@ jobs:
           IRONCREW_TEST_UPDATER_DIAGNOSTICS: '1'
         run: |
           set -o pipefail
+          mkdir -p .var
           pnpm exec vitest run tests/install/host-platform.test.ts tests/install/updater-service.test.ts --testNamePattern 'runs real host detection|external child updater stops own service' --reporter verbose 2>&1 | tee .var/windows-native-tests.log
       - uses: actions/upload-artifact@v4
         if: always()
