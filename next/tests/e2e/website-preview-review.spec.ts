@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test";
 test("real local concept sandbox blocks navigation and old previews cannot approve the current version", async ({
   page,
 }) => {
+  // This test covers sandbox and version binding; animated HQ performance is tested separately.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/hq");
   await page.getByLabel("Passwort", { exact: true }).fill("local-e2e-fixture-password");
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
