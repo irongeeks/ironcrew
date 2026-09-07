@@ -5,11 +5,9 @@
     "originalSha256": "27298cf14958d03ec2f2ae77b4a46f20a777ab109ec67838446e884b19f5ad2f",
     "overallWaitMs": 180000,
     "productHealthTimeoutMs": 30000,
-    "repositorySourceUnchanged": true,
-    "executedCopySha256": "206bc9b8865e46bc843e14cbe778e55ddf592e088ac573360d967cdd14c1f612",
-    "executedCopyPath": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/production-update-proof-180s.mjs"
+    "repositorySourceUnchanged": true
   },
-  "baseRelease": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/release",
+  "baseRelease": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/release",
   "before": {
     "status": "ok",
     "database": {
@@ -18,8 +16,8 @@
       "foreignKeys": true
     },
     "version": "0.4.3",
-    "releaseManifestSha256": "6f00ef9c16cb2c1e41d82a94233ff7372b75e5ddfce1f73b61267cd59ad42433",
-    "instanceId": "1e56a988-7a54-42fa-a822-d9328d39e89d"
+    "releaseManifestSha256": "1edd9be09c127905bfa3cc5a236bcea2a3614a8631a90edaab8277b06c4659d6",
+    "instanceId": "8e7a9bd1-9d1a-410f-a395-0aae262cf855"
   },
   "after": {
     "status": "ok",
@@ -29,25 +27,88 @@
       "foreignKeys": true
     },
     "version": "0.4.4",
-    "releaseManifestSha256": "6963732be61556f87cdc42f12b5e373b55c38ebba0b0e34e9391cbc4b2cb560b",
-    "instanceId": "1a99a363-b4f8-4b36-b620-80ffd6985f15"
+    "releaseManifestSha256": "fb37ca8b24313ac813a1a790552a127509e41bb75d70982d09738840a7daa7b1",
+    "instanceId": "7dfebbcd-2659-40a7-ad44-c69f66b70a6c"
   },
-  "manifestSha256": "6963732be61556f87cdc42f12b5e373b55c38ebba0b0e34e9391cbc4b2cb560b",
+  "manifestSha256": "fb37ca8b24313ac813a1a790552a127509e41bb75d70982d09738840a7daa7b1",
   "probeState": "passed",
   "queued": {
     "state": "queued",
-    "jobId": "2b5b9905-c3cd-45ca-bbbf-7a3f2875f24c",
-    "planId": "38bbcd20-6678-46d2-b9b6-ce49ca32d32c"
+    "jobId": "8a3e6479-4f0b-4697-a603-e17ab891d18f",
+    "planId": "e3625dd3-27d8-43c1-a8e9-9a37fc973d0b"
   },
   "finalPlanState": "applied",
-  "offlineBackupSha256": "01e407068ed27347e85e49fd17406e0c28e7ba993277925799c7bc94bc544a54",
+  "offlineBackupSha256": "ed8e592c129ac47c1e80c2aca451aea82715422449f9bd3d6ae441f707794f43",
   "offlineBackupBytes": 225016,
   "daemonLog": [],
-  "completedAt": "2026-09-07T12:23:56.588942+00:00",
-  "cleanup": {
-    "daemonExited": true,
-    "controlStopped": true,
-    "ownTemporaryDirectoryRemoved": true
+  "date": "2026-09-07T15:16:45.251677+00:00",
+  "result": "passed",
+  "proofExecutionSourceCommit": "aabff77f55608ed1152429c5072eeba6a7c394a1",
+  "verifiedSourceCommit": "aabff77f55608ed1152429c5072eeba6a7c394a1",
+  "finalGateSourceManifestSha256": "045d7404631d412d4f5fb5d07f54fea82dce5fe9472f3fee9da9b04f7b4e649e",
+  "finalGateSourceFiles": 341,
+  "finalGateTestsPassed": 508,
+  "finalGateTestsSkipped": 0,
+  "finalGateBinding": {
+    "sourceCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+    "sourceManifestSha256": "045d7404631d412d4f5fb5d07f54fea82dce5fe9472f3fee9da9b04f7b4e649e",
+    "sourceFiles": 341,
+    "passedTests": 508,
+    "skippedTests": 0,
+    "gateReportSha256": "531a8e5ac4f7e6ba5c4ef457409a889cf68cb4e7c5744caf509d713a5d09e84f",
+    "sourceManifestPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/final-source-manifest-686022a.json",
+    "gateReportPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/final-gates-686022a.json",
+    "productComparison": {
+      "files": 315,
+      "method": "exact byte-for-byte comparison of every current dist file against the existing release",
+      "result": "identical",
+      "checkedAt": "2026-09-07T15:40:05.214590+00:00"
+    },
+    "ciStatus": "Confirmed success: GitHub Actions run 34139199380 on commit 686022a passed on macOS, Ubuntu and Windows; Linux isolation run 34139199314 also succeeded.",
+    "ciEvidence": {
+      "sourceCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+      "threeOs": {
+        "runId": 34139199380,
+        "conclusion": "success",
+        "platforms": [
+          "macOS",
+          "Ubuntu",
+          "Windows"
+        ]
+      },
+      "linuxIsolation": {
+        "runId": 34139199314,
+        "conclusion": "success"
+      }
+    }
   },
-  "finalGateSourceManifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04"
+  "originalBuildSource": {
+    "sourceCommit": "aabff77f55608ed1152429c5072eeba6a7c394a1",
+    "sourceManifestSha256": "47f4dab84235880bda70f74b7d7040bab5b130fd0e7aa636383703efb7d0bcc0",
+    "sourceManifestPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/source-manifest.json",
+    "gateReportPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/final-gates.json",
+    "gateReportSha256": "8e5e499ff81f4850c15e7919bbaa68cebdf8e8533fef351214e3bbeb62c3b896"
+  },
+  "archivePath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/ironcrew-0.4.3-darwin-arm64-TEST.tgz",
+  "archiveSha256": "c17241ee86473ae1bd103b073132a524306f6439e5a7132b9318c93a414766c4",
+  "baseManifestSha256": "1edd9be09c127905bfa3cc5a236bcea2a3614a8631a90edaab8277b06c4659d6",
+  "harnessPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/production-update-proof-180s.mjs",
+  "harnessSha256": "206bc9b8865e46bc843e14cbe778e55ddf592e088ac573360d967cdd14c1f612",
+  "wrapperPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/run-final-package-proof.py",
+  "wrapperSha256": "1af3caa19465964c0c6add66f7f39d49c6fb9dff8b411a9857c491ee3e2613af",
+  "rawEvidencePath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/full-product-smoke.raw.json",
+  "rawEvidenceSha256": "a1e7b13aed68a09a20a09bc20e30f1ec1271cfc831424100a11a9fda1238dd6e",
+  "cleanup": {
+    "harnessExitCode": 0,
+    "elapsedSeconds": 96.026,
+    "ownTemporaryDirectories": [
+      "/var/folders/nc/bmgs4tdn5fd2lvx3tr059hc00000gn/T/ironcrew-full-product-update-hAzFr2"
+    ],
+    "remainingOwnTemporaryDirectories": [],
+    "remainingOwnProcesses": [],
+    "passed": true,
+    "date": "2026-09-07T15:16:45.251677+00:00"
+  },
+  "ciStatusAtProof": "Platform CI still running; no aggregate CI success claimed",
+  "finalGateSourceCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379"
 }

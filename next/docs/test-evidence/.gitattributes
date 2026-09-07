@@ -1,0 +1,3 @@
+# Preserve byte-exact imported evidence, including Windows CRLF and runner whitespace.
+*.log -text -whitespace
+ci/** -text -whitespace

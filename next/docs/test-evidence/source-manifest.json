@@ -353,7 +353,7 @@
   },
   {
     "path": "apps/web/src/App.module.css",
-    "sha256": "9144454c5e85f8c5b35c914a3b0a659fc15cac7298af1fef93108477c39e9aa7"
+    "sha256": "9b6517d6e80954c4029def995048df2765bb89abc1559b6d1a027aa7310eaf0a"
   },
   {
     "path": "apps/web/src/App.tsx",
@@ -677,7 +677,7 @@
   },
   {
     "path": "packages/operations/src/host-platform.ts",
-    "sha256": "8969a4ef2b97c671f7d886b82fb298f4462522af0c58dd1cfdddbbfd5848c583"
+    "sha256": "92f347ff12204f1797307001285ae6334198480a914c74ce4f805b1a1d79e32d"
   },
   {
     "path": "packages/operations/src/index.ts",
@@ -769,7 +769,7 @@
   },
   {
     "path": "packages/tools/browser-inspect.ts",
-    "sha256": "5b5a1d5ca0f4ad9e14c14f4f28f7c2478432224cf01b6b4f921abe35488dc969"
+    "sha256": "be1c6d90ac8d1115e7ed3dcbe1bbd8bcdae912b71403ef21b1d3c7698043b1c2"
   },
   {
     "path": "packages/tools/isolation/README.md",
@@ -845,11 +845,11 @@
   },
   {
     "path": "packages/tools/remote-execution/server.ts",
-    "sha256": "15386edb5537757e634de8f5237aec84d6ab094316d7a465d6b3233040a0a86e"
+    "sha256": "bc946588bbc2e4f87ab1b21ca97445447e9a7c8bfe4f21d25a07def95ae08fc0"
   },
   {
     "path": "packages/tools/remote-execution/worker.ts",
-    "sha256": "f9da064cfc0e02cd1517623a56cb3059b0018059112005b772699bd2e3a222fb"
+    "sha256": "f411322eb9514b04d1eb06f026f1ac2a2e56ea570718da702d4c5672db6c5ed4"
   },
   {
     "path": "packages/tools/site-assets/LICENSE.txt",
@@ -929,11 +929,15 @@
   },
   {
     "path": "scripts/verify-local.py",
-    "sha256": "d21a922bdfb965d3b3bef125c0899f3ba5ab180820b8c01532398ccbac1e0e32"
+    "sha256": "54e86a78c99706398646f0e3c04a53a9b8f0618c0e15075238a848acd7fa63cb"
   },
   {
     "path": "scripts/verify-site-browser.ts",
     "sha256": "0cc81867f37d740711a70f29aa963be0e12dbeca719f5b2362c26d68b38423f0"
+  },
+  {
+    "path": "scripts/windows-native-diagnostics.mjs",
+    "sha256": "cc0707b9634429e16d4354b478baeced83ce3057b30072c9502992ab726303f5"
   },
   {
     "path": "scripts/wordpress-runtime-lab.py",
@@ -969,7 +973,7 @@
   },
   {
     "path": "tests/e2e/admin-local.spec.ts",
-    "sha256": "8630eac97e153aaf6e1d491a67d91527ce0935f0db4d8298c05893d3a810164e"
+    "sha256": "82a8049169ecf7bacbfe3a40f14f1586d00f18e94a0a5b36fea5d043c0845d4a"
   },
   {
     "path": "tests/e2e/entities.spec.ts",
@@ -981,7 +985,7 @@
   },
   {
     "path": "tests/e2e/hall-live.spec.ts",
-    "sha256": "485178604c3be55605718dbbd09836bf5fdd2b81f663323fba144fbdde4a2161"
+    "sha256": "11314290a3addc8e092a521ead45d2d92b6849bf65feab1f7f0966bd20bc6ef4"
   },
   {
     "path": "tests/e2e/incident-local.spec.ts",
@@ -993,11 +997,11 @@
   },
   {
     "path": "tests/e2e/live-local.spec.ts",
-    "sha256": "a630f6272f862885d6fe7e05b518bfae1067c7bcb1525dd60ca78c89c953d014"
+    "sha256": "3e9e2bcb01e7d0ce63597d5a43269ae2a4863239ea5cc36272506f97f82f8ec6"
   },
   {
     "path": "tests/e2e/mail-inbox-local.spec.ts",
-    "sha256": "cda5f16e604393f1ee198102d51696e2f79dc52cd17fe745d2304ada050a6a2d"
+    "sha256": "de250d6a49d48d4c5b29ef57994eed828bf7761cf75dcc365502951d6487ce6a"
   },
   {
     "path": "tests/e2e/model-costs.spec.ts",
@@ -1013,7 +1017,7 @@
   },
   {
     "path": "tests/e2e/ui.spec.ts",
-    "sha256": "60ca3870694edbbf7499b132e87eb3e9efbc3b344d4b536b287dece578737c55"
+    "sha256": "ed4ceb1b4cd26e8d325b0443429d088c6d404e91806fc7cd31767b0e1d128ce3"
   },
   {
     "path": "tests/e2e/website-care.spec.ts",
@@ -1025,7 +1029,7 @@
   },
   {
     "path": "tests/e2e/website-preview-review.spec.ts",
-    "sha256": "e73f0399cc5cedee932f07d82fa512bda5479a55b7dc660946c4fc59273aa314"
+    "sha256": "abba981542e5298e9e0fa8445527a59a4d0a056ac69f6bd01ec87e43c22ed1b8"
   },
   {
     "path": "tests/fixtures/git.ts",
@@ -1037,15 +1041,19 @@
   },
   {
     "path": "tests/fixtures/launcher.ts",
-    "sha256": "3de5a02d0592ff8243ebabf776f5f6c516609ee03af19a7d9d4b97d3ed5ca8b1"
+    "sha256": "4f698a22b889c03c707e951156e81961e26ffba6a85e33ab85b04f0ee34842ef"
   },
   {
     "path": "tests/fixtures/mailbox.ts",
     "sha256": "407c784b82dd54554e9009f4522d02520cf7123141dd9097fa1d3da215a96bfb"
   },
   {
+    "path": "tests/fixtures/shell.ts",
+    "sha256": "05876afef250ad6953369c53ba751b891b41aa9decf134a2ffa7f50e9a7c5779"
+  },
+  {
     "path": "tests/fixtures/updater.ts",
-    "sha256": "d1fb47e021136c381e729ea37eb2b1b95da04f175b6fa5fb8ca56a0f1d74e662"
+    "sha256": "976f88628f2bc373634ddd9d668f0d36b499ab0524e07f3b37d2f184f20604f0"
   },
   {
     "path": "tests/install/distribution.test.ts",
@@ -1053,7 +1061,7 @@
   },
   {
     "path": "tests/install/host-platform.test.ts",
-    "sha256": "b952e0b358471b05fd6a76e683de7df2591d05d23a718a271500eb31bfc46210"
+    "sha256": "b295c6863353ac43901db77c7ccee66dc8de210732b24136af43ac5f6264946c"
   },
   {
     "path": "tests/install/launchd-native.mjs",
@@ -1069,7 +1077,7 @@
   },
   {
     "path": "tests/install/operations-release.test.ts",
-    "sha256": "63e303c17fe4907e849dffe72da13204fc6e49c35c86515426f90a398b48e242"
+    "sha256": "67fa23e34800e8c85d03ce510a25a33c81ea355dd664b8d4e355b34aae9e7f2a"
   },
   {
     "path": "tests/install/production-update-smoke.mjs",
@@ -1077,7 +1085,7 @@
   },
   {
     "path": "tests/install/updater-service.test.ts",
-    "sha256": "38eea549878a428279af7462da06e739c4150e22a5213a3c225da31f15795af1"
+    "sha256": "49cebe0592c5ca9ef4ef5173012d94c7ef2c39391a944f2377852db80ca094ac"
   },
   {
     "path": "tests/integration/admin-routes.test.ts",
@@ -1104,6 +1112,10 @@
     "sha256": "ddcd0019ba8fec581c99e5c750e9abf4896c7a68ed27878a0c14669a34a29884"
   },
   {
+    "path": "tests/integration/browser-proxy.test.ts",
+    "sha256": "7acacf2a3e147defcfa661b92f48131276157673a3c3e56ed5923fb1c1c5f8c7"
+  },
+  {
     "path": "tests/integration/budget-periods.test.ts",
     "sha256": "622756687d08ac984fe2a0351386bebc055fd9bd3d5861cca85079737d34b42d"
   },
@@ -1117,7 +1129,7 @@
   },
   {
     "path": "tests/integration/control-lifecycle.test.ts",
-    "sha256": "fcb316d48ad8bb307791c73899a4002cee1a64e81a4aa0a0b11ed2b60b4bb33c"
+    "sha256": "ad3a6031817892d1e30068be888b4cb7ae6e504d94d3ac3644e424de503817cf"
   },
   {
     "path": "tests/integration/coordination.test.ts",
@@ -1141,11 +1153,11 @@
   },
   {
     "path": "tests/integration/fixture-launcher.test.ts",
-    "sha256": "acb3150a8ead9f073fd7b195bbac807dbd79c6c965f4976b1eae5dab69c23869"
+    "sha256": "3ef15267c3d82c3d2146c3b74cd880c3c4cf4a15efcc8ad789da1bb486787486"
   },
   {
     "path": "tests/integration/git-broker-control.test.ts",
-    "sha256": "209c3a1849576db7464d3077be0abe1ba9d2421b42e8a5735a75f8b69747702a"
+    "sha256": "91acdebac3a3346db05eaf1cb2f71fe7533e8bdedad2512dfb0293b44c3c4a90"
   },
   {
     "path": "tests/integration/hosting.test.ts",
@@ -1153,7 +1165,7 @@
   },
   {
     "path": "tests/integration/incident-control.test.ts",
-    "sha256": "05a2387d342764e5264f009572972cc1107f1279c88dc808b82b75cae802eeb2"
+    "sha256": "77e32d315f100397b6d474a6e5c855b2b6f9e002106125cedb5d86771d649dd4"
   },
   {
     "path": "tests/integration/incident-process.test.ts",
@@ -1209,7 +1221,7 @@
   },
   {
     "path": "tests/integration/release-feed.test.ts",
-    "sha256": "a25aeb0c0d710aa790426b62a18b57caef379217a8220e61f687cb3cebc777da"
+    "sha256": "f1d9fdf5493fd48c5f754efa3bd69f82141405be2926269b0049081d9edae85a"
   },
   {
     "path": "tests/integration/remote-execution.test.ts",

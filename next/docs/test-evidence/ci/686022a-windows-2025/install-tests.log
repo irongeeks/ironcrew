@@ -1,0 +1,29 @@
+
+> ironcrew-next@0.4.0-dev.0 test:install D:\a\ironcrew\ironcrew\next
+> vitest run tests/install
+
+
+ RUN  v3.2.6 D:/a/ironcrew/ironcrew/next
+
+ ✓ tests/install/operations-release.test.ts (15 tests) 679ms
+ ✓ tests/install/host-platform.test.ts (34 tests) 1936ms
+   ✓ runs real host detection and the native registration preflight without changing services  1922ms
+ ✓ tests/install/native-service-hardening.test.ts (7 tests) 384ms
+   ✓ waits for an actual asynchronously exiting service process and bounds a process that stays alive  358ms
+ ✓ tests/install/distribution.test.ts (2 tests) 9393ms
+   ✓ signed standalone distribution materializes transitive dependencies, executes private runtime and installs independent bootstrap  8712ms
+   ✓ distribution denies platform lies, wrong runtime and source symlink escape  680ms
+ ✓ tests/install/updater-service.test.ts (7 tests) 101859ms
+   ✓ external child updater stops own service, backs up offline, swaps exact signed release and imports proof  17291ms
+   ✓ unhealthy real new process is stopped before verified old release restarts  33450ms
+   ✓ candidate changed after queue cannot stop running service and cannot be retried blindly  10597ms
+   ✓ result from before a recovery generation cannot release the restored system  13210ms
+   ✓ administrative backup target and executable hash constrain an otherwise freshly approved plan  8376ms
+   ✓ queue symlink cannot change ownership or write into a protected unrelated directory  6198ms
+   ✓ harmless policy path aliases resolve to the same administrative targets without changing the approval binding  12734ms
+
+ Test Files  5 passed (5)
+      Tests  65 passed (65)
+   Start at  15:46:07
+   Duration  103.28s (transform 868ms, setup 0ms, collect 2.60s, tests 114.25s, environment 1ms, prepare 1.09s)
+

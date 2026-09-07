@@ -1,0 +1,36 @@
+
+> ironcrew-next@0.4.0-dev.0 test:recovery D:\a\ironcrew\ironcrew\next
+> vitest run tests/recovery
+
+
+ RUN  v3.2.6 D:/a/ironcrew/ironcrew/next
+
+ ✓ tests/recovery/runtime.test.ts (1 test) 17897ms
+   ✓ persists actual file, fixture test, approval pause, restart and immutable artifact  17894ms
+ ✓ tests/recovery/operations-backup.test.ts (5 tests) 18551ms
+   ✓ real age encrypted SQLite backup/restore (local fixture) > encrypts artifacts and restores complete state with paused automation and revoked sessions  2153ms
+   ✓ real age encrypted SQLite backup/restore (local fixture) > keeps previous data as rollback directory  706ms
+   ✓ real age encrypted SQLite backup/restore (local fixture) > rejects links, manifest hash mismatch and oversized archives before target mutation  434ms
+ ✓ tests/recovery/remote-update-fencing.test.ts (2 tests) 19108ms
+   ✓ fences restored in-flight remote jobs and preserves completed receipts across actual SQLite backup  14917ms
+   ✓ requires fresh update approval after restore and never auto-replays queued jobs or deferred attempts  4189ms
+ ✓ tests/recovery/core-recovery.test.ts (1 test) 2240ms
+   ✓ RUN-02/03 persists prepared model context, tool intent, approval waits and unreconciled usage across restart  2239ms
+ ✓ tests/recovery/runtime-hardening.test.ts (11 tests) 31733ms
+   ✓ never issues another paid request after interrupted response and process restart  14720ms
+   ✓ keeps missing usage visible and postpones tool effects until explicit reconciliation  3217ms
+   ✓ accounts malformed complete model responses without persisting partial tool actions  916ms
+   ✓ records an already completed effect after crash and mandate revocation without re-executing it  1818ms
+   ✓ rolls back the reservation if atomic model-intent persistence fails  576ms
+   ✓ stale local intent stays unknown and a durable staged result is recovered without another effect  444ms
+   ✓ shares one local execution under concurrency and rejects a corrupt receipt  510ms
+   ✓ consumes CEO messages once at the next model boundary while an active response is in flight  755ms
+   ✓ snapshots the edited lead profile and uses its public version for every model turn  1137ms
+   ✓ resumes reviewed work for a new CEO correction exactly once without claiming prior checks still pass  2618ms
+   ✓ does not turn a model-declared zero-exit command into trusted verification  5021ms
+
+ Test Files  5 passed (5)
+      Tests  20 passed (20)
+   Start at  15:30:22
+   Duration  32.71s (transform 683ms, setup 0ms, collect 2.09s, tests 89.53s, environment 1ms, prepare 746ms)
+

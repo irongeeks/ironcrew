@@ -1,0 +1,26 @@
+
+> ironcrew-next@0.4.0-dev.0 test:contracts /Users/robert/git/ironcrew/repo/next
+> vitest run tests/contracts
+
+
+ RUN  v3.2.6 /Users/robert/git/ironcrew/repo/next
+
+ ✓ tests/contracts/storage-operations.test.ts (6 tests) 135ms
+ ✓ tests/contracts/model-concurrency.test.ts (3 tests) 182ms
+ ✓ tests/contracts/integrations-google-workspace.test.ts (4 tests) 31ms
+ ✓ tests/contracts/integrations-http.test.ts (16 tests) 71ms
+ ✓ tests/contracts/openrouter.test.ts (1 test) 18ms
+ ✓ tests/contracts/integrations-git.test.ts (5 tests) 1387ms
+   ✓ Git connector with local bare remotes and real ManagedActions > stages an immutable commit in isolated worktree and requires concrete approval before push  470ms
+   ✓ Git connector with local bare remotes and real ManagedActions > uses expected revision before any remote push and does not overwrite a moved target  377ms
+stdout | tests/contracts/http-api.test.ts
+Actual successful HTTP operation contracts exercised: 107/161
+
+ ✓ tests/contracts/http-api.test.ts (11 tests) 2021ms
+   ✓ validates real setup, settings, profiles, collections, revision and authorization responses  304ms
+
+ Test Files  7 passed (7)
+      Tests  46 passed (46)
+   Start at  17:37:08
+   Duration  2.83s (transform 426ms, setup 0ms, collect 1.18s, tests 3.84s, environment 0ms, prepare 186ms)
+

@@ -1,0 +1,77 @@
+{
+  "runId": 34133641162,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34133641162",
+  "commit": "c5fd7ba760351faa8bc75311426f2715cab9717e",
+  "os": "ubuntu-24.04",
+  "conclusion": "success",
+  "jobId": 101779417484,
+  "files": [
+    {
+      "name": "openapi.log",
+      "sha256": "e202c04eb33da2a52596f89e1a75723ac681a928e386f9b0879f0ad0274571e8"
+    },
+    {
+      "name": "contracts.log",
+      "sha256": "59fe88948e316d0116d8d8a8f94a1af5bc0052bcd355eea5a403c302cebb47f9"
+    },
+    {
+      "name": "format.log",
+      "sha256": "e70c96d3d3a5c2cc1c63fd7b3d2612379dc52dbb1adc79c53bf21ffbfc83951c"
+    },
+    {
+      "name": "lint.log",
+      "sha256": "f7719673528e478ec4b3f92115f8b79cb165ae02bca2d7ddb2924bb6874be3ef"
+    },
+    {
+      "name": "install-tests.log",
+      "sha256": "978c79fbd486c9aa31692609bcc6b9a21f0c5e2f9f20acae3c523f86a346054e"
+    },
+    {
+      "name": "typecheck.log",
+      "sha256": "464367b72c748bde0c16c609ea27b3dfaeb2a2d0a161864c41b3f91e927222f3"
+    },
+    {
+      "name": "integration.log",
+      "sha256": "aab334c1de0204236c3a2d917331d6f83fe49d5419c1cbfcb89af4f01e480055"
+    },
+    {
+      "name": "unit.log",
+      "sha256": "72a6c46e3ad015fb3536bc1a0d04a6cd5e2e7a4a0131ba912f6cce3aa7bb4f47"
+    },
+    {
+      "name": "recovery.log",
+      "sha256": "f3ac9b48800c7c44d06ede63bebec32af7b586594544c5839e5c67931272ae17"
+    },
+    {
+      "name": "e2e.log",
+      "sha256": "6514e0b1d83e0b60f779d4a28a09791c1a70569f2a0b8677d45499a1eae4eca7"
+    },
+    {
+      "name": "install.log",
+      "sha256": "c431a53438b63575bda16435927cc070f16b3f25326baefb7ada2e9ab82770b1"
+    },
+    {
+      "name": "build.log",
+      "sha256": "b97e9369ae7a8232f6b88088c654ef4d04e1172c5b31d89068018d7fa1d900ab"
+    },
+    {
+      "name": "gates.json",
+      "sha256": "9489d1251a3fe003980a9ed7a0c44fd0199e78ef7472b0657210dedfd4e0ce10"
+    },
+    {
+      "name": "source-manifest.json",
+      "sha256": "c4a6e09858efeda21d81902cd8c29d7485466ce7749f73b9adb09379c9d8851d"
+    },
+    {
+      "name": "audit.json",
+      "sha256": "3db6423d0786171844f6660634bde8f6a1968861865433bf8efa319d1b5428fe"
+    }
+  ],
+  "sourceFilesMatchedCommit": 341,
+  "checkoutLineEndings": [
+    {
+      "path": "packages/tools/isolation/vm-hyperv.ps1",
+      "reason": "Repository .gitattributes prescribes eol=crlf for PowerShell; all remaining bytes match the commit."
+    }
+  ]
+}

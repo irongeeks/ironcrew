@@ -1,0 +1,22 @@
+{
+  "runId": 34135969178,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34135969178",
+  "commit": "a45574dcfe61000e5ffe235e7e2d060de020c47c",
+  "os": "windows-2025 focused native diagnostics",
+  "conclusion": "failure",
+  "scope": "Direct native WMI with minimal environment completed in284ms, controlled environment in263ms; all five operating-system fields equal the cached CIM control after numeric conversion. Original CIM baseline and original product host check still timed out; product replacement follows in a later commit. Native launcher and updater tests remain separate evidence.",
+  "files": [
+    {
+      "name": "windows-native-diagnostics.json",
+      "sha256": "6b25fb775debd02a3956a780e661ca60e96b041721df6662545c34e18a1ae19d"
+    },
+    {
+      "name": "windows-launcher-tests.log",
+      "sha256": "8017d03c7e448d2c912c81a84d16c2080277ded2ec0f0618d7ad044aa17a6209"
+    },
+    {
+      "name": "windows-native-tests.log",
+      "sha256": "bccd70b05eeba507cf92d5df9187f024827a879127ae1863dd702aed671b6ca0"
+    }
+  ]
+}

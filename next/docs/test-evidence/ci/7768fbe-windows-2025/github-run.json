@@ -1,0 +1,27 @@
+{
+  "runId": 34128842733,
+  "jobId": 101763824267,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34128842733",
+  "commit": "7768fbe72530ded1d0b5c16096b58c7426ac1adc",
+  "os": "windows-2025",
+  "conclusion": "failure",
+  "scope": "Historical failing run: integration276 passed; E2E44 passed and2 failed; recovery/install/openapi were not reached. Separate subsequent evidence is required.",
+  "files": [
+    {
+      "name": "gates.json",
+      "sha256": "96bceca01c73971a60c01af11afa8463567cd544d69e16de4abf35095c2e71a2"
+    },
+    {
+      "name": "e2e.log",
+      "sha256": "7a32331b77cc7d2ef7bae182f7eb478aa5ee523b0d40ab30669e80d3c17e276a"
+    },
+    {
+      "name": "integration.log",
+      "sha256": "f6a52d45d35637dc63e431624609b06046ae26f9bb205ebc7f4d64150e4b28f0"
+    },
+    {
+      "name": "glb-fallback-diagnosis.json",
+      "sha256": "3779a950d5eca3f022337f0b05d7ea3f9dbaf454f7e5d58c0d6dfec6bf6081b7"
+    }
+  ]
+}

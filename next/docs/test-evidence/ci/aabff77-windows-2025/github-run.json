@@ -1,0 +1,27 @@
+{
+  "runId": 34136935155,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34136935155",
+  "commit": "aabff77f55608ed1152429c5072eeba6a7c394a1",
+  "jobId": 101789988654,
+  "os": "windows-2025",
+  "conclusion": "failure",
+  "scope": "Historical E2E failures: hosting state was read before its POST completed; functional and performance hall tests exceeded their total time while the renderer delayed browser-driver communication. Later686022a waits for actual HTTP persistence and limits animation to tested phases, preserving the full2s warmup/6s animated measurement and original quality/thresholds. The later full CI is a separate source-bound result.",
+  "files": [
+    {
+      "name": "gates.json",
+      "sha256": "fd03457a6b02bce465c83be3dc4803e36a45635a12f297f62457b85a4b155537"
+    },
+    {
+      "name": "e2e.log",
+      "sha256": "18aedc4fd220254faf7f7846e7aae4506a7b5c7731815f6da250fef0d57eede0"
+    },
+    {
+      "name": "hosting-approval-race-diagnosis.json",
+      "sha256": "c89e65f5065b827d19a43a14512cd8b4e936680303c898c943b3e83fc5a0c27f"
+    },
+    {
+      "name": "hall-animation-diagnosis.json",
+      "sha256": "142eb6de7353f4f8f6b39841d43f4e802b0cc3d6fbb7ea64e018e29cae007ef4"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "measuredAt": "2026-09-07T13:23:52.011Z",
+  "node": "v26.4.0",
+  "platform": "darwin",
+  "sourceSha256": "5b5a1d5ca0f4ad9e14c14f4f28f7c2478432224cf01b6b4f921abe35488dc969",
+  "handler": "  const proxy = createServer((_req, res) => {\n    res.writeHead(403);\n    res.end();\n  });\n  proxy.on(\"connect\", (_req, socket) => socket.end(\"HTTP/1.1 403 Forbidden\\r\\nConnection: close\\r\\n\\r\\n\"));\n",
+  "probe": "import {createServer} from 'node:http';import {connect} from 'node:net';  const proxy = createServer((_req, res) => {\n    res.writeHead(403);\n    res.end();\n  });\n  proxy.on(\"connect\", (_req, socket) => socket.end(\"HTTP/1.1 403 Forbidden\\r\\nConnection: close\\r\\n\\r\\n\"));\n\nawait new Promise(r=>proxy.listen(0,'127.0.0.1',r));const client=connect(proxy.address().port,'127.0.0.1');client.on('error',()=>{});client.on('connect',()=>client.write('CONNECT example.invalid:443 HTTP/1.1\\r\\nHost: example.invalid:443\\r\\n\\r\\n'));client.once('data',b=>{console.log(b.toString().split('\\r\\n')[0]);client.resetAndDestroy();});setTimeout(()=>process.exit(2),2000);",
+  "attempts": [
+    {
+      "exitCode": 1,
+      "stdout": "HTTP/1.1 403 Forbidden\n",
+      "stderr": "node:events:487\n      throw er; // Unhandled 'error' event\n      ^\n\nError: read ECONNRESET\n    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)\nEmitted 'error' event on Socket instance at:\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -54,\n  code: 'ECONNRESET',\n  syscall: 'read'\n}\n\nNode.js v26.4.0\n"
+    },
+    {
+      "exitCode": 1,
+      "stdout": "HTTP/1.1 403 Forbidden\n",
+      "stderr": "node:events:487\n      throw er; // Unhandled 'error' event\n      ^\n\nError: read ECONNRESET\n    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)\nEmitted 'error' event on Socket instance at:\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -54,\n  code: 'ECONNRESET',\n  syscall: 'read'\n}\n\nNode.js v26.4.0\n"
+    },
+    {
+      "exitCode": 1,
+      "stdout": "HTTP/1.1 403 Forbidden\n",
+      "stderr": "node:events:487\n      throw er; // Unhandled 'error' event\n      ^\n\nError: read ECONNRESET\n    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)\nEmitted 'error' event on Socket instance at:\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -54,\n  code: 'ECONNRESET',\n  syscall: 'read'\n}\n\nNode.js v26.4.0\n"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "runId": 34130265613,
+  "jobId": 101768427353,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34130265613",
+  "commit": "6defe00daa0077b1076ac1515a862ab836a54560",
+  "os": "windows-2025",
+  "conclusion": "failure",
+  "scope": "Historical run:276integration,46E2E and20recovery passed. Install54:46passed,7updater fixture timeouts and1real host-detection command timeout. OpenAPI/audit not reached.",
+  "files": [
+    {
+      "name": "gates.json",
+      "sha256": "2d9715e39d5655e5f5f73fe2aec66ccf7dba3964fb9a5b8a2729976111619f90"
+    },
+    {
+      "name": "e2e.log",
+      "sha256": "caf306d1419f46f46db4f51f3903a2d1b78abe773d40837b10a97c7a853aae6a"
+    },
+    {
+      "name": "integration.log",
+      "sha256": "da815e922316e86e5e33e877246ded86375e1b049b0c2396ef561fabff7c30ab"
+    },
+    {
+      "name": "recovery.log",
+      "sha256": "5cc7cb4dc0a64ed90de10bf6646a2fea255e02f4fc60c0b087857c2eb005d903"
+    },
+    {
+      "name": "install-tests.log",
+      "sha256": "59ff7a1b586db921d0235f274cf19d698f1454595d9b386e4178511ce9a41291"
+    }
+  ]
+}

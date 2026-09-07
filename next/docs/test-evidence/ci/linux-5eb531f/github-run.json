@@ -1,0 +1,31 @@
+{
+  "runId": 34123612036,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34123612036",
+  "commit": "5eb531fc24c306e07bf6e45507a24f3ddfacd2e3",
+  "conclusion": "success",
+  "artifactId": 10019212661,
+  "artifactName": "linux-isolation-evidence",
+  "files": [
+    {
+      "artifactPath": "evidence.json",
+      "retainedFile": "evidence.json",
+      "sha256": "1cf3d7477cd207dd213227d2e4b258f8fc8ce88d53406b1f7c1a824ba2e00a4b"
+    },
+    {
+      "artifactPath": "worker-native-evidence.json",
+      "retainedFile": "worker-native-evidence.json",
+      "sha256": "c149181cdefdb5cb8561cc596745cca92a025d3f9a7e17179a9ed3325bce846c"
+    },
+    {
+      "artifactPath": "site-evidence/site-build-evidence.json",
+      "retainedFile": "site-build-evidence.json",
+      "sha256": "2f4f4d0c0098e16fac99b45c274794a6c9e85e76d8d6f65a6e9e69bd20201b1a"
+    },
+    {
+      "artifactPath": "remote-evidence/remote-execution.json",
+      "retainedFile": "remote-execution.json",
+      "sha256": "1bcc09b05184839bd8d56c0d78e248f07e38c6f3bba2d9d6a3215ba9172eaa9d"
+    }
+  ],
+  "scope": "Actual Linux kernel probes, native WSS worker, offline React/WordPress builds and remote artifact streaming/replay/cancellation; no provider live accounts or native customer installation."
+}

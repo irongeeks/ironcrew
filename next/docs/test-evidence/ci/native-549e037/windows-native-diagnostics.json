@@ -1,0 +1,86 @@
+{
+  "measuredAt": "2026-09-07T14:24:52.969Z",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.4.0",
+  "timeoutMsPerProbe": 15000,
+  "maximumOutputBytesPerStream": 8192,
+  "scope": "Read-only diagnostic; ordered A/B/C probes may warm Windows components. No product fix or OS acceptance is inferred.",
+  "probes": [
+    {
+      "name": "A-minimal-startup",
+      "startedAt": "2026-09-07T14:24:21.297Z",
+      "durationMs": 1615,
+      "environmentKeys": [
+        "SystemRoot",
+        "WINDIR"
+      ],
+      "exitCode": 0,
+      "killed": false,
+      "signal": null,
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 8
+        },
+        {
+          "name": "ready",
+          "elapsedMs": 12
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":8}\r\nIRONCREW_PHASE {\"name\":\"ready\",\"elapsedMs\":12}\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "B-original-cim-autoload",
+      "startedAt": "2026-09-07T14:24:22.913Z",
+      "durationMs": 15031,
+      "environmentKeys": [
+        "SystemRoot",
+        "WINDIR"
+      ],
+      "exitCode": 0,
+      "killed": true,
+      "signal": "SIGTERM",
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 5
+        },
+        {
+          "name": "queryStarted",
+          "elapsedMs": 8
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":5}\r\nIRONCREW_PHASE {\"name\":\"queryStarted\",\"elapsedMs\":8}\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C-controlled-temp-system-cim-module",
+      "startedAt": "2026-09-07T14:24:37.945Z",
+      "durationMs": 15024,
+      "environmentKeys": [
+        "SystemRoot",
+        "WINDIR",
+        "TEMP",
+        "TMP",
+        "PSModulePath"
+      ],
+      "exitCode": 0,
+      "killed": true,
+      "signal": "SIGTERM",
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 5
+        },
+        {
+          "name": "importStarted",
+          "elapsedMs": 8
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":5}\r\nIRONCREW_PHASE {\"name\":\"importStarted\",\"elapsedMs\":8}\r\n",
+      "stderr": ""
+    }
+  ]
+}

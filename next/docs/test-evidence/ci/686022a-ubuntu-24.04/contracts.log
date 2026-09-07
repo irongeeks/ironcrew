@@ -1,0 +1,39 @@
+
+> ironcrew-next@0.4.0-dev.0 test:contracts /home/runner/work/ironcrew/ironcrew/next
+> vitest run tests/contracts
+
+
+ RUN  v3.2.6 /home/runner/work/ironcrew/ironcrew/next
+
+ ✓ tests/contracts/storage-operations.test.ts (6 tests) 238ms
+ ✓ tests/contracts/integrations-http.test.ts (16 tests) 185ms
+ ✓ tests/contracts/integrations-google-workspace.test.ts (4 tests) 104ms
+ ✓ tests/contracts/model-concurrency.test.ts (3 tests) 270ms
+ ✓ tests/contracts/openrouter.test.ts (1 test) 75ms
+ ✓ tests/contracts/integrations-git.test.ts (5 tests) 2077ms
+   ✓ Git connector with local bare remotes and real ManagedActions > rejects local remote rewrites and nested repository paths  411ms
+   ✓ Git connector with local bare remotes and real ManagedActions > stages an immutable commit in isolated worktree and requires concrete approval before push  527ms
+   ✓ Git connector with local bare remotes and real ManagedActions > fails stale file hashes without altering source repository files  350ms
+   ✓ Git connector with local bare remotes and real ManagedActions > rejects traversal before ManagedActions receives a request  319ms
+   ✓ Git connector with local bare remotes and real ManagedActions > uses expected revision before any remote push and does not overwrite a moved target  468ms
+stdout | tests/contracts/http-api.test.ts
+Actual successful HTTP operation contracts exercised: 107/161
+
+ ✓ tests/contracts/http-api.test.ts (11 tests) 4793ms
+   ✓ keeps every mounted method and all request/response/media/security contracts synchronized  353ms
+   ✓ validates real setup, settings, profiles, collections, revision and authorization responses  604ms
+   ✓ validates the real website lifecycle, artifact bytes and manual review wire formats  412ms
+   ✓ validates original vouchers, source-backed totals, corrections and prepared payments  325ms
+   ✓ validates research artifact/knowledge contracts with immutable local source evidence  385ms
+   ✓ validates local incident state and honest unavailable-runtime failures  331ms
+   ✓ validates configured incident/hosting profiles and concrete approval decisions without dispatching effects  372ms
+   ✓ validates real worker enrollment, one-time replay, rotation and revocation response shapes  427ms
+   ✓ validates signed Discord binding responses and the separate webhook authentication contract  316ms
+   ✓ validates the real SSE cursor and update payload without confusing it with order history JSON  913ms
+   ✓ validates finance automation proposals, lead review, CEO activation, revocation and payment holds  351ms
+
+ Test Files  7 passed (7)
+      Tests  46 passed (46)
+   Start at  15:38:15
+   Duration  7.91s (transform 1.84s, setup 0ms, collect 4.79s, tests 7.74s, environment 1ms, prepare 643ms)
+

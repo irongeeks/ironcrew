@@ -1,0 +1,74 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.6 [39m[90mD:/a/ironcrew/ironcrew/next[39m
+
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22maccepts the documented OS/edition combination {"platform":"linux","arch":"x64","distribution":"debian","version":"13"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22maccepts the documented OS/edition combination {"platform":"linux","arch":"arm64","distribution":"ubuntu","version":"24.04"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22maccepts the documented OS/edition combination {"platform":"darwin","arch":"x64","version":"15.7.1"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22maccepts the documented OS/edition combination {"platform":"darwin","arch":"arm64","version":"26.0"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22maccepts the documented OS/edition combination {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":1,"sku":48,"caption":"Microsoft Windows 11 Pro"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22maccepts the documented OS/edition combination {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":1,"sku":4,"caption":"Microsoft Windows 11 Enterprise"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22maccepts the documented OS/edition combination {"platform":"win32","arch":"x64","version":"10.0.20348","build":20348,"productType":3,"sku":48,"caption":"Microsoft Windows Server 2022 Standard"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22maccepts the documented OS/edition combination {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":2,"sku":48,"caption":"Microsoft Windows Server 2025 Datacenter"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"linux","arch":"x64","distribution":"debian","version":"12"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"linux","arch":"arm64","distribution":"ubuntu","version":"26.04"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"linux","arch":"x64","distribution":"linuxmint","version":"24.04"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"darwin","arch":"arm64","version":"14.7"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"darwin","arch":"x64","version":"26.0"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":1,"sku":101,"caption":"Microsoft Windows 11 Home"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"win32","arch":"x64","version":"10.0.19045","build":19045,"productType":1,"sku":48,"caption":"Microsoft Windows 10 Pro"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"win32","arch":"x64","version":"10.0.26100","build":17763,"productType":3,"sku":48,"caption":"Microsoft Windows Server 2019 Standard"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"win32","arch":"arm64","version":"10.0.26100","build":26100,"productType":1,"sku":48,"caption":"Microsoft Windows 11 Pro"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mrejects unsupported OS versions/editions before installation {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":1,"sku":48,"caption":"Microsoft Windows 12 Pro"}
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mparses distro identity without executing os-release content or accepting duplicate identifiers
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mexecutes actual host preflight before the first native mutation on linux
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mexecutes actual host preflight before the first native mutation on darwin
+ [2m[90m↓[39m[22m tests/install/host-platform.test.ts[2m > [22mexecutes actual host preflight before the first native mutation on win32
+[updater-fixture] prepare releases
+[updater-fixture] compile broker launcher
+[updater-fixture] open repository
+[updater-fixture] generate age identity
+[updater-fixture] controller start
+ [31m×[39m tests/install/host-platform.test.ts[2m > [22mruns real host detection and the native registration preflight without changing services[33m 15028[2mms[22m[39m
+[31m   → Command failed: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -NonInteractive -Command Get-CimInstance Win32_OperatingSystem -ErrorAction Stop | Select-Object Version,BuildNumber,ProductType,OperatingSystemSKU,Caption | ConvertTo-Json -Compress
+[39m
+[updater-fixture] cleanup broker={"stage":"returning","operation":"start","pid":6988,"ppid":6956,"servicePid":3140} alive={"broker":false,"launcher":false,"service":true}
+[updater-fixture] controller start returned
+[updater-fixture] cleanup broker={"stage":"returning","operation":"stop","pid":2388,"ppid":8536,"servicePid":0} alive={"broker":false,"launcher":false,"service":false}
+ [31m×[39m tests/install/updater-service.test.ts[2m > [22mexternal child updater stops own service, backs up offline, swaps exact signed release and imports proof[33m 63232[2mms[22m[39m
+[31m   → Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+ [2m[90m↓[39m[22m tests/install/updater-service.test.ts[2m > [22munhealthy real new process is stopped before verified old release restarts
+ [2m[90m↓[39m[22m tests/install/updater-service.test.ts[2m > [22mcandidate changed after queue cannot stop running service and cannot be retried blindly
+ [2m[90m↓[39m[22m tests/install/updater-service.test.ts[2m > [22mresult from before a recovery generation cannot release the restored system
+ [2m[90m↓[39m[22m tests/install/updater-service.test.ts[2m > [22madministrative backup target and executable hash constrain an otherwise freshly approved plan
+ [2m[90m↓[39m[22m tests/install/updater-service.test.ts[2m > [22mqueue symlink cannot change ownership or write into a protected unrelated directory
+ [2m[90m↓[39m[22m tests/install/updater-service.test.ts[2m > [22mharmless policy path aliases resolve to the same administrative targets without changing the approval binding
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/install/host-platform.test.ts[2m > [22mruns real host detection and the native registration preflight without changing services
+[31m[1mError[22m: Command failed: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -NonInteractive -Command Get-CimInstance Win32_OperatingSystem -ErrorAction Stop | Select-Object Version,BuildNumber,ProductType,OperatingSystemSKU,Caption | ConvertTo-Json -Compress
+[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22m[39m
+[31m[1mSerialized Error:[22m[39m [90m{ code: null, killed: true, signal: 'SIGTERM', cmd: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -NonInteractive -Command Get-CimInstance Win32_OperatingSystem -ErrorAction Stop | Select-Object Version,BuildNumber,ProductType,OperatingSystemSKU,Caption | ConvertTo-Json -Compress', stdout: '', stderr: '' }[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/install/updater-service.test.ts[2m > [22mexternal child updater stops own service, backs up offline, swaps exact signed release and imports proof
+[31m[1mError[22m: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m tests/install/updater-service.test.ts:[2m10:1[22m[39m
+    [90m  8| [39mconst integrationTest = test.skipIf(!existsSync(portableNode) || !exis…
+    [90m  9| [39m
+    [90m 10| [39m[34mintegrationTest[39m(
+    [90m   | [39m[31m^[39m
+    [90m 11| [39m  "external child updater stops own service, backs up offline, swaps e…
+    [90m 12| [39m  [35masync[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[33m28 skipped[39m[90m (30)[39m
+[2m   Start at [22m 14:24:54
+[2m   Duration [22m 64.00s[2m (transform 325ms, setup 0ms, collect 603ms, tests 78.26s, environment 0ms, prepare 220ms)[22m
+

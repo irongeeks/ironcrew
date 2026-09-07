@@ -1,0 +1,181 @@
+
+> ironcrew-next@0.4.0-dev.0 test:install D:\a\ironcrew\ironcrew\next
+> vitest run tests/install
+
+
+ RUN  v3.2.6 D:/a/ironcrew/ironcrew/next
+
+ ✓ tests/install/operations-release.test.ts (15 tests) 624ms
+ ✓ tests/install/distribution.test.ts (2 tests) 9814ms
+   ✓ signed standalone distribution materializes transitive dependencies, executes private runtime and installs independent bootstrap  8970ms
+   ✓ distribution denies platform lies, wrong runtime and source symlink escape  842ms
+ ✓ tests/install/native-service-hardening.test.ts (7 tests) 359ms
+   ✓ waits for an actual asynchronously exiting service process and bounds a process that stays alive  334ms
+ ❯ tests/install/host-platform.test.ts (23 tests | 1 failed) 15088ms
+   ✓ accepts the documented OS/edition combination {"platform":"linux","arch":"x64","distribution":"debian","version":"13"} 2ms
+   ✓ accepts the documented OS/edition combination {"platform":"linux","arch":"arm64","distribution":"ubuntu","version":"24.04"} 0ms
+   ✓ accepts the documented OS/edition combination {"platform":"darwin","arch":"x64","version":"15.7.1"} 0ms
+   ✓ accepts the documented OS/edition combination {"platform":"darwin","arch":"arm64","version":"26.0"} 0ms
+   ✓ accepts the documented OS/edition combination {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":1,"sku":48,"caption":"Microsoft Windows 11 Pro"} 0ms
+   ✓ accepts the documented OS/edition combination {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":1,"sku":4,"caption":"Microsoft Windows 11 Enterprise"} 0ms
+   ✓ accepts the documented OS/edition combination {"platform":"win32","arch":"x64","version":"10.0.20348","build":20348,"productType":3,"sku":48,"caption":"Microsoft Windows Server 2022 Standard"} 0ms
+   ✓ accepts the documented OS/edition combination {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":2,"sku":48,"caption":"Microsoft Windows Server 2025 Datacenter"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"linux","arch":"x64","distribution":"debian","version":"12"} 2ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"linux","arch":"arm64","distribution":"ubuntu","version":"26.04"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"linux","arch":"x64","distribution":"linuxmint","version":"24.04"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"darwin","arch":"arm64","version":"14.7"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"darwin","arch":"x64","version":"26.0"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":1,"sku":101,"caption":"Microsoft Windows 11 Home"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"win32","arch":"x64","version":"10.0.19045","build":19045,"productType":1,"sku":48,"caption":"Microsoft Windows 10 Pro"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"win32","arch":"x64","version":"10.0.26100","build":17763,"productType":3,"sku":48,"caption":"Microsoft Windows Server 2019 Standard"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"win32","arch":"arm64","version":"10.0.26100","build":26100,"productType":1,"sku":48,"caption":"Microsoft Windows 11 Pro"} 0ms
+   ✓ rejects unsupported OS versions/editions before installation {"platform":"win32","arch":"x64","version":"10.0.26100","build":26100,"productType":1,"sku":48,"caption":"Microsoft Windows 12 Pro"} 0ms
+   ✓ parses distro identity without executing os-release content or accepting duplicate identifiers 2ms
+   ✓ executes actual host preflight before the first native mutation on linux 2ms
+   ✓ executes actual host preflight before the first native mutation on darwin 1ms
+   ✓ executes actual host preflight before the first native mutation on win32 1ms
+   × runs real host detection and the native registration preflight without changing services 15073ms
+     → Command failed: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -NonInteractive -Command Get-CimInstance Win32_OperatingSystem -ErrorAction Stop | Select-Object Version,BuildNumber,ProductType,OperatingSystemSKU,Caption | ConvertTo-Json -Compress
+
+ ❯ tests/install/updater-service.test.ts (7 tests | 7 failed) 442638ms
+   × external child updater stops own service, backs up offline, swaps exact signed release and imports proof 63242ms
+     → Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   × unhealthy real new process is stopped before verified old release restarts 63216ms
+     → Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   × candidate changed after queue cannot stop running service and cannot be retried blindly 63212ms
+     → Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   × result from before a recovery generation cannot release the restored system 63246ms
+     → Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   × administrative backup target and executable hash constrain an otherwise freshly approved plan 63232ms
+     → Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   × queue symlink cannot change ownership or write into a protected unrelated directory 63234ms
+     → Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   × harmless policy path aliases resolve to the same administrative targets without changing the approval binding 63253ms
+     → Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/install/host-platform.test.ts > runs real host detection and the native registration preflight without changing services
+Error: Command failed: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -NonInteractive -Command Get-CimInstance Win32_OperatingSystem -ErrorAction Stop | Select-Object Version,BuildNumber,ProductType,OperatingSystemSKU,Caption | ConvertTo-Json -Compress
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  tests/install/updater-service.test.ts > external child updater stops own service, backs up offline, swaps exact signed release and imports proof
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/install/updater-service.test.ts:10:1
+      8| const integrationTest = test.skipIf(!existsSync(portableNode) || !exis…
+      9| 
+     10| integrationTest(
+       | ^
+     11|   "external child updater stops own service, backs up offline, swaps e…
+     12|   async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  tests/install/updater-service.test.ts > unhealthy real new process is stopped before verified old release restarts
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/install/updater-service.test.ts:60:1
+     58|   60000,
+     59| );
+     60| integrationTest(
+       | ^
+     61|   "unhealthy real new process is stopped before verified old release r…
+     62|   async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  tests/install/updater-service.test.ts > candidate changed after queue cannot stop running service and cannot be retried blindly
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/install/updater-service.test.ts:91:1
+     89|   60000,
+     90| );
+     91| integrationTest(
+       | ^
+     92|   "candidate changed after queue cannot stop running service and canno…
+     93|   async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  tests/install/updater-service.test.ts > result from before a recovery generation cannot release the restored system
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/install/updater-service.test.ts:106:1
+    104|   60000,
+    105| );
+    106| integrationTest(
+       | ^
+    107|   "result from before a recovery generation cannot release the restore…
+    108|   async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  tests/install/updater-service.test.ts > administrative backup target and executable hash constrain an otherwise freshly approved plan
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/install/updater-service.test.ts:139:1
+    137|   60000,
+    138| );
+    139| integrationTest(
+       | ^
+    140|   "administrative backup target and executable hash constrain an other…
+    141|   async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  tests/install/updater-service.test.ts > queue symlink cannot change ownership or write into a protected unrelated directory
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/install/updater-service.test.ts:163:1
+    161|   60000,
+    162| );
+    163| integrationTest(
+       | ^
+    164|   "queue symlink cannot change ownership or write into a protected unr…
+    165|   async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  tests/install/updater-service.test.ts > harmless policy path aliases resolve to the same administrative targets without changing the approval binding
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/install/updater-service.test.ts:182:1
+    180|   60000,
+    181| );
+    182| integrationTest(
+       | ^
+    183|   "harmless policy path aliases resolve to the same administrative tar…
+    184|   async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  2 failed | 3 passed (5)
+      Tests  8 failed | 46 passed (54)
+   Start at  14:07:30
+   Duration  444.14s (transform 963ms, setup 0ms, collect 2.75s, tests 468.52s, environment 4ms, prepare 1.16s)
+
+
+::error file=D%3A/a/ironcrew/ironcrew/next/tests/install/updater-service.test.ts,title=tests/install/updater-service.test.ts > external child updater stops own service%2C backs up offline%2C swaps exact signed release and imports proof,line=10,column=1::Error: Test timed out in 60000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ tests/install/updater-service.test.ts:10:1%0A%0A
+
+::error file=D%3A/a/ironcrew/ironcrew/next/tests/install/updater-service.test.ts,title=tests/install/updater-service.test.ts > unhealthy real new process is stopped before verified old release restarts,line=60,column=1::Error: Test timed out in 60000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ tests/install/updater-service.test.ts:60:1%0A%0A
+
+::error file=D%3A/a/ironcrew/ironcrew/next/tests/install/updater-service.test.ts,title=tests/install/updater-service.test.ts > candidate changed after queue cannot stop running service and cannot be retried blindly,line=91,column=1::Error: Test timed out in 60000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ tests/install/updater-service.test.ts:91:1%0A%0A
+
+::error file=D%3A/a/ironcrew/ironcrew/next/tests/install/updater-service.test.ts,title=tests/install/updater-service.test.ts > result from before a recovery generation cannot release the restored system,line=106,column=1::Error: Test timed out in 60000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ tests/install/updater-service.test.ts:106:1%0A%0A
+
+::error file=D%3A/a/ironcrew/ironcrew/next/tests/install/updater-service.test.ts,title=tests/install/updater-service.test.ts > administrative backup target and executable hash constrain an otherwise freshly approved plan,line=139,column=1::Error: Test timed out in 60000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ tests/install/updater-service.test.ts:139:1%0A%0A
+
+::error file=D%3A/a/ironcrew/ironcrew/next/tests/install/updater-service.test.ts,title=tests/install/updater-service.test.ts > queue symlink cannot change ownership or write into a protected unrelated directory,line=163,column=1::Error: Test timed out in 60000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ tests/install/updater-service.test.ts:163:1%0A%0A
+
+::error file=D%3A/a/ironcrew/ironcrew/next/tests/install/updater-service.test.ts,title=tests/install/updater-service.test.ts > harmless policy path aliases resolve to the same administrative targets without changing the approval binding,line=182,column=1::Error: Test timed out in 60000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ tests/install/updater-service.test.ts:182:1%0A%0A
+ ELIFECYCLE  Command failed with exit code 1.

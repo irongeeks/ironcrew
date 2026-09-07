@@ -1,10 +1,335 @@
 {
-  "date": "2026-09-07T10:18:52.407107+00:00",
-  "sourceFilesUnchanged": 233,
-  "sourceManifestSha256": "486571ab76d8a9b078ae45cab0cd23733857e89730e267b1a3e20b66b5e1ddef",
-  "passedTests": 313,
+  "date": "2026-09-07T15:50:26.591980+00:00",
+  "scope": "Evidence consistency audit; no tests rerun and no external/live acceptance inferred. allGatesPassed refers only to the named local gate report.",
+  "baseCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+  "gateEvidence": "docs/test-evidence/gates.json",
+  "gateEvidenceSha256": "531a8e5ac4f7e6ba5c4ef457409a889cf68cb4e7c5744caf509d713a5d09e84f",
+  "sourceFilesUnchanged": 341,
+  "sourceManifestSha256": "045d7404631d412d4f5fb5d07f54fea82dce5fe9472f3fee9da9b04f7b4e649e",
+  "sourceFilesMatchedCommit": 341,
+  "sourceMismatches": [],
+  "commitSourceMismatches": [],
+  "passedTests": 508,
   "skippedTests": 0,
   "allGatesPassed": true,
+  "gateCount": 12,
+  "auditKnownVulnerabilities": 0,
+  "missingGateLogPaths": [],
   "acceptanceCriteria": 59,
-  "missingEvidencePaths": []
+  "acceptanceEvidence": "docs/acceptance-status.json",
+  "acceptanceEvidenceSha256": "25496057f3fbc1b16139d5d4bf913ba042e2cc54ba3fc33ef9c11931e5840695",
+  "criteriaStatusCounts": {
+    "partial_local_evidence": 44,
+    "local_pass": 15
+  },
+  "criterionIdsMatchOriginalSpecifications": true,
+  "duplicateCriterionIds": [],
+  "missingCriterionIds": [],
+  "unexpectedCriterionIds": [],
+  "uniqueEvidencePathsChecked": 73,
+  "uniqueSourceEvidencePathsChecked": 39,
+  "criteriaWithoutEvidence": [],
+  "missingEvidencePaths": [],
+  "missingSourceEvidencePaths": [],
+  "ci": {
+    "scope": "Completed GitHub runs for the verified implementation; imported original artifacts and hashes verified independently. Historical jobs remain bound to their own commits.",
+    "commit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+    "statusCheckedAt": "2026-09-07T15:50:26.591980+00:00",
+    "currentRuns": [
+      {
+        "conclusion": "success",
+        "databaseId": 34139199380,
+        "headSha": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+        "status": "completed",
+        "url": "https://github.com/irongeeks/ironcrew/actions/runs/34139199380"
+      },
+      {
+        "conclusion": "success",
+        "databaseId": 34139199314,
+        "headSha": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+        "status": "completed",
+        "url": "https://github.com/irongeeks/ironcrew/actions/runs/34139199314"
+      }
+    ],
+    "historicalJobs": [
+      {
+        "os": "macos-15",
+        "commit": "549e037ef343b510be70b4e57f86437c2a54d89d",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/549e037-macos-15/github-run.json",
+        "artifactHashesVerified": 3
+      },
+      {
+        "os": "macos-15",
+        "commit": "5eb531fc24c306e07bf6e45507a24f3ddfacd2e3",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/5eb531f-macos-15/github-run.json",
+        "artifactHashesVerified": 3
+      },
+      {
+        "os": "ubuntu-24.04",
+        "commit": "5eb531fc24c306e07bf6e45507a24f3ddfacd2e3",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/5eb531f-ubuntu-24.04/github-run.json",
+        "artifactHashesVerified": 3
+      },
+      {
+        "os": "macos-15",
+        "commit": "6defe00daa0077b1076ac1515a862ab836a54560",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/6defe00-macos-15/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "ubuntu-24.04",
+        "commit": "6defe00daa0077b1076ac1515a862ab836a54560",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/6defe00-ubuntu-24.04/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "windows-2025",
+        "commit": "6defe00daa0077b1076ac1515a862ab836a54560",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/6defe00-windows-2025/github-run.json",
+        "artifactHashesVerified": 5
+      },
+      {
+        "os": "macos-15",
+        "commit": "7768fbe72530ded1d0b5c16096b58c7426ac1adc",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/7768fbe-macos-15/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "ubuntu-24.04",
+        "commit": "7768fbe72530ded1d0b5c16096b58c7426ac1adc",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/7768fbe-ubuntu-24.04/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "windows-2025",
+        "commit": "7768fbe72530ded1d0b5c16096b58c7426ac1adc",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/7768fbe-windows-2025/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "windows-2025",
+        "commit": "aabff77f55608ed1152429c5072eeba6a7c394a1",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/aabff77-windows-2025/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "windows-2025",
+        "commit": "b9d20e7b68de47c4d0e61b8dc6d6d5c967f965f4",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/b9d20e7-windows-2025/github-run.json",
+        "artifactHashesVerified": 3
+      },
+      {
+        "os": "macos-15",
+        "commit": "c5fd7ba760351faa8bc75311426f2715cab9717e",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/c5fd7ba-macos-15/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "ubuntu-24.04",
+        "commit": "c5fd7ba760351faa8bc75311426f2715cab9717e",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/c5fd7ba-ubuntu-24.04/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "macos-15",
+        "commit": "d20a27ff56cde65a3568dcb558cef4a398d7bf01",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/d20a27f-macos-15/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "ubuntu-24.04",
+        "commit": "d20a27ff56cde65a3568dcb558cef4a398d7bf01",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/d20a27f-ubuntu-24.04/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "windows-2025",
+        "commit": "d20a27ff56cde65a3568dcb558cef4a398d7bf01",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/d20a27f-windows-2025/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "macos-15",
+        "commit": "ebf3b983d5c43b38c37be60c5930ce351e485fcd",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/ebf3b98-macos-15/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "ubuntu-24.04",
+        "commit": "ebf3b983d5c43b38c37be60c5930ce351e485fcd",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/ebf3b98-ubuntu-24.04/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "windows-2025",
+        "commit": "ebf3b983d5c43b38c37be60c5930ce351e485fcd",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/ebf3b98-windows-2025/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "45fc8a4494deb7537045b5315928ca9405c6c563",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-45fc8a4/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "5eb531fc24c306e07bf6e45507a24f3ddfacd2e3",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-5eb531f/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "6defe00daa0077b1076ac1515a862ab836a54560",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-6defe00/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "7768fbe72530ded1d0b5c16096b58c7426ac1adc",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-7768fbe/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "aabff77f55608ed1152429c5072eeba6a7c394a1",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-aabff77/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "be463c2e9aa7f809161fba21831e26b6524854f0",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-be463c2/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "d20a27ff56cde65a3568dcb558cef4a398d7bf01",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-d20a27f/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "ebf3b983d5c43b38c37be60c5930ce351e485fcd",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-ebf3b98/github-run.json",
+        "artifactHashesVerified": 4
+      },
+      {
+        "os": "windows-2025 focused native diagnostics",
+        "commit": "154d8cca45d82584c1f37ca0d0a771d88c58532b",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/native-154d8cc/github-run.json",
+        "artifactHashesVerified": 3
+      },
+      {
+        "os": "windows-2025 focused native diagnostics",
+        "commit": "3084e6035b4b6a3dab6efd7afd3956d85726ba42",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/native-3084e60/github-run.json",
+        "artifactHashesVerified": 2
+      },
+      {
+        "os": "windows-2025 focused native diagnostics",
+        "commit": "39cfa1c8e7b57480b542dccd197c48bdcf74ecc0",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/native-39cfa1c/github-run.json",
+        "artifactHashesVerified": 2
+      },
+      {
+        "os": "windows-2025 focused native diagnostics",
+        "commit": "549e037ef343b510be70b4e57f86437c2a54d89d",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/native-549e037/github-run.json",
+        "artifactHashesVerified": 2
+      },
+      {
+        "os": "windows-2025 focused native diagnostics",
+        "commit": "a45574dcfe61000e5ffe235e7e2d060de020c47c",
+        "status": "failure",
+        "evidence": "docs/test-evidence/ci/native-a45574d/github-run.json",
+        "artifactHashesVerified": 3
+      },
+      {
+        "os": "windows-2025 focused native tests",
+        "commit": "e9734b039614460c09797ea0cb5b999067dc9ab1",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/native-e9734b0/github-run.json",
+        "artifactHashesVerified": 2
+      }
+    ],
+    "verifiedCurrentJobs": [
+      {
+        "os": "macos-15",
+        "commit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/686022a-macos-15/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "ubuntu-24.04",
+        "commit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/686022a-ubuntu-24.04/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "windows-2025",
+        "commit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/686022a-windows-2025/github-run.json",
+        "artifactHashesVerified": 15
+      },
+      {
+        "os": "Linux isolation",
+        "commit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+        "status": "success",
+        "evidence": "docs/test-evidence/ci/linux-686022a/github-run.json",
+        "artifactHashesVerified": 4
+      }
+    ]
+  },
+  "limitations": [
+    "Presence of evidence files and criterion ID completeness do not promote partial_local_evidence to full acceptance.",
+    "The separate UI-capacity measurement remains bound to its historical timestamp and resource hashes."
+  ],
+  "acceptanceOriginalBranchBaseCommit": "76160c0e56324d1ec16ebf2956cbeadbc544cfc4",
+  "acceptanceVerifiedImplementationCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+  "acceptanceMatchesVerifiedImplementationCommit": true,
+  "acceptanceSourceManifestSha256": "045d7404631d412d4f5fb5d07f54fea82dce5fe9472f3fee9da9b04f7b4e649e",
+  "acceptanceMatchesSourceManifest": true,
+  "acceptanceBindingNote": "baseCommit records the original branch base; verifiedImplementationCommit and sourceManifestSha256 bind the acceptance matrix to the tested implementation.",
+  "hallMeasurement": {
+    "evidence": "docs/test-evidence/crew-hall-performance.json",
+    "measuredAt": "2026-09-07T15:37:56.749Z",
+    "fps": 41.64109029981355,
+    "renderedFrames": 251,
+    "durationMs": 6027.69999999553
+  }
 }

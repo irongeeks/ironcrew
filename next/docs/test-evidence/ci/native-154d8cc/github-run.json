@@ -1,0 +1,22 @@
+{
+  "runId": 34135216455,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34135216455",
+  "commit": "154d8cca45d82584c1f37ca0d0a771d88c58532b",
+  "os": "windows-2025 focused native diagnostics",
+  "conclusion": "failure",
+  "scope": "All three native launcher tests passed. Detached broker EOF completed in122ms; binary transport and real signed updater including backup, restore probe and cleanup passed. Real host detection remains a15s timeout. Diagnostic reduction isolated the inherited module-analysis cache path; a fresh private cache and NUL did not fix import. No full Windows acceptance inferred.",
+  "files": [
+    {
+      "name": "windows-native-diagnostics.json",
+      "sha256": "130a32550a8911bdff39201791f22109b8fc3ea2024511157b97a9337cf7e9dc"
+    },
+    {
+      "name": "windows-launcher-tests.log",
+      "sha256": "e1f70a976f825e59168f8d7a755114ab18dde9afdb31429bfd1ebfe93295c5bf"
+    },
+    {
+      "name": "windows-native-tests.log",
+      "sha256": "695c7c393f010286140ab3c5edc1a0ea4cf10ebdde80ba1ea4fc69a0bce12e2e"
+    }
+  ]
+}

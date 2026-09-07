@@ -1,0 +1,173 @@
+{
+  "measuredAt": "2026-09-07T14:33:27.729Z",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.4.0",
+  "timeoutMsPerProbe": 15000,
+  "maximumOutputBytesPerStream": 8192,
+  "scope": "Read-only diagnostic; ordered A-F probes may warm Windows components. D adds only system PATH to C; E removes only Join-Path from D; F conditionally contrasts B with inherited runner environment and never prints that environment. No product fix or OS acceptance is inferred.",
+  "probes": [
+    {
+      "name": "A-minimal-startup",
+      "startedAt": "2026-09-07T14:32:24.269Z",
+      "durationMs": 1818,
+      "environmentMode": "controlled",
+      "environmentKeys": [
+        "SystemRoot",
+        "WINDIR"
+      ],
+      "exitCode": 0,
+      "killed": false,
+      "signal": null,
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 10
+        },
+        {
+          "name": "ready",
+          "elapsedMs": 14
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":10}\r\nIRONCREW_PHASE {\"name\":\"ready\",\"elapsedMs\":14}\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "B-original-cim-autoload",
+      "startedAt": "2026-09-07T14:32:26.088Z",
+      "durationMs": 15023,
+      "environmentMode": "controlled",
+      "environmentKeys": [
+        "SystemRoot",
+        "WINDIR"
+      ],
+      "exitCode": null,
+      "killed": true,
+      "signal": "SIGTERM",
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 6
+        },
+        {
+          "name": "queryStarted",
+          "elapsedMs": 9
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":6}\r\nIRONCREW_PHASE {\"name\":\"queryStarted\",\"elapsedMs\":9}\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C-controlled-temp-system-cim-module",
+      "startedAt": "2026-09-07T14:32:41.111Z",
+      "durationMs": 15023,
+      "environmentMode": "controlled",
+      "environmentKeys": [
+        "SystemRoot",
+        "WINDIR",
+        "TEMP",
+        "TMP",
+        "PSModulePath"
+      ],
+      "exitCode": null,
+      "killed": true,
+      "signal": "SIGTERM",
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 6
+        },
+        {
+          "name": "importStarted",
+          "elapsedMs": 9
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":6}\r\nIRONCREW_PHASE {\"name\":\"importStarted\",\"elapsedMs\":9}\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "D-controlled-system-path",
+      "startedAt": "2026-09-07T14:32:56.134Z",
+      "durationMs": 15019,
+      "environmentMode": "controlled",
+      "environmentKeys": [
+        "SystemRoot",
+        "WINDIR",
+        "TEMP",
+        "TMP",
+        "PSModulePath",
+        "PATH"
+      ],
+      "exitCode": null,
+      "killed": true,
+      "signal": "SIGTERM",
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 7
+        },
+        {
+          "name": "importStarted",
+          "elapsedMs": 12
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":7}\r\nIRONCREW_PHASE {\"name\":\"importStarted\",\"elapsedMs\":12}\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "E-controlled-system-path-direct-module-expression",
+      "startedAt": "2026-09-07T14:33:11.153Z",
+      "durationMs": 15016,
+      "environmentMode": "controlled",
+      "environmentKeys": [
+        "SystemRoot",
+        "WINDIR",
+        "TEMP",
+        "TMP",
+        "PSModulePath",
+        "PATH"
+      ],
+      "exitCode": null,
+      "killed": true,
+      "signal": "SIGTERM",
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 6
+        },
+        {
+          "name": "importStarted",
+          "elapsedMs": 9
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":6}\r\nIRONCREW_PHASE {\"name\":\"importStarted\",\"elapsedMs\":9}\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "F-original-query-inherited-runner-environment",
+      "startedAt": "2026-09-07T14:33:26.170Z",
+      "durationMs": 1559,
+      "environmentMode": "inherited-runner-diagnostic-only",
+      "exitCode": 0,
+      "killed": false,
+      "signal": null,
+      "phases": [
+        {
+          "name": "startup",
+          "elapsedMs": 6
+        },
+        {
+          "name": "queryStarted",
+          "elapsedMs": 9
+        },
+        {
+          "name": "queryDone",
+          "elapsedMs": 648
+        }
+      ],
+      "stdout": "IRONCREW_PHASE {\"name\":\"startup\",\"elapsedMs\":6}\r\nIRONCREW_PHASE {\"name\":\"queryStarted\",\"elapsedMs\":9}\r\nIRONCREW_PHASE {\"name\":\"queryDone\",\"elapsedMs\":648}\r\n{\"Version\":\"10.0.26100\",\"BuildNumber\":\"26100\",\"ProductType\":3,\"OperatingSystemSKU\":8,\"Caption\":\"Microsoft Windows Server 2025 Datacenter\"}\r\n",
+      "stderr": ""
+    }
+  ],
+  "notRunProbes": []
+}

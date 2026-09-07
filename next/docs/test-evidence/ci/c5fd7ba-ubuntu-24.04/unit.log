@@ -1,0 +1,23 @@
+
+> ironcrew-next@0.4.0-dev.0 test:unit /home/runner/work/ironcrew/ironcrew/next
+> vitest run tests/unit
+
+
+ RUN  v3.2.6 /home/runner/work/ironcrew/ironcrew/next
+
+ ✓ tests/unit/integrations-broker.test.ts (6 tests) 37ms
+ ✓ tests/unit/crew-motion.test.ts (6 tests) 83ms
+ ✓ tests/unit/maintenance.test.ts (3 tests) 61ms
+ ✓ tests/unit/core-domain.test.ts (4 tests) 28ms
+ ✓ tests/unit/integrations-security.test.ts (23 tests) 62ms
+ ✓ tests/unit/runtime.test.ts (3 tests) 8ms
+ ✓ tests/unit/ci-chromium-apparmor.test.ts (2 tests) 6ms
+ ✓ tests/unit/model-ratings.test.ts (6 tests) 1552ms
+   ✓ requires an explicit 1..5 quality score and does not infer quality from passed checks  379ms
+   ✓ versioned corrections remain immutable and count only the newest human assessment after restart  471ms
+
+ Test Files  8 passed (8)
+      Tests  53 passed (53)
+   Start at  14:36:00
+   Duration  2.58s (transform 888ms, setup 0ms, collect 2.76s, tests 1.84s, environment 2ms, prepare 781ms)
+

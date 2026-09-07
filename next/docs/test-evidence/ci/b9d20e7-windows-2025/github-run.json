@@ -1,0 +1,23 @@
+{
+  "runId": 34136366266,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34136366266",
+  "commit": "b9d20e7b68de47c4d0e61b8dc6d6d5c967f965f4",
+  "jobId": 101788188447,
+  "os": "windows-2025",
+  "conclusion": "failure",
+  "scope": "Historical E2E race:45of46browser tests passed. The synthetic context-loss event ran before Three initialization and no real context was lost. The later ebf3b98 fixture waits for actual rendering and uses WEBGL_lose_context. Full later CI remains a separate acceptance.",
+  "files": [
+    {
+      "name": "gates.json",
+      "sha256": "e61141273e0ae1be3c85f80f474508e9cfdde3770bc0e87b2d4bdcf7cf800221"
+    },
+    {
+      "name": "e2e.log",
+      "sha256": "ae0071cfbde4d911161c6e97d50e1fd719d773060c752270ffc24d35d408f439"
+    },
+    {
+      "name": "webgl-loss-diagnosis.json",
+      "sha256": "6bac2cd127cd97652b211584dc921617611c5b69fa4341241f3a2da97f35f800"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "runId": 34123612044,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34123612044",
+  "commit": "5eb531fc24c306e07bf6e45507a24f3ddfacd2e3",
+  "os": "macos-15",
+  "conclusion": "success",
+  "files": [
+    {
+      "name": "gates.json",
+      "sha256": "be1df2cd1a5634b7e76845a252e5aa198bacdb4d57ef6141e411c3125b128ecf"
+    },
+    {
+      "name": "source-manifest.json",
+      "sha256": "67f38c779cc85de75388aa35e9b04185f470c879d60adb133a14ad17d4990e20"
+    },
+    {
+      "name": "audit.json",
+      "sha256": "3db6423d0786171844f6660634bde8f6a1968861865433bf8efa319d1b5428fe"
+    }
+  ],
+  "sourceFilesMatchedCommit": 338,
+  "checkoutLineEndings": [
+    {
+      "path": "packages/tools/isolation/vm-hyperv.ps1",
+      "reason": "Repository .gitattributes prescribes eol=crlf for PowerShell; all remaining bytes match the commit."
+    }
+  ]
+}

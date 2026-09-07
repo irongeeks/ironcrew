@@ -1,0 +1,33 @@
+
+> ironcrew-next@0.4.0-dev.0 build /home/runner/work/ironcrew/ironcrew/next
+> node scripts/build-site-runtime.ts && tsc -p tsconfig.build.json && node scripts/copy-runtime-assets.ts && vite build --config apps/web/vite.config.ts
+
+vite v8.0.16 building client environment for production...
+[2K
+transforming...✓ 10 modules transformed.
+rendering chunks...
+computing gzip size...
+packages/tools/site-assets/react-runtime.mjs  257.95 kB │ gzip: 66.82 kB
+
+✓ built in 96ms
+vite v8.0.16 building client environment for production...
+[2K
+transforming...✓ 150 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/web/index.html                              0.46 kB │ gzip:   0.30 kB
+dist/web/assets/pdf.worker.min-Dswkl-cV.mjs  1,265.41 kB
+dist/web/assets/Hall-C4-wd1TT.css                0.28 kB │ gzip:   0.22 kB
+dist/web/assets/index-BjSwfxjV.css              23.72 kB │ gzip:   5.30 kB
+dist/web/assets/Hall.module-GWtPICP5.js          0.07 kB │ gzip:   0.07 kB
+dist/web/assets/CrewPortrait-B-cuuQq0.js         2.52 kB │ gzip:   1.39 kB
+dist/web/assets/pdf-BCuJC2Wy.js                431.17 kB │ gzip: 129.07 kB
+dist/web/assets/index-CzCNFlIS.js              531.87 kB │ gzip: 152.83 kB
+dist/web/assets/Hall-mib-gytv.js               964.95 kB │ gzip: 258.92 kB
+
+✓ built in 550ms
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.

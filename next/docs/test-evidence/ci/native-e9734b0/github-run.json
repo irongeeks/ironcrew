@@ -1,0 +1,18 @@
+{
+  "runId": 34136548940,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34136548940",
+  "commit": "e9734b039614460c09797ea0cb5b999067dc9ab1",
+  "os": "windows-2025 focused native tests",
+  "conclusion": "success",
+  "scope": "Focused native test selection: all three launcher regressions plus actual host detection/registration preflight and real signed update passed. Unselected tests in the filtered host/updater files are outside this fast lane; the complete release gate separately requires zero skipped tests. The final mobile-CSS commit does not modify these native sources.",
+  "files": [
+    {
+      "name": "windows-native-tests.log",
+      "sha256": "598266178c7b94ca39b02e04279b8b024da9603d6e66a38177eb13ad70ad26cf"
+    },
+    {
+      "name": "windows-launcher-tests.log",
+      "sha256": "9a63a67fb5e0921797b207e74e1a07caed32d09824169ad9016fe06e322d3b2e"
+    }
+  ]
+}

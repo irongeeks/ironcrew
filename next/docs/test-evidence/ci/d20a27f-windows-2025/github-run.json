@@ -1,0 +1,27 @@
+{
+  "runId": 34127635718,
+  "jobId": 101759962310,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34127635718",
+  "commit": "d20a27ff56cde65a3568dcb558cef4a398d7bf01",
+  "os": "windows-2025",
+  "conclusion": "failure",
+  "scope": "Historical failing run: integration276 passed; E2E45 passed and1 timed out; later gates not run. Corrected by7768fbe, whose separate CI is pending.",
+  "files": [
+    {
+      "name": "gates.json",
+      "sha256": "7d30ad634e74a34d20a5fee981be84382a1af67772402600c7d6d55d40010ba8"
+    },
+    {
+      "name": "e2e.log",
+      "sha256": "6dd1c36c5efa5c3f0899ba219bd1f68f515e02262e9ef6f8cdb17a2d86d7d4c3"
+    },
+    {
+      "name": "integration.log",
+      "sha256": "b3d9698075c3810c819540db055d14211d62e15e7716ea8240dc638998c22645"
+    },
+    {
+      "name": "website-preview-trace-diagnosis.json",
+      "sha256": "f54625f3423ed50405865ddc5a0e35a84fc62b24b4ca6df44c0388d7b9282058"
+    }
+  ]
+}

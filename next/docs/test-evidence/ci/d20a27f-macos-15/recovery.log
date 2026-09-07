@@ -1,0 +1,26 @@
+
+> ironcrew-next@0.4.0-dev.0 test:recovery /Users/runner/work/ironcrew/ironcrew/next
+> vitest run tests/recovery
+
+
+ RUN  v3.2.6 /Users/runner/work/ironcrew/ironcrew/next
+
+ ✓ tests/recovery/runtime.test.ts (1 test) 1348ms
+   ✓ persists actual file, fixture test, approval pause, restart and immutable artifact  1347ms
+ ✓ tests/recovery/remote-update-fencing.test.ts (2 tests) 2065ms
+   ✓ fences restored in-flight remote jobs and preserves completed receipts across actual SQLite backup  1264ms
+   ✓ requires fresh update approval after restore and never auto-replays queued jobs or deferred attempts  801ms
+ ✓ tests/recovery/operations-backup.test.ts (5 tests) 1976ms
+   ✓ real age encrypted SQLite backup/restore (local fixture) > encrypts artifacts and restores complete state with paused automation and revoked sessions  870ms
+ ✓ tests/recovery/core-recovery.test.ts (1 test) 575ms
+   ✓ RUN-02/03 persists prepared model context, tool intent, approval waits and unreconciled usage across restart  574ms
+ ✓ tests/recovery/runtime-hardening.test.ts (11 tests) 3738ms
+   ✓ never issues another paid request after interrupted response and process restart  1005ms
+   ✓ keeps missing usage visible and postpones tool effects until explicit reconciliation  381ms
+   ✓ records an already completed effect after crash and mandate revocation without re-executing it  437ms
+
+ Test Files  5 passed (5)
+      Tests  20 passed (20)
+   Start at  13:34:18
+   Duration  4.62s (transform 607ms, setup 0ms, collect 1.94s, tests 9.70s, environment 5ms, prepare 479ms)
+

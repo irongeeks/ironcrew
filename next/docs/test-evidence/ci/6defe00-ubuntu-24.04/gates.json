@@ -1,0 +1,122 @@
+{
+  "date": "2026-09-07T13:58:01.433363+00:00",
+  "baseCommit": "6defe00daa0077b1076ac1515a862ab836a54560",
+  "branch": "rebuild/ironcrew",
+  "workspace": "GitHub Actions checkout",
+  "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "node": "v26.4.0",
+  "pnpm": "10.30.1",
+  "gates": [
+    {
+      "name": "install",
+      "command": "npx --yes pnpm@10.30.1 install --frozen-lockfile",
+      "exitCode": 0,
+      "durationSeconds": 3.32,
+      "log": "docs/test-evidence/install.log"
+    },
+    {
+      "name": "format",
+      "command": "npx --yes pnpm@10.30.1 format:check",
+      "exitCode": 0,
+      "durationSeconds": 7.24,
+      "log": "docs/test-evidence/format.log"
+    },
+    {
+      "name": "lint",
+      "command": "npx --yes pnpm@10.30.1 lint",
+      "exitCode": 0,
+      "durationSeconds": 6.53,
+      "log": "docs/test-evidence/lint.log"
+    },
+    {
+      "name": "typecheck",
+      "command": "npx --yes pnpm@10.30.1 typecheck",
+      "exitCode": 0,
+      "durationSeconds": 11.72,
+      "log": "docs/test-evidence/typecheck.log"
+    },
+    {
+      "name": "unit",
+      "command": "npx --yes pnpm@10.30.1 test:unit",
+      "exitCode": 0,
+      "durationSeconds": 4.03,
+      "log": "docs/test-evidence/unit.log",
+      "passedTests": 53,
+      "skippedTests": 0
+    },
+    {
+      "name": "contracts",
+      "command": "npx --yes pnpm@10.30.1 test:contracts",
+      "exitCode": 0,
+      "durationSeconds": 8.85,
+      "log": "docs/test-evidence/contracts.log",
+      "passedTests": 46,
+      "skippedTests": 0
+    },
+    {
+      "name": "integration",
+      "command": "npx --yes pnpm@10.30.1 test:integration",
+      "exitCode": 0,
+      "durationSeconds": 56.81,
+      "log": "docs/test-evidence/integration.log",
+      "passedTests": 276,
+      "skippedTests": 0
+    },
+    {
+      "name": "build",
+      "command": "npx --yes pnpm@10.30.1 build",
+      "exitCode": 0,
+      "durationSeconds": 9.48,
+      "log": "docs/test-evidence/build.log"
+    },
+    {
+      "name": "e2e",
+      "command": "npx --yes pnpm@10.30.1 test:e2e",
+      "exitCode": 0,
+      "durationSeconds": 95.41,
+      "log": "docs/test-evidence/e2e.log",
+      "passedTests": 46,
+      "skippedTests": 0
+    },
+    {
+      "name": "recovery",
+      "command": "npx --yes pnpm@10.30.1 test:recovery",
+      "exitCode": 0,
+      "durationSeconds": 5.76,
+      "log": "docs/test-evidence/recovery.log",
+      "passedTests": 20,
+      "skippedTests": 0
+    },
+    {
+      "name": "install-tests",
+      "command": "npx --yes pnpm@10.30.1 test:install",
+      "exitCode": 0,
+      "durationSeconds": 35.29,
+      "log": "docs/test-evidence/install-tests.log",
+      "passedTests": 54,
+      "skippedTests": 0
+    },
+    {
+      "name": "openapi",
+      "command": "npx --yes pnpm@10.30.1 openapi:check",
+      "exitCode": 0,
+      "durationSeconds": 2.21,
+      "log": "docs/test-evidence/openapi.log"
+    }
+  ],
+  "live": {
+    "status": "not_run",
+    "reason": "No provider test profile or paid test budget supplied."
+  },
+  "osMatrix": "This report covers only the named GitHub Actions matrix host, not other operating systems or customer installations.",
+  "audit": {
+    "exitCode": 0,
+    "log": "docs/test-evidence/audit.json"
+  },
+  "sourceIntegrity": {
+    "status": "stable",
+    "fileCount": 340,
+    "manifestSha256": "93365b3fcc21e7704c0cbcc2421e5054199f332c012275785432485c285df13a"
+  },
+  "passedTests": 495
+}

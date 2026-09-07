@@ -1,0 +1,18 @@
+{
+  "runId": 34132693727,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34132693727",
+  "commit": "549e037ef343b510be70b4e57f86437c2a54d89d",
+  "os": "windows-2025 focused native diagnostics",
+  "conclusion": "failure",
+  "scope": "Historical diagnostic: PowerShell startup succeeded; minimal and controlled CIM probes were killed at15s. Original JSON incorrectly coalesced null timeout exitCode to0: killed=true and signal=SIGTERM are authoritative; later3084e60 fixes this reporting bug. Updater start awaited inherited pipe EOF until the live service stopped. No product acceptance inferred.",
+  "files": [
+    {
+      "name": "windows-native-diagnostics.json",
+      "sha256": "3863b2f662fad0195defa2ff93f826e8aaecc163f74eb91406aa91801b69a389"
+    },
+    {
+      "name": "windows-native-tests.log",
+      "sha256": "215713bc3f0d9f4986e213df1f81258e238618ac76eefd570be9b54b14abf4d6"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+
+> ironcrew-next@0.4.0-dev.0 openapi:check D:\a\ironcrew\ironcrew\next
+> node scripts/openapi.ts --check
+

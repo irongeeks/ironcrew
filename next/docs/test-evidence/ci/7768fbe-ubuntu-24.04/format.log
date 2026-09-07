@@ -1,0 +1,6 @@
+
+> ironcrew-next@0.4.0-dev.0 format:check /home/runner/work/ironcrew/ironcrew/next
+> prettier --check apps packages tests scripts *.json *.ts *.mjs
+
+Checking formatting...
+All matched files use Prettier code style!

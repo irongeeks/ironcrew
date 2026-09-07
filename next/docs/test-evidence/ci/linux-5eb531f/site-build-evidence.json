@@ -1,0 +1,221 @@
+{
+  "testedAt": "2026-09-07T12:46:36.115Z",
+  "platform": "linux",
+  "node": "v26.4.0",
+  "attestation": {
+    "id": "1048468a-5205-418d-858d-54a61f29eb81",
+    "profileSha256": "95ee06b31b27a5926ee4695099fd92407282347fc4f355978573efbaca19488b",
+    "toolchainSha256": "ee2aef086d356160d9b8a2b1dba913aa0833cc97430223fe890865c8cad49015",
+    "bwrapSha256": "0621539f6329449e0f9c1372d1c90b64fdb410816d876260c1da7ddea651d9e3",
+    "seccompSha256": "77cc89751b3087306b7f8d3807387a34f06764eaae1906332f089bd96725688b",
+    "kernel": "6.17.0-1022-azure",
+    "bootId": "af2520ff-cb54-4621-8981-be136acd21f8",
+    "createdAt": "2026-09-07T12:46:29.013Z",
+    "expiresAt": "2026-09-07T13:46:29.013Z",
+    "probes": {
+      "trusted_program_runs": {
+        "passed": true,
+        "detail": "exited"
+      },
+      "node_version": {
+        "passed": true,
+        "detail": "v26.4.0"
+      },
+      "php_toolchain": {
+        "passed": true,
+        "detail": "PHP 8.3.6"
+      },
+      "seccomp_syscall": {
+        "passed": true,
+        "detail": "self process_vm_readv, otherwise permitted, returns EPERM"
+      },
+      "kernel_namespaces": {
+        "passed": true,
+        "detail": "mount/user/pid/net/ipc/uts/cgroup namespaces differ from supervisor"
+      },
+      "capabilities_seccomp": {
+        "passed": true,
+        "detail": "kernel reports zero effective capabilities, no_new_privs and seccomp filter"
+      },
+      "environment": {
+        "passed": true,
+        "detail": "only the rebuilt execution allowlist exists"
+      },
+      "filesystem": {
+        "passed": true,
+        "detail": "host secrets, runtime sockets and toolchain writes are inaccessible"
+      },
+      "network": {
+        "passed": true,
+        "detail": "host loopback listener received no connection"
+      },
+      "host_process": {
+        "passed": true,
+        "detail": "host supervisor PID is inaccessible from the workload PID namespace"
+      },
+      "process_limit": {
+        "passed": true,
+        "detail": "cgroup pids.events confirms denied process creation"
+      },
+      "memory_limit": {
+        "passed": true,
+        "detail": "kernel memory.events confirms the workload was OOM-killed inside its group"
+      },
+      "cpu_timeout": {
+        "passed": true,
+        "detail": "CPU quota throttled the workload and wall-time cancellation killed its cgroup"
+      },
+      "output_limit": {
+        "passed": true,
+        "detail": "unbounded logs are killed without unbounded supervisor buffering"
+      },
+      "workspace_quota": {
+        "passed": true,
+        "detail": "workspace tmpfs rejects writes above its independent size limit"
+      },
+      "symlink_export": {
+        "passed": true,
+        "detail": "symlink outputs are rejected before any host import"
+      },
+      "nested_namespace": {
+        "passed": true,
+        "detail": "nested namespace creation remains denied by seccomp and userns policy"
+      }
+    }
+  },
+  "builds": [
+    {
+      "stack": "react",
+      "artifactVersionId": "129bb93e-59a8-4659-ada4-2e81861d4d6b",
+      "packageSha256": "abe7a04e3f123e858afa11f3b96e26f87769a636eb4b098892a7ab19430c9893",
+      "archiveSha256": "388127502dd11d360d38289fa2841cfca91db2545fdd80b73fe9583cd4f74801",
+      "execution": {
+        "exitCode": 0,
+        "stdout": "React offline build complete\n",
+        "stderr": "",
+        "termination": "exited",
+        "attestationId": "1048468a-5205-418d-858d-54a61f29eb81",
+        "profileSha256": "95ee06b31b27a5926ee4695099fd92407282347fc4f355978573efbaca19488b",
+        "toolchainSha256": "ee2aef086d356160d9b8a2b1dba913aa0833cc97430223fe890865c8cad49015",
+        "outputHashes": {
+          "dist/app.mjs": "137732ad5d586f83ee5573b35015863cc25f05f2d3b01d468c30314dcbf25a77",
+          "dist/concept.mjs": "238748d20e2d769822cc181aa77902889a1cbdc4b9380be04b9e98fe78a17f28",
+          "dist/index.html": "3e7288434c0f8429e62c074e291f6bb8ffeb5757a7acbf8b5a9d253a89ba676c",
+          "dist/vendor/LICENSE.txt": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+          "dist/vendor/react-runtime.mjs": "a10fd8fcccb9fe3665f8de4a6c48e4f49e7f75db103173bad8a0ef642ba79fd3"
+        },
+        "resources": {
+          "memoryEvents": {
+            "low": 0,
+            "high": 0,
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0,
+            "oom_group_kill": 0
+          },
+          "pidsEvents": {
+            "max": 0
+          },
+          "cpuStat": {
+            "usage_usec": 92471,
+            "user_usec": 61301,
+            "system_usec": 31170,
+            "nice_usec": 0,
+            "core_sched.force_idle_usec": 0,
+            "nr_periods": 1,
+            "nr_throttled": 0,
+            "throttled_usec": 0,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        }
+      },
+      "tamperRejected": true,
+      "deterministicArchive": true
+    },
+    {
+      "stack": "wordpress",
+      "artifactVersionId": "3c88355c-bfab-4a3d-9f7d-91f498cd9b45",
+      "packageSha256": "981a9c37fe41f7829f02e84bc7811bd4bcb90a140cfa865459d3d4a23a25e7f7",
+      "archiveSha256": "e3e45fcf72ca315a6ce6e28b9cbb43311a99df404046c2870f40135aeba4cb02",
+      "execution": {
+        "exitCode": 0,
+        "stdout": "WordPress block theme packaged\n",
+        "stderr": "",
+        "termination": "exited",
+        "attestationId": "1048468a-5205-418d-858d-54a61f29eb81",
+        "profileSha256": "95ee06b31b27a5926ee4695099fd92407282347fc4f355978573efbaca19488b",
+        "toolchainSha256": "ee2aef086d356160d9b8a2b1dba913aa0833cc97430223fe890865c8cad49015",
+        "outputHashes": {
+          "dist/index.html": "668393899865ae0dc462d36f7b9f353fa0a348604e5b971657c3d0f1826b3749",
+          "dist/ironcrew-customer-site/functions.php": "02482a179b908fd31337a8c8701d87c7fc005b53c6a1d9f4f6ff96ec5239c6dd",
+          "dist/ironcrew-customer-site/style.css": "5a7109113cd4ad828fbd7c0de855f2bf14aef53f78f5f7a750901f672925cfdc",
+          "dist/ironcrew-customer-site/templates/index.html": "8c409d76aa172a1337f64ab7d771a06af041df989370f864de6740d079e5220c",
+          "dist/ironcrew-customer-site/theme.json": "36764f5b4fe1832009aa381546ca4a1142b3d857d6f78ec1a16e0e5b742b92e6"
+        },
+        "resources": {
+          "memoryEvents": {
+            "low": 0,
+            "high": 0,
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0,
+            "oom_group_kill": 0
+          },
+          "pidsEvents": {
+            "max": 0
+          },
+          "cpuStat": {
+            "usage_usec": 101086,
+            "user_usec": 61052,
+            "system_usec": 40034,
+            "nice_usec": 0,
+            "core_sched.force_idle_usec": 0,
+            "nr_periods": 2,
+            "nr_throttled": 1,
+            "throttled_usec": 2517,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        "php": {
+          "exitCode": 0,
+          "stdout": "No syntax errors detected in theme/functions.php\n",
+          "stderr": "",
+          "termination": "exited",
+          "attestationId": "1048468a-5205-418d-858d-54a61f29eb81",
+          "profileSha256": "95ee06b31b27a5926ee4695099fd92407282347fc4f355978573efbaca19488b",
+          "toolchainSha256": "ee2aef086d356160d9b8a2b1dba913aa0833cc97430223fe890865c8cad49015",
+          "outputHashes": {},
+          "resources": {
+            "memoryEvents": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            },
+            "pidsEvents": {
+              "max": 0
+            },
+            "cpuStat": {
+              "usage_usec": 70823,
+              "user_usec": 39458,
+              "system_usec": 31364,
+              "nice_usec": 0,
+              "core_sched.force_idle_usec": 0,
+              "nr_periods": 1,
+              "nr_throttled": 0,
+              "throttled_usec": 0,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            }
+          }
+        }
+      },
+      "tamperRejected": true,
+      "deterministicArchive": true
+    }
+  ]
+}

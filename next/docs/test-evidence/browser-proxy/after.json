@@ -1,0 +1,20 @@
+{
+  "verifiedAt": "2026-09-07T13:25:36.326Z",
+  "node": "v26.4.0",
+  "platform": "darwin",
+  "files": {
+    "packages/tools/browser-inspect.ts": "be1c6d90ac8d1115e7ed3dcbe1bbd8bcdae912b71403ef21b1d3c7698043b1c2",
+    "tests/integration/browser-proxy.test.ts": "7acacf2a3e147defcfa661b92f48131276157673a3c3e56ed5923fb1c1c5f8c7"
+  },
+  "checks": {
+    "focusedBrowserAndProxy": {
+      "passed": 7,
+      "failed": 0,
+      "unhandledErrors": 0
+    },
+    "typecheckExit": 0,
+    "focusedEslintExit": 0,
+    "diffCheckExit": 0
+  },
+  "negativeEvidence": "before.json"
+}

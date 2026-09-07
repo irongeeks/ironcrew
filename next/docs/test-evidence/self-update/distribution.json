@@ -1,22 +1,63 @@
 {
-  "directory": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/release",
-  "manifestSha256": "6f00ef9c16cb2c1e41d82a94233ff7372b75e5ddfce1f73b61267cd59ad42433",
-  "archivePath": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/ironcrew-0.4.3-darwin-arm64-TEST.tgz",
-  "archiveSha256": "ea8f4bc11b3a49cd893080e385f8b6a12b0eb7ebf42709add53f85c2e7aa1af2",
-  "archiveBytes": 90815205,
+  "directory": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/release",
+  "manifestSha256": "1edd9be09c127905bfa3cc5a236bcea2a3614a8631a90edaab8277b06c4659d6",
   "files": 12763,
+  "archivePath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/ironcrew-0.4.3-darwin-arm64-TEST.tgz",
+  "archiveSha256": "c17241ee86473ae1bd103b073132a524306f6439e5a7132b9318c93a414766c4",
+  "archiveBytes": 90813487,
   "temporaryTestKey": true,
-  "publicKeyPath": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/TEMPORARY-TEST-PUBLIC.pem",
+  "publicKeyPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/TEMPORARY-TEST-PUBLIC.pem",
   "version": "0.4.3",
-  "createdAt": "2026-09-07T12:14:58.820Z",
-  "sourceManifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04",
-  "sourceFiles": 333,
-  "distFilesMatchedCurrentBuild": 315,
-  "finalGateSourceManifestSha256": "dee3e61905b5460d55e27d13025b5c22fee0c58d63f9931865f6086b6fb69d04",
-  "finalGateSourceFiles": 333,
-  "finalGateTestsPassed": 489,
+  "createdAt": "2026-09-07T15:14:30.908012+00:00",
+  "verifiedSourceCommit": "aabff77f55608ed1152429c5072eeba6a7c394a1",
+  "finalGateSourceManifestSha256": "045d7404631d412d4f5fb5d07f54fea82dce5fe9472f3fee9da9b04f7b4e649e",
+  "finalGateSourceFiles": 341,
+  "sourceManifestPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/source-manifest.json",
+  "gateReportSha256": "8e5e499ff81f4850c15e7919bbaa68cebdf8e8533fef351214e3bbeb62c3b896",
+  "finalGateTestsPassed": 508,
   "finalGateTestsSkipped": 0,
-  "rebuiltDistFilesStillIdentical": 315,
-  "sourceManifestPath": "/Users/robert/git/ironcrew/local-artifacts/final-complete-TEST-5O1PAZ/source-manifest.json",
-  "ownPrivateSigningKeyAbsent": true
+  "ciStatusAtPackaging": "pending; successful local gates only",
+  "ownPrivateSigningKeyAbsent": true,
+  "distFilesMatchedCurrentBuild": 315,
+  "originalBuildSource": {
+    "sourceCommit": "aabff77f55608ed1152429c5072eeba6a7c394a1",
+    "sourceManifestSha256": "47f4dab84235880bda70f74b7d7040bab5b130fd0e7aa636383703efb7d0bcc0",
+    "sourceManifestPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/source-manifest.json",
+    "gateReportPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/final-gates.json",
+    "gateReportSha256": "8e5e499ff81f4850c15e7919bbaa68cebdf8e8533fef351214e3bbeb62c3b896"
+  },
+  "finalGateBinding": {
+    "sourceCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+    "sourceManifestSha256": "045d7404631d412d4f5fb5d07f54fea82dce5fe9472f3fee9da9b04f7b4e649e",
+    "sourceFiles": 341,
+    "passedTests": 508,
+    "skippedTests": 0,
+    "gateReportSha256": "531a8e5ac4f7e6ba5c4ef457409a889cf68cb4e7c5744caf509d713a5d09e84f",
+    "sourceManifestPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/final-source-manifest-686022a.json",
+    "gateReportPath": "/Users/robert/git/ironcrew/local-artifacts/mobile-native-final-TEST-3kXDR9/final-gates-686022a.json",
+    "productComparison": {
+      "files": 315,
+      "method": "exact byte-for-byte comparison of every current dist file against the existing release",
+      "result": "identical",
+      "checkedAt": "2026-09-07T15:40:05.214590+00:00"
+    },
+    "ciStatus": "Confirmed success: GitHub Actions run 34139199380 on commit 686022a passed on macOS, Ubuntu and Windows; Linux isolation run 34139199314 also succeeded.",
+    "ciEvidence": {
+      "sourceCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+      "threeOs": {
+        "runId": 34139199380,
+        "conclusion": "success",
+        "platforms": [
+          "macOS",
+          "Ubuntu",
+          "Windows"
+        ]
+      },
+      "linuxIsolation": {
+        "runId": 34139199314,
+        "conclusion": "success"
+      }
+    }
+  },
+  "finalGateSourceCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379"
 }

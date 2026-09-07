@@ -1,0 +1,19 @@
+RUN v3.2.6 /home/robert.guest/ironcrew-isolation/updater-next
+
+✓ tests/isolation/updater-systemd.test.ts (1 test) 5261ms
+  ✓ offline helper cannot read a protected configuration reached through a data-user symlink 5261ms
+✓ tests/install/updater-service.test.ts (6 tests) 25083ms
+  ✓ external child updater stops own service, backs up offline, swaps exact signed release and imports proof 6542ms
+  ✓ unhealthy real new process is stopped before verified old release restarts 5542ms
+  ✓ candidate changed after queue cannot stop running service and cannot be retried blindly 2813ms
+  ✓ result from before a recovery generation cannot release the restored system 4931ms
+  ✓ administrative backup target and executable hash constrain an otherwise freshly approved plan 3465ms
+  ✓ queue symlink cannot change ownership or write into a protected unrelated directory 1790ms
+
+Test Files 2 passed (2)
+Tests 7 passed (7)
+Start at 12:00:05 Europe/Berlin, 2026-09-07
+Duration 25.37s (transform 136ms, setup 0ms, collect 377ms, tests 30.34s, prepare 60ms)
+
+Post-test: systemctl list-unit-files 'ironcrew-updater-fixture-*' --no-legend -> empty
+Post-test: systemctl list-units --all 'ironcrew-updater-fixture-*' --no-legend -> empty

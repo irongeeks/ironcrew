@@ -4,8 +4,8 @@
   "date": "2026-09-07",
   "baseCommit": "76160c0e56324d1ec16ebf2956cbeadbc544cfc4",
   "branch": "rebuild/ironcrew",
-  "workspace": "uncommitted next/",
-  "platform": "macOS arm64 / Node 26.4.0; separate real Linux Lima VM evidence",
+  "workspace": "next/ on branch rebuild/ironcrew",
+  "platform": "macOS arm64 / Node 26.4.0 local full gate; complete CI gates on macOS 15, Windows Server 2025 and Ubuntu 24.04; separate real Linux VM evidence",
   "criteria": [
     {
       "prdId": "FIN-01",
@@ -672,7 +672,7 @@
         "tests/install/launchd-product.mjs",
         "docs/test-evidence/launchd-product.json"
       ],
-      "limitation": "OS-Version/Edition/Architektur werden im Registrierungsweg vor Mutation geprüft. Echte macOS-GUI-LaunchAgent-Produktzentrale und Linux-VM geprüft; privilegierter macOS-LaunchDaemon sowie Windows/HyperV nativ noch nicht ausgeführt.",
+      "limitation": "OS-Version/Edition/Architektur werden vor Registrierungsänderungen geprüft. Lokale WMI-Identifikation mit unveränderter Windows-Matrix und echter Windows-Server-2025-Host-/Preflightlauf bestanden; macOS-GUI-LaunchAgent-Produktzentrale und Linux-VM separat geprüft. Vollständige privilegierte Zielinstallation, macOS-LaunchDaemon und Windows/Hyper-V-Isolation bleiben eigene Abnahmen.",
       "sourceEvidence": [
         "packages/operations/src/services.ts",
         "packages/operations/src/host-platform.ts",
@@ -748,18 +748,27 @@
       "testStatus": "partial_local_evidence",
       "evidence": [
         "tests/e2e/ui.spec.ts",
-        "tests/e2e/live-local.spec.ts"
+        "tests/e2e/live-local.spec.ts",
+        "tests/e2e/hall-live.spec.ts",
+        "docs/test-evidence/ui-capacity/results.json",
+        "docs/ui-capacity-validation.md"
       ],
-      "limitation": "360px/CSS-Zoom/Tastatur/DE-EN/WebGL-Ausfall; manuelle Screenreader/native-Zoom-Abnahme offen."
+      "limitation": "Tastaturnavigation, DE/EN, 200%-Seitenskalierung, 360px/390px-Ansichten, WebGL-Ausfall und sechs Axe-Leer-/Blockiert-Ansichten lokal geprüft. Physischer Screenreader-Hörtest und vollständige routenweise Offline-/Stale-/Berechtigungsmatrix bleiben getrennte Nachweisgrenzen.",
+      "implementationStatus": "implemented_with_local_evidence"
     },
     {
       "prdId": "UI-02",
       "testStatus": "partial_local_evidence",
       "evidence": [
+        "tests/unit/crew-motion.test.ts",
         "tests/e2e/ui.spec.ts",
-        "apps/web/public/crew/manifest.json"
+        "tests/e2e/hall-live.spec.ts",
+        "apps/web/public/crew/manifest.json",
+        "docs/test-evidence/crew-hall-performance.json",
+        "docs/crew-visual-validation.md"
       ],
-      "limitation": "Neun reproduzierbare GLB-Entwürfe und Zustandsbewegung; finale Gestaltung/Rigs/Animation/Referenz-FPS fehlen."
+      "limitation": "Neun individuell modellierte GLBs, artikulierte Zustandsposen, Reduced Motion, Profile/Kamera/Fallback und benannte lokale Referenzmessungen sind nachgewiesen. Messwerte gelten nur für ihren dokumentierten Build und Host; keine geräteübergreifende FPS-Garantie oder subjektive Nutzerbewertung behauptet.",
+      "implementationStatus": "implemented_with_local_evidence"
     }
   ],
   "technicalAudit": {
@@ -802,9 +811,11 @@
     "reuseRegister": "../docs/reuse-register.md",
     "knownValidationBoundaries": [
       "Kein bezahlter OpenRouter-/Brave-Produktivlauf und keine vollständige Kontorechte-/Tarifabnahme aller Fremdsysteme.",
-      "Windows/HyperV und privilegierter macOS-LaunchDaemon benötigen weiterhin echte Zielsystemabnahme.",
+      "Vollständige CI-Gates auf Windows Server 2025, macOS 15 und Ubuntu 24.04 ersetzen keine vollständige administrative Zielinstallation; Windows/Hyper-V-Isolation und privilegierter macOS-LaunchDaemon benötigen eigene Zielsystemabnahme.",
       "Lokale Testsignaturen ersetzen keine administrativen Produktivschlüssel oder echte Veröffentlichung.",
       "Generisches artifact.deliver ist auf UTF-8-Text bis 1 MB begrenzt; binäre Websitepakete verwenden ihren eigenen getesteten Ablage-/Hostingpfad."
     ]
-  }
+  },
+  "verifiedImplementationCommit": "686022a9a0f02f7ff8a93e120c4e82965c13a379",
+  "sourceManifestSha256": "045d7404631d412d4f5fb5d07f54fea82dce5fe9472f3fee9da9b04f7b4e649e"
 }

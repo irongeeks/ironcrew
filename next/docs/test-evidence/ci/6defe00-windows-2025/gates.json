@@ -1,0 +1,105 @@
+{
+  "date": "2026-09-07T14:01:36.206472+00:00",
+  "baseCommit": "6defe00daa0077b1076ac1515a862ab836a54560",
+  "branch": "rebuild/ironcrew",
+  "workspace": "GitHub Actions checkout",
+  "platform": "Windows-2025Server-10.0.26100-SP0",
+  "node": "v26.4.0",
+  "pnpm": "10.30.1",
+  "gates": [
+    {
+      "name": "install",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 install --frozen-lockfile",
+      "exitCode": 0,
+      "durationSeconds": 16.98,
+      "log": "docs/test-evidence/install.log"
+    },
+    {
+      "name": "format",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 format:check",
+      "exitCode": 0,
+      "durationSeconds": 9.75,
+      "log": "docs/test-evidence/format.log"
+    },
+    {
+      "name": "lint",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 lint",
+      "exitCode": 0,
+      "durationSeconds": 10.58,
+      "log": "docs/test-evidence/lint.log"
+    },
+    {
+      "name": "typecheck",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 typecheck",
+      "exitCode": 0,
+      "durationSeconds": 14.63,
+      "log": "docs/test-evidence/typecheck.log"
+    },
+    {
+      "name": "unit",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 test:unit",
+      "exitCode": 0,
+      "durationSeconds": 6.78,
+      "log": "docs/test-evidence/unit.log",
+      "passedTests": 53,
+      "skippedTests": 0
+    },
+    {
+      "name": "contracts",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 test:contracts",
+      "exitCode": 0,
+      "durationSeconds": 14.68,
+      "log": "docs/test-evidence/contracts.log",
+      "passedTests": 46,
+      "skippedTests": 0
+    },
+    {
+      "name": "integration",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 test:integration",
+      "exitCode": 0,
+      "durationSeconds": 95.74,
+      "log": "docs/test-evidence/integration.log",
+      "passedTests": 276,
+      "skippedTests": 0
+    },
+    {
+      "name": "build",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 build",
+      "exitCode": 0,
+      "durationSeconds": 11.72,
+      "log": "docs/test-evidence/build.log"
+    },
+    {
+      "name": "e2e",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 test:e2e",
+      "exitCode": 0,
+      "durationSeconds": 144.51,
+      "log": "docs/test-evidence/e2e.log",
+      "passedTests": 46,
+      "skippedTests": 0
+    },
+    {
+      "name": "recovery",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 test:recovery",
+      "exitCode": 0,
+      "durationSeconds": 25.61,
+      "log": "docs/test-evidence/recovery.log",
+      "passedTests": 20,
+      "skippedTests": 0
+    },
+    {
+      "name": "install-tests",
+      "command": "cmd.exe /d /c npx.cmd --yes pnpm@10.30.1 test:install",
+      "exitCode": 1,
+      "durationSeconds": 447.78,
+      "log": "docs/test-evidence/install-tests.log",
+      "passedTests": 0,
+      "skippedTests": 0
+    }
+  ],
+  "live": {
+    "status": "not_run",
+    "reason": "No provider test profile or paid test budget supplied."
+  },
+  "osMatrix": "This report covers only the named GitHub Actions matrix host, not other operating systems or customer installations."
+}

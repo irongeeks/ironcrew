@@ -1,0 +1,18 @@
+{
+  "runId": 34134350071,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34134350071",
+  "commit": "39cfa1c8e7b57480b542dccd197c48bdcf74ecc0",
+  "os": "windows-2025 focused native diagnostics",
+  "conclusion": "failure",
+  "scope": "Historical native regression: argv/stdin and 1 MiB binary transport passed; detached broker failed the independent five-second deadline. Inherited system-path PowerShell control succeeded; minimal and controlled whitelist probes still timed out. Host and updater test step was not run.",
+  "files": [
+    {
+      "name": "windows-native-diagnostics.json",
+      "sha256": "b21d2dd6d12cbe10659b5f53d5015ffd9cd86d3d81510ccd3f6cf285d906e84d"
+    },
+    {
+      "name": "windows-launcher-tests.log",
+      "sha256": "e5a47fabe7bec6c787c723e5ceffca2b6e81ce051d12557fda9bf20b4a35e1b7"
+    }
+  ]
+}

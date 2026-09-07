@@ -1,14 +1,17 @@
 # Releasebereitschaft — Entwicklungsstand
 
-Stand: 7. September 2026. Arbeitszweig `rebuild/ironcrew`, Basis `76160c0`. Die Implementierung liegt im eigenständigen Workspace `next/` und wird auf dem freigegebenen Arbeitszweig versioniert. Der Nutzer hat Commit und Push nach Abschluss und Prüfung freigegeben. Der externe CI-Status ist getrennt vom lokalen Prüfbericht auf [GitHub Actions](https://github.com/irongeeks/ironcrew/actions) einsehbar.
+Stand: 7. September 2026. Arbeitszweig `rebuild/ironcrew`, Basis `76160c0`. Die Implementierung liegt im eigenständigen Workspace `next/` und wird auf dem freigegebenen Arbeitszweig versioniert. Der externe CI-Status ist getrennt vom lokalen Prüfbericht auf [GitHub Actions](https://github.com/irongeeks/ironcrew/actions) einsehbar.
 
 ## Lokaler Abschluss und Git-Übergabe
 
 Die verbleibenden Programmteile sind abgeschlossen: Kunden-/Projektverwaltung mit exakter Auftragszuordnung, technische Websitebetreuung einschließlich Mandatdialog und Wartungsfenstern, gemeinsame Kontobegrenzung, deklarierte Adapter-Ausgaben und abgesicherter Dienstneustart. Die zugehörigen gezielten Fach-, Browser- und Betriebssystemprüfungen sind bestanden.
 
-Der eingefrorene Quellstand hat sämtliche lokalen Gates mit 489 Tests ohne Auslassungen bestanden; der Dependency-Audit meldet 0 bekannte Schwachstellen. Die neue signierte TEST-Distribution ist gebaut und unabhängig geprüft. Auch der isolierte Produktupdate-Nachweis 0.4.3 → 0.4.4 mit Restoreprobe und Offlinebackup ist bestanden. Die abschließende Messung auf Apple M5 ergab 36,57 FPS, P95 23 ms bei 1.000 Aufträgen und eingehaltene Ressourcenbudgets; alle lokalen technischen Schwellen sind bestanden. GitHub-CI prüft den gepushten Commit zusätzlich auf drei Betriebssystemen sowie mit der Linux-Isolationssuite.
+Der Produktcommit `686022a9a0f02f7ff8a93e120c4e82965c13a379` hat sämtliche lokalen Gates mit **508 Tests ohne Auslassungen**, stabilem Manifest über **341 Dateien** und **0 bekannten Audit-Schwachstellen** bestanden. Die erneuerte Hallenmessung auf Apple M5 ergab **41,64 FPS**. Die getrennte Kapazitätsmessung vom 7. September um 12:24 UTC bleibt mit **P95 23 ms bei 1.000 Aufträgen** und ihren Ressourcen-Hashes auf diesen damaligen Build gebunden. Die neue signierte macOS-ARM64-TEST-Distribution aus Produktcommit `aabff77` ist unabhängig geprüft: 12.763 Archivdateien und 315 bytegleiche Builddateien. Ihr echter Produktupdate-Nachweis 0.4.3 → 0.4.4 mit Restoreprobe und Offlinebackup ist bestanden; Paketpfad und Hashes stehen im [Gesamtbericht](verification.md).
+
+Die [Drei-OS-CI 34139199380](https://github.com/irongeeks/ironcrew/actions/runs/34139199380) hat diesen abschließenden Stand auf macOS 15, Windows Server 2025 und Ubuntu 24.04 vollständig bestanden: **jeweils 508 Tests, 12 erfolgreiche Gates und keine Skips**. Die Originalberichte sind für [macOS](test-evidence/ci/686022a-macos-15/gates.json), [Windows](test-evidence/ci/686022a-windows-2025/gates.json) und [Ubuntu](test-evidence/ci/686022a-ubuntu-24.04/gates.json) gespeichert. Der [Linux-Isolationslauf 34139199314](https://github.com/irongeeks/ironcrew/actions/runs/34139199314) ist erfolgreich; die [Originalbelege](test-evidence/ci/linux-686022a/github-run.json) sind dauerhaft gespeichert. Die vorherige [Drei-OS-CI 34137823550](https://github.com/irongeeks/ironcrew/actions/runs/34137823550) zu `ebf3b98` bestand bereits jeweils 508 Tests ohne Skips auf macOS, Windows und Ubuntu. Dieser historische Erfolg ist im [CI-Verzeichnis](test-evidence/ci/README.md) archiviert und wird nicht auf einen anderen Commit übertragen.
 
 Der aktuelle vollständige Nachweis steht in [verification.md](verification.md). Separate ältere VM-/Betriebsproben gelten ausdrücklich für ihren jeweils dokumentierten Quellstand.
+
 
 ## Bereits implementierte Erweiterungen
 
@@ -24,8 +27,8 @@ Der aktuelle vollständige Nachweis steht in [verification.md](verification.md).
 
 ## Externe Abnahmen
 
-Konkrete Anbieter-Testkonten und ein autorisiertes Modelltestbudget fehlen weiterhin. Lokale HTTP-/TLS-/SMTP-/Browser- und Wiederherstellungstests belegen keine erfolgreiche Nutzung echter Kundenkonten. Windows und die übrigen CPU-/OS-Varianten sind nicht vollständig nativ abgenommen; vorhandene macOS- und getrennte Linux-VM-Nachweise gelten nur für ihre benannten Umgebungen.
+Konkrete Anbieter-Testkonten und ein autorisiertes Modelltestbudget fehlen weiterhin. Lokale HTTP-/TLS-/SMTP-/Browser- und Wiederherstellungstests belegen keine erfolgreiche Nutzung echter Kundenkonten. Die vorhandenen Windows-Server-2025-CI-, macOS- und getrennten Linux-VM-Nachweise gelten nur für ihre benannten Umgebungen. Eine vollständige administrative Zielinstallation über alle freigegebenen CPU-/OS-Varianten, Windows/Hyper-V-Isolation und ein privilegierter macOS-LaunchDaemon sind damit nicht vollständig abgenommen.
 
-Produktiver Signaturschlüssel, administrative Zielinstallation und langfristiger Betrieb sind getrennte Releaseaufgaben. Bestehende Distributionsnachweise mit temporärem TEST-Schlüssel sind keine Produktionsfreigabe. Manuelle Screenreader- und subjektive Gestaltungsabnahme sind nicht durch automatisierte Browserprüfungen ersetzt.
+Produktiver Signaturschlüssel, administrative Zielinstallation und langfristiger Betrieb sind getrennte Releaseaufgaben. Bestehende Distributionsnachweise mit temporärem TEST-Schlüssel sind keine Produktionsfreigabe. Der physische Screenreader-Hörtest bleibt als manuelle Zugänglichkeitsprobe offen. Die vorhandenen Figuren-, Animations- und Bildschirmnachweise sind keine subjektive Nutzerbewertung; daraus entsteht keine zusätzliche technische Freigabeanforderung.
 
 Keine Kundensite wurde veröffentlicht, keine Nachricht an reale Empfänger gesendet und keine Zahlung oder Steuerübermittlung ausgelöst. Die optionale Bankingfunktion wird ohne eingerichtete Verbindung nicht als verfügbar ausgegeben.

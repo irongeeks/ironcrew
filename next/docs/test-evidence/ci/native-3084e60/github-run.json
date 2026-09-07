@@ -1,0 +1,18 @@
+{
+  "runId": 34133428508,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34133428508",
+  "commit": "3084e6035b4b6a3dab6efd7afd3956d85726ba42",
+  "os": "windows-2025 focused native diagnostics",
+  "conclusion": "failure",
+  "scope": "Historical native launcher failure: redirected stdin contained a UTF-8 BOM. The detached test returned only at the execFile timeout and did not prove prompt pipe closure. Host and updater test step was not run.",
+  "files": [
+    {
+      "name": "windows-native-diagnostics.json",
+      "sha256": "f24bcae632e68b31668d71d3f2c519930d5f2738b95eeb3ee4421c0874667d15"
+    },
+    {
+      "name": "windows-launcher-tests.log",
+      "sha256": "3abd289a902b580243fac421e82e2dc5d0805ec99bd866da3946950f216d9d54"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Browser-DenyProxy: echter Verbindungsabbruch
+
+[before.json](before.json) enthält den vor der Änderung aus `packages/tools/browser-inspect.ts` gelesenen ursprünglichen Handler, seinen Quellhash, den ausführbaren Probeinhalt und drei tatsächliche Kindprozess-Ergebnisse auf macOS / Node 26.4.0. In jedem Versuch empfing der TCP-Client zuerst HTTP 403 und brach dann mit `resetAndDestroy()` ab. Jeder ursprüngliche Serverprozess endete mit Exitcode 1 und unbehandeltem `read ECONNRESET`. Kein externer Zielserver wurde kontaktiert.
+
+[after.json](after.json) bindet den fokussierten Nachherlauf an die beiden Dateihashes: fünf echte Browser-Inspektionsfälle sowie zwei Proxy-Integrationstests bestanden, ebenso TypeScript, gezieltes ESLint und Diffprüfung. Es ist eine protokollierte Zusammenfassung des beobachteten fokussierten Laufs, kein vollständiger Test-Runner-Log.
+
+Der spätere [Gesamtgatebericht](../gates.json) und dessen [Integrationslog](../integration.log) enthalten dieselben fünf Browser- und zwei Proxyfälle innerhalb von 276 bestandenen Integrationstests; es gab keine unbehandelten Fehler. Der Proxytest empfängt 403, erzeugt einen echten TCP-Reset, prüft einen weiteren CONNECT mit 403 und zählt null Verbindungen am lokalen Sentinelziel. Ein zweiter Fall prüft die Zerstörung eines übernommenen, halb offenen CONNECT-Sockets beim Shutdown. Die Tests installieren keinen eigenen Socket-Error-Listener, der den ursprünglichen Fehler verdecken könnte.
+
+Die Korrektur registriert den Fehlerhandler direkt am übernommenen CONNECT-Socket vor der 403-Antwort und schließt eigene CONNECT-Sockets beim Inspektionsende. Kein globaler Exception-Handler, keine Weiterleitung und keine Lockerung der Chromium-Sandbox wurden eingeführt. Dieser Nachweis stammt vom benannten lokalen System; er behauptet keinen abgeschlossenen Windows-/Linux-CI-Lauf.

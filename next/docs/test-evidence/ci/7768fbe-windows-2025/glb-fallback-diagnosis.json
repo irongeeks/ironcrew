@@ -1,0 +1,58 @@
+{
+  "date": "2026-09-07T13:56:52.259658+00:00",
+  "originalTrace": ".var/ci-7768fbe-windows-evidence/ironcrew/ironcrew/next/test-results/ui-GLB-asset-checksum-fail-d1744-allback-and-crew-navigation/trace.zip",
+  "originalTraceSha256": "1a93ea686e54911ca43916d207f119fa24eff2caf334795a5288edfb436d940f",
+  "originalAssertions": [
+    {
+      "type": "before",
+      "callId": "call@3120",
+      "startTime": 141855.306
+    },
+    {
+      "type": "after",
+      "callId": "call@3120",
+      "endTime": 143088.442
+    },
+    {
+      "type": "before",
+      "callId": "call@3152",
+      "startTime": 143438.702
+    },
+    {
+      "type": "after",
+      "callId": "call@3152",
+      "endTime": 146019.24
+    },
+    {
+      "type": "before",
+      "callId": "call@3156",
+      "startTime": 151350.365
+    },
+    {
+      "type": "after",
+      "callId": "call@3156",
+      "endTime": 152414.013
+    },
+    {
+      "type": "before",
+      "callId": "call@3162",
+      "startTime": 161944.501
+    },
+    {
+      "type": "after",
+      "callId": "call@3162",
+      "endTime": 164787.743
+    }
+  ],
+  "finding": "All four original browser-side assertions completed without error. Test-side completion and teardown exceeded deadlines while default animation remained active; no failed fallback or navigation assertion appears in the trace. Resource contention is an inference, not a measured GPU diagnosis.",
+  "change": "Only checksum-fallback test requests reduced motion before navigation and asserts its effective state. It retains visible fallback and canvas checks, then uses keyboard Enter to open Cersei profile and verifies URL plus heading. No timeout, skip, product code or other animation/FPS test change.",
+  "validation": {
+    "command": "playwright test tests/e2e/ui.spec.ts --grep 'GLB asset' --trace on",
+    "passedTests": 2,
+    "durationSeconds": 4.5,
+    "fallbackSeconds": 1.3,
+    "lintExit": 0,
+    "prettierCheckExit": 0,
+    "platform": "local macOS; new Windows CI not yet run"
+  }
+}

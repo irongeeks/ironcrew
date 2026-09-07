@@ -1,0 +1,31 @@
+
+> ironcrew-next@0.4.0-dev.0 test:recovery /Users/runner/work/ironcrew/ironcrew/next
+> vitest run tests/recovery
+
+
+ RUN  v3.2.6 /Users/runner/work/ironcrew/ironcrew/next
+
+ ✓ tests/recovery/remote-update-fencing.test.ts (2 tests) 1783ms
+   ✓ fences restored in-flight remote jobs and preserves completed receipts across actual SQLite backup  681ms
+   ✓ requires fresh update approval after restore and never auto-replays queued jobs or deferred attempts  1101ms
+ ✓ tests/recovery/runtime.test.ts (1 test) 1686ms
+   ✓ persists actual file, fixture test, approval pause, restart and immutable artifact  1685ms
+ ✓ tests/recovery/operations-backup.test.ts (5 tests) 2227ms
+   ✓ real age encrypted SQLite backup/restore (local fixture) > encrypts artifacts and restores complete state with paused automation and revoked sessions  921ms
+   ✓ real age encrypted SQLite backup/restore (local fixture) > keeps previous data as rollback directory  364ms
+ ✓ tests/recovery/core-recovery.test.ts (1 test) 852ms
+   ✓ RUN-02/03 persists prepared model context, tool intent, approval waits and unreconciled usage across restart  852ms
+ ✓ tests/recovery/runtime-hardening.test.ts (11 tests) 4627ms
+   ✓ never issues another paid request after interrupted response and process restart  700ms
+   ✓ keeps missing usage visible and postpones tool effects until explicit reconciliation  584ms
+   ✓ accounts malformed complete model responses without persisting partial tool actions  421ms
+   ✓ records an already completed effect after crash and mandate revocation without re-executing it  816ms
+   ✓ rolls back the reservation if atomic model-intent persistence fails  399ms
+   ✓ stale local intent stays unknown and a durable staged result is recovered without another effect  380ms
+   ✓ consumes CEO messages once at the next model boundary while an active response is in flight  349ms
+
+ Test Files  5 passed (5)
+      Tests  20 passed (20)
+   Start at  13:46:52
+   Duration  5.61s (transform 695ms, setup 0ms, collect 2.03s, tests 11.18s, environment 2ms, prepare 651ms)
+

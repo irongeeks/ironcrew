@@ -1,0 +1,22 @@
+{
+  "runId": 34132693677,
+  "runUrl": "https://github.com/irongeeks/ironcrew/actions/runs/34132693677",
+  "commit": "549e037ef343b510be70b4e57f86437c2a54d89d",
+  "os": "macos-15",
+  "conclusion": "failure",
+  "scope": "Historical job:45E2Epassed; oneHQ1024 screenshot began during GLB loading and failed with CDP capture error. Parent run later cancelled after newer fixes; this completed failed job remains evidence.",
+  "files": [
+    {
+      "name": "gates.json",
+      "sha256": "b9364fe987f47a2704a0ae2fb4b9dc6e554a39811d5f47b1c0a798d243317677"
+    },
+    {
+      "name": "e2e.log",
+      "sha256": "23e810693f4b8a3958f396586e5ba486eb662e20a3ebfcfc03ad624f5cf695e7"
+    },
+    {
+      "name": "hq-visual-diagnosis.json",
+      "sha256": "67162eab399c7e51582dbeb0ac0f811ccec8a7b60f8c4f735c740368cf76b673"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+
+> ironcrew-next@0.4.0-dev.0 test:unit /Users/robert/git/ironcrew/repo/next
+> vitest run tests/unit
+
+
+ RUN  v3.2.6 /Users/robert/git/ironcrew/repo/next
+
+ ✓ tests/unit/crew-motion.test.ts (6 tests) 13ms
+ ✓ tests/unit/maintenance.test.ts (3 tests) 16ms
+ ✓ tests/unit/core-domain.test.ts (4 tests) 9ms
+ ✓ tests/unit/integrations-broker.test.ts (6 tests) 5ms
+ ✓ tests/unit/integrations-security.test.ts (23 tests) 11ms
+ ✓ tests/unit/runtime.test.ts (3 tests) 2ms
+ ✓ tests/unit/ci-chromium-apparmor.test.ts (2 tests) 2ms
+ ✓ tests/unit/model-ratings.test.ts (6 tests) 474ms
+
+ Test Files  8 passed (8)
+      Tests  53 passed (53)
+   Start at  17:37:06
+   Duration  739ms (transform 206ms, setup 0ms, collect 727ms, tests 531ms, environment 0ms, prepare 232ms)
+
