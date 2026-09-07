@@ -24,7 +24,7 @@ test("actual backend stores a disabled mailbox policy from the mobile UI without
   await form.getByLabel("Proton Share ID", { exact: true }).fill("local-fixture-share");
   await form.getByLabel("Proton Item ID", { exact: true }).fill("local-fixture-item");
   await form.getByRole("button", { name: "Postfach zum Lesen speichern", exact: true }).click();
-  await expect(inbox.getByRole("status")).toContainText("Gespeichert");
+  await expect(inbox.getByRole("status").filter({ hasText: /^Gespeichert\.$/ })).toHaveText("Gespeichert.");
   await inbox.getByText("Eingangsregel erstellen", { exact: true }).click();
   const policyForm = inbox
     .locator("form")
