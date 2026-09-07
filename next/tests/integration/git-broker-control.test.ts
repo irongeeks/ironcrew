@@ -138,9 +138,15 @@ it("validates trusted target paths, scopes, uniqueness and exposes local runtime
   expect(
     (await runtime!.localTools(orderId, { ...scope, areaId: randomUUID() })).some((tool) => tool.id.startsWith("git.")),
   ).toBe(false);
-  expect((await runtime!.localTools(orderId, scope)).find((tool) => tool.id === "git.push")!.description).toContain(
-    f.target.remoteUrl,
-  );
+  const description = (await runtime!.localTools(orderId, scope)).find((tool) => tool.id === "git.push")!.description;
+  const targets = JSON.parse(description.split("Administrative targets: ")[1]!);
+  expect(targets).toEqual([
+    {
+      targetId: f.target.id,
+      targetConfigSha256: sha256(f.config.gitConnections[0]),
+      destination: { remote: f.target.remoteUrl, branch: f.target.sourceBranch },
+    },
+  ]);
   expect(runtime!.tools.filter((tool) => tool.id.endsWith(".restart")).every((tool) => tool.requiresApproval)).toBe(
     true,
   );

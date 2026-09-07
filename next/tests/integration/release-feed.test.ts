@@ -30,6 +30,7 @@ let archive: Buffer,
   envelope: unknown,
   downloads = 0;
 const keys = generateKeyPairSync("ed25519");
+const runtimeFile = process.platform === "win32" ? "runtime/node.exe" : "runtime/node";
 let payload: Parameters<typeof releaseFeedSigningBytes>[0];
 const publish = (value: unknown) => {
   payload = value;
@@ -89,15 +90,21 @@ beforeEach(async () => {
   const release = path.join(directory, "release");
   await mkdir(path.join(release, "runtime"), { recursive: true });
   await mkdir(path.join(release, "dist/apps/control"), { recursive: true });
-  await writeFile(path.join(release, "runtime/node"), "fixture-runtime");
+  await writeFile(path.join(release, runtimeFile), "fixture-runtime");
+  const executableFiles = [runtimeFile];
+  if (process.platform === "win32") {
+    await mkdir(path.join(release, "winsw"));
+    await writeFile(path.join(release, "winsw/WinSW-x64.exe"), "fixture-winsw");
+    executableFiles.push("winsw/WinSW-x64.exe");
+  }
   await writeFile(path.join(release, "dist/apps/control/main.js"), "fixture-control");
   const files = [];
-  for (const name of ["runtime/node", "dist/apps/control/main.js"])
+  for (const name of [...executableFiles, "dist/apps/control/main.js"])
     files.push({
       path: name,
       sha256: await hashFile(path.join(release, name)),
       bytes: (await readFile(path.join(release, name))).length,
-      executable: name === "runtime/node",
+      executable: executableFiles.includes(name),
     });
   const manifest = {
     format: "ironcrew-release",
@@ -153,7 +160,7 @@ it("discovers and stages signed bytes without creating or approving an update", 
   expect(downloads).toBe(0);
   expect(await repo.listDocuments(scope, "update-plan")).toHaveLength(0);
   const staged = await service.stage(scope, ceoId, candidates[0]!.id);
-  expect(await readFile(path.join(staged.releaseDirectory, "runtime/node"), "utf8")).toBe("fixture-runtime");
+  expect(await readFile(path.join(staged.releaseDirectory, runtimeFile), "utf8")).toBe("fixture-runtime");
   expect(downloads).toBe(1);
   await service.stage(scope, ceoId, candidates[0]!.id);
   expect(downloads).toBe(1);

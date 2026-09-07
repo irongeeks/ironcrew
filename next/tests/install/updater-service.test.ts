@@ -28,7 +28,13 @@ integrationTest(
     const outcome = JSON.parse(result.stdout);
     expect(outcome.state).toBe("applied");
     expect(outcome.health.version).toBe("0.4.1");
-    expect((await stat(f.config.installDirectory)).mode & 0o777).toBe(0o755);
+    const installed = await stat(f.config.installDirectory);
+    expect(installed.isDirectory()).toBe(true);
+    if (process.platform === "win32") {
+      // Node chmod on Windows controls the writable attribute, not a POSIX mode or service-account DACL.
+      // The full signed swap, executable startup and health identity remain asserted above and below.
+      expect(installed.mode & 0o200).toBe(0o200);
+    } else expect(installed.mode & 0o777).toBe(0o755);
     if (process.env.IRONCREW_TEST_SYSTEMD === "1") expect((await stat(outcome.backup.archivePath)).uid).toBe(501);
     if (process.env.IRONCREW_TEST_SYSTEMD === "1")
       expect((await stat(path.join(f.config.installDirectory, "runtime/node"))).uid).toBe(0);

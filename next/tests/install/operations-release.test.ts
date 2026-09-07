@@ -1,3 +1,4 @@
+import { fixtureShellExecutable } from "../fixtures/shell.ts";
 import { describe, it, expect, afterEach } from "vitest";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, access } from "node:fs/promises";
@@ -152,7 +153,7 @@ describe("native service definitions (render validation, no OS install claim)", 
       programDirectory: "/opt/ironcrew $literal % path",
     });
     expect(bundle.definition).toContain("$$literal %% path");
-    await exec("/bin/sh", ["-n", path.join(directory, bundle.scriptName)]);
+    await exec(await fixtureShellExecutable(), ["-n", path.join(directory, bundle.scriptName)]);
   });
   it("validates launchd plist on macOS and installer shell grammar", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "ironcrew-plist-fixture-"));
@@ -163,7 +164,7 @@ describe("native service definitions (render validation, no OS install claim)", 
       programDirectory: "/Library/Application Support/IronCrew & fixture",
     });
     expect(bundle.definition).toContain("&amp;");
-    await exec("/bin/sh", ["-n", path.join(directory, bundle.scriptName)]);
+    await exec(await fixtureShellExecutable(), ["-n", path.join(directory, bundle.scriptName)]);
     if (process.platform === "darwin") await exec("/usr/bin/plutil", ["-lint", path.join(directory, bundle.name)]);
   });
   it("Windows uses least-privilege service identity and fails if private runtime/wrapper is absent", () => {

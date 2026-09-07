@@ -548,7 +548,8 @@ export class RemoteExecutionServer {
           await mkdir(path.dirname(dest), { recursive: true, mode: 0o700 });
           await copyFile(path.join(this.root(job.id), "output", String(i)), dest);
           await verifyFile(dest, file);
-          const handle = await open(dest, "r");
+          // Windows FlushFileBuffers requires a writable handle; r+ preserves the verified bytes.
+          const handle = await open(dest, "r+");
           try {
             await handle.sync();
           } finally {

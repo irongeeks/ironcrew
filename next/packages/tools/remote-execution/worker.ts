@@ -234,7 +234,8 @@ export class RemoteExecutionWorker {
       await writeFile(path.join(uploadDirectory, String(files.length)), execution.stdout, { mode: 0o600 });
       await writeFile(path.join(uploadDirectory, String(files.length + 1)), execution.stderr, { mode: 0o600 });
       for (const index of [files.length, files.length + 1]) {
-        const fd = await open(path.join(uploadDirectory, String(index)), "r");
+        // FlushFileBuffers on Windows requires write access without truncating the captured log.
+        const fd = await open(path.join(uploadDirectory, String(index)), "r+");
         try {
           await fd.sync();
         } finally {
