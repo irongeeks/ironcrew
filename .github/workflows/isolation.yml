@@ -30,12 +30,12 @@ jobs:
       - name: Prepare profile and run mandatory real kernel probes
         run: |
           lab="$RUNNER_TEMP/ironcrew-isolation"
+          PATH="$lab/tooling/node/bin:$PATH" npx --yes pnpm@10.30.1 install --frozen-lockfile
           "$lab/tooling/node/bin/node" packages/tools/isolation/cli.ts prepare "$lab/profile" "$lab/tooling/node" "$lab/tooling/bwrap-build/bwrap" /sys/fs/cgroup/ironcrew-ci /usr/bin/php
           sudo bash packages/tools/isolation/run-delegated.sh "$(id -un)" /sys/fs/cgroup/ironcrew-ci "$lab/tooling/node/bin/node" "$PWD/tests/isolation/linux.ts" "$lab/profile/profile.json" "$lab/evidence.json"
       - name: Actual WSS worker and offline website builds
         run: |
           lab="$RUNNER_TEMP/ironcrew-isolation"
-          PATH="$lab/tooling/node/bin:$PATH" npx --yes pnpm@10.30.1 install --frozen-lockfile
           sudo bash packages/tools/isolation/run-delegated.sh "$(id -un)" /sys/fs/cgroup/ironcrew-ci "$lab/tooling/node/bin/node" "$PWD/tests/isolation/worker-native.ts" "$lab/profile/profile.json" "$lab/worker-native-evidence.json"
           sudo bash packages/tools/isolation/run-delegated.sh "$(id -un)" /sys/fs/cgroup/ironcrew-ci "$lab/tooling/node/bin/node" "$PWD/scripts/site-build-lab.ts" "$lab/profile/profile.json" "$lab/site-evidence"
       - name: Native remote byte streams, replay, cancellation and website builds
