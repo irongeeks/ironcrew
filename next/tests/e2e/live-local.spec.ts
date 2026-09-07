@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 test("real authenticated API persists a scoped order and chat across browser reload", async ({ page }) => {
+  // Persistence is the subject here; HQ animation performance has its own dedicated tests.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/hq");
   await page.getByLabel(/Passwort|Password/i).fill("local-e2e-fixture-password");
   await page.getByRole("button", { name: /Anmelden|Sign in/i }).click();

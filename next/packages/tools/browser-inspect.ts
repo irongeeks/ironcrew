@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, rm, lstat, open } from "node:fs/promises";
 import { constants } from "node:fs";
+import type { Duplex } from "node:stream";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -50,6 +51,30 @@ export type PreviewSnapshot = {
   entry: string;
   assets: ReadonlyMap<string, { content: Buffer; headers: Record<string, string> }>;
 };
+/** Local rejection only: CONNECT sockets never become outbound tunnels. */
+export function createBrowserDenyProxy() {
+  const sockets = new Set<Duplex>();
+  const server = createServer((_req, res) => {
+    res.writeHead(403);
+    res.end();
+  });
+  server.on("connect", (_req, socket) => {
+    sockets.add(socket);
+    // CONNECT transfers ownership out of HTTP; peers can reset while reading the denial.
+    socket.on("error", () => socket.destroy());
+    socket.once("close", () => sockets.delete(socket));
+    socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+  });
+  return {
+    server,
+    async close() {
+      // closeAllConnections excludes sockets taken over by CONNECT.
+      for (const socket of sockets) socket.destroy();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    },
+  };
+}
 /** No network-backed navigation, inherited user profile, model JS or custom launch flags. */
 export async function inspectPreview(
   configuration: BrowserConfiguration,
@@ -64,11 +89,8 @@ export async function inspectPreview(
   if (process.platform === "linux" && process.getuid?.() === 0)
     throw new ToolError("browser_sandbox_requires_non_root");
   const directory = await mkdtemp(path.join(tmpdir(), "ironcrew-browser-"));
-  const proxy = createServer((_req, res) => {
-    res.writeHead(403);
-    res.end();
-  });
-  proxy.on("connect", (_req, socket) => socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"));
+  const denyProxy = createBrowserDenyProxy();
+  const proxy = denyProxy.server;
   await new Promise<void>((resolve, reject) => {
     proxy.once("error", reject);
     proxy.listen(0, "127.0.0.1", resolve);
@@ -238,8 +260,7 @@ export async function inspectPreview(
   } finally {
     if (timer) clearTimeout(timer);
     await browser?.close();
-    proxy.closeAllConnections();
-    await new Promise<void>((resolve) => proxy.close(() => resolve()));
+    await denyProxy.close();
     await rm(directory, { recursive: true, force: true });
   }
 }

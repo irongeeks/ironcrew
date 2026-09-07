@@ -76,7 +76,7 @@ test.describe("Real local administration (HTTP, SQLite, TLS worker; no mocked AP
       expect(enrollment.url).toMatch(/^wss:\/\/127\.0\.0\.1:/);
       expect(enrollment.generation).toBe(1);
       expect(enrollment.capabilities).toEqual(["workspace.read"]);
-      expect(enrollment.directory).toBe(path.join(directory, "generation-1"));
+      expect(path.normalize(enrollment.directory)).toBe(path.join(directory, "generation-1"));
       expect((await page.locator("body").innerText()).includes(enrollment.token)).toBe(false);
       await expect(panel).toHaveCount(0);
       client = new WorkerClient({
