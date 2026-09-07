@@ -11,6 +11,11 @@ on:
       - 'next/scripts/windows-native-diagnostics.mjs'
       - '.github/workflows/windows-native.yml'
   workflow_dispatch:
+    inputs:
+      diagnose:
+        description: Compare the historical CIM baseline with direct WMI
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -40,6 +45,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Observational probes include the failing minimal environment; the real tests remain mandatory.
       - name: Diagnose bounded PowerShell startup and CIM query phases
+        if: github.event_name == 'workflow_dispatch' && inputs.diagnose
         continue-on-error: true
         run: node scripts/windows-native-diagnostics.mjs
       - name: Verify native launcher lifetime and binary streams

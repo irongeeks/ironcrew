@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { promisify, TextDecoder } from "node:util";
 import path from "node:path";
 import { OperationError } from "./common.ts";
 export interface HostPlatform {
@@ -57,6 +57,63 @@ export function parseOsRelease(text: string): { distribution: string; version: s
     throw new OperationError("os_detection", "OS-Version ist nicht zuverlässig erkennbar.");
   return { distribution: values.get("ID")!, version: values.get("VERSION_ID")! };
 }
+/** The local WMI query emits one canonical Base64 UTF-8 line per field, without loading PowerShell modules. */
+export function parseWindowsOsMetadata(
+  stdout: string,
+): Pick<HostPlatform, "version" | "build" | "productType" | "sku" | "caption"> {
+  const invalid = () => new OperationError("os_detection", "Windows-OS-Metadaten sind nicht zuverlässig erkennbar.");
+  if (Buffer.byteLength(stdout) > 8192) throw invalid();
+  const lines = stdout.split(/\r?\n/);
+  if (lines.at(-1) === "") lines.pop();
+  if (lines.length !== 5) throw invalid();
+  let values: string[];
+  try {
+    values = lines.map((line) => {
+      const bytes = Buffer.from(line, "base64");
+      if (bytes.toString("base64") !== line) throw invalid();
+      const value = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      if (
+        !value ||
+        Array.from(value).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+      )
+        throw invalid();
+      return value;
+    });
+  } catch {
+    throw invalid();
+  }
+  if (!/^\d+\.\d+\.\d+$/.test(values[0]!)) throw invalid();
+  for (const value of values.slice(1, 4))
+    if (!/^(0|[1-9]\d*)$/.test(value) || !Number.isSafeInteger(Number(value))) throw invalid();
+  return {
+    version: values[0]!,
+    build: Number(values[1]),
+    productType: Number(values[2]),
+    sku: Number(values[3]),
+    caption: values[4]!,
+  };
+}
+const windowsOsQuery = String.raw`
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$searcher = [wmisearcher]'SELECT Version,BuildNumber,ProductType,OperatingSystemSKU,Caption FROM Win32_OperatingSystem'
+$searcher.Scope.Path = '\\.\root\cimv2'
+try {
+  $records = $searcher.Get()
+  try {
+    if ($records.Count -ne 1) { throw 'Expected exactly one operating system record' }
+    foreach ($os in $records) {
+      try {
+        foreach ($field in @('Version','BuildNumber','ProductType','OperatingSystemSKU','Caption')) {
+          $value = [string]$os.Properties[$field].Value
+          if ([string]::IsNullOrEmpty($value)) { throw 'Missing operating system field' }
+          [Console]::WriteLine([Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($value)))
+        }
+      } finally { $os.Dispose() }
+    }
+  } finally { $records.Dispose() }
+} finally { $searcher.Dispose() }
+`;
 export async function detectHostPlatform(): Promise<HostPlatform> {
   const platform = process.platform,
     arch = process.arch;
@@ -76,25 +133,10 @@ export async function detectHostPlatform(): Promise<HostPlatform> {
       throw new OperationError("os_detection", "Windows-Systempfad ist ungültig.");
     const { stdout } = await run(
       path.win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
-      [
-        "-NoLogo",
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        "Get-CimInstance Win32_OperatingSystem -ErrorAction Stop | Select-Object Version,BuildNumber,ProductType,OperatingSystemSKU,Caption | ConvertTo-Json -Compress",
-      ],
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", windowsOsQuery],
       { env: { SystemRoot: systemRoot, WINDIR: systemRoot }, timeout: 15000, maxBuffer: 8192 },
     );
-    const value = JSON.parse(stdout.replace(/^\uFEFF/, "")) as Record<string, unknown>;
-    return {
-      platform,
-      arch,
-      version: String(value.Version),
-      build: Number(value.BuildNumber),
-      productType: Number(value.ProductType),
-      sku: Number(value.OperatingSystemSKU),
-      caption: String(value.Caption),
-    };
+    return { platform, arch, ...parseWindowsOsMetadata(stdout) };
   }
   throw new OperationError("platform", "Unbekannte Betriebssystemplattform.");
 }

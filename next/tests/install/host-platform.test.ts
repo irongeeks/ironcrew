@@ -3,6 +3,7 @@ import {
   assertSupportedHost,
   detectHostPlatform,
   parseOsRelease,
+  parseWindowsOsMetadata,
   type HostPlatform,
 } from "../../packages/operations/src/host-platform.ts";
 import { renderService } from "../../packages/operations/src/services.ts";
@@ -19,6 +20,35 @@ const windows = {
   sku: 48,
   caption: "Microsoft Windows 11 Pro",
 };
+const encodeWindowsFields = (fields: string[]) =>
+  fields.map((value) => Buffer.from(value).toString("base64")).join("\r\n") + "\r\n";
+const windowsFields = ["10.0.26100", "26100", "3", "8", "Microsoft Windows Server 2025 Datacenter"];
+it("decodes the five native WMI fields with the same types and OS allowance as the CIM control", () => {
+  const decoded = parseWindowsOsMetadata(encodeWindowsFields(windowsFields));
+  expect(decoded).toEqual({ version: "10.0.26100", build: 26100, productType: 3, sku: 8, caption: windowsFields[4] });
+  expect(assertSupportedHost({ platform: "win32", arch: "x64", ...decoded }).sku).toBe(8);
+  const home = parseWindowsOsMetadata(
+    encodeWindowsFields(["10.0.26100", "26100", "1", "101", "Microsoft Windows 11 Home"]),
+  );
+  expect(() => assertSupportedHost({ platform: "win32", arch: "x64", ...home })).toThrow();
+  expect(
+    parseWindowsOsMetadata(encodeWindowsFields([...windowsFields.slice(0, 4), "Windows Édition 日本語"])).caption,
+  ).toBe("Windows Édition 日本語");
+});
+it.each([
+  ["missing field", encodeWindowsFields(windowsFields.slice(0, 4))],
+  ["extra record", encodeWindowsFields([...windowsFields, ...windowsFields])],
+  ["extra blank line", encodeWindowsFields(windowsFields) + "\r\n"],
+  ["noncanonical base64", encodeWindowsFields(windowsFields).replace("MTAuMC4yNjEwMA==", "MTAuMC4yNjEwMA")],
+  ["invalid UTF-8", encodeWindowsFields(windowsFields).replace("MTAuMC4yNjEwMA==", "/w==")],
+  ["fractional SKU", encodeWindowsFields([...windowsFields.slice(0, 3), "8.5", windowsFields[4]!])],
+  ["negative build", encodeWindowsFields([windowsFields[0]!, "-26100", ...windowsFields.slice(2)])],
+  ["unsafe integer", encodeWindowsFields([windowsFields[0]!, "9007199254740992", ...windowsFields.slice(2)])],
+  ["caption control character", encodeWindowsFields([...windowsFields.slice(0, 4), "Windows\nServer"])],
+  ["oversized output", "A".repeat(8193)],
+])("rejects ambiguous or corrupt native Windows metadata: %s", (_, output) => {
+  expect(() => parseWindowsOsMetadata(output)).toThrow(expect.objectContaining({ code: "os_detection" }));
+});
 it.each<HostPlatform>([
   { platform: "linux", arch: "x64", distribution: "debian", version: "13" },
   { platform: "linux", arch: "arm64", distribution: "ubuntu", version: "24.04" },
@@ -78,6 +108,12 @@ it("runs real host detection and the native registration preflight without chang
     const host = await detectHostPlatform();
     expect(host.platform).toBe(process.platform);
     expect(host.version).toMatch(/^\d+/);
+    if (host.platform === "win32") {
+      expect(host.build).toBeGreaterThan(0);
+      expect([1, 2, 3]).toContain(host.productType);
+      expect(Number.isSafeInteger(host.sku)).toBe(true);
+      expect(host.caption).toMatch(/^Microsoft Windows /);
+    }
     // Current test hosts themselves must be in the shipping matrix; unsupported hosts fail this acceptance gate.
     expect(assertSupportedHost(host)).toBe(host);
     const result = await registrationPreflight(process.platform, root, path.join(root, "new-data"));
