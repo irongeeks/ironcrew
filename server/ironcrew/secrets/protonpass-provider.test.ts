@@ -78,14 +78,14 @@ describe("ProtonPassSecretProvider", () => {
     "  padded secret  ",
     "line one\nline two",
     "secret\n",
+    "secret\r",
+    "\r",
   ])("preserves the literal secret value %j and removes only one CLI newline", async (secret) => {
-    for (const ending of ["\n", "\r\n"]) {
-      const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => ok(secret + ending)) });
-      await expect(provider.resolve({ provider: "protonpass", itemRef: "s:i" })).resolves.toBe(secret);
-    }
+    const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => ok(secret + "\n")) });
+    await expect(provider.resolve({ provider: "protonpass", itemRef: "s:i" })).resolves.toBe(secret);
   });
 
-  it.each(["", "\n", "\r\n"])("rejects an empty field %j", async (output) => {
+  it.each(["", "\n"])("rejects an empty field %j", async (output) => {
     const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => ok(output)) });
     await expect(provider.resolve({ provider: "protonpass", itemRef: "s:i" })).rejects.toThrow(/has no value/);
   });

@@ -45,4 +45,4 @@ Lokale Prüfung: 158 Tests/20 Dateien, 11 Release-Verträge, fokussierte CLI-/Sc
 - [x] Aktive Version, README, Docs und OpenAPI aktualisieren.
 - [ ] Regressionen und Build prüfen; Commit, Push, Merge und Release verifizieren.
 
-Lokale Prüfung: 49 Legacy-Secret-Tests, 157 Tests des neuen Kerns, 11 Release-Verträge, Root-/Next-Typecheck, Build, Lint und Format erfolgreich. Positive Distribution lokal an fehlender originaler Node-Lizenz gestoppt; vollständige CI prüft mit offizieller Runtime. Veröffentlichung folgt am geprüften Main-Commit.
+Lokale Prüfung: 50 Legacy-Secret-Tests, 159 Tests des neuen Kerns, 11 Release-Verträge, Root-/Next-Typecheck, Build, Lint und Format erfolgreich. Positive Distribution lokal an fehlender originaler Node-Lizenz gestoppt; vollständige CI prüft mit offizieller Runtime. Veröffentlichung folgt am geprüften Main-Commit.

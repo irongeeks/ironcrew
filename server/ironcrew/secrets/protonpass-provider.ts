@@ -13,7 +13,7 @@
  * caller's behalf.
  *
  * Field selection returns plaintext. Preserve its literal value, removing
- * only the single line ending added by the CLI. Use argv-array spawning,
+ * only the single LF added by the CLI (Rust println! uses LF on all platforms). Use argv-array spawning,
  * timeouts and the dependency-injected runner at the CLI boundary.
  */
 
@@ -60,7 +60,7 @@ export class ProtonPassSecretProvider implements SecretProvider {
       throw new SecretResolutionError("Proton Pass: could not resolve field. Check the CLI session and permissions.");
     }
 
-    const value = res.stdout.replace(/\r?\n$/, "");
+    const value = res.stdout.replace(/\n$/, "");
     if (!value) {
       throw new SecretResolutionError(`Proton Pass: item "${ref.itemRef}" has no value for field "${field}".`);
     }

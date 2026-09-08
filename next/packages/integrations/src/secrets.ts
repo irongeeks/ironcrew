@@ -104,7 +104,8 @@ export class ProtonPassResolver implements SecretResolver {
         ["item", "view", `--share-id=${ref.shareId}`, `--item-id=${ref.itemId}`, `--field=${ref.field}`],
         options,
       );
-      const value = output.replace(/\r?\n$/, "");
+      // Rust println! appends LF on every platform; a preceding CR belongs to the secret.
+      const value = output.replace(/\n$/, "");
       if (!value) throw new IntegrationError("auth", "Proton-Pass-Feld ist leer oder nicht zugänglich.");
       return value;
     } catch (error) {

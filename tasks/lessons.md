@@ -23,3 +23,4 @@
 
 - CLI-Fakes müssen die reale Ausgabeform des gewählten Unterbefehls abbilden. Bei `pass-cli --field` Klartext einschließlich JSON-artiger Secrets und bedeutungstragender Leerzeichen testen.
 - Test-Runtimes nicht an einmalige temporäre Installationspfade binden. Explizite Runtime-Pfade prüfen; fehlende Konfiguration und ungeeignete portable Binaries dürfen nicht als bestandene oder still übersprungene Tests erscheinen.
+- Zeilenenden am externen Ausgabeprotokoll prüfen: Rust `println!` fügt auf allen Plattformen ausschließlich LF hinzu. Ein unmittelbar davor stehendes CR kann Secretinhalt sein und muss erhalten bleiben.

@@ -53,36 +53,39 @@ describe("integration security boundaries", () => {
     expect(calls).toBe(1);
     expect(result.addresses[0].address).toBe("8.8.8.8");
   });
-  it("accepts official Proton CLI output and preserves selected-field whitespace", async () => {
-    const calls: { args: string[]; env: NodeJS.ProcessEnv }[] = [];
-    const provider = new ProtonPassResolver({
-      executable: "/opt/ironcrew/pass-cli",
-      environment: {
-        HOME: "/broker",
-        PROTON_PASS_SESSION_DIR: "/broker/session",
-        DANGEROUS_SECRET: "never",
-        NODE_OPTIONS: "bad",
-      },
-      run: async (_file, args, options) => {
-        calls.push({ args, env: options.env });
-        return args[0] === "--version" ? "Proton Pass CLI 2.3.2 (ac04625)\n" : "  exact secret  \n";
-      },
-    });
-    const result = await provider.resolve(
-      {
-        provider: "proton-pass",
-        shareId: "vault",
-        itemId: "item",
-        field: "password",
-      },
-      "Action 1: connector access",
-    );
-    expect(result).toBe("  exact secret  ");
-    expect(calls[1].args).toEqual(["item", "view", "--share-id=vault", "--item-id=item", "--field=password"]);
-    expect(calls[1].env.PROTON_PASS_AGENT_REASON).toBe("Action 1: connector access");
-    expect(calls[1].env.DANGEROUS_SECRET).toBeUndefined();
-    expect(calls[1].env.NODE_OPTIONS).toBeUndefined();
-  });
+  it.each(["  exact secret  ", "secret\r", "line one\r\nline two\n"])(
+    "accepts official Proton CLI output and preserves selected-field whitespace: %j",
+    async (secret) => {
+      const calls: { args: string[]; env: NodeJS.ProcessEnv }[] = [];
+      const provider = new ProtonPassResolver({
+        executable: "/opt/ironcrew/pass-cli",
+        environment: {
+          HOME: "/broker",
+          PROTON_PASS_SESSION_DIR: "/broker/session",
+          DANGEROUS_SECRET: "never",
+          NODE_OPTIONS: "bad",
+        },
+        run: async (_file, args, options) => {
+          calls.push({ args, env: options.env });
+          return args[0] === "--version" ? "Proton Pass CLI 2.3.2 (ac04625)\n" : secret + "\n";
+        },
+      });
+      const result = await provider.resolve(
+        {
+          provider: "proton-pass",
+          shareId: "vault",
+          itemId: "item",
+          field: "password",
+        },
+        "Action 1: connector access",
+      );
+      expect(result).toBe(secret);
+      expect(calls[1].args).toEqual(["item", "view", "--share-id=vault", "--item-id=item", "--field=password"]);
+      expect(calls[1].env.PROTON_PASS_AGENT_REASON).toBe("Action 1: connector access");
+      expect(calls[1].env.DANGEROUS_SECRET).toBeUndefined();
+      expect(calls[1].env.NODE_OPTIONS).toBeUndefined();
+    },
+  );
   it.each([
     "2.3.2",
     "pass-cli 2.3.2\n",
