@@ -1,3 +1,4 @@
+import { testNodeRuntime } from "../fixtures/node-runtime.ts";
 import { test, expect, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm, readFile, symlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -12,9 +13,7 @@ import {
   verifyRelease,
   installUpdaterBootstrap,
 } from "../../packages/operations/src/index.ts";
-const runtime =
-  process.env.IRONCREW_TEST_NODE ??
-  (process.platform === "darwin" ? "/tmp/ironcrew-node26/node-v26.4.0-darwin-arm64/bin/node" : process.execPath);
+const runtime = testNodeRuntime();
 const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
@@ -78,66 +77,59 @@ async function fixture() {
     },
   };
 }
-test.skipIf(!existsSync(runtime))(
-  "signed standalone distribution materializes transitive dependencies, executes private runtime and installs independent bootstrap",
-  async () => {
-    const f = await fixture();
-    const result = await packageDistribution({ ...f.options, archivePath: path.join(f.root, "release.tgz") });
-    const observed = await promisify(execFile)(
-      path.join(result.directory, process.platform === "win32" ? "runtime/node.exe" : "runtime/node"),
-      ["dist/apps/control/main.js"],
-      { cwd: result.directory, env: {} },
-    );
-    expect(observed.stdout.trim()).toBe("42");
-    expect(await readFile(path.join(result.directory, "README.md"), "utf8")).toBe(
-      "Explicit fixture notice: docs/distribution-start.md",
-    );
-    expect((await readFile(path.join(result.directory, "runtime/LICENSE"), "utf8")).length).toBeGreaterThan(100);
-    expect(result.manifest.files.some((file) => file.path === "runtime/LICENSE")).toBe(true);
-    expect(result.manifest.files.some((f) => f.path.includes("beta/index.js"))).toBe(true);
-    expect(result.manifest.files.some((f) => /TEST-KEY|excluded-dev/.test(f.path))).toBe(false);
-    expect(await verifyRelease(result.directory, f.pem)).toEqual(result.manifest);
-    expect((await readFile(result.archivePath!)).length).toBeGreaterThan(1000);
-    const bootstrap = path.join(f.root, "bootstrap");
-    await installUpdaterBootstrap({
+test("signed standalone distribution materializes transitive dependencies, executes private runtime and installs independent bootstrap", async () => {
+  const f = await fixture();
+  const result = await packageDistribution({ ...f.options, archivePath: path.join(f.root, "release.tgz") });
+  const observed = await promisify(execFile)(
+    path.join(result.directory, process.platform === "win32" ? "runtime/node.exe" : "runtime/node"),
+    ["dist/apps/control/main.js"],
+    { cwd: result.directory, env: {} },
+  );
+  expect(observed.stdout.trim()).toBe("42");
+  expect(await readFile(path.join(result.directory, "README.md"), "utf8")).toBe(
+    "Explicit fixture notice: docs/distribution-start.md",
+  );
+  expect((await readFile(path.join(result.directory, "runtime/LICENSE"), "utf8")).length).toBeGreaterThan(100);
+  expect(result.manifest.files.some((file) => file.path === "runtime/LICENSE")).toBe(true);
+  expect(result.manifest.files.some((f) => f.path.includes("beta/index.js"))).toBe(true);
+  expect(result.manifest.files.some((f) => /TEST-KEY|excluded-dev/.test(f.path))).toBe(false);
+  expect(await verifyRelease(result.directory, f.pem)).toEqual(result.manifest);
+  expect((await readFile(result.archivePath!)).length).toBeGreaterThan(1000);
+  const bootstrap = path.join(f.root, "bootstrap");
+  await installUpdaterBootstrap({
+    releaseDirectory: result.directory,
+    bootstrapDirectory: bootstrap,
+    trustedPublicKeyPem: f.pem,
+  });
+  expect(
+    (
+      await promisify(execFile)(
+        path.join(bootstrap, process.platform === "win32" ? "runtime/node.exe" : "runtime/node"),
+        ["dist/apps/updater/main.js"],
+        {
+          cwd: bootstrap,
+          env: {},
+        },
+      )
+    ).stdout.trim(),
+  ).toBe("bootstrap fixture");
+  await expect(
+    installUpdaterBootstrap({
       releaseDirectory: result.directory,
       bootstrapDirectory: bootstrap,
       trustedPublicKeyPem: f.pem,
-    });
-    expect(
-      (
-        await promisify(execFile)(
-          path.join(bootstrap, process.platform === "win32" ? "runtime/node.exe" : "runtime/node"),
-          ["dist/apps/updater/main.js"],
-          {
-            cwd: bootstrap,
-            env: {},
-          },
-        )
-      ).stdout.trim(),
-    ).toBe("bootstrap fixture");
-    await expect(
-      installUpdaterBootstrap({
-        releaseDirectory: result.directory,
-        bootstrapDirectory: bootstrap,
-        trustedPublicKeyPem: f.pem,
-      }),
-    ).rejects.toMatchObject({ code: "bootstrap_exists" });
-  },
-  30000,
-);
-test.skipIf(!existsSync(runtime))(
-  "distribution denies platform lies, wrong runtime and source symlink escape",
-  async () => {
-    const f = await fixture();
-    await expect(
-      packageDistribution({ ...f.options, arch: process.arch === "arm64" ? "x64" : "arm64" }),
-    ).rejects.toMatchObject({ code: "distribution_platform" });
-    await expect(packageDistribution({ ...f.options, runtimeSha256: "0".repeat(64) })).rejects.toMatchObject({
-      code: "distribution_runtime_hash",
-    });
-    await symlink(f.options.privateKeyPath, path.join(f.source, "dist/escape.pem"));
-    await expect(packageDistribution(f.options)).rejects.toMatchObject({ code: "distribution_path" });
-    expect(existsSync(f.options.outputDirectory)).toBe(false);
-  },
-);
+    }),
+  ).rejects.toMatchObject({ code: "bootstrap_exists" });
+}, 30000);
+test("distribution denies platform lies, wrong runtime and source symlink escape", async () => {
+  const f = await fixture();
+  await expect(
+    packageDistribution({ ...f.options, arch: process.arch === "arm64" ? "x64" : "arm64" }),
+  ).rejects.toMatchObject({ code: "distribution_platform" });
+  await expect(packageDistribution({ ...f.options, runtimeSha256: "0".repeat(64) })).rejects.toMatchObject({
+    code: "distribution_runtime_hash",
+  });
+  await symlink(f.options.privateKeyPath, path.join(f.source, "dist/escape.pem"));
+  await expect(packageDistribution(f.options)).rejects.toMatchObject({ code: "distribution_path" });
+  expect(existsSync(f.options.outputDirectory)).toBe(false);
+});

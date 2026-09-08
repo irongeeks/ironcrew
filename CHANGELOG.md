@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.5 — 2026-09-08
+
+- Fix #54: read legacy Proton Pass `--field` output as literal plaintext, preserving secret whitespace and JSON-looking values; keep CLI failures free of secret output.
+- Fix #55: select fixture Node from `IRONCREW_TEST_NODE` or `process.execPath`, removing fixed macOS temporary paths while retaining explicit standalone-runtime requirements for distribution tests.
+- Update README, testing guidance and [release notes](docs/releases/v0.4.5.md).
+
 ## 0.4.4 — 2026-09-08
 
 - Fix #49: serve the SPA fallback from its web root when installation parents are hidden directories, preserving dotfile protection.

@@ -149,7 +149,10 @@ reachable, rather than hiding one that isn't configured.
   deployment should also set `PROTON_PASS_KEY_PROVIDER=fs` (or `=env` with
   `PROTON_PASS_ENCRYPTION_KEY`). A stored ref's `itemRef` is
   `"<shareId>:<itemId>"` — IDs, not names, so a later rename in the vault
-  can't silently break it.
+  can't silently break it. The legacy provider reads `item view --field=<field>`
+  as plaintext, without `--output=json` or JSON decoding. Only one trailing
+  CLI line ending is removed; secret whitespace and JSON-looking content stay
+  literal. CLI failures do not expose stdout or stderr in the reported error.
 
 - **OS-Schlüsselbund** — via `secret-tool` (libsecret) auf Linux oder
   `security` auf macOS. Ein `itemRef` ist `"dienst"` oder `"dienst:konto"`,

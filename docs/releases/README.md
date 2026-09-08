@@ -2,6 +2,7 @@
 
 ## IronCrew
 
+- [v0.4.5](v0.4.5.md) — Proton-Pass-Klartext im Legacy-Provider und portable Node-Auswahl für Testfixtures.
 - [v0.4.4](v0.4.4.md) — Webstart aus versteckten Pfaden, kostenlose Live-Prüfungen, Antwortlimit und Proton-Pass-Kompatibilität.
 
 - [v0.4.3](v0.4.3.md) — Modellläufe, private SQLite-Dateien, robuste Katalogabrufe, sichere Website-Artefakte und Nachtest-Korrekturen.

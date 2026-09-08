@@ -1,9 +1,12 @@
-# Modellzugang in 0.4.4 prüfen
+# Modellzugang in 0.4.5 prüfen
 
 Diese Anleitung gilt für den neuen Produktkern unter `next/`. Die CLI-Provider-
 und Docker-Anleitungen im Repository-Root beschreiben weiterhin die ältere Linie.
+Der Fix in 0.4.5 für Klartextausgabe von `pass-cli --field` betrifft diesen
+mitgelieferten Legacy-Provider. Er benötigt keine Umstellung der Secretreferenzen
+im neuen Kern.
 
-## Nach dem Update von 0.4.0–0.4.3
+## Nach dem Update von 0.4.0–0.4.4
 
 1. Unter **Einstellungen → Modelle** den Modellkatalog aktualisieren. Der Abruf
    benötigt keinen OpenRouter-Schlüssel. Ein Fehler bei einzelnen Modellen darf
@@ -89,7 +92,7 @@ werden und werden beim Weitergehen nicht mitgespeichert. Die Pflichtbestätigung
 für den Einrichtungsschritt bleibt erforderlich; fehlt sie, erscheint ein
 sichtbarer Hinweis im Assistenten.
 
-[Updateanleitung und Releaseumfang](../../docs/releases/v0.4.4.md) ·
+[Updateanleitung und Releaseumfang](../../docs/releases/v0.4.5.md) ·
 [Einrichtung](../README.md) · [Prüfnachweise](verification.md)
 
 ## Laufdiagnose und Wiederaufnahme

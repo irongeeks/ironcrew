@@ -3,7 +3,7 @@
  *
  * Wraps the official `pass-cli` (https://github.com/protonpass/pass-cli,
  * docs at https://protonpass.github.io/pass-cli/). Retrieval goes through
- * `pass-cli item view --share-id=<id> --item-id=<id> --field=<name> --output=json`: share/item IDs rather than the human-readable `pass://Vault/Item`
+ * `pass-cli item view --share-id=<id> --item-id=<id> --field=<name>`: share/item IDs rather than the human-readable `pass://Vault/Item`
  * shorthand some docs also show, so a later rename in the vault cannot
  * silently break a stored ref. Headless auth is
  * `PROTON_PASS_PERSONAL_ACCESS_TOKEN` + `pass-cli login` (done once, out of
@@ -12,13 +12,9 @@
  * both are environment concerns, not something this class does on the
  * caller's behalf.
  *
- * `--output json`'s exact field-selection shape is not fully pinned down by
- * the docs fetched for this integration, so `extractFieldValue` below is
- * deliberately defensive about where the value can be found in the parsed
- * object. Verify against a real `pass-cli` install before relying on this
- * in production — none is installed in this environment. Everything past
- * the CLI boundary follows this project's established CliAdapterRuntime
- * pattern (argv-array spawning, timeouts, dependency-injected runner).
+ * Field selection returns plaintext. Preserve its literal value, removing
+ * only the single LF added by the CLI (Rust println! uses LF on all platforms). Use argv-array spawning,
+ * timeouts and the dependency-injected runner at the CLI boundary.
  */
 
 import { type CliRunner, spawnCliRunner } from "../shared/cli-runner.ts";
@@ -33,32 +29,6 @@ export interface ProtonPassSecretProviderOptions {
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-
-/**
- * Best-effort extraction of one field's value out of `pass-cli item view
- * --output json`'s parsed result, across the plausible shapes a versioned
- * CLI output could take. Returns null rather than guessing when nothing
- * matches, so the caller can fail loudly instead of returning junk.
- */
-export function extractFieldValue(parsed: unknown, field: string): string | null {
-  if (typeof parsed === "string") return parsed;
-  if (!parsed || typeof parsed !== "object") return null;
-  const obj = parsed as Record<string, unknown>;
-
-  const direct = obj[field];
-  if (typeof direct === "string") return direct;
-
-  const nested = obj.fields;
-  if (nested && typeof nested === "object") {
-    const v = (nested as Record<string, unknown>)[field];
-    if (typeof v === "string") return v;
-  }
-
-  if (field === "password" && typeof obj.value === "string") return obj.value;
-  if (typeof obj.value === "string" && Object.keys(obj).length <= 2) return obj.value;
-
-  return null;
-}
 
 export class ProtonPassSecretProvider implements SecretProvider {
   readonly kind = "protonpass" as const;
@@ -83,30 +53,14 @@ export class ProtonPassSecretProvider implements SecretProvider {
     }
     const field = ref.field ?? "password";
     const res = await this.run(
-      [
-        this.passCliPath,
-        "item",
-        "view",
-        `--share-id=${shareId}`,
-        `--item-id=${itemId}`,
-        `--field=${field}`,
-        "--output=json",
-      ],
+      [this.passCliPath, "item", "view", `--share-id=${shareId}`, `--item-id=${itemId}`, `--field=${field}`],
       { timeoutMs: this.timeoutMs },
     );
     if (res.code !== 0) {
-      throw new SecretResolutionError(
-        `Proton Pass: could not resolve item "${ref.itemRef}" (${field}) — ${res.stderr.trim() || "unknown error"}`,
-      );
+      throw new SecretResolutionError("Proton Pass: could not resolve field. Check the CLI session and permissions.");
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(res.stdout);
-    } catch {
-      throw new SecretResolutionError(`Proton Pass: could not parse "pass-cli item view" JSON output.`);
-    }
-    const value = extractFieldValue(parsed, field);
+    const value = res.stdout.replace(/\n$/, "");
     if (!value) {
       throw new SecretResolutionError(`Proton Pass: item "${ref.itemRef}" has no value for field "${field}".`);
     }

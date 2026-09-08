@@ -1,3 +1,4 @@
+import { testNodeRuntime } from "./node-runtime.ts";
 import { afterEach } from "vitest";
 import { createFixtureLauncher } from "./launcher.ts";
 import {
@@ -32,9 +33,7 @@ import {
 } from "../../packages/operations/src/index.ts";
 export const run = promisify(execFile),
   age = process.env.IRONCREW_TEST_AGE ?? "/tmp/ironcrew-age-1.3.2/age/age";
-export const portableNode =
-  process.env.IRONCREW_TEST_NODE ??
-  (process.platform === "darwin" ? "/tmp/ironcrew-node26/node-v26.4.0-darwin-arm64/bin/node" : process.execPath);
+export const portableNode = testNodeRuntime();
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
