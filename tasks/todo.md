@@ -25,3 +25,5 @@ Die Befunde umfassen die Anwendung unter next/ und den mitgelieferten Hauptserve
 
 - Erste PR-CI: Linux-Neubau einschließlich aller Browser-/Recovery-/Installationsgates und Dependency-Audit bestanden. Hauptserver-CI und native macOS-Prüfung bestanden.
 - Zusätzliche native Linux-Hauptserverprüfung: drei Zeitüberschreitungen in SQLite-Reopen/Migrationsfixtures bei unbeschränkter Workerzahl. Auf zwei Worker begrenzen; Assertions, Zeitlimits und vollständige Suiten unverändert erneut prüfen.
+
+- Zweite PR-CI: allgemeine CI und vollständige Plattformprüfung inklusive nativer Linux-API bestanden; Neubau Linux/macOS grün. Windows deckte erstmals eine 404-Antwort im tatsächlich generierten Website-Server auf. Kanonische Root-/Dateipfade und plattformgerechte Containment-Prüfung werden korrigiert, Ausbruchprüfungen bleiben erhalten.

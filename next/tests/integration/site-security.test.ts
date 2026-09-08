@@ -1,7 +1,7 @@
 import { it, expect } from "vitest";
 import { execFile, fork } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -64,6 +64,16 @@ it.each(["react", "wordpress"] as const)(
         expect(files["theme/functions.php"]).toContain(siteResponseSecurityPolicy);
         expect(files["theme/functions.php"]).toContain("if (!is_admin())");
       }
+      // Canonical containment must work when dist itself is a directory link.
+      // Junctions do not need Windows symlink privileges. The old string-prefix
+      // comparison rejected every file here (and differently cased Windows roots).
+      const output = path.join(directory, "built-output");
+      await rename(path.join(directory, "dist"), output);
+      await symlink(output, path.join(directory, "dist"), "junction");
+      const outside = path.join(directory, "private");
+      await mkdir(outside);
+      await writeFile(path.join(outside, "secret.txt"), "must-not-be-served");
+      await symlink(outside, path.join(output, "escape"), "junction");
       child = fork(path.join(directory, "server.mjs"), [], {
         env: { ...process.env, PORT: "0" },
         stdio: ["ignore", "ignore", "pipe", "ipc"],
@@ -74,6 +84,11 @@ it.each(["react", "wordpress"] as const)(
       expect(response.headers.get("content-security-policy")).toBe(siteResponseSecurityPolicy);
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
       expect(await response.text()).toContain('http-equiv="Content-Security-Policy"');
+      for (const route of ["/%2e%2e%2fprivate/secret.txt", "/escape/secret.txt", "/%2e%2e%5cprivate%5csecret.txt"]) {
+        const denied = await fetch(`http://127.0.0.1:${port}${route}`);
+        expect(denied.status).toBe(404);
+        expect(await denied.text()).not.toContain("must-not-be-served");
+      }
       if (stack === "react")
         expect((await fetch(`http://127.0.0.1:${port}/app.mjs`)).headers.get("content-type")).toContain(
           "text/javascript",
