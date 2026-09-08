@@ -1,10 +1,12 @@
 # IronCrew
 
-## Version 0.4.1 — neuer Produktkern
+## Version 0.4.1 — Modellzugang und Linux-Korrekturen
 
-IronCrew 0.4.1 veröffentlicht die neue Implementierung im eigenständigen Workspace
-[`next/`](next/README.md): CEO-Chat, Aufträge und Crew, nachvollziehbare Freigaben
-und Budgets, Websiteabläufe, Integrationen und Wiederherstellung.
+IronCrew 0.4.1 behebt die im Linux-Test von 0.4.0 gefundenen Probleme mit
+Proton Pass, dem OpenRouter-Katalog, der Bereitschaftsanzeige und der Einrichtung.
+Der neue Produktkern läuft im eigenständigen Workspace [`next/`](next/README.md).
+[Modellzugang prüfen](next/docs/model-access-troubleshooting.md) ·
+[Update von 0.4.0](docs/releases/v0.4.1.md#update-von-040).
 
 Der [Release v0.4.1](https://github.com/irongeeks/ironcrew/releases/tag/v0.4.1)
 enthält den vollständigen Git-Quellstand als Archiv, ein Release-Manifest und

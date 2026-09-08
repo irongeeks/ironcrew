@@ -1,5 +1,25 @@
 # Geprüfter lokaler Entwicklungsstand
 
+## Wartungsrelease 0.4.1
+
+[Release-Hinweise](../../docs/releases/v0.4.1.md) und
+[Modellzugang prüfen](model-access-troubleshooting.md) beschreiben die Korrekturen
+aus dem Linux-Testbericht zu 0.4.0. Lokal bestanden 140 fokussierte Unit-,
+Vertrags- und Integrationstests, zehn Tests der Quellrelease-Veröffentlichung,
+Typecheck, Lint, Formatprüfung und Build. Die Onboarding-Browserregression bestand
+unter Chromium 149. Ein zusätzlicher Starttest bestätigte die erreichbare
+Reparaturoberfläche bei fehlendem Proton-CLI und den Health-Status 0.4.1.
+
+Die vollständigen finalen Betriebssystemprüfungen werden für den veröffentlichten
+Commit erneut verlangt. Deren konkrete Commitbindung und CI-Links stehen im
+[Release 0.4.1](https://github.com/irongeeks/ironcrew/releases/tag/v0.4.1) und seinem
+`release-manifest.json`. Ein Live-Modellaufruf mit dem Betreiberkonto auf tank
+wurde hier nicht wiederholt; Konto und Proton-Sitzung stehen dieser Testumgebung
+nicht zur Verfügung. Bestehende externe Abnahmegrenzen gelten weiter.
+
+Die folgenden früheren Nachweise behalten ihre ursprüngliche Quellbindung;
+sie werden nicht nachträglich als Prüflauf von 0.4.1 ausgegeben.
+
 2026-09-07T15:36:55.645592+00:00 · Arbeitszweig `rebuild/ironcrew` · geprüfter Implementierungscommit `686022a9a0f02f7ff8a93e120c4e82965c13a379`. Sämtliche 341 Dateihashes des lokalen Prüflaufs stimmen mit den Git-Dateien dieses Commits überein.
 
 **Alle lokalen Abschlussgates bestanden: 508 automatisierte Tests, keine ausgelassenen Fälle.**
