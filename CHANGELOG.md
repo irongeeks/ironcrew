@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.4 — 2026-09-08
+
+- Fix #49: serve the SPA fallback from its web root when installation parents are hidden directories, preserving dotfile protection.
+- Fix #50: allow a zero live-check budget when the selected model's estimated cost is zero; retain the estimate-versus-budget guard.
+- Fix #51: bound live-check output tokens at 512 instead of 16, including that allowance in the cost estimate.
+- Fix #52: accept legacy `protonpass` secret references at input and normalize them to canonical `proton-pass`.
+- Update README, troubleshooting and [release notes](docs/releases/v0.4.4.md).
+
 ## 0.4.3 — 2026-09-08
 
 - Address Linux/macOS follow-up issues #36–47 across the rebuilt core and bundled legacy application.

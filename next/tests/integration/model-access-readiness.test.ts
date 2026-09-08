@@ -42,6 +42,22 @@ const configuration = () =>
 const save = (body: object) =>
   agent.put("/api/v1/configuration").set({ "X-CSRF-Token": csrf, "Idempotency-Key": randomUUID() }).send(body);
 
+it("accepts legacy Proton references and persists and returns the canonical provider", async () => {
+  const resolve = vi.spyOn(ProtonPassResolver.prototype, "resolve").mockResolvedValue("fixture-never-persist-secret");
+  const config = configuration();
+  const response = await save({
+    ...config,
+    openrouter: { secretRef: { ...config.openrouter!.secretRef, provider: "protonpass" } },
+  }).expect(200);
+  expect(response.body).toMatchObject({ saved: true, runtimeReady: true });
+  expect(resolve).toHaveBeenCalledWith(config.openrouter!.secretRef, "IronCrew model access readiness check");
+  const persisted = await readFile(path.join(directory, "configuration.json"), "utf8");
+  expect(JSON.parse(persisted).openrouter.secretRef).toEqual(config.openrouter!.secretRef);
+  expect(persisted).not.toContain("fixture-never-persist-secret");
+  const loaded = await agent.get("/api/v1/configuration").expect(200);
+  expect(loaded.body.openrouter.secretRef).toEqual(config.openrouter!.secretRef);
+});
+
 it("checks the secret before claiming readiness and never persists its value", async () => {
   const resolve = vi.spyOn(ProtonPassResolver.prototype, "resolve").mockResolvedValue("fixture-never-persist-secret");
   const response = await save(configuration()).expect(200);

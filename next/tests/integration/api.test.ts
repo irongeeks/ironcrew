@@ -85,7 +85,7 @@ it("reports a stable process identity and the administratively verified release 
   expect(first.body.instanceId).toBe(second.body.instanceId);
   expect(first.body.instanceId).not.toBe(another.body.instanceId);
   expect(another.body.releaseManifestSha256).toBeUndefined();
-  expect(another.body.version).toBe("0.4.3");
+  expect(another.body.version).toBe("0.4.4");
 });
 
 it("drains administrative update-result writes and refuses a concurrent backup snapshot", async () => {
@@ -171,4 +171,25 @@ it("serves only unchanged artifact bytes and returns their verified digest", asy
   await writeFile(path.join(directory, "blobs", hash), "changed after staging");
   const changed = await agent.get(`/api/v1/artifacts/${id}/download`).expect(409);
   expect(changed.body.code).toBe("artifact_content_changed");
+});
+
+it("serves SPA routes from a hidden installation parent without exposing hidden files", async () => {
+  const webDirectory = path.join(directory, ".installation", "dist", "web");
+  await mkdir(path.join(webDirectory, ".private"), { recursive: true });
+  const html = "<!doctype html><title>IronCrew SPA fixture</title>";
+  await writeFile(path.join(webDirectory, "index.html"), html);
+  await writeFile(path.join(webDirectory, "app.js"), "/* public asset */");
+  await writeFile(path.join(webDirectory, ".env"), "PRIVATE_FIXTURE_VALUE");
+  await writeFile(path.join(webDirectory, ".private", "secret.txt"), "PRIVATE_FIXTURE_VALUE");
+  const webApp = createApp({ repo, directory, publicOrigin: "http://127.0.0.1:8790", webDirectory });
+  for (const route of ["/", "/setup", "/orders/fixture", "/settings/mandates"]) {
+    const response = await request(webApp).get(route).expect(200).expect("Content-Type", /html/);
+    expect(response.text).toBe(html);
+  }
+  expect((await request(webApp).get("/app.js").expect(200)).text).toBe("/* public asset */");
+  for (const route of ["/.env", "/.private/secret.txt", "/%2eenv", "/%2eprivate/secret.txt"]) {
+    const response = await request(webApp).get(route);
+    expect(response.text).not.toContain("PRIVATE_FIXTURE_VALUE");
+  }
+  await request(webApp).get("/api/v1/orders").expect(401);
 });

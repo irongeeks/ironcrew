@@ -27,3 +27,13 @@ Die Befunde umfassen die Anwendung unter next/ und den mitgelieferten Hauptserve
 - Zusätzliche native Linux-Hauptserverprüfung: drei Zeitüberschreitungen in SQLite-Reopen/Migrationsfixtures bei unbeschränkter Workerzahl. Auf zwei Worker begrenzen; Assertions, Zeitlimits und vollständige Suiten unverändert erneut prüfen.
 
 - Zweite PR-CI: allgemeine CI und vollständige Plattformprüfung inklusive nativer Linux-API bestanden; Neubau Linux/macOS grün. Windows deckte erstmals eine 404-Antwort im tatsächlich generierten Website-Server auf. Kanonische Root-/Dateipfade und plattformgerechte Containment-Prüfung werden korrigiert, Ausbruchprüfungen bleiben erhalten.
+
+# v0.4.4 – Nachtest zu 0.4.3
+
+- [x] #49 SPA-Fallback unter versteckten Elternverzeichnissen reproduzieren und korrigieren.
+- [x] #50/#51 Live-Profil mit Nullbudget und ausreichendem Antwortlimit absichern.
+- [x] #52 ältere Proton-Pass-Schreibweise kompatibel verarbeiten.
+- [x] README, Docs, OpenAPI und aktive Version auf 0.4.4 aktualisieren.
+- [ ] Regressionen, Typprüfung und Build prüfen; Commit, PR, Merge und Release verifizieren.
+
+Lokale Prüfung: 158 Tests/20 Dateien, 11 Release-Verträge, fokussierte CLI-/Schema-Regressionen, Typecheck, Build, Lint, Format und OpenAPI erfolgreich. CI/Release werden nach dem Push am exakten Commit geprüft.

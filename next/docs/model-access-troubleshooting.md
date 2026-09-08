@@ -1,9 +1,9 @@
-# Modellzugang in 0.4.3 prüfen
+# Modellzugang in 0.4.4 prüfen
 
 Diese Anleitung gilt für den neuen Produktkern unter `next/`. Die CLI-Provider-
 und Docker-Anleitungen im Repository-Root beschreiben weiterhin die ältere Linie.
 
-## Nach dem Update von 0.4.0–0.4.2
+## Nach dem Update von 0.4.0–0.4.3
 
 1. Unter **Einstellungen → Modelle** den Modellkatalog aktualisieren. Der Abruf
    benötigt keinen OpenRouter-Schlüssel. Ein Fehler bei einzelnen Modellen darf
@@ -39,6 +39,19 @@ Modellen und berücksichtigt angefragte Fähigkeiten wie Werkzeugaufrufe. Das is
 Verfügbarkeitsgarantie. Einzelne `:free`-Endpunkte können trotz Katalogeintrag mit HTTP 404
 antworten. IronCrew weist dann auf den Router hin; es wechselt das freigegebene Modell
 nicht stillschweigend. Modellwahl, Mandat, Preisprüfung und Kontoeinstellungen bleiben wirksam.
+
+## Live-Prüfung und API-Referenzen
+
+Das Profil für die Live-Prüfung akzeptiert `maxCostUsdMicros: "0"` für Modelle
+mit einer Kostenschätzung von null. Fehlende Preisangaben bleiben ein Fehler;
+kostenpflichtige Modelle benötigen weiterhin ein ausreichendes Budget.
+Die Prüfung fordert höchstens 512 Ausgabetokens an und kalkuliert diese in der
+Schätzung. Reicht das bisherige Limit nicht aus, Budget und Modellwahl prüfen.
+Reasoning ohne endgültigen Antwortinhalt gilt weiterhin als fehlgeschlagen.
+
+Für eigene API-Clients lautet der kanonische Secret-Provider `proton-pass`.
+Der ältere Eingabewert `protonpass` wird auf diesen Wert normalisiert. Neue
+Clients sollten `proton-pass` verwenden; Speicherung und Ausgabe bleiben kanonisch.
 
 ## Fehler und nächster Schritt
 
@@ -76,7 +89,7 @@ werden und werden beim Weitergehen nicht mitgespeichert. Die Pflichtbestätigung
 für den Einrichtungsschritt bleibt erforderlich; fehlt sie, erscheint ein
 sichtbarer Hinweis im Assistenten.
 
-[Updateanleitung und Releaseumfang](../../docs/releases/v0.4.2.md) ·
+[Updateanleitung und Releaseumfang](../../docs/releases/v0.4.4.md) ·
 [Einrichtung](../README.md) · [Prüfnachweise](verification.md)
 
 ## Laufdiagnose und Wiederaufnahme

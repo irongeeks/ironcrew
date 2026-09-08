@@ -2,6 +2,8 @@
 
 ## IronCrew
 
+- [v0.4.4](v0.4.4.md) — Webstart aus versteckten Pfaden, kostenlose Live-Prüfungen, Antwortlimit und Proton-Pass-Kompatibilität.
+
 - [v0.4.3](v0.4.3.md) — Modellläufe, private SQLite-Dateien, robuste Katalogabrufe, sichere Website-Artefakte und Nachtest-Korrekturen.
 
 - [v0.4.2](v0.4.2.md) — große Kataloge atomar speichern, Proton-IDs korrekt übergeben, Speicherdiagnosen und Manifest-Schema 3.

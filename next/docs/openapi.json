@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "IronCrew Control API",
-    "version": "0.4.3",
+    "version": "0.4.4",
     "description": "Explicit HTTP request/response contracts matched to mounted Express routes. Shared runtime Zod inputs preserve schema behavior. JSON Schema cannot encode stateful scope/CAS/approval guards, byte hash checks or all Zod refinements; those are tested at runtime and described per operation. Opaque JSON is limited to genuine extension payloads, tool results and event/step data."
   },
   "servers": [
@@ -29282,7 +29282,10 @@
                 "properties": {
                   "provider": {
                     "type": "string",
-                    "const": "proton-pass"
+                    "enum": [
+                      "proton-pass",
+                      "protonpass"
+                    ]
                   },
                   "shareId": {
                     "type": "string",
@@ -29317,7 +29320,6 @@
             ]
           },
           "connections": {
-            "default": [],
             "type": "array",
             "items": {
               "type": "object",
@@ -29381,7 +29383,10 @@
                   "properties": {
                     "provider": {
                       "type": "string",
-                      "const": "proton-pass"
+                      "enum": [
+                        "proton-pass",
+                        "protonpass"
+                      ]
                     },
                     "shareId": {
                       "type": "string",
@@ -29450,7 +29455,10 @@
                       "properties": {
                         "provider": {
                           "type": "string",
-                          "const": "proton-pass"
+                          "enum": [
+                            "proton-pass",
+                            "protonpass"
+                          ]
                         },
                         "shareId": {
                           "type": "string",
@@ -29481,7 +29489,10 @@
                       "properties": {
                         "provider": {
                           "type": "string",
-                          "const": "proton-pass"
+                          "enum": [
+                            "proton-pass",
+                            "protonpass"
+                          ]
                         },
                         "shareId": {
                           "type": "string",
@@ -29512,7 +29523,10 @@
                       "properties": {
                         "provider": {
                           "type": "string",
-                          "const": "proton-pass"
+                          "enum": [
+                            "proton-pass",
+                            "protonpass"
+                          ]
                         },
                         "shareId": {
                           "type": "string",
@@ -29661,7 +29675,6 @@
             }
           },
           "gitConnections": {
-            "default": [],
             "type": "array",
             "items": {
               "type": "object",
@@ -29754,7 +29767,10 @@
                       "properties": {
                         "provider": {
                           "type": "string",
-                          "const": "proton-pass"
+                          "enum": [
+                            "proton-pass",
+                            "protonpass"
+                          ]
                         },
                         "shareId": {
                           "type": "string",
@@ -29873,7 +29889,6 @@
             }
           },
           "mailConnections": {
-            "default": [],
             "type": "array",
             "items": {
               "type": "object",
@@ -29931,7 +29946,10 @@
                   "properties": {
                     "provider": {
                       "type": "string",
-                      "const": "proton-pass"
+                      "enum": [
+                        "proton-pass",
+                        "protonpass"
+                      ]
                     },
                     "shareId": {
                       "type": "string",
@@ -30000,7 +30018,10 @@
                       "properties": {
                         "provider": {
                           "type": "string",
-                          "const": "proton-pass"
+                          "enum": [
+                            "proton-pass",
+                            "protonpass"
+                          ]
                         },
                         "shareId": {
                           "type": "string",
@@ -30031,7 +30052,10 @@
                       "properties": {
                         "provider": {
                           "type": "string",
-                          "const": "proton-pass"
+                          "enum": [
+                            "proton-pass",
+                            "protonpass"
+                          ]
                         },
                         "shareId": {
                           "type": "string",
@@ -30062,7 +30086,10 @@
                       "properties": {
                         "provider": {
                           "type": "string",
-                          "const": "proton-pass"
+                          "enum": [
+                            "proton-pass",
+                            "protonpass"
+                          ]
                         },
                         "shareId": {
                           "type": "string",
@@ -41652,7 +41679,10 @@
                           "properties": {
                             "provider": {
                               "type": "string",
-                              "const": "proton-pass"
+                              "enum": [
+                                "proton-pass",
+                                "protonpass"
+                              ]
                             },
                             "shareId": {
                               "type": "string",
@@ -41859,7 +41889,10 @@
                           "properties": {
                             "provider": {
                               "type": "string",
-                              "const": "proton-pass"
+                              "enum": [
+                                "proton-pass",
+                                "protonpass"
+                              ]
                             },
                             "shareId": {
                               "type": "string",
@@ -44947,7 +44980,10 @@
             "properties": {
               "provider": {
                 "type": "string",
-                "const": "proton-pass"
+                "enum": [
+                  "proton-pass",
+                  "protonpass"
+                ]
               },
               "shareId": {
                 "type": "string",
@@ -45255,7 +45291,10 @@
             "properties": {
               "provider": {
                 "type": "string",
-                "const": "proton-pass"
+                "enum": [
+                  "proton-pass",
+                  "protonpass"
+                ]
               },
               "shareId": {
                 "type": "string",

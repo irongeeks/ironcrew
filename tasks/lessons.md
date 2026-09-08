@@ -12,3 +12,9 @@
 - Laufbereitschaft durch den tatsächlichen konfigurierten Versandpfad belegen; Katalogerreichbarkeit und Secretprüfung allein reichen nicht.
 - Neben Erfolgsfällen auch überlappende Abrufe, doppelte Provider-IDs und bestehende permissive Dateirechte reproduzieren.
 - Generierte Kundenartefakte selbst prüfen: Vorschau-Schutz ersetzt weder HTML-Bereinigung noch Produktionsheader.
+
+# Präventionsregeln aus dem Nachtest zu 0.4.3
+
+- Installationspfade mit versteckten Elternverzeichnissen in HTTP-Regressionen prüfen; öffentliche Startdateien relativ zu einem festen Web-Root ausliefern, ohne versteckte Dateien allgemein freizugeben.
+- Live-Nachweise müssen Nullbudgets für kostenlose Modelle zulassen und das tatsächliche Antwortlimit in der Reservierung berücksichtigen. Reine Reasoning-Ausgabe ist keine finale Antwort.
+- Historische externe Schreibweisen an Eingabegrenzen normalisieren und kanonische Speicherung sowie Ein-/Ausgabe-Schemas gemeinsam prüfen.
