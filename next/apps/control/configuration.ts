@@ -28,6 +28,7 @@ import type { Repository } from "../../packages/persistence/src/index.ts";
 import type { ToolAction } from "../../packages/contracts/src/index.ts";
 import { scopeSchema } from "../../packages/contracts/src/index.ts";
 import { DomainError, sha256 } from "../../packages/domain/src/index.ts";
+import { IntegrationError } from "../../packages/integrations/src/transport.ts";
 import { workflowTools } from "./workflow-tools.ts";
 import {
   gitConnectionSchema,
@@ -121,6 +122,8 @@ export async function configuredRuntime(
   workers?: () => Promise<WorkerServer | undefined>,
 ): Promise<Runtime | undefined> {
   if (!config.liveExecutionEnabled || !config.openrouter || !config.proton) return undefined;
+  if (!path.isAbsolute(config.proton.executable))
+    throw new DomainError("model_secret_configuration", "model_secret_configuration", 422);
   const values = new Set<string>();
   const proton = new ProtonPassResolver({
     executable: config.proton.executable,
@@ -139,6 +142,17 @@ export async function configuredRuntime(
       return value;
     },
   };
+  // A constructed client is not evidence that the configured secret can be read.
+  // Verify the official CLI, session and field before replacing a working runtime.
+  try {
+    await secrets.resolve(config.openrouter.secretRef, "IronCrew model access readiness check");
+  } catch (error) {
+    const code =
+      error instanceof IntegrationError && error.code === "configuration"
+        ? "model_secret_configuration"
+        : "model_secret_unavailable";
+    throw new DomainError(code, code, 422);
+  }
   const client = new OpenRouterClient({
     secret: () => secrets.resolve(config.openrouter!.secretRef, "IronCrew authorized model request"),
   });

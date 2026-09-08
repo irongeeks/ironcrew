@@ -91,6 +91,12 @@ export default function SetupSteps({ step, locale }: { step: number; locale: Loc
       )}
       {step === 5 && (
         <>
+          <p>
+            {t(
+              "Die folgenden Formulare sind optional. Speichere ausgefüllte Formulare jeweils mit ihrem eigenen Speichern-Button. Zum Fortfahren genügt die Bestätigung unten; leere Formulare kannst du überspringen.",
+              "The following forms are optional. Save completed forms using their own save button. To continue, only the confirmation below is required; you can skip empty forms.",
+            )}
+          </p>
           <section aria-label={t("Bereiche einrichten", "Configure areas")}>
             <h3>{t("Gespeicherte Bereiche", "Saved areas")}</h3>
             <ul>

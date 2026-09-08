@@ -21,14 +21,14 @@ Public source fetch resolves all addresses, refuses nonglobal addresses, pins th
 | `server/ironcrew/packs/integrations/{tactical-rmm,proxmox}.ts` | Read paths and authentication formats                                         | Selected-resource restrictions, action authorization, Proxmox UPID                 |
 | `server/ironcrew/search/brave-provider.ts`                     | Brave URL/query/header and result fields                                      | Timeout, bounded retry, response limits, no redirect, secret redaction             |
 | `server/ironcrew/notify/*` and `mail/*`                        | Channel protocol patterns                                                     | Signed/raw-body verification, SMTP acceptance semantics, no automatic CEO identity |
-| `server/ironcrew/secrets/protonpass-provider.ts`               | Stable share/item references                                                  | New exact CLI version/output contract; no stderr or inherited environment          |
+| `server/ironcrew/secrets/protonpass-provider.ts`               | Stable share/item references                                                  | Stable minimum CLI version/output contract; no stderr or inherited environment          |
 
 No old policy, SSH worker, CLI harness or generic unrestricted endpoint dispatcher was imported.
 
 ## Current primary-source checks
 
 - [Proton Pass agent contract](https://protonpass.github.io/pass-cli/commands/agent/): reason environment variable, scoped agents and two-hour sessions.
-- [Proton Pass view command](https://protonpass.github.io/pass-cli/commands/contents/view/) and [pinned 2.3.3 implementation](https://github.com/protonpass/pass-cli/blob/2.3.3/pass-cli/src/commands/item/view.rs): selected fields print plain values, even when JSON is requested. The old JSON parser would misinterpret that output. New resolver requires `pass-cli 2.3.3` and removes exactly one output newline. Version checked from the current official GitHub release API on 2026-09-07. No CLI binary installed or real vault accessed in this test run.
+- [Proton Pass view command](https://protonpass.github.io/pass-cli/commands/contents/view/): selected fields print plain values. The resolver removes exactly one output newline. The Linux 0.4.0 report demonstrated the official version output `Proton Pass CLI 2.3.2 (ac04625)` and invalidated the previous exact 2.3.3 requirement. Version 0.4.1 accepts stable releases >=2.3.2 and tests the literal official output plus older, newer and malformed variants. No real vault was accessed during the automated regression tests.
 - [Nextcloud WebDAV](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/WebDAV/basic.html): file operations and conditional requests. Local fixture verifies `If-Match` and HTTP 412.
 - [Google Drive uploads](https://developers.google.com/workspace/drive/api/guides/manage-uploads): multipart file creation. New predecessor versions are checked; the adapter creates a new file instead of overwriting after a nonatomic check. Native Google documents are explicitly refused by this binary-file capability.
 - [Brave Search](https://api-dashboard.search.brave.com/app/documentation/web-search/get-started): search path and subscription-token header. Search and source retrieval remain separate.

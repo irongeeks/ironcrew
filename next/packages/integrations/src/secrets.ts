@@ -15,7 +15,24 @@ export type SecretRef = z.infer<typeof secretRefSchema>;
 export interface SecretResolver {
   resolve(ref: SecretRef, reason: string): Promise<string>;
 }
-export const PROTON_PASS_VERSION = "2.3.3";
+export const PROTON_PASS_MIN_VERSION = "2.3.2";
+
+function supportsProtonPassVersion(output: string): boolean {
+  // Official releases include the product name and may include a Git revision.
+  // Accept only complete stable versions, never prereleases or unrelated output.
+  const match =
+    /^(?:(?:Proton Pass CLI|pass-cli)[ \t]+)?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:[ \t]+\([0-9a-f]{7,40}\))?$/i.exec(
+      output.trim(),
+    );
+  if (!match) return false;
+  const version = match.slice(1, 4).map(Number);
+  if (!version.every(Number.isSafeInteger)) return false;
+  const minimum = PROTON_PASS_MIN_VERSION.split(".").map(Number);
+  for (let index = 0; index < minimum.length; index++) {
+    if (version[index] !== minimum[index]) return version[index]! > minimum[index]!;
+  }
+  return true;
+}
 export type SecretCliRunner = (
   executable: string,
   args: string[],
@@ -33,7 +50,11 @@ const runCli: SecretCliRunner = (executable, args, options) =>
 export class ProtonPassResolver implements SecretResolver {
   private readonly environment: NodeJS.ProcessEnv;
   private readonly run: SecretCliRunner;
-  private readonly options: { executable: string; environment: NodeJS.ProcessEnv; run?: SecretCliRunner };
+  private readonly options: {
+    executable: string;
+    environment: NodeJS.ProcessEnv;
+    run?: SecretCliRunner;
+  };
   constructor(options: { executable: string; environment: NodeJS.ProcessEnv; run?: SecretCliRunner }) {
     this.options = options;
     if (!path.isAbsolute(options.executable))
@@ -65,10 +86,13 @@ export class ProtonPassResolver implements SecretResolver {
       maxBuffer: 64 * 1024,
     };
     try {
-      const version = (await this.run(this.options.executable, ["--version"], options)).trim();
-      if (!new RegExp(`^(?:pass-cli\\s+)?${PROTON_PASS_VERSION.replaceAll(".", "\\.")}$`).test(version))
-        throw new IntegrationError("configuration", `pass-cli ${PROTON_PASS_VERSION} ist erforderlich.`);
-      // Pinned upstream implementation prints the selected field as plain text, even with --output json.
+      const version = await this.run(this.options.executable, ["--version"], options);
+      if (!supportsProtonPassVersion(version))
+        throw new IntegrationError(
+          "configuration",
+          `pass-cli ab Version ${PROTON_PASS_MIN_VERSION} ist erforderlich (stabile Version).`,
+        );
+      // The upstream implementation prints the selected field as plain text, even with --output json.
       const output = await this.run(
         this.options.executable,
         ["item", "view", "--share-id", ref.shareId, "--item-id", ref.itemId, "--field", ref.field],

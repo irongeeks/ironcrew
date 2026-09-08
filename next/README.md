@@ -1,6 +1,6 @@
 # IronCrew — neuer Produktkern
 
-IronCrew **0.4.0** ist der eigenständige Neubau nach dem Entwicklungspaket vom 7. September 2026 und wird als [Quellrelease](../docs/releases/v0.4.0.md) veröffentlicht. Dieser Workspace verwendet eine eigene SQLite-Datenbank und eigene Modell-/Werkzeugausführung; der alte Root bleibt als Legacy-Referenz erhalten. Es gibt keinen Altdatenimport. Der Quellrelease enthält kein neues OCI-Image und kein produktiv signiertes natives Installationspaket. Den detaillierten Abnahmezustand führen `../docs/progress.md` und [Releasebereitschaft](docs/release-readiness.md).
+IronCrew **0.4.1** ist der eigenständige Neubau nach dem Entwicklungspaket vom 7. September 2026 und wird als [Quellrelease](../docs/releases/v0.4.1.md) veröffentlicht. Dieser Workspace verwendet eine eigene SQLite-Datenbank und eigene Modell-/Werkzeugausführung; der alte Root bleibt als Legacy-Referenz erhalten. Es gibt keinen Altdatenimport. Der Quellrelease enthält kein neues OCI-Image und kein produktiv signiertes natives Installationspaket. Den detaillierten Abnahmezustand führen `../docs/progress.md` und [Releasebereitschaft](docs/release-readiness.md).
 
 ## Lokal starten
 
@@ -21,7 +21,7 @@ Konfigurierbare Betriebswerte: `IRONCREW_DATA_DIR`, `IRONCREW_HOST`, `IRONCREW_P
 
 ## Eigene Laufzeit
 
-Modellkonfiguration in Einstellungen → Modelle: absoluter Pfad zu geprüftem **pass-cli 2.3.3**, optional eigener Sessionpfad, Proton-SecretRef mit Tresor-/Eintrags-/Feld-ID und gemeinsames Budget. Zugangsdaten werden im Proton-Broker aufgelöst, nicht als normale Konfigurationswerte gespeichert. Liveausführung ist standardmäßig ausgeschaltet und muss ausdrücklich aktiviert werden. Vollständiger OpenRouter-Katalog wird ohne Provider-Whitelist geladen und regelmäßig im 15-Minuten-Intervall erneut geprüft. Fehlgeschlagene Aktualisierung bleibt als veralteter Stand sichtbar.
+Modellkonfiguration in Einstellungen → Modelle: absoluter Pfad zu geprüftem **pass-cli ab Version 2.3.2** (stabile Version; die offizielle Ausgabe `Proton Pass CLI 2.3.2 (ac04625)` wird erkannt), optional eigener Sessionpfad, Proton-SecretRef mit Tresor-/Eintrags-/Feld-ID und gemeinsames Budget. Zugangsdaten werden im Proton-Broker aufgelöst, nicht als normale Konfigurationswerte gespeichert. Liveausführung ist standardmäßig ausgeschaltet und muss ausdrücklich aktiviert werden. Vollständiger OpenRouter-Katalog wird ohne Provider-Whitelist geladen und regelmäßig im 15-Minuten-Intervall erneut geprüft. Fehlgeschlagene Aktualisierung bleibt als veralteter Stand sichtbar.
 
 Ein Auftrag erhält einen Lead, einen versionierten Plan und ein Mandat für konkrete Werkzeuge/Ziele. Firmen-, Auftrags- und kumulatives Mandatslimit werden atomar reserviert. Budgetperioden sperren Kosten vor Beginn und nach Ablauf; nur die ausdrücklich gesetzte Option `renewal: "fixed_duration"` erneuert die bestätigte Zeitspanne. Offene Reservierungen werden dabei weiter berücksichtigt. Die eigene OpenRouter-Schleife speichert Modellrequest, Kostenreservierung, vollständige Antwort, Werkzeugabsicht und Resultat. Freigaben binden Argumente, Ziel, Mandatsversion und gegebenenfalls Artefaktversion. Unbekannte Kosten oder Wirkungen stoppen weitere Arbeit und bleiben nach Neustart sichtbar.
 

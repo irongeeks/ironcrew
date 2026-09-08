@@ -127,10 +127,15 @@ it("validates trusted target paths, scopes, uniqueness and exposes local runtime
     }),
   ).toThrow();
   const secretRef = { provider: "proton-pass", shareId: "share", itemId: "item", field: "password" };
+  const protonExecutable = await createFixtureLauncher(
+    directory,
+    "pass-cli-fixture",
+    "process.stdout.write(process.argv.includes('--version') ? 'Proton Pass CLI 2.3.2 (ac04625)\\n' : 'fixture-model-secret\\n');\n",
+  );
   const runtime = await configuredRuntime(
     repo,
     directory,
-    configSchema.parse({ ...f.config, proton: { executable: "/fixture/pass-cli" }, openrouter: { secretRef } }),
+    configSchema.parse({ ...f.config, proton: { executable: protonExecutable }, openrouter: { secretRef } }),
     [],
   );
   expect(runtime!.tools.filter((tool) => tool.id.startsWith("git."))).toHaveLength(2);

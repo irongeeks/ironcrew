@@ -3,6 +3,7 @@ on:
   push:
     branches: ["main", "rebuild/ironcrew"]
     paths:
+      - "next/package.json"
       - "next/tests/fixtures/updater.ts"
       - "next/tests/fixtures/launcher.ts"
       - "next/tests/install/**"

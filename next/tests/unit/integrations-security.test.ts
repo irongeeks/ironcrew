@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { generateKeyPairSync, sign } from "node:crypto";
 import {
   ProtonPassResolver,
-  PROTON_PASS_VERSION,
   isPublicAddress,
   validatePublicUrl,
   verifyDiscordInbound,
@@ -40,7 +39,9 @@ describe("integration security boundaries", () => {
       ]),
     ).rejects.toMatchObject({ code: "ssrf" });
     await expect(validatePublicUrl("https://user:secret@example.org")).rejects.toMatchObject({ code: "ssrf" });
-    await expect(validatePublicUrl("http://2130706433")).rejects.toMatchObject({ code: "ssrf" });
+    await expect(validatePublicUrl("http://2130706433")).rejects.toMatchObject({
+      code: "ssrf",
+    });
     await expect(validatePublicUrl("https://example.org:8443")).rejects.toMatchObject({ code: "ssrf" });
   });
   it("pins a single DNS resolution result for transport selection", async () => {
@@ -52,7 +53,7 @@ describe("integration security boundaries", () => {
     expect(calls).toBe(1);
     expect(result.addresses[0].address).toBe("8.8.8.8");
   });
-  it("Proton version and selected-field output match pinned upstream contract", async () => {
+  it("accepts official Proton CLI output and preserves selected-field whitespace", async () => {
     const calls: { args: string[]; env: NodeJS.ProcessEnv }[] = [];
     const provider = new ProtonPassResolver({
       executable: "/opt/ironcrew/pass-cli",
@@ -64,11 +65,16 @@ describe("integration security boundaries", () => {
       },
       run: async (_file, args, options) => {
         calls.push({ args, env: options.env });
-        return args[0] === "--version" ? `pass-cli ${PROTON_PASS_VERSION}\n` : "  exact secret  \n";
+        return args[0] === "--version" ? "Proton Pass CLI 2.3.2 (ac04625)\n" : "  exact secret  \n";
       },
     });
     const result = await provider.resolve(
-      { provider: "proton-pass", shareId: "vault", itemId: "item", field: "password" },
+      {
+        provider: "proton-pass",
+        shareId: "vault",
+        itemId: "item",
+        field: "password",
+      },
       "Action 1: connector access",
     );
     expect(result).toBe("  exact secret  ");
@@ -77,8 +83,74 @@ describe("integration security boundaries", () => {
     expect(calls[1].env.DANGEROUS_SECRET).toBeUndefined();
     expect(calls[1].env.NODE_OPTIONS).toBeUndefined();
   });
-  it("refuses unpinned Proton binaries and never exposes runner stderr", async () => {
-    const ref = { provider: "proton-pass" as const, shareId: "vault", itemId: "item", field: "password" };
+  it.each([
+    "2.3.2",
+    "pass-cli 2.3.2\n",
+    "Proton Pass CLI 2.3.2\r\n",
+    "Proton Pass CLI 2.3.10 (abcdef0)",
+    "pass-cli 2.4.0",
+    "Proton Pass CLI 3.0.0 (0123456)",
+  ])("accepts supported stable Proton release %s", async (version) => {
+    const provider = new ProtonPassResolver({
+      executable: "/opt/ironcrew/pass-cli",
+      environment: {},
+      run: async (_file, args) => (args[0] === "--version" ? version : "secret\n"),
+    });
+    await expect(
+      provider.resolve(
+        {
+          provider: "proton-pass",
+          shareId: "vault",
+          itemId: "item",
+          field: "password",
+        },
+        "access",
+      ),
+    ).resolves.toBe("secret");
+  });
+  it.each([
+    "pass-cli 2.3.1",
+    "Proton Pass CLI 2.2.99 (ac04625)",
+    "pass-cli 1.99.99",
+    "Proton Pass CLI 2.3.2-rc.1 (ac04625)",
+    "pass-cli 3.0.0-beta.1",
+    "pass-cli 2.3",
+    "pass-cli 02.3.2",
+    "pass-cli 9007199254740992.0.0",
+    "unrelated-cli 2.3.2",
+    "Proton Pass CLI 2.3.2 (not-a-revision)",
+    "Proton Pass CLI 2.3.2\nunexpected output",
+    "",
+  ])("refuses unsupported Proton output before reading any secret: %s", async (version) => {
+    const calls: string[][] = [];
+    const provider = new ProtonPassResolver({
+      executable: "/opt/ironcrew/pass-cli",
+      environment: {},
+      run: async (_file, args) => {
+        calls.push(args);
+        return version;
+      },
+    });
+    await expect(
+      provider.resolve(
+        {
+          provider: "proton-pass",
+          shareId: "vault",
+          itemId: "item",
+          field: "password",
+        },
+        "access",
+      ),
+    ).rejects.toMatchObject({ code: "configuration" });
+    expect(calls).toEqual([["--version"]]);
+  });
+  it("refuses unsupported Proton binaries and never exposes runner stderr", async () => {
+    const ref = {
+      provider: "proton-pass" as const,
+      shareId: "vault",
+      itemId: "item",
+      field: "password",
+    };
     await expect(
       new ProtonPassResolver({
         executable: "/bin/pass-cli",
@@ -109,7 +181,13 @@ describe("integration security boundaries", () => {
     const body = Buffer.from(
       JSON.stringify({
         update_id: 10,
-        message: { message_id: 2, date: 1809756000, text: "Please approve", from: { id: 99 }, chat: { id: 42 } },
+        message: {
+          message_id: 2,
+          date: 1809756000,
+          text: "Please approve",
+          from: { id: 99 },
+          chat: { id: 42 },
+        },
       }),
     );
     expect(() => verifyTelegramInbound(body, "wrong", "secret")).toThrow();
@@ -154,7 +232,12 @@ describe("integration security boundaries", () => {
           username: "operator",
           enabledTools: ["nextcloud.write"],
           schemaTag: "fixture",
-          secretRef: { provider: "proton-pass", shareId: "s", itemId: "i", field: "p" },
+          secretRef: {
+            provider: "proton-pass",
+            shareId: "s",
+            itemId: "i",
+            field: "p",
+          },
         },
       ],
       authorize: async () => {
@@ -175,10 +258,15 @@ describe("integration security boundaries", () => {
       scope,
       args: { path: "../outside", content: "x", createOnly: true },
     };
-    await expect(service.execute(action)).rejects.toMatchObject({ code: "validation" });
+    await expect(service.execute(action)).rejects.toMatchObject({
+      code: "validation",
+    });
     expect(authorization).toBe(0);
     await expect(
-      service.execute({ ...action, args: { path: "allowed", content: "x", createOnly: true } }),
+      service.execute({
+        ...action,
+        args: { path: "allowed", content: "x", createOnly: true },
+      }),
     ).rejects.toThrow("revoked");
     expect(resolutions).toBe(0);
   });
