@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.3 — 2026-09-08
+
+- Address Linux/macOS follow-up issues #36–47 across the rebuilt core and bundled legacy application.
+- Harden SQLite file permissions and generated website HTML/CSP; preserve mail timestamps.
+- Deduplicate provider catalogs and coordinate concurrent refreshes.
+- Improve model-run diagnostics/recovery, setup guidance and free-router discovery.
+- Correct legacy Proton option values, QA CSRF requests and asynchronous mobile tests.
+- Update README, operating guidance and [release notes](docs/releases/v0.4.3.md).
+
 ## 0.4.2 — 2026-09-08
 
 - Fix #31: persist full provider catalogs atomically without widening the generic transaction limit; cover 99, 100, 579 and 1,200 models, refreshes and rollback.

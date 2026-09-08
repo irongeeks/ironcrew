@@ -1,21 +1,29 @@
-# IronCrew v0.4.2 — Issues aus Claudes Linux-Nachtest
+# IronCrew v0.4.3 — Nachtest Linux und macOS
 
-- [x] Issues #31–34 und Releasebasis 671b044 prüfen.
-- [x] #31: großen Modellkatalog atomar speichern; allgemeine Transaktionsgrenze erhalten.
-- [x] #34: Transport, abgelehnte Speicherung und Speicherfehler sicher unterscheiden.
-- [x] #32: Proton-IDs mit führendem Bindestrich korrekt übergeben.
-- [x] #33: Manifest eindeutig versionieren und Laufzeitvoraussetzungen wieder aufnehmen.
+- [x] Offene Issues #36–47 und Releasebasis 049554d prüfen.
+- [x] #36/#37: Modellversand, Reservierungen und laufende Konfiguration reproduzieren und korrigieren.
+- [x] #38: SQLite-Dateien einschließlich WAL/SHM privat anlegen und bestehende Rechte härten.
+- [x] #39: Mail-Zeitstempel bei Redaction erhalten.
+- [x] #40/#41: doppelte Katalog-IDs und überlappende Abrufe behandeln.
+- [x] #42: generierte React-/WordPress-Artefakte bereinigen und CSP ausliefern.
+- [x] #43: Katalogzähler, UUID-Eingaben, Ausführungsbereitschaft und Einrichtungsfortschritt korrigieren.
+- [x] #44/#45/#47: Hauptserver-Proton, QA-CSRF und asynchronen Mobiltest korrigieren.
+- [x] #46: Free-Router empfehlen und sichere 404-Hinweise ergänzen.
 - [x] Regressionen, Build, Version, README und Docs prüfen.
-- [ ] Commit, Push, PR-Merge und v0.4.2 nach vollständigen Release-Gates verifizieren.
+- [ ] Commit, Push, PR-Merge und v0.4.3 nach vollständigen Release-Gates verifizieren.
 
-## Review und lokale Prüfung
+## Review
 
-- Katalogfehler vor Änderung reproduziert: 99 Modelle bestanden, 100/579/1.200 scheiterten.
-- Nach Korrektur: 194 Unit-/Vertrags-/Integrationstests und elf Manifesttests bestanden.
-- Unabhängiger Review prüfte Bulkpfad, Revisionen und Diagnosen. Veraltete Fehlercodes entfernt; konkurrierender erfolgreicher Refresh durch Regression geschützt.
-- Vollständige Betriebssystem- und Release-Gates werden am veröffentlichten Main-Commit erneut ausgeführt.
-- Kein echter Betreiber-Modellaufruf auf tank; Fixtures enthalten keine Kontozugangsdaten.
-- Typecheck, ESLint, Formatprüfung, Produktionsbuild und OpenAPI-Abgleich bestanden.
-- Echter öffentlicher OpenRouter-Katalog erfolgreich bis SQLite geprüft: 579 Modelle, 22 Free-IDs, ready, Audit gültig.
-- Vollständige erste CI deckte eine alte Telegram-CLI-Testfixture auf; Named-Argument-Vertrag angeglichen, alle sieben Kanaltests bestanden.
-- Windows-CI zeigte in zwei Läufen wechselnde Setup-/Datei-/TLS-Zeitüberschreitungen bei vier Workern. Testparallelität auf Windows auf zwei begrenzt; Zeitlimits/Assertions/No-Skip-Gates unverändert, erneuter Vollnachweis erforderlich.
+Die Befunde umfassen die Anwendung unter next/ und den mitgelieferten Hauptserver. Beide betroffenen Implementierungen werden geprüft. Release-Gates und bestehende Sicherheitsprüfungen bleiben verbindlich.
+
+- 440 Tests des neuen Kerns bestanden (lokal ohne Browserinspektion und privilegierten Updaterpfad wegen Umgebung; beide bleiben CI-Pflicht).
+- 97 fokussierte Hauptserver-Tests, elf Release-Verträge sowie zusätzliche Recovery-Regressionen bestanden.
+- Typecheck, ESLint, Formatprüfung und OpenAPI-Abgleich mit 162 Operationen bestanden.
+- Unabhängiger Review verschärfte Discard-Beleg-/Reservierungsbindung und korrigierte HTML-Darstellungserhalt.
+- Website-Wartungsfixture nutzt die tatsächlich bereinigten Ausgabebytes; alle neun Tests bestanden.
+- #37 Neustartpflicht nicht reproduzierbar: echte alte→neue CLI-Konfiguration ohne Neustart erfolgreich; keine unbewiesene Ursachenbehauptung.
+
+- Erste PR-CI: Linux-Neubau einschließlich aller Browser-/Recovery-/Installationsgates und Dependency-Audit bestanden. Hauptserver-CI und native macOS-Prüfung bestanden.
+- Zusätzliche native Linux-Hauptserverprüfung: drei Zeitüberschreitungen in SQLite-Reopen/Migrationsfixtures bei unbeschränkter Workerzahl. Auf zwei Worker begrenzen; Assertions, Zeitlimits und vollständige Suiten unverändert erneut prüfen.
+
+- Zweite PR-CI: allgemeine CI und vollständige Plattformprüfung inklusive nativer Linux-API bestanden; Neubau Linux/macOS grün. Windows deckte erstmals eine 404-Antwort im tatsächlich generierten Website-Server auf. Kanonische Root-/Dateipfade und plattformgerechte Containment-Prüfung werden korrigiert, Ausbruchprüfungen bleiben erhalten.

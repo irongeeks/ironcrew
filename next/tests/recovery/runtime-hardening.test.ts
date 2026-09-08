@@ -410,3 +410,100 @@ it("does not turn a model-declared zero-exit command into trusted verification",
     receipt.mockRestore();
   }
 });
+
+it("releases a definitely unsent turn and allows retry after repairing request preparation", async () => {
+  const { OpenRouterClient } = await import("../../packages/runtime/src/openrouter.ts");
+  let secret = "invalid\nheader";
+  const client = new OpenRouterClient({ secret: async () => secret });
+  const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        id: "gen-retry",
+        choices: [{ message: { role: "assistant", content: "Needs confirmation" } }],
+        usage: { cost: 0 },
+      }),
+      { headers: { "content-type": "application/json" } },
+    ),
+  );
+  const instance = runtime(client);
+  try {
+    await expect(instance.start(scope, order.id, mandate, model.id)).rejects.toMatchObject({
+      code: "model_dispatch_denied",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect((await repo.budget(scope.companyId)).reservations).toMatchObject([
+      { state: "settled", settledUsdMicros: "0" },
+    ]);
+    expect((await instance.findRun(order.id, scope)).pendingTurnId).toBeUndefined();
+    secret = "valid-key";
+    await instance.resume(scope, order.id);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(
+      (await repo.listDocuments(scope, "model-turn")).map((x) => (x.data as { usageState: string }).usageState),
+    ).toEqual(["reconciled", "reconciled"]);
+  } finally {
+    fetch.mockRestore();
+  }
+});
+
+it("requires accounting evidence before discarding a missing response and never dispatches during discard", async () => {
+  const { ModelCostService } = await import("../../apps/control/model-cost-service.ts");
+  const complete = vi.fn().mockRejectedValue(new Error("unknown transport outcome"));
+  const instance = runtime({ complete });
+  await expect(instance.start(scope, order.id, mandate, model.id)).rejects.toThrow("unknown transport outcome");
+  const record = (await repo.getDocument<import("../../packages/runtime/src/engine.ts").Run>(scope, "run", order.id))!;
+  const turnId = record.data.pendingTurnId!;
+  const ceoId = (await repo.getIdentity())!.id;
+  await expect(instance.discardModelResponse(scope, order.id, turnId, record.revision, ceoId)).rejects.toMatchObject({
+    code: "model_cost_reconciliation_required",
+  });
+  const turn = (await repo.getDocument(scope, "model-turn", turnId))!;
+  const costs = new ModelCostService({ repo, directory: dir, isRunActive: (id) => instance.active.has(id) });
+  expect((await costs.list(scope.companyId, ceoId)).turns[0]!.discardAvailable).toBe(false);
+  await costs.manual(scope.companyId, ceoId, turnId, turn.revision, {
+    actualUsdMicros: "0",
+    evidence: {
+      description: "Provider billing check",
+      mediaType: "text/plain",
+      contentBase64: Buffer.from("Operator checked provider billing: no charge for this request.").toString("base64"),
+    },
+  });
+  expect((await costs.list(scope.companyId, ceoId)).turns[0]).toMatchObject({
+    discardAvailable: true,
+    runRevision: record.revision,
+  });
+  await expect(
+    instance.discardModelResponse(scope, order.id, turnId, record.revision + 1, ceoId),
+  ).rejects.toMatchObject({ code: "revision_conflict" });
+  const discarded = await instance.discardModelResponse(scope, order.id, turnId, record.revision, ceoId);
+  expect(discarded.pendingTurnId).toBeUndefined();
+  expect((await costs.list(scope.companyId, ceoId)).turns[0]!.discardAvailable).toBe(false);
+  expect(complete).toHaveBeenCalledTimes(1);
+  expect(await repo.getDocument(scope, "model-response-discard", turnId)).toBeTruthy();
+  complete.mockResolvedValue({
+    id: "gen-next",
+    message: { role: "assistant", content: "Please confirm" },
+    costUsdMicros: "0",
+  });
+  await instance.resume(scope, order.id);
+  expect(complete).toHaveBeenCalledTimes(2);
+});
+
+it.each([404, 429, 500])("accounts actual HTTP %i distinctly from an unknown transport outcome", async (status) => {
+  const { OpenRouterClient } = await import("../../packages/runtime/src/openrouter.ts");
+  const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("provider error", { status }));
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  try {
+    await expect(
+      runtime(new OpenRouterClient({ secret: async () => "key" })).start(scope, order.id, mandate, model.id),
+    ).rejects.toThrow();
+    const reservation = (await repo.budget(scope.companyId)).reservations[0]!;
+    expect(reservation.state).toBe(status === 500 ? "unreconciled" : "settled");
+    if (status !== 500) expect(reservation.settledUsdMicros).toBe("0");
+    const run = await runtime({ complete: vi.fn() }).findRun(order.id, scope);
+    expect(Boolean(run.pendingTurnId)).toBe(status === 500);
+  } finally {
+    fetch.mockRestore();
+    warn.mockRestore();
+  }
+});

@@ -28,6 +28,8 @@ export const modelCostResultSchema = z
     actualUsdMicros: micros.optional(),
     requestSha256: hash,
     responseAvailable: z.boolean(),
+    discardAvailable: z.boolean(),
+    runRevision: z.number().int().positive().optional(),
     evidenceSha256: hash.optional(),
   })
   .strict();
@@ -67,10 +69,24 @@ export class ModelCostService {
     );
     if (!reservation || reservation.modelTurnId !== record.id || reservation.orderId !== record.data.runId)
       throw new DomainError("model_cost_reservation_binding");
-    const receipt = await this.options.repo.getDocument<{ sha256: string }>(
+    const receipt = await this.options.repo.getDocument<{ sha256: string; turnId: string; requestSha256: string }>(
       record.scope,
       "model-cost-evidence",
       record.id,
+    );
+    const run = await this.options.repo.getDocument<Run>(record.scope, "run", record.data.runId);
+    const discardAvailable = Boolean(
+      run &&
+      run.data.pendingTurnId === record.id &&
+      run.data.blockedReason === "model_response_unknown" &&
+      receipt &&
+      receipt.data.turnId === record.id &&
+      receipt.data.requestSha256 === record.data.requestSha256 &&
+      record.data.usageState === "reconciled" &&
+      !record.data.response &&
+      ["settled", "released"].includes(reservation.state) &&
+      this.options.isRunActive &&
+      !this.options.isRunActive(record.data.runId),
     );
     return modelCostResultSchema.parse({
       id: record.id,
@@ -87,6 +103,8 @@ export class ModelCostService {
       actualUsdMicros: reservation.settledUsdMicros,
       requestSha256: record.data.requestSha256,
       responseAvailable: record.data.state === "complete" && Boolean(record.data.response),
+      discardAvailable,
+      ...(discardAvailable && run ? { runRevision: run.revision } : {}),
       ...(receipt ? { evidenceSha256: receipt.data.sha256 } : {}),
     });
   }

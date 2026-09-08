@@ -341,3 +341,16 @@ it("reconstructs a complete response whose missing provider cost was subsequentl
   expect(requests).toHaveLength(0);
   expect((await repo.budget(scope.companyId)).spentUsdMicros).toBe("6");
 });
+
+it("settles explicitly rejected participant requests at zero without treating HTTP 500 as known zero", async () => {
+  const executing = tool()
+    .execute(input, action)
+    .catch((error: Error) => error);
+  await expect.poll(() => requests.length).toBe(2);
+  responses[0]!.writeHead(404).end("private provider error");
+  responses[1]!.writeHead(500).end("private provider error");
+  await executing;
+  const reservations = (await repo.budget(scope.companyId)).reservations;
+  expect(reservations.filter((r) => r.state === "settled")).toMatchObject([{ settledUsdMicros: "0" }]);
+  expect(reservations.filter((r) => r.state === "unreconciled")).toHaveLength(1);
+});

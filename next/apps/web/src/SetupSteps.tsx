@@ -1,20 +1,26 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { ConfigurationPanel, MandatePanel, SchedulePanel } from "./Workflows.tsx";
 import { Workers, Field, Feedback, records, useRemote, type Locale } from "./Operations.tsx";
 import Channels from "./Channels.tsx";
 import Entities from "./Entities.tsx";
-import { request, string as str, money } from "./api.ts";
+import { request, list, string as str, money, type Row } from "./api.ts";
 import styles from "./App.module.css";
 export default function SetupSteps({ step, locale }: { step: number; locale: Locale }) {
   const company = useRemote("/company"),
     crew = useRemote("/employees"),
     areas = useRemote("/areas"),
     configuration = useRemote("/configuration"),
-    models = useRemote("/models"),
     workers = useRemote("/workers"),
     mandates = useRemote("/mandates"),
     schedules = useRemote("/schedules"),
     budget = useRemote("/budget");
+  const [models, setModels] = useState<Row[] | null>(null),
+    [modelsError, setModelsError] = useState("");
+  useEffect(() => {
+    void list("/models")
+      .then((items) => setModels(items.filter((model) => model.available !== false)))
+      .catch((e) => setModelsError(e.message));
+  }, []);
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
@@ -43,12 +49,12 @@ export default function SetupSteps({ step, locale }: { step: number; locale: Loc
       setBusy(false);
     }
   }
-  const sources = [company, crew, areas, configuration, models, workers, mandates, schedules, budget];
-  if (company.loading || (step === 7 && sources.some((source) => source.loading)))
+  const sources = [company, crew, areas, configuration, workers, mandates, schedules, budget];
+  if (company.loading || (step === 7 && (sources.some((source) => source.loading) || (!models && !modelsError))))
     return <p role="status">{t("Firmenstand wird geladen…", "Loading company state…")}</p>;
   return (
     <div>
-      <Feedback error={error || sources.find((source) => source.error)?.error || ""} message={message} />
+      <Feedback error={error || modelsError || sources.find((source) => source.error)?.error || ""} message={message} />
       {step === 1 && (
         <section aria-label={t("Crewprofile einrichten", "Configure crew profiles")}>
           <p>
@@ -158,7 +164,7 @@ export default function SetupSteps({ step, locale }: { step: number; locale: Loc
               {configuration.data.openrouter && configuration.data.proton
                 ? t("Modellzugang: Verweise konfiguriert", "Model access: references configured")
                 : t("Modellzugang fehlt — später ergänzen", "Model access missing — configure later")}{" "}
-              · {records(models.data.items).length}{" "}
+              · {models?.length ?? "—"}{" "}
               {t(
                 "Katalogeinträge; kein Nachweis eines erfolgreichen Modellaufrufs",
                 "catalog entries; no proof of a successful model call",

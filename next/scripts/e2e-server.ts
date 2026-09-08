@@ -24,7 +24,7 @@ await repo.setup({
 });
 const setup = (await repo.setupState())!;
 const scope = { companyId: setup.company.id, areaId: setup.areas[0]!.id };
-await repo.putDocument(scope, "setup-progress", setup.company.id, { step: 8, data: {} });
+await repo.putDocument(scope, "setup-progress", setup.company.id, { step: 8, data: {} }, { expectedRevision: 1 });
 await repo.putDocument(scope, "company-settings", setup.company.id, {
   name: setup.company.name,
   locale: "de",

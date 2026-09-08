@@ -169,7 +169,7 @@ it("delivers to a local TLS SMTP sink only after concrete CEO approval and never
     await sink.close();
   }
 });
-it("reads an empty real TLS IMAP mailbox with certificate verification and authenticated login", async () => {
+it.each([0, 1])("reads %i messages over TLS IMAP preserving dates in JSON evidence", async (count) => {
   let authenticated = false,
     selected = false;
   const seen: string[] = [];
@@ -207,9 +207,15 @@ it("reads an empty real TLS IMAP mailbox with certificate verification and authe
         } else if (command!.startsWith("SELECT ")) {
           selected = true;
           socket.write(
-            "* FLAGS (\\Seen)\r\n* 0 EXISTS\r\n* 0 RECENT\r\n* OK [UIDVALIDITY 1] valid\r\n* OK [UIDNEXT 1] next\r\n" +
+            `* FLAGS (\\Seen)\r\n* ${count} EXISTS\r\n* 0 RECENT\r\n* OK [UIDVALIDITY 1] valid\r\n* OK [UIDNEXT 2] next\r\n` +
               tag +
               " OK [READ-WRITE] selected\r\n",
+          );
+        } else if (command!.startsWith("FETCH ")) {
+          socket.write(
+            '* 1 FETCH (UID 1 INTERNALDATE "08-Sep-2026 07:01:12 +0000" ENVELOPE ("Tue, 8 Sep 2026 07:00:00 +0000" "fixture-password subject" NIL NIL NIL NIL NIL NIL NIL "<fixture@example.invalid>"))\r\n' +
+              tag +
+              " OK fetched\r\n",
           );
         } else if (command!.startsWith("LIST ")) socket.write('* LIST () "/" "INBOX"\r\n' + tag + " OK list\r\n");
         else if (command!.startsWith("LOGOUT")) socket.end("* BYE logout\r\n" + tag + " OK logout\r\n");
@@ -244,7 +250,13 @@ it("reads an empty real TLS IMAP mailbox with certificate verification and authe
     expect(authenticated, seen.join(" | ")).toBe(true);
     expect(selected).toBe(true);
     expect(result.effectStatus).toBe("succeeded");
-    expect((result.data as { messages: unknown[] }).messages).toEqual([]);
+    const evidence = JSON.parse(JSON.stringify(result.data));
+    expect(evidence.messages).toHaveLength(count);
+    if (count)
+      expect(evidence.messages[0]).toMatchObject({
+        receivedAt: "2026-09-08T07:01:12.000Z",
+        envelope: { date: "2026-09-08T07:00:00.000Z", subject: "[REDACTED] subject" },
+      });
   } finally {
     await sink.close();
   }

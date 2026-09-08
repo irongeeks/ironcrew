@@ -33,6 +33,15 @@ afterEach(async () => {
   await repo.close();
   await rm(directory, { recursive: true, force: true });
 });
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((fulfilled, rejected) => {
+    resolve = fulfilled;
+    reject = rejected;
+  });
+  return { promise, resolve, reject };
+}
 const refresh = () =>
   agent.post("/api/v1/models/refresh").set({ "X-CSRF-Token": csrf, "Idempotency-Key": randomUUID() }).send({});
 const free = {
@@ -268,11 +277,153 @@ it("preserves a newer successful refresh when an older concurrent request fails"
   const first = refreshCatalog(repo, scope);
   const rejected = expect(first).rejects.toMatchObject({ code: "catalog_refresh_failed" });
   await started;
-  await refreshCatalog(repo, scope);
+  const other = await Repository.open(path.join(directory, "company.sqlite"));
+  try {
+    await refreshCatalog(other, scope);
+  } finally {
+    await other.close();
+  }
   const ready = await repo.getDocument(scope, "catalog-status", scope.companyId);
   const models = await repo.listDocuments(scope, "model");
   rejectFirst(new Error("DO-NOT-LOG"));
   await rejected;
   expect(await repo.getDocument(scope, "catalog-status", scope.companyId)).toEqual(ready);
   expect(await repo.listDocuments(scope, "model")).toEqual(models);
+});
+
+it("deduplicates provider IDs with the last valid entry winning and counts skipped duplicates", async () => {
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const updated = { ...free, name: "Last valid version", context_length: 8192 };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation(async () =>
+      Response.json({
+        data: [free, { ...free, id: "fixture/other:free" }, updated, { ...free, name: 123 }, updated],
+      }),
+    ),
+  );
+  for (let attempt = 0; attempt < 2; attempt++) {
+    expect((await refresh().expect(200)).body.count).toBe(2);
+    const stored = await repo.listDocuments<{ id: string; name: string; context_length: number }>(scope, "model");
+    expect(stored).toHaveLength(2);
+    expect(stored.find((model) => model.data.id === free.id)?.data).toMatchObject(updated);
+    expect((await repo.getDocument(scope, "catalog-status", scope.companyId))?.data).toMatchObject({
+      state: "ready",
+      count: 2,
+      rejectedCount: 1,
+      duplicateCount: 2,
+    });
+  }
+  expect(warning).toHaveBeenCalledWith(
+    "IronCrew catalog entries rejected",
+    expect.objectContaining({
+      received: 5,
+      accepted: 2,
+      rejected: 1,
+      duplicates: 2,
+    }),
+  );
+  expect(await repo.verifyAudit(scope.companyId)).toBe(true);
+});
+
+it.each([false, true])(
+  "shares an overlapping refresh including failure=%s and releases the flight afterwards",
+  async (fails) => {
+    const { refreshCatalog } = await import("../../apps/control/catalog.ts");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const started = deferred<void>();
+    const response = deferred<Response>();
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        started.resolve();
+        return response.promise;
+      })
+      .mockImplementation(async () => Response.json({ data: [free] }));
+    vi.stubGlobal("fetch", fetch);
+    const first = refreshCatalog(repo, scope);
+    await started.promise;
+    const second = refreshCatalog(repo, { ...scope });
+    expect(second).toBe(first);
+    const results = Promise.allSettled([first, second]);
+    if (fails) response.reject(new Error("DO-NOT-LOG"));
+    else response.resolve(Response.json({ data: [free] }));
+    const settled = await results;
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(settled.map((result) => result.status)).toEqual(
+      fails ? ["rejected", "rejected"] : ["fulfilled", "fulfilled"],
+    );
+    if (!fails) {
+      expect((await repo.getDocument(scope, "catalog-status", scope.companyId))?.revision).toBe(1);
+      expect(await repo.listDocuments(scope, "model")).toHaveLength(1);
+    }
+    await refreshCatalog(repo, scope);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect((await repo.getDocument(scope, "catalog-status", scope.companyId))?.data).toMatchObject({
+      state: "ready",
+      count: 1,
+    });
+  },
+);
+
+it("does not let a faster failed attempt discard a slow successful snapshot", async () => {
+  const { refreshCatalog } = await import("../../apps/control/catalog.ts");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const started = deferred<void>();
+  const response = deferred<Response>();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementationOnce(() => {
+        started.resolve();
+        return response.promise;
+      })
+      .mockRejectedValueOnce(new Error("DO-NOT-LOG")),
+  );
+  const first = refreshCatalog(repo, scope);
+  await started.promise;
+  // An independent control/repository handle does not share an in-process flight.
+  const other = await Repository.open(path.join(directory, "company.sqlite"));
+  try {
+    await expect(refreshCatalog(other, scope)).rejects.toMatchObject({ code: "catalog_refresh_failed" });
+  } finally {
+    await other.close();
+  }
+  expect((await repo.getDocument(scope, "catalog-status", scope.companyId))?.data).toMatchObject({ state: "stale" });
+  response.resolve(Response.json({ data: [free] }));
+  await expect(first).resolves.toMatchObject({ models: [expect.objectContaining({ id: free.id })] });
+  expect((await repo.getDocument(scope, "catalog-status", scope.companyId))?.data).toMatchObject({
+    state: "ready",
+    count: 1,
+  });
+  expect(await repo.listDocuments(scope, "model")).toHaveLength(1);
+});
+
+it("does not share catalog flights across scopes", async () => {
+  const { refreshCatalog } = await import("../../apps/control/catalog.ts");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const started = deferred<void>();
+  const response = deferred<Response>();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementationOnce(() => {
+      started.resolve();
+      return response.promise;
+    }),
+  );
+  const first = refreshCatalog(repo, scope);
+  await started.promise;
+  for (const foreign of [
+    { ...scope, companyId: randomUUID() },
+    { ...scope, areaId: randomUUID() },
+    { ...scope, customerId: randomUUID() },
+    { ...scope, projectId: randomUUID() },
+  ]) {
+    const denied = refreshCatalog(repo, foreign);
+    expect(denied).not.toBe(first);
+    await expect(denied).rejects.toMatchObject({ code: "catalog_refresh_failed" });
+  }
+  response.resolve(Response.json({ data: [free] }));
+  await first;
 });

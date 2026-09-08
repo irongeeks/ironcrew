@@ -296,3 +296,36 @@ it("rejects a provider generation reused by another persisted model turn", async
   });
   expect(f.generations).toBe(0);
 });
+
+it("requires CEO authentication, CSRF, evidence and the current run revision for explicit response discard", async () => {
+  const f = await fixture(true, true),
+    turn = await f.turn();
+  const app = createApp({
+    repo: f.repo,
+    directory: f.directory,
+    publicOrigin: "http://127.0.0.1:8790",
+    runtime: f.runtime,
+  });
+  const agent = request.agent(app),
+    url = `/api/v1/orders/${f.order.id}/model-response/discard`;
+  await agent.post(url).send({ turnId: turn.id }).expect(401);
+  const login = await agent.post("/api/v1/session").send({ password: "model-fixture-password-1234" }).expect(200);
+  await agent.post(url).send({ turnId: turn.id }).expect(403);
+  const run = (await f.repo.getDocument(f.scope, "run", f.order.id))!;
+  const headers = () => ({
+    "X-CSRF-Token": login.body.csrfToken,
+    "Idempotency-Key": randomUUID(),
+    "If-Match": String(run.revision),
+  });
+  expect((await agent.post(url).set(headers()).send({ turnId: turn.id }).expect(409)).body.code).toBe(
+    "model_cost_reconciliation_required",
+  );
+  await f.costs().manual(f.scope.companyId, f.ceoId, turn.id, turn.revision, manual);
+  const key = headers();
+  await agent.post(url).set(key).send({ turnId: turn.id }).expect(200);
+  await agent.post(url).set(key).send({ turnId: turn.id }).expect(200);
+  expect(f.completions).toBe(1);
+  expect((await f.repo.getOrder(f.scope, f.order.id)).waitReason).toBe("user_input");
+  expect((await f.turn()).discardAvailable).toBe(false);
+  expect(await f.repo.listDocuments(f.scope, "model-response-discard")).toHaveLength(1);
+});

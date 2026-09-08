@@ -1,9 +1,9 @@
-# Modellzugang in 0.4.2 prüfen
+# Modellzugang in 0.4.3 prüfen
 
 Diese Anleitung gilt für den neuen Produktkern unter `next/`. Die CLI-Provider-
 und Docker-Anleitungen im Repository-Root beschreiben weiterhin die ältere Linie.
 
-## Nach dem Update von 0.4.0 oder 0.4.1/0.4.1
+## Nach dem Update von 0.4.0–0.4.2
 
 1. Unter **Einstellungen → Modelle** den Modellkatalog aktualisieren. Der Abruf
    benötigt keinen OpenRouter-Schlüssel. Ein Fehler bei einzelnen Modellen darf
@@ -31,6 +31,15 @@ beim echten Aufruf wirksam. Insbesondere können Free-Modelle durch die gewählt
 OpenRouter-Datenschutzeinstellungen ausgeschlossen sein. IronCrew ändert diese
 Einstellungen nicht automatisch.
 
+## Kostenlose Modelle
+
+Für kostenlose Workflows bevorzugt `openrouter/free` auswählen. Der offizielle
+[Free-Router](https://openrouter.ai/openrouter/free) wählt aus verfügbaren kostenlosen
+Modellen und berücksichtigt angefragte Fähigkeiten wie Werkzeugaufrufe. Das ist keine
+Verfügbarkeitsgarantie. Einzelne `:free`-Endpunkte können trotz Katalogeintrag mit HTTP 404
+antworten. IronCrew weist dann auf den Router hin; es wechselt das freigegebene Modell
+nicht stillschweigend. Modellwahl, Mandat, Preisprüfung und Kontoeinstellungen bleiben wirksam.
+
 ## Fehler und nächster Schritt
 
 | Fehler | Bedeutung und Prüfung |
@@ -40,6 +49,9 @@ Einstellungen nicht automatisch.
 | `catalog_refresh_failed` | Abruf erneut versuchen und das Serverprotokoll prüfen. Gespeicherte Modelle bleiben bei einem fehlgeschlagenen Abruf erhalten. |
 | `model_not_configured` | Die Zentrale besitzt keine einsatzbereite Runtime. Modellzugang prüfen, ausdrücklich aktivieren und speichern. |
 | `no_routable_model` | Modellfähigkeiten, Verfügbarkeit, Preisangaben und Kostenrahmen prüfen. Sichtbarkeit im Katalog allein garantiert keine ausführbare Auswahl. |
+| `model_free_endpoint_unavailable` | Der gewählte `:free`-Endpunkt hat HTTP 404 geliefert. `openrouter/free` ausdrücklich auswählen und erneut starten. |
+| `model_dispatch_denied` | Vor dem Versand abgebrochen; Zugang/Konfiguration und sichere Diagnose prüfen. Die Reservierung wird mit 0 abgeschlossen. |
+| `model_response_unknown` | Versand oder Antwort unklar. Unter Modellkosten zuerst anhand eines Belegs abrechnen; erst dann die fehlende Antwort ausdrücklich verwerfen und bei Bedarf erneut starten. |
 | `budget_period_inactive` | Budgetzeitraum korrigieren; er muss den aktuellen Zeitpunkt einschließen. |
 
 Bei Katalogfehlern protokolliert die Zentrale die feste Fehlerklasse: `http`
@@ -66,3 +78,18 @@ sichtbarer Hinweis im Assistenten.
 
 [Updateanleitung und Releaseumfang](../../docs/releases/v0.4.2.md) ·
 [Einrichtung](../README.md) · [Prüfnachweise](verification.md)
+
+## Laufdiagnose und Wiederaufnahme
+
+Die Zentrale protokolliert fehlgeschlagene Modellaufrufe mit sicherer Modell-ID,
+Fehlerphase und bei HTTP-Antworten dem Status. Providerantworten, Request-Inhalte
+und Schlüssel bleiben verborgen. Ablehnungen vor dem Versand sowie definitive
+HTTP-Clientfehler werden mit 0 abgerechnet. Transportabbrüche, Serverfehler und
+verlorene Streams bleiben bis zur belegten Klärung unbekannt.
+
+Eine Kostenklärung allein rekonstruiert keine Antwort. Nach erfolgreicher Klärung
+bietet **Modellkosten** das bestätigte Verwerfen der fehlenden Antwort an. Dies
+startet keinen Provideraufruf. Den Auftrag anschließend ausdrücklich erneut
+ausführen; dafür müssen Plan, Mandat und Budget weiterhin gültig sein. Ein neuer
+Aufruf kann neue Kosten verursachen. Die alte Anforderung und der Beleg bleiben
+im Audit erhalten.

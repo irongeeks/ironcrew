@@ -35,6 +35,7 @@ export type CatalogDiagnostics = {
   received: number;
   accepted: number;
   rejected: number;
+  duplicates?: number;
   // Do not retain provider payloads or arbitrary validation error messages.
   issues: { index: number; fields: string[] }[];
 };
@@ -158,6 +159,11 @@ export function route(
     ? usable.find((c) => c.model.id === override)
     : usable.sort((a, b) => b.score - a.score || a.model.id.localeCompare(b.model.id))[0];
   return { selected, candidates };
+}
+/** An HTTP rejection before generation; never inferred from a transport exception. */
+export class ModelRequestRejected extends DomainError {}
+function safeModelId(id: string, secret?: string) {
+  return /^[A-Za-z0-9_./:-]{1,300}$/.test(id) && !(secret && id.includes(secret)) ? id : "invalid_model_id";
 }
 export class OpenRouterClient implements ModelClient {
   baseUrl: string;
@@ -332,12 +338,28 @@ export class OpenRouterClient implements ModelClient {
     request: ModelRequest,
     options?: { beforeDispatch?: () => Promise<void> },
   ): Promise<ModelResponse> {
-    let secret: string;
+    let outgoing: Request;
+    let body: string;
+    let secret = "";
     try {
       secret = await this.secret();
+      body = JSON.stringify({ ...request, stream: true, stream_options: { include_usage: true } });
+      outgoing = new Request(this.baseUrl + "/chat/completions", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + secret, "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(this.timeoutMs),
+        redirect: "error",
+      });
       // Final authorization follows queue waiting AND potentially remote credential resolution.
       await options?.beforeDispatch?.();
+      outgoing.signal.throwIfAborted();
     } catch (error) {
+      console.warn("IronCrew model call failed", {
+        phase: "preparation",
+        code: "model_dispatch_denied",
+        modelId: safeModelId(request.model, secret),
+      });
       throw new DomainError(
         "model_dispatch_denied",
         error instanceof DomainError ? error.code : "dispatch_preparation_failed",
@@ -345,24 +367,36 @@ export class OpenRouterClient implements ModelClient {
     }
     let r: Response;
     try {
-      r = await fetch(this.baseUrl + "/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + secret,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...request,
-          stream: true,
-          stream_options: { include_usage: true },
-        }),
-        signal: AbortSignal.timeout(this.timeoutMs),
+      r = await fetch(outgoing.url, {
+        method: outgoing.method,
+        headers: { Authorization: "Bearer " + secret, "Content-Type": "application/json" },
+        body,
+        signal: outgoing.signal,
         redirect: "error",
       });
     } catch {
+      console.warn("IronCrew model call failed", { phase: "transport", modelId: safeModelId(request.model, secret) });
       throw new DomainError("model_interrupted");
     }
-    if (!r.ok || !r.body) throw new DomainError(r.status === 429 ? "model_rate_limited" : "model_unavailable");
+    if (!r.ok || !r.body) {
+      const code =
+        r.status === 429
+          ? "model_rate_limited"
+          : r.status === 404 && request.model.endsWith(":free")
+            ? "model_free_endpoint_unavailable"
+            : "model_unavailable";
+      console.warn("IronCrew model call failed", {
+        phase: "http",
+        status: r.status,
+        modelId: safeModelId(request.model, secret),
+        ...(code === "model_free_endpoint_unavailable"
+          ? { hint: "Select openrouter/free explicitly; no automatic fallback." }
+          : {}),
+      });
+      await r.body?.cancel().catch(() => undefined);
+      if ([400, 401, 402, 403, 404, 422, 429].includes(r.status)) throw new ModelRequestRejected(code);
+      throw new DomainError(code);
+    }
     if (!r.headers.get("content-type")?.includes("text/event-stream")) {
       const data = z
         .object({

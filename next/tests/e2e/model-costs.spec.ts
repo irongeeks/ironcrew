@@ -57,7 +57,7 @@ test("explicit mobile model cost UI fixture stores evidence and keeps missing re
   const writes = await fixture(page, true);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/settings/budget");
-  await expect(page.getByText("Modellantwort nicht gesichert – Fortsetzung bleibt gesperrt")).toBeVisible();
+  await expect(page.getByText("Modellantwort nicht gespeichert")).toBeVisible();
   await expect(page.getByRole("button", { name: "Gespeicherte Generation beim Anbieter abgleichen" })).toHaveCount(0);
   await page.getByText("Mit Anbieterbeleg manuell zuordnen", { exact: true }).click();
   await page.getByLabel("Tatsächlich abgerechnete USD", { exact: true }).fill("0,000001");
@@ -82,6 +82,43 @@ test("explicit mobile model cost UI fixture stores evidence and keeps missing re
       evidence: { contentBase64: Buffer.from("Explicit local billing fixture").toString("base64") },
     },
   });
-  await expect(page.getByText("Modellantwort nicht gesichert – Fortsetzung bleibt gesperrt")).toBeVisible();
+  await expect(page.getByText("Modellantwort nicht gespeichert")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("missing response discard requires explicit acknowledgement and binds the saved run revision", async ({
+  page,
+}) => {
+  const writes = await fixture(page, true);
+  await page.route("**/api/v1/model-costs", (route) =>
+    route.fulfill({
+      json: {
+        turns: [
+          {
+            id,
+            orderId: id,
+            modelId: "fixture/model",
+            reservationState: "settled",
+            responseAvailable: false,
+            discardAvailable: true,
+            runRevision: 8,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto("/settings/budget");
+  const button = page.getByRole("button", { name: "Fehlende Modellantwort ausdrücklich verwerfen" });
+  await button.click();
+  expect(writes).toEqual([]);
+  await page
+    .getByLabel("Die fehlende Antwort verwerfen. Ein späterer Neustart kann erneut Modellkosten verursachen.")
+    .check();
+  await button.click();
+  await expect(
+    page.getByText(
+      "Fehlende Antwort ausdrücklich verworfen. Den Auftrag bei Bedarf erneut starten; dabei können neue Modellkosten entstehen.",
+    ),
+  ).toBeVisible();
+  expect(writes).toEqual([{ path: `/orders/${id}/model-response/discard`, body: { turnId: id }, revision: "8" }]);
 });

@@ -8,6 +8,29 @@ export default function ModelCosts({ locale }: { locale: Locale }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
+  async function discard(turn: Row) {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await request(`/orders/${str(turn, "orderId")}/model-response/discard`, {
+        method: "POST",
+        revision: turn.runRevision,
+        body: { turnId: turn.id },
+      });
+      costs.reload();
+      setMessage(
+        t(
+          "Fehlende Antwort ausdrücklich verworfen. Den Auftrag bei Bedarf erneut starten; dabei können neue Modellkosten entstehen.",
+          "Missing response explicitly discarded. Start the order again if needed; this may incur new model costs.",
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function reconcile(turn: Row, mode: "provider" | "manual", event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const form = event ? new FormData(event.currentTarget) : undefined;
@@ -76,11 +99,27 @@ export default function ModelCosts({ locale }: { locale: Locale }) {
             ·{" "}
             {turn.responseAvailable
               ? t("Modellantwort gespeichert", "Model response stored")
-              : t(
-                  "Modellantwort nicht gesichert – Fortsetzung bleibt gesperrt",
-                  "Model response missing — continuation remains blocked",
-                )}
+              : t("Modellantwort nicht gespeichert", "Model response not stored")}
           </p>
+          {turn.discardAvailable === true && typeof turn.runRevision === "number" && (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void discard(turn);
+              }}
+            >
+              <label className={styles.check}>
+                <input type="checkbox" required />
+                {t(
+                  "Die fehlende Antwort verwerfen. Ein späterer Neustart kann erneut Modellkosten verursachen.",
+                  "Discard the missing response. A later restart may incur new model costs.",
+                )}
+              </label>
+              <button disabled={busy}>
+                {t("Fehlende Modellantwort ausdrücklich verwerfen", "Explicitly discard missing model response")}
+              </button>
+            </form>
+          )}
           {Boolean(turn.evidenceSha256) && <p className={styles.muted}>SHA-256: {str(turn, "evidenceSha256")}</p>}
           {["held", "unreconciled"].includes(str(turn, "reservationState")) && (
             <>

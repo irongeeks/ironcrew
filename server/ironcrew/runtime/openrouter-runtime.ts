@@ -380,7 +380,13 @@ export class OpenRouterRuntime implements AgentRuntime {
           yield emit("run.waiting", { reason: "rate_limited" });
           return;
         }
-        if (!response.ok) throw new Error(`OpenRouter antwortete mit HTTP ${response.status}.`);
+        if (!response.ok) {
+          const hint =
+            response.status === 404 && model.endsWith(":free")
+              ? " Dieses kostenlose Modell hat derzeit keinen erreichbaren Endpunkt. Wähle alternativ openrouter/free in der Modellkonfiguration und starte den Run erneut; die Vendor-Policy gilt weiterhin."
+              : "";
+          throw new Error(`OpenRouter antwortete mit HTTP ${response.status}.${hint}`);
+        }
         const streaming = response.headers?.get("content-type")?.includes("text/event-stream") ?? false;
         if (streaming && !response.body) throw new Error("OpenRouter lieferte keinen Stream.");
         const frames = streaming

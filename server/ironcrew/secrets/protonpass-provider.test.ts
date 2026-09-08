@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ProtonPassSecretProvider, extractFieldValue } from "./protonpass-provider.ts";
 import { SecretResolutionError } from "./secret-provider.ts";
-import type { CliRunner, CliRunResult } from "../shared/cli-runner.ts";
+import { spawnCliRunner, type CliRunner, type CliRunResult } from "../shared/cli-runner.ts";
 
 function fakeRunner(byArgv: (argv: readonly string[]) => CliRunResult): CliRunner {
   return async (argv) => byArgv(argv);
@@ -66,15 +66,31 @@ describe("ProtonPassSecretProvider", () => {
       "pass-cli",
       "item",
       "view",
-      "--share-id",
-      "share1",
-      "--item-id",
-      "item1",
-      "--field",
-      "password",
-      "--output",
-      "json",
+      "--share-id=share1",
+      "--item-id=item1",
+      "--field=password",
+      "--output=json",
     ]);
+  });
+
+  it("preserves leading hyphens and literal characters through a real CLI parser", async () => {
+    const shareId = "-share== ü $(literal)";
+    const itemId = "-PNhb9yOmaOu== & item";
+    const field = "-field=value";
+    const fixture = `
+      const { parseArgs } = require('node:util');
+      const { values } = parseArgs({ args: process.argv.slice(1), strict: true,
+        options: { 'share-id': { type: 'string' }, 'item-id': { type: 'string' },
+          field: { type: 'string' }, output: { type: 'string' } } });
+      process.stdout.write(JSON.stringify({ value: JSON.stringify(values) }));
+    `;
+    const provider = new ProtonPassSecretProvider({
+      run: (argv, options) => spawnCliRunner([process.execPath, "-e", fixture, "--", ...argv.slice(3)], options),
+    });
+    const result = await provider.resolve({ provider: "protonpass", itemRef: `${shareId}:${itemId}`, field });
+    expect(JSON.parse(result)).toEqual({ "share-id": shareId, "item-id": itemId, field, output: "json" });
+    const oldForm = await spawnCliRunner([process.execPath, "-e", fixture, "--", "--item-id", itemId]);
+    expect(oldForm.code).not.toBe(0);
   });
 
   it("passes a non-default field through", async () => {
@@ -87,8 +103,7 @@ describe("ProtonPassSecretProvider", () => {
     });
     const value = await provider.resolve({ provider: "protonpass", itemRef: "s:i", field: "totp" });
     expect(value).toBe("123456");
-    expect(calls[0]).toContain("--field");
-    expect(calls[0]).toContain("totp");
+    expect(calls[0]).toContain("--field=totp");
   });
 
   it("throws SecretResolutionError when pass-cli exits non-zero", async () => {

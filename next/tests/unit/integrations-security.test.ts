@@ -177,6 +177,23 @@ describe("integration security boundaries", () => {
       nested: ["[REDACTED]"],
     });
   });
+  it("preserves nested mail dates through redaction and persisted JSON evidence", () => {
+    const sent = new Date("2026-09-08T07:00:00.000Z");
+    const received = new Date("2026-09-08T07:01:12.000Z");
+    const result = redact(
+      { messages: [{ envelope: { date: sent, subject: "secret subject" }, receivedAt: received }] },
+      ["secret"],
+    );
+    expect(result.messages[0]!.envelope.date).toBeInstanceOf(Date);
+    expect(result.messages[0]!.envelope.date).not.toBe(sent);
+    expect(JSON.parse(JSON.stringify(result))).toEqual({
+      messages: [
+        { envelope: { date: sent.toISOString(), subject: "[REDACTED] subject" }, receivedAt: received.toISOString() },
+      ],
+    });
+    expect(sent.toISOString()).toBe("2026-09-08T07:00:00.000Z");
+    expect(JSON.stringify(redact({ date: new Date(NaN) }, []))).toBe('{"date":null}');
+  });
   it("validates Telegram secret before parsing provider event", () => {
     const body = Buffer.from(
       JSON.stringify({
