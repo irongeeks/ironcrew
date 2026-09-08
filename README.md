@@ -1,15 +1,15 @@
 # IronCrew
 
-## Version 0.4.4 — Webstart und Modellzugang
+## Version 0.4.5 — Proton Pass und portable Testpfade
 
-IronCrew 0.4.4 korrigiert die vier Nachtest-Issues #49–52: Webstart aus
-versteckten Installationspfaden, kostenlose Live-Prüfungen, begrenzte
-Antwortlängen und kompatible Proton-Pass-Referenzen.
+IronCrew 0.4.5 korrigiert die Nachtest-Issues #54–55: Der mitgelieferte
+Legacy-Provider liest Proton-Pass-Felder als Klartext; die Testfixtures des
+neuen Kerns verwenden keine fest eingebauten macOS-Temporärpfade mehr.
 Der neue Produktkern läuft im eigenständigen Workspace [`next/`](next/README.md).
 [Modellzugang prüfen](next/docs/model-access-troubleshooting.md) ·
-[Update von 0.4.0–0.4.3](docs/releases/v0.4.4.md#update-von-04x).
+[Update von 0.4.0–0.4.4](docs/releases/v0.4.5.md#update-von-04x).
 
-Der [Release v0.4.4](https://github.com/irongeeks/ironcrew/releases/tag/v0.4.4)
+Der [Release v0.4.5](https://github.com/irongeeks/ironcrew/releases/tag/v0.4.5)
 enthält den vollständigen Git-Quellstand als Archiv, ein Release-Manifest und
 `SHA256SUMS`. Der Einstieg für diese Version ist **`next/`**. Voraussetzung sind
 **Node.js 26.4.0** und **pnpm 10.30.1**. Nach dem Entpacken im Repositoryverzeichnis:
@@ -22,12 +22,12 @@ npx --yes pnpm@10.30.1 start
 ```
 
 Die Oberfläche öffnet sich unter `http://127.0.0.1:8790`; das lokale Startprotokoll
-liefert das einmalige Setup-Token. 0.4.4 verwendet eine eigene Datenbank und
+liefert das einmalige Setup-Token. 0.4.5 verwendet eine eigene Datenbank und
 übernimmt keine Daten aus 0.3.x. Es wird kein neues OCI-Image und kein produktiv
 signiertes natives Installationspaket mit diesem Quellrelease veröffentlicht.
 
-[Änderungen und Releaseumfang](docs/releases/v0.4.4.md) ·
-[Einrichtung und Bedienung von 0.4.4](next/README.md) ·
+[Änderungen und Releaseumfang](docs/releases/v0.4.5.md) ·
+[Einrichtung und Bedienung von 0.4.5](next/README.md) ·
 [Prüfnachweise](next/docs/verification.md) ·
 [Offene externe Abnahmen](next/docs/release-readiness.md)
 
@@ -36,7 +36,7 @@ signiertes natives Installationspaket mit diesem Quellrelease veröffentlicht.
 Die folgenden Anleitungen, Screenshots und Funktionsbeschreibungen beziehen sich
 auf den bisherigen Produktkern im Repository-Root. Seine `package.json` bleibt
 bei 0.3.1; die folgenden Docker- und Updateanleitungen gehören zu dieser älteren
-Produktlinie. Für 0.4.4 gilt der Einstieg in `next/` oben.
+Produktlinie. Für 0.4.5 gilt der Einstieg in `next/` oben.
 
 **Deine virtuelle AI-Firma. Ein Ansprechpartner, eine Crew und ein gemeinsamer Arbeitsstand.**
 

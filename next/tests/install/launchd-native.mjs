@@ -1,3 +1,4 @@
+import { testNodeRuntime } from "../fixtures/node-runtime.ts";
 /** Opt-in real launchd user-domain lifecycle; never touches system daemons or existing labels. */
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -21,7 +22,7 @@ const programDirectory = path.join(directory, "app"),
 await mkdir(path.join(programDirectory, "runtime"), { recursive: true });
 await mkdir(path.join(programDirectory, "dist/apps/control"), { recursive: true });
 await mkdir(dataDirectory);
-const runtime = process.env.IRONCREW_TEST_NODE ?? "/tmp/ironcrew-node26/node-v26.4.0-darwin-arm64/bin/node";
+const runtime = testNodeRuntime();
 await copyFile(runtime, path.join(programDirectory, "runtime/node"));
 await cp(path.resolve("dist/packages/operations"), path.join(programDirectory, "dist/packages/operations"), {
   recursive: true,

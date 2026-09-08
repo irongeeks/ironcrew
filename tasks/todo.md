@@ -37,3 +37,12 @@ Die Befunde umfassen die Anwendung unter next/ und den mitgelieferten Hauptserve
 - [ ] Regressionen, Typprüfung und Build prüfen; Commit, PR, Merge und Release verifizieren.
 
 Lokale Prüfung: 158 Tests/20 Dateien, 11 Release-Verträge, fokussierte CLI-/Schema-Regressionen, Typecheck, Build, Lint, Format und OpenAPI erfolgreich. CI/Release werden nach dem Push am exakten Commit geprüft.
+
+# v0.4.5 – Nachtest zu 0.4.4
+
+- [x] #54 reale Plaintext-Feldausgabe des Proton-CLI im Legacy-Provider verarbeiten und testen.
+- [x] #55 macOS-Test-Runtime ohne hartcodierten temporären Pfad auswählen und testen.
+- [x] Aktive Version, README, Docs und OpenAPI aktualisieren.
+- [ ] Regressionen und Build prüfen; Commit, Push, Merge und Release verifizieren.
+
+Lokale Prüfung: 49 Legacy-Secret-Tests, 157 Tests des neuen Kerns, 11 Release-Verträge, Root-/Next-Typecheck, Build, Lint und Format erfolgreich. Positive Distribution lokal an fehlender originaler Node-Lizenz gestoppt; vollständige CI prüft mit offizieller Runtime. Veröffentlichung folgt am geprüften Main-Commit.

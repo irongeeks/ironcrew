@@ -1,8 +1,8 @@
 # IronCrew — neuer Produktkern
 
-**Update von 0.4.0–0.4.3:** [Update-Schritte und Releaseumfang](../docs/releases/v0.4.4.md#update-von-04x) · [Modellzugang und Fehlerdiagnose](docs/model-access-troubleshooting.md).
+**Update von 0.4.0–0.4.4:** [Update-Schritte und Releaseumfang](../docs/releases/v0.4.5.md#update-von-04x) · [Modellzugang und Fehlerdiagnose](docs/model-access-troubleshooting.md).
 
-IronCrew **0.4.4** ist das Wartungsrelease des eigenständigen Neubaus nach dem Entwicklungspaket vom 7. September 2026 und wird als [Quellrelease](../docs/releases/v0.4.4.md) veröffentlicht. Dieser Workspace verwendet eine eigene SQLite-Datenbank und eigene Modell-/Werkzeugausführung; der alte Root bleibt als Legacy-Referenz erhalten. Es gibt keinen Altdatenimport. Der Quellrelease enthält kein neues OCI-Image und kein produktiv signiertes natives Installationspaket. Den detaillierten Abnahmezustand führen `../docs/progress.md` und [Releasebereitschaft](docs/release-readiness.md).
+IronCrew **0.4.5** ist das Wartungsrelease des eigenständigen Neubaus nach dem Entwicklungspaket vom 7. September 2026 und wird als [Quellrelease](../docs/releases/v0.4.5.md) veröffentlicht. Dieser Workspace verwendet eine eigene SQLite-Datenbank und eigene Modell-/Werkzeugausführung; der alte Root bleibt als Legacy-Referenz erhalten. Es gibt keinen Altdatenimport. Der Quellrelease enthält kein neues OCI-Image und kein produktiv signiertes natives Installationspaket. Den detaillierten Abnahmezustand führen `../docs/progress.md` und [Releasebereitschaft](docs/release-readiness.md).
 
 ## Lokal starten
 
@@ -23,10 +23,11 @@ Konfigurierbare Betriebswerte: `IRONCREW_DATA_DIR`, `IRONCREW_HOST`, `IRONCREW_P
 
 ## Eigene Laufzeit
 
-Neu in 0.4.4: Der Webstart funktioniert auch unter versteckten Installationsordnern.
-Die Live-Prüfung akzeptiert ein Kostenlimit von null bei kostenfreien Modellen und
-verwendet 512 Ausgabetokens für Anfrage und Kostenschätzung. Secretreferenzen nehmen
-`protonpass` als Eingabealias für das kanonische `proton-pass` an.
+Neu in 0.4.5: Die Testfixtures wählen Node über `IRONCREW_TEST_NODE` oder den
+laufenden Node-Prozess; fest eingebaute macOS-Temporärpfade entfallen. Der
+mitgelieferte Legacy-Provider liest Proton-Pass-Felder korrekt als Klartext.
+Die Live-Prüfung unterstützt weiterhin kostenfreie Budgets und 512 Ausgabetokens;
+`protonpass` bleibt ein Eingabealias für das kanonische `proton-pass`.
 
 Modellkonfiguration in Einstellungen → Modelle: absoluter Pfad zu geprüftem **pass-cli ab Version 2.3.2** (stabile Version; die offizielle Ausgabe `Proton Pass CLI 2.3.2 (ac04625)` wird erkannt), optional eigener Sessionpfad, Proton-SecretRef mit Tresor-/Eintrags-/Feld-ID und gemeinsames Budget. Zugangsdaten werden im Proton-Broker aufgelöst, nicht als normale Konfigurationswerte gespeichert. Liveausführung ist standardmäßig ausgeschaltet und muss ausdrücklich aktiviert werden. Vollständiger OpenRouter-Katalog wird ohne Provider-Whitelist geladen und regelmäßig im 15-Minuten-Intervall erneut geprüft. Fehlgeschlagene Aktualisierung bleibt als veralteter Stand sichtbar.
 
@@ -57,7 +58,9 @@ pnpm openapi:check
 
 `test:e2e` benötigt vorher `build` und Chromium (`pnpm exec playwright install chromium`). Es verwendet eine temporäre Testfirma und lässt produktive Daten unangetastet. UI-Vertragsfixtures und die Browserabläufe gegen echte lokale Server/SQLite sind getrennt bezeichnet. Die [Anforderungszuordnung](docs/workflow-acceptance.md) ordnet Oberfläche und Fachabläufe den einzelnen Belegen zu. `test:recovery` benötigt für die Verschlüsselungstests echte geprüfte age-1.3.2-Binaries; `IRONCREW_TEST_AGE` und `IRONCREW_TEST_AGE_KEYGEN` setzen. Ohne diese Werkzeuge werden die betreffenden Tests ausdrücklich übersprungen und das Backup-Gate gilt auf diesem System als offen.
 
-Für die vollständigen Update-/Distributionstests ist zusätzlich eine eigenständige Node-26.4.0-Runtime erforderlich (`IRONCREW_TEST_NODE`). Eine Homebrew-Node-Datei allein ist wegen ihrer externen Bibliotheken kein portables Paket. Mit allen drei expliziten Werkzeugpfaden prüft `python3 scripts/verify-local.py --require-tools` die Voraussetzungen vorab. Die [CI-Anleitung](docs/ci-gates.md) beschreibt den hashgeprüften Werkzeugdownload und die strikten Matrixgates.
+Ohne `IRONCREW_TEST_NODE` verwenden die Testfixtures `process.execPath`. Ein
+ungültiger expliziter Pfad führt zu einem Fehler und keinem stillen Rückfall.
+Für die vollständigen Update-/Distributionstests ist zusätzlich eine eigenständige Node-26.4.0-Runtime erforderlich (`IRONCREW_TEST_NODE`). Die ursprüngliche `LICENSE` muss neben dem Node-Programm oder im übergeordneten Verzeichnis liegen. Eine Homebrew-Node-Datei allein ist wegen ihrer externen Bibliotheken kein portables Paket. Mit allen drei expliziten Werkzeugpfaden prüft `python3 scripts/verify-local.py --require-tools` die Voraussetzungen vorab. Die [CI-Anleitung](docs/ci-gates.md) beschreibt den hashgeprüften Werkzeugdownload und die strikten Matrixgates.
 
 Live-Modelltests sind getrennt und kostenbegrenzt:
 

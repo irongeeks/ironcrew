@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ProtonPassSecretProvider, extractFieldValue } from "./protonpass-provider.ts";
+import { ProtonPassSecretProvider } from "./protonpass-provider.ts";
 import { SecretResolutionError } from "./secret-provider.ts";
 import { spawnCliRunner, type CliRunner, type CliRunResult } from "../shared/cli-runner.ts";
 
@@ -9,33 +9,6 @@ function fakeRunner(byArgv: (argv: readonly string[]) => CliRunResult): CliRunne
 
 const ok = (stdout = "", stderr = ""): CliRunResult => ({ stdout, stderr, code: 0 });
 const fail = (stderr = "boom"): CliRunResult => ({ stdout: "", stderr, code: 1 });
-
-describe("extractFieldValue", () => {
-  it("returns a plain string result as-is", () => {
-    expect(extractFieldValue("hunter2", "password")).toBe("hunter2");
-  });
-
-  it("reads a top-level field matching the requested name", () => {
-    expect(extractFieldValue({ password: "hunter2" }, "password")).toBe("hunter2");
-  });
-
-  it("reads a field nested under 'fields'", () => {
-    expect(extractFieldValue({ fields: { username: "bob" } }, "username")).toBe("bob");
-  });
-
-  it("falls back to 'value' for the password field", () => {
-    expect(extractFieldValue({ value: "hunter2" }, "password")).toBe("hunter2");
-  });
-
-  it("returns null when nothing matches", () => {
-    expect(extractFieldValue({ other: "x", another: "y" }, "password")).toBeNull();
-  });
-
-  it("returns null for non-object, non-string input", () => {
-    expect(extractFieldValue(null, "password")).toBeNull();
-    expect(extractFieldValue(42, "password")).toBeNull();
-  });
-});
 
 describe("ProtonPassSecretProvider", () => {
   it("rejects a ref for a different provider", async () => {
@@ -52,25 +25,17 @@ describe("ProtonPassSecretProvider", () => {
     );
   });
 
-  it("resolves via --share-id/--item-id/--field with json output", async () => {
+  it("resolves via --share-id/--item-id/--field with plaintext output", async () => {
     const calls: string[][] = [];
     const provider = new ProtonPassSecretProvider({
       run: fakeRunner((argv) => {
         calls.push([...argv]);
-        return ok(JSON.stringify({ password: "s3cr3t" }));
+        return ok("s3cr3t\n");
       }),
     });
     const value = await provider.resolve({ provider: "protonpass", itemRef: "share1:item1" });
     expect(value).toBe("s3cr3t");
-    expect(calls[0]).toEqual([
-      "pass-cli",
-      "item",
-      "view",
-      "--share-id=share1",
-      "--item-id=item1",
-      "--field=password",
-      "--output=json",
-    ]);
+    expect(calls[0]).toEqual(["pass-cli", "item", "view", "--share-id=share1", "--item-id=item1", "--field=password"]);
   });
 
   it("preserves leading hyphens and literal characters through a real CLI parser", async () => {
@@ -81,14 +46,14 @@ describe("ProtonPassSecretProvider", () => {
       const { parseArgs } = require('node:util');
       const { values } = parseArgs({ args: process.argv.slice(1), strict: true,
         options: { 'share-id': { type: 'string' }, 'item-id': { type: 'string' },
-          field: { type: 'string' }, output: { type: 'string' } } });
-      process.stdout.write(JSON.stringify({ value: JSON.stringify(values) }));
+          field: { type: 'string' } } });
+      process.stdout.write(JSON.stringify(values));
     `;
     const provider = new ProtonPassSecretProvider({
       run: (argv, options) => spawnCliRunner([process.execPath, "-e", fixture, "--", ...argv.slice(3)], options),
     });
     const result = await provider.resolve({ provider: "protonpass", itemRef: `${shareId}:${itemId}`, field });
-    expect(JSON.parse(result)).toEqual({ "share-id": shareId, "item-id": itemId, field, output: "json" });
+    expect(JSON.parse(result)).toEqual({ "share-id": shareId, "item-id": itemId, field });
     const oldForm = await spawnCliRunner([process.execPath, "-e", fixture, "--", "--item-id", itemId]);
     expect(oldForm.code).not.toBe(0);
   });
@@ -98,7 +63,7 @@ describe("ProtonPassSecretProvider", () => {
     const provider = new ProtonPassSecretProvider({
       run: fakeRunner((argv) => {
         calls.push([...argv]);
-        return ok(JSON.stringify({ fields: { totp: "123456" } }));
+        return ok("123456\n");
       }),
     });
     const value = await provider.resolve({ provider: "protonpass", itemRef: "s:i", field: "totp" });
@@ -106,21 +71,38 @@ describe("ProtonPassSecretProvider", () => {
     expect(calls[0]).toContain("--field=totp");
   });
 
-  it("throws SecretResolutionError when pass-cli exits non-zero", async () => {
-    const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => fail("item not found")) });
-    await expect(provider.resolve({ provider: "protonpass", itemRef: "s:i" })).rejects.toThrow(
-      /could not resolve item.*item not found/,
-    );
+  it.each([
+    "sk-or-v1-fixture",
+    '"quoted"',
+    '{"password":"literal"}',
+    "  padded secret  ",
+    "line one\nline two",
+    "secret\n",
+  ])("preserves the literal secret value %j and removes only one CLI newline", async (secret) => {
+    for (const ending of ["\n", "\r\n"]) {
+      const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => ok(secret + ending)) });
+      await expect(provider.resolve({ provider: "protonpass", itemRef: "s:i" })).resolves.toBe(secret);
+    }
   });
 
-  it("throws when the output is not valid JSON", async () => {
-    const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => ok("not json")) });
-    await expect(provider.resolve({ provider: "protonpass", itemRef: "s:i" })).rejects.toThrow(/could not parse/);
-  });
-
-  it("throws when the requested field is absent from the item", async () => {
-    const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => ok(JSON.stringify({ other: "x" }))) });
+  it.each(["", "\n", "\r\n"])("rejects an empty field %j", async (output) => {
+    const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => ok(output)) });
     await expect(provider.resolve({ provider: "protonpass", itemRef: "s:i" })).rejects.toThrow(/has no value/);
+  });
+
+  it("accepts a field without a trailing newline", async () => {
+    const provider = new ProtonPassSecretProvider({ run: fakeRunner(() => ok("literal secret")) });
+    await expect(provider.resolve({ provider: "protonpass", itemRef: "s:i" })).resolves.toBe("literal secret");
+  });
+
+  it("rejects failed CLI output without exposing stdout or stderr", async () => {
+    const provider = new ProtonPassSecretProvider({
+      run: fakeRunner(() => ({ code: 1, stdout: "private stdout", stderr: "private stderr" })),
+    });
+    const error = await provider.resolve({ provider: "protonpass", itemRef: "s:i" }).catch((error) => error);
+    expect(error).toBeInstanceOf(SecretResolutionError);
+    expect(error.message).toMatch(/could not resolve/);
+    expect(error.message).not.toMatch(/private stdout|private stderr/);
   });
 
   describe("testConnection", () => {

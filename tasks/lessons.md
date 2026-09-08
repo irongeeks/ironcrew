@@ -18,3 +18,8 @@
 - Installationspfade mit versteckten Elternverzeichnissen in HTTP-Regressionen prüfen; öffentliche Startdateien relativ zu einem festen Web-Root ausliefern, ohne versteckte Dateien allgemein freizugeben.
 - Live-Nachweise müssen Nullbudgets für kostenlose Modelle zulassen und das tatsächliche Antwortlimit in der Reservierung berücksichtigen. Reine Reasoning-Ausgabe ist keine finale Antwort.
 - Historische externe Schreibweisen an Eingabegrenzen normalisieren und kanonische Speicherung sowie Ein-/Ausgabe-Schemas gemeinsam prüfen.
+
+# Präventionsregeln aus dem Nachtest zu 0.4.4
+
+- CLI-Fakes müssen die reale Ausgabeform des gewählten Unterbefehls abbilden. Bei `pass-cli --field` Klartext einschließlich JSON-artiger Secrets und bedeutungstragender Leerzeichen testen.
+- Test-Runtimes nicht an einmalige temporäre Installationspfade binden. Explizite Runtime-Pfade prüfen; fehlende Konfiguration und ungeeignete portable Binaries dürfen nicht als bestandene oder still übersprungene Tests erscheinen.

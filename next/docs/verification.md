@@ -1,5 +1,33 @@
 # Geprüfter lokaler Entwicklungsstand
 
+## Wartungsrelease 0.4.5
+
+Die [Issues #54–55](../../docs/releases/v0.4.5.md) betreffen den mitgelieferten
+Legacy-Proton-Pass-Provider und die Node-Auswahl in Testfixtures des neuen Kerns.
+Der Provider liest Felder als Klartext, bewahrt Whitespaces und JSON-artige
+Secretwerte und entfernt nur einen abschließenden CLI-Zeilenumbruch. Fehler
+enthalten keine CLI-Ausgaben. Die Fixtures verwenden `IRONCREW_TEST_NODE` oder
+`process.execPath` statt eines fest eingebauten macOS-Temporärpfads.
+
+Der Proton-Provider bestand 19 gezielte Regressionen mit strikter Argumentprüfung
+und echtem Unterprozess. Zusammen mit weiteren Secret-Providern bestanden
+49 Tests in drei Dateien und der Root-Typecheck. Weitere Regressionen prüfen
+explizite und standardmäßige Node-Auswahl sowie ungültige Overrides.
+Das ist kein Live-Nachweis mit einem privaten Proton-Pass-Konto. Für
+Distributionstests bleibt eine eigenständige Node-Runtime erforderlich;
+eine Homebrew-Binärdatei wird durch diese Auswahl nicht automatisch portabel.
+
+Die ergänzende lokale Suite bestand 157 Unit-, Vertrags- und API-Tests in
+20 Dateien; der Build bestand. Der positive Distributionstest stoppte an der
+bestehenden Lizenzprüfung, weil die lokale npm-Node-Runtime keine ursprüngliche
+`LICENSE` mitlieferte. Der negative Distributionstest bestand. Dies ersetzt keinen
+nativen macOS-Nachweis; die vollständigen Plattformprüfungen erfolgen in CI.
+
+Die Veröffentlichung verlangt sämtliche fünf Workflows am selben Main-Commit.
+[Release und Manifest](https://github.com/irongeeks/ironcrew/releases/tag/v0.4.5)
+binden die endgültigen CI-Nachweise an die ausgelieferten Quellen. Die folgenden
+historischen Prüfungen behalten ihre ursprüngliche Versions- und Commitbindung.
+
 ## Wartungsrelease 0.4.4
 
 Die [Issues #49–52](../../docs/releases/v0.4.4.md) korrigieren den Webstart unter
