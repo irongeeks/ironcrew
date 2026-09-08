@@ -13,7 +13,7 @@ if (at < 0 || !args[at + 1]) {
     .object({
       name: z.string(),
       authorized: z.literal(true),
-      maxCostUsdMicros: z.string().regex(/^[1-9][0-9]*$/),
+      maxCostUsdMicros: z.string().regex(/^(0|[1-9][0-9]*)$/),
       proton: z.object({ executable: z.string(), sessionDirectory: z.string().optional() }),
       openrouter: z.object({ modelId: z.string(), secretRef: secretRefSchema }),
     })
@@ -38,7 +38,8 @@ if (at < 0 || !args[at + 1]) {
     model: model.id,
     messages: [{ role: "user" as const, content: "Reply with the word IronCrew." }],
     tools: [],
-    max_tokens: 16,
+    // Leave room for reasoning before final content; the full bound is included in the reservation below.
+    max_tokens: 512,
   };
   const reserved = estimate(model, request);
   if (BigInt(reserved) > BigInt(profile.maxCostUsdMicros))

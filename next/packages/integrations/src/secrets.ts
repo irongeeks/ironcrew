@@ -5,7 +5,12 @@ import { IntegrationError } from "./transport.ts";
 
 export const secretRefSchema = z
   .object({
-    provider: z.literal("proton-pass"),
+    // Accept the legacy spelling at input boundaries; persist and resolve only the canonical provider.
+    // The final literal also exposes the normalized output correctly in generated JSON Schema.
+    provider: z
+      .enum(["proton-pass", "protonpass"])
+      .transform(() => "proton-pass" as const)
+      .pipe(z.literal("proton-pass")),
     shareId: z.string().min(1).max(300),
     itemId: z.string().min(1).max(300),
     field: z.string().min(1).max(200),

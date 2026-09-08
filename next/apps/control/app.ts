@@ -1125,7 +1125,7 @@ export function createApp(options: Options) {
   );
   if (options.webDirectory) {
     app.use(express.static(options.webDirectory));
-    app.get("/{*path}", (_req, res) => res.sendFile(path.join(options.webDirectory!, "index.html")));
+    app.get("/{*path}", (_req, res) => res.sendFile("index.html", { root: options.webDirectory! }));
   }
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const code =

@@ -1,5 +1,33 @@
 # Geprüfter lokaler Entwicklungsstand
 
+## Wartungsrelease 0.4.4
+
+Die [Issues #49–52](../../docs/releases/v0.4.4.md) korrigieren den Webstart unter
+versteckten Installationspfaden, kostenlose Live-Prüfungen, deren Antwortlimit
+und die Eingabekompatibilität für Proton-Pass-Referenzen.
+
+Die lokale Live-Prüfung bestand 13 Regressionen mit kontrollierten Antworten
+sowie drei OpenRouter-Vertragstests. Ein Budget von null erlaubt nur eine
+kostenfreie Schätzung; fehlende Preise und zu hohe Schätzungen verhindern den
+Versand. Das Limit von 512 Ausgabetokens fließt in die Schätzung ein.
+Reasoning ohne endgültigen Antwortinhalt besteht die Prüfung weiterhin nicht.
+Diese Tests enthalten keine echten Provideraufrufe mit dem Betreiberkonto.
+
+Die Proton-Pass-Korrektur bestand 55 Tests in vier Dateien. Sie prüfen die
+Aliasannahme in verschachtelten Referenzen, die kanonische Konfigurationsdatei
+und API-Ausgabe sowie den Resolver-Aufruf und die echte CLI-Argumentübergabe.
+Strikte Feldprüfung und die Ablehnung unzulässiger Provider bleiben abgedeckt.
+
+Die ergänzende lokale Prüfung bestand 158 Unit-, Vertrags- und API-Tests in
+20 Dateien sowie elf Release-Vertragstests. Typecheck und Build bestanden.
+Die fokussierten Nachweise überschneiden sich teilweise mit dieser Testsuite;
+ihre Testzahlen werden nicht zu einer Gesamtzahl addiert.
+
+Die Veröffentlichung verlangt sämtliche fünf Workflows am selben Main-Commit.
+[Release und Manifest](https://github.com/irongeeks/ironcrew/releases/tag/v0.4.4)
+binden die endgültigen CI-Nachweise an die ausgelieferten Quellen. Die folgenden
+historischen Prüfungen behalten ihre ursprüngliche Versions- und Commitbindung.
+
 ## Wartungsrelease 0.4.3
 
 Die [Issues #36–47](../../docs/releases/v0.4.3.md) betreffen den neuen Kern und

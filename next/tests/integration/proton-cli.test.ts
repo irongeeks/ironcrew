@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { ProtonPassResolver } from "../../packages/integrations/src/secrets.ts";
+import { ProtonPassResolver, secretRefSchema } from "../../packages/integrations/src/secrets.ts";
 import { createFixtureLauncher } from "../fixtures/launcher.ts";
 
 let directory: string;
@@ -15,12 +15,14 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-it("passes hyphen-prefixed references literally through an executable with strict option parsing", async () => {
-  const recorded = path.join(directory, "received.json");
-  const executable = await createFixtureLauncher(
-    directory,
-    "pass-cli",
-    `import { parseArgs } from 'node:util';
+it.each(["proton-pass", "protonpass"])(
+  "passes %s references literally through an executable with strict option parsing",
+  async (provider) => {
+    const recorded = path.join(directory, "received.json");
+    const executable = await createFixtureLauncher(
+      directory,
+      "pass-cli",
+      `import { parseArgs } from 'node:util';
 import { writeFileSync } from 'node:fs';
 if (process.argv[2] === '--version') {
   console.log('Proton Pass CLI 2.3.2 (ac04625)');
@@ -34,28 +36,29 @@ if (process.argv[2] === '--version') {
   process.stdout.write('  fixture-secret = ü  \\n');
 }
 `,
-  );
-  const ref = {
-    provider: "proton-pass" as const,
-    shareId: "-abc-_123=",
-    itemId: "--item_456==",
-    field: '- API Schlüssel = "quoted"; $(echo injected) & %PATH%',
-  };
-  // Prove this executable catches the original regression, rather than accepting all argv.
-  await expect(promisify(execFile)(executable, ["item", "view", "--share-id", ref.shareId])).rejects.toMatchObject({
-    code: 1,
-  });
-  const session = path.join(directory, "session with spaces = ü");
-  const resolver = new ProtonPassResolver({
-    executable,
-    environment: { PROTON_PASS_SESSION_DIR: session, DO_NOT_FORWARD: "private", SYSTEMROOT: process.env.SYSTEMROOT },
-  });
-  await expect(resolver.resolve(ref, "argv regression")).resolves.toBe("  fixture-secret = ü  ");
-  expect(JSON.parse(await readFile(recorded, "utf8"))).toEqual({
-    values: { "share-id": ref.shareId, "item-id": ref.itemId, field: ref.field },
-    session,
-  });
-});
+    );
+    const ref = secretRefSchema.parse({
+      provider,
+      shareId: "-abc-_123=",
+      itemId: "--item_456==",
+      field: '- API Schlüssel = "quoted"; $(echo injected) & %PATH%',
+    });
+    // Prove this executable catches the original regression, rather than accepting all argv.
+    await expect(promisify(execFile)(executable, ["item", "view", "--share-id", ref.shareId])).rejects.toMatchObject({
+      code: 1,
+    });
+    const session = path.join(directory, "session with spaces = ü");
+    const resolver = new ProtonPassResolver({
+      executable,
+      environment: { PROTON_PASS_SESSION_DIR: session, DO_NOT_FORWARD: "private", SYSTEMROOT: process.env.SYSTEMROOT },
+    });
+    await expect(resolver.resolve(ref, "argv regression")).resolves.toBe("  fixture-secret = ü  ");
+    expect(JSON.parse(await readFile(recorded, "utf8"))).toEqual({
+      values: { "share-id": ref.shareId, "item-id": ref.itemId, field: ref.field },
+      session,
+    });
+  },
+);
 
 it("does not expose subprocess stdout, stderr or reference values on failure", async () => {
   const secret = "DO-NOT-EXPOSE-PROTON-SECRET";

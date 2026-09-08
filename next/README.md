@@ -1,8 +1,8 @@
 # IronCrew — neuer Produktkern
 
-**Update von 0.4.0–0.4.2:** [Update-Schritte und Releaseumfang](../docs/releases/v0.4.3.md#update-von-04x) · [Modellzugang und Fehlerdiagnose](docs/model-access-troubleshooting.md).
+**Update von 0.4.0–0.4.3:** [Update-Schritte und Releaseumfang](../docs/releases/v0.4.4.md#update-von-04x) · [Modellzugang und Fehlerdiagnose](docs/model-access-troubleshooting.md).
 
-IronCrew **0.4.3** ist das Wartungsrelease des eigenständigen Neubaus nach dem Entwicklungspaket vom 7. September 2026 und wird als [Quellrelease](../docs/releases/v0.4.3.md) veröffentlicht. Dieser Workspace verwendet eine eigene SQLite-Datenbank und eigene Modell-/Werkzeugausführung; der alte Root bleibt als Legacy-Referenz erhalten. Es gibt keinen Altdatenimport. Der Quellrelease enthält kein neues OCI-Image und kein produktiv signiertes natives Installationspaket. Den detaillierten Abnahmezustand führen `../docs/progress.md` und [Releasebereitschaft](docs/release-readiness.md).
+IronCrew **0.4.4** ist das Wartungsrelease des eigenständigen Neubaus nach dem Entwicklungspaket vom 7. September 2026 und wird als [Quellrelease](../docs/releases/v0.4.4.md) veröffentlicht. Dieser Workspace verwendet eine eigene SQLite-Datenbank und eigene Modell-/Werkzeugausführung; der alte Root bleibt als Legacy-Referenz erhalten. Es gibt keinen Altdatenimport. Der Quellrelease enthält kein neues OCI-Image und kein produktiv signiertes natives Installationspaket. Den detaillierten Abnahmezustand führen `../docs/progress.md` und [Releasebereitschaft](docs/release-readiness.md).
 
 ## Lokal starten
 
@@ -22,6 +22,11 @@ Für Entwicklung: `pnpm dev` startet dieselbe eigene Zentrale direkt aus TypeScr
 Konfigurierbare Betriebswerte: `IRONCREW_DATA_DIR`, `IRONCREW_HOST`, `IRONCREW_PORT`, `IRONCREW_PUBLIC_URL`, `IRONCREW_TLS_CERT`, `IRONCREW_TLS_KEY`, `IRONCREW_PREVIEW_PORT`, `IRONCREW_UPDATER_CONFIG`. Externer Zugriff benötigt tatsächliches TLS und eine HTTPS-URL. Standard bleibt Loopback. Generierte Websitevorschauen laufen getrennt auf Port 8792 mit restriktiver CSP; untrusted Inhalte erhalten keinen CEO-API-Zugang.
 
 ## Eigene Laufzeit
+
+Neu in 0.4.4: Der Webstart funktioniert auch unter versteckten Installationsordnern.
+Die Live-Prüfung akzeptiert ein Kostenlimit von null bei kostenfreien Modellen und
+verwendet 512 Ausgabetokens für Anfrage und Kostenschätzung. Secretreferenzen nehmen
+`protonpass` als Eingabealias für das kanonische `proton-pass` an.
 
 Modellkonfiguration in Einstellungen → Modelle: absoluter Pfad zu geprüftem **pass-cli ab Version 2.3.2** (stabile Version; die offizielle Ausgabe `Proton Pass CLI 2.3.2 (ac04625)` wird erkannt), optional eigener Sessionpfad, Proton-SecretRef mit Tresor-/Eintrags-/Feld-ID und gemeinsames Budget. Zugangsdaten werden im Proton-Broker aufgelöst, nicht als normale Konfigurationswerte gespeichert. Liveausführung ist standardmäßig ausgeschaltet und muss ausdrücklich aktiviert werden. Vollständiger OpenRouter-Katalog wird ohne Provider-Whitelist geladen und regelmäßig im 15-Minuten-Intervall erneut geprüft. Fehlgeschlagene Aktualisierung bleibt als veralteter Stand sichtbar.
 
