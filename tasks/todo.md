@@ -18,3 +18,4 @@
 - Typecheck, ESLint, Formatprüfung, Produktionsbuild und OpenAPI-Abgleich bestanden.
 - Echter öffentlicher OpenRouter-Katalog erfolgreich bis SQLite geprüft: 579 Modelle, 22 Free-IDs, ready, Audit gültig.
 - Vollständige erste CI deckte eine alte Telegram-CLI-Testfixture auf; Named-Argument-Vertrag angeglichen, alle sieben Kanaltests bestanden.
+- Windows-CI zeigte in zwei Läufen wechselnde Setup-/Datei-/TLS-Zeitüberschreitungen bei vier Workern. Testparallelität auf Windows auf zwei begrenzt; Zeitlimits/Assertions/No-Skip-Gates unverändert, erneuter Vollnachweis erforderlich.
