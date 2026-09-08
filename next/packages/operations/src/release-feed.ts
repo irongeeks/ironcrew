@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../../contracts/src/version.ts";
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { request } from "node:https";
 import { mkdir, mkdtemp, rename, rm, lstat, open } from "node:fs/promises";
@@ -302,7 +303,7 @@ export class ReleaseFeedService {
         "maintenance-installed-release",
         scope.companyId,
       );
-      const current = installed?.data.version ?? this.options.currentVersion ?? "0.4.0";
+      const current = installed?.data.version ?? this.options.currentVersion ?? APP_VERSION;
       const candidates: ReleaseCandidate[] = [];
       for (const release of feed.releases) {
         this.allowedUrl(release.archiveUrl);

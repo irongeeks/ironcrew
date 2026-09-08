@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../../packages/contracts/src/version.ts";
 import { RemoteExecutionWorker } from "../../packages/tools/remote-execution/worker.ts";
 import {
   remoteControlSchema,
@@ -141,7 +142,7 @@ export class WorkerClient {
     await this.send({
       type: "hello",
       capabilities: this.options.capabilities,
-      appVersion: "0.4.0",
+      appVersion: APP_VERSION,
       maxConcurrent: this.options.maxConcurrent ?? 1,
     });
     if (this.options.attestation && this.remote)
