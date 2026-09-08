@@ -3,8 +3,7 @@
  *
  * Wraps the official `pass-cli` (https://github.com/protonpass/pass-cli,
  * docs at https://protonpass.github.io/pass-cli/). Retrieval goes through
- * `pass-cli item view --share-id <id> --item-id <id> --field <name> --output
- * json`: share/item IDs rather than the human-readable `pass://Vault/Item`
+ * `pass-cli item view --share-id=<id> --item-id=<id> --field=<name> --output=json`: share/item IDs rather than the human-readable `pass://Vault/Item`
  * shorthand some docs also show, so a later rename in the vault cannot
  * silently break a stored ref. Headless auth is
  * `PROTON_PASS_PERSONAL_ACCESS_TOKEN` + `pass-cli login` (done once, out of
@@ -88,14 +87,10 @@ export class ProtonPassSecretProvider implements SecretProvider {
         this.passCliPath,
         "item",
         "view",
-        "--share-id",
-        shareId,
-        "--item-id",
-        itemId,
-        "--field",
-        field,
-        "--output",
-        "json",
+        `--share-id=${shareId}`,
+        `--item-id=${itemId}`,
+        `--field=${field}`,
+        "--output=json",
       ],
       { timeoutMs: this.timeoutMs },
     );

@@ -453,3 +453,23 @@ describe("all OpenRouter models are available by default", () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 });
+
+describe("unavailable free model guidance", () => {
+  it.each([
+    { model: "liquid/model:free", status: 404, hint: true },
+    { model: "liquid/model:free", status: 500, hint: false },
+    { model: "liquid/model", status: 404, hint: false },
+    { model: "openrouter/free", status: 404, hint: false },
+  ])("keeps failure and selected model for $model HTTP $status", async ({ model, status, hint }) => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ error: { message: "provider detail sk-or-geheim" } }, status));
+    const events = await collect(
+      runtime(fetchImpl as unknown as typeof fetch).startRun({ prompt: "x", model }, context()),
+    );
+    const failure = events.find((event) => event.type === "run.failed")!;
+    expect(failure.payload.message).toContain(`HTTP ${status}`);
+    expect(String(failure.payload.message).includes("Wähle alternativ openrouter/free")).toBe(hint);
+    expect(failure.payload.message).not.toContain("sk-or-geheim");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(events.some((event) => event.type === "run.completed")).toBe(false);
+  });
+});

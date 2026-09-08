@@ -1,3 +1,4 @@
+import { ModelRequestRejected } from "./openrouter.ts";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Repository } from "../../persistence/src/index.ts";
@@ -352,7 +353,9 @@ export function coordinationTools(options: {
                   },
                 });
               } catch (error) {
-                const denied = error instanceof DomainError && error.code === "model_dispatch_denied";
+                const denied =
+                  (error instanceof DomainError && error.code === "model_dispatch_denied") ||
+                  error instanceof ModelRequestRejected;
                 await repo.settleAndTransact(
                   scope,
                   { reservationId, ...(denied ? { actualMicros: "0" } : {}) },

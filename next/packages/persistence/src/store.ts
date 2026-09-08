@@ -1,7 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
 import {
   approvalBindingSchema,
   mandateSchema,
@@ -41,6 +39,7 @@ import type {
   SetupResult,
 } from "./index.ts";
 import { schema } from "./schema.ts";
+import { prepareDatabaseFile } from "./files.ts";
 
 type Row = Record<string, string | number | bigint | null>;
 const now = () => new Date().toISOString();
@@ -61,13 +60,40 @@ export class Store {
   private db: DatabaseSync;
   private transactionDepth = 0;
   constructor(path: string) {
-    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
+    prepareDatabaseFile(path);
     this.db = new DatabaseSync(path);
     this.db.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     if (this.row("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"))
       assert(this.row("SELECT version FROM schema_version")?.version === 1, "unsupported_schema");
     this.db.exec(schema);
     assert(this.row("SELECT version FROM schema_version")?.version === 1, "unsupported_schema");
+    this.normalizeSetupProgress();
+  }
+  private normalizeSetupProgress() {
+    this.atomic(() => {
+      for (const row of this.rows("SELECT * FROM documents WHERE kind='setup_progress'")) {
+        const companyId = String(row.company_id),
+          id = String(row.id);
+        if (
+          !this.row("SELECT id FROM documents WHERE company_id=? AND kind='setup-progress' AND id=?", companyId, id)
+        ) {
+          const legacy = parse<{ completedStep?: number }>(row.data);
+          const step =
+            Number.isInteger(legacy.completedStep) && legacy.completedStep! >= 0 && legacy.completedStep! <= 8
+              ? legacy.completedStep!
+              : 1;
+          this.exec(
+            "UPDATE documents SET kind='setup-progress', data=? WHERE company_id=? AND kind='setup_progress' AND id=?",
+            encode({ step, data: {} }),
+            companyId,
+            id,
+          );
+        } else {
+          // The canonical wizard record contains the actual progress and user selections.
+          this.exec("DELETE FROM documents WHERE company_id=? AND kind='setup_progress' AND id=?", companyId, id);
+        }
+      }
+    });
   }
   private row(sql: string, ...args: (string | number | bigint | null)[]): Row | undefined {
     return this.db.prepare(sql).get(...args) as Row | undefined;
@@ -180,7 +206,7 @@ export class Store {
       const scope = { companyId: company.id, areaId: areas[0]!.id };
       const ceo = { id: randomUUID(), companyId: company.id, name: valid.ceoName, passwordHash: valid.passwordHash };
       this.writeDocument(scope, { kind: "identity", id: ceo.id, data: ceo, immutable: true });
-      this.writeDocument(scope, { kind: "setup_progress", id: company.id, data: { version: 1, completedStep: 1 } });
+      this.writeDocument(scope, { kind: "setup-progress", id: company.id, data: { step: 1, data: {} } });
       const employees = crewSeed.employees.map((seed) => ({ ...seed, id: randomUUID(), companyId: company.id }));
       for (const e of employees)
         this.exec("INSERT INTO employees VALUES(?,?,?,?)", e.id, company.id, e.seedKey, encode(e));
@@ -211,9 +237,16 @@ export class Store {
         parse(r.data),
       ),
       periodId: String(this.row("SELECT id FROM budget_periods WHERE company_id=? AND active=1", companyId)?.id),
-      setupProgress: parse<{ version: number; completedStep: number }>(
-        this.row("SELECT data FROM documents WHERE company_id=? AND kind='setup_progress'", companyId)?.data,
-      ),
+      setupProgress: {
+        version: 1,
+        completedStep: parse<{ step: number }>(
+          this.row(
+            "SELECT data FROM documents WHERE company_id=? AND kind='setup-progress' AND id=?",
+            companyId,
+            companyId,
+          )?.data,
+        ).step,
+      },
     };
   }
   getIdentity(): { id: string; companyId: string; name: string; passwordHash: string } | null {

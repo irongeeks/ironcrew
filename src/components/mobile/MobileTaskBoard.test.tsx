@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
+import * as api from "../../api";
 import type { Task } from "../../types";
+
+vi.mock("../../api", async () => ({
+  ...(await vi.importActual<typeof import("../../api")>("../../api")),
+  getProjects: vi.fn(),
+}));
 
 // Mock the constants module to avoid pulling in heavy dependencies
 vi.mock("../taskboard/constants", async () => {
@@ -61,12 +67,25 @@ describe("MobileTaskBoard", () => {
     expect(screen.getAllByRole("button", { name: /new task/i }).length).toBeGreaterThan(0);
   });
 
-  it("calls onCreateTask indirectly when + New Task is tapped (opens create flow)", () => {
+  it("opens the create flow and completes project loading when + New Task is tapped", async () => {
+    let resolveProjects!: (value: Awaited<ReturnType<typeof api.getProjects>>) => void;
+    vi.mocked(api.getProjects).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveProjects = resolve;
+        }),
+    );
     const onCreateTask = vi.fn();
     render(<MobileTaskBoard {...defaultProps} onCreateTask={onCreateTask} />);
     const [btn] = screen.getAllByRole("button", { name: /new task/i });
     expect(btn).toBeInTheDocument();
     fireEvent.click(btn);
+    await waitFor(() => expect(api.getProjects).toHaveBeenCalledWith({ page: 1, page_size: 50 }));
+    await act(async () => {
+      resolveProjects({ projects: [], page: 1, page_size: 50, total: 0, total_pages: 1 });
+    });
+    expect(screen.getByText("No registered project. Create one first in Project Manager.")).toBeInTheDocument();
+    expect(onCreateTask).not.toHaveBeenCalled();
   });
 
   it("filters tasks by the active status tab", () => {

@@ -52,3 +52,53 @@ it("buffers stream and refuses incomplete tool arguments without executing anyth
     await new Promise<void>((r) => server.close(() => r()));
   }
 });
+
+it("reports safe HTTP rejection diagnostics and suggests free routing without a fallback", async () => {
+  const { vi } = await import("vitest");
+  const { ModelRequestRejected } = await import("../../packages/runtime/src/openrouter.ts");
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const fetch = vi.spyOn(globalThis, "fetch");
+  const client = new OpenRouterClient({ secret: async () => "private-key" });
+  try {
+    for (const status of [400, 401, 402, 403, 404, 422, 429, 500]) {
+      fetch.mockResolvedValueOnce(new Response("private-provider-payload", { status }));
+      let failure: unknown;
+      try {
+        await client.complete({ model: "vendor/model:free", messages: [], tools: [], max_tokens: 1 });
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure instanceof ModelRequestRejected).toBe(status !== 500);
+      expect(warning).toHaveBeenLastCalledWith(
+        "IronCrew model call failed",
+        expect.objectContaining({ phase: "http", status, modelId: "vendor/model:free" }),
+      );
+      if (status === 404) expect(failure).toMatchObject({ code: "model_free_endpoint_unavailable" });
+    }
+    expect(fetch).toHaveBeenCalledTimes(8);
+    expect(JSON.stringify(warning.mock.calls)).not.toMatch(/private-key|private-provider-payload/);
+    expect(JSON.stringify(warning.mock.calls)).toContain("openrouter/free");
+  } finally {
+    warning.mockRestore();
+    fetch.mockRestore();
+  }
+});
+
+it("does not dispatch when request timeout expires during the final authorization check", async () => {
+  const { vi } = await import("vitest");
+  const fetch = vi.spyOn(globalThis, "fetch");
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const client = new OpenRouterClient({ secret: async () => "key", timeoutMs: 1 });
+  try {
+    await expect(
+      client.complete(
+        { model: "fixture", messages: [], tools: [], max_tokens: 1 },
+        { beforeDispatch: () => new Promise((resolve) => setTimeout(resolve, 10)) },
+      ),
+    ).rejects.toMatchObject({ code: "model_dispatch_denied" });
+    expect(fetch).not.toHaveBeenCalled();
+  } finally {
+    fetch.mockRestore();
+    warn.mockRestore();
+  }
+});

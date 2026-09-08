@@ -42,6 +42,18 @@ export async function request<T = Row>(
   if (!response.ok) {
     const parsed = errorSchema.safeParse(payload);
     const messages: Record<string, [string, string]> = {
+      model_free_endpoint_unavailable: [
+        "Für dieses kostenlose Modell ist derzeit kein Endpunkt verfügbar. openrouter/free manuell auswählen und erneut starten.",
+        "No endpoint is currently available for this free model. Select openrouter/free manually and restart.",
+      ],
+      model_cost_reconciliation_required: [
+        "Zuerst die Modellkosten mit einem Anbieterbeleg abgleichen.",
+        "Reconcile the model costs with provider evidence first.",
+      ],
+      model_response_not_pending: [
+        "Diese Modellantwort wartet nicht mehr auf Klärung. Den aktuellen Stand neu laden.",
+        "This model response is no longer pending. Reload the current state.",
+      ],
       catalog_refresh_failed: [
         "Der OpenRouter-Katalog konnte nicht aktualisiert werden. Vorhandene Modelle bleiben erhalten. Verbindung prüfen und erneut versuchen; Details stehen im Serverprotokoll.",
         "The OpenRouter catalog could not be refreshed. Existing models are retained. Check the connection and retry; see the server log for details.",

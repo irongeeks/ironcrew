@@ -553,6 +553,18 @@ export function createApp(options: Options) {
     }),
   );
   app.post(
+    "/api/v1/orders/:id/model-response/discard",
+    mutate(async (req, res) => {
+      if (runtimeUpdating || !options.runtime) throw new DomainError("model_not_configured");
+      const o = await order(req, res);
+      const { turnId } = z.object({ turnId: z.uuid() }).strict().parse(req.body);
+      const identity = await repo.getIdentity();
+      if (!identity || identity.companyId !== context(res).companyId)
+        throw new DomainError("ceo_required", undefined, 403);
+      return options.runtime.discardModelResponse(o.scope, o.id, turnId, revision(req), identity.id);
+    }),
+  );
+  app.post(
     "/api/v1/orders/:id/run",
     mutate(async (req, res) => {
       if (runtimeUpdating) throw new DomainError("runtime_updating");

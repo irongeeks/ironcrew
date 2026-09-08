@@ -168,6 +168,11 @@ post(
   { revision: "quoted-positive" },
 );
 route("patch", "/orders/{id}/lead", R.order, z.object({ leadEmployeeId: id }), { revision: "quoted-positive" });
+post("/orders/{id}/model-response/discard", R.run, z.object({ turnId: id }).strict(), {
+  revision: "quoted-positive",
+  description:
+    "Explicitly discards a missing model response only after evidence-backed cost reconciliation. Does not invoke a model; a subsequent run request may create a new charged turn.",
+});
 post(
   "/orders/{id}/run",
   R.run,

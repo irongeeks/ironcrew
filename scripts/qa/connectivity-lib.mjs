@@ -113,12 +113,13 @@ export function pickApiProvider(enabledProviders) {
   return enabledProviders[0] ?? null;
 }
 
-export async function httpJson({ method = "GET", endpoint, body, cookie, timeoutMs = REQUEST_TIMEOUT_MS }) {
+export async function httpJson({ method = "GET", endpoint, body, cookie, csrfToken, timeoutMs = REQUEST_TIMEOUT_MS }) {
   const url = new URL(endpoint, BASE_URL).toString();
   const startedAt = nowIso();
   const startedPerf = performance.now();
   const headers = { Accept: "application/json" };
   if (cookie) headers.Cookie = cookie;
+  if (csrfToken && !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) headers["x-csrf-token"] = csrfToken;
   let payload;
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -201,14 +202,20 @@ export async function createSessionContext({ includeHealth = true } = {}) {
     endpoint: "/api/auth/session",
     timeoutMs: REQUEST_TIMEOUT_MS,
   });
-  recordEvidence(evidence, "auth_session", auth, {
-    response: { within_sla: undefined },
-  });
+  recordEvidence(
+    evidence,
+    "auth_session",
+    { ...auth, body: { ok: auth.body?.ok } },
+    {
+      response: { within_sla: undefined },
+    },
+  );
 
   const sessionCookie = parseCookieHeader(auth.set_cookie);
-  if (!auth.ok || !sessionCookie) {
+  const csrfToken = typeof auth.body?.csrf_token === "string" ? auth.body.csrf_token : "";
+  if (!auth.ok || !sessionCookie || !csrfToken) {
     throw new Error(
-      "Session authentication failed on /api/auth/session. " +
+      "Session authentication failed on /api/auth/session (session cookie and CSRF token required). " +
         "Run the script on loopback or set up API auth before retrying.",
     );
   }
@@ -217,6 +224,7 @@ export async function createSessionContext({ includeHealth = true } = {}) {
     httpJson({
       ...params,
       cookie: sessionCookie,
+      csrfToken,
       timeoutMs: REQUEST_TIMEOUT_MS,
     });
 

@@ -1,5 +1,30 @@
 # Geprüfter lokaler Entwicklungsstand
 
+## Wartungsrelease 0.4.3
+
+Die [Issues #36–47](../../docs/releases/v0.4.3.md) betreffen den neuen Kern und
+mitgelieferte Legacy-Komponenten. Regressionen prüfen den konfigurierten
+CLI→Runtime→HTTP-Versand einschließlich Konfigurationswechsel ohne Neustart,
+Vorabablehnung gegenüber unbekanntem Versand, belegte Kostenklärung und
+explizites Verwerfen fehlender Antworten. Die im Bericht vermutete generelle
+Neustartpflicht war im bisherigen Quellpfad nicht reproduzierbar.
+
+Weitere Nachweise umfassen private SQLite-/WAL-/SHM-Dateien, TLS-IMAP-Datumswerte,
+doppelte und konkurrierende Katalogabrufe, Setup-Migration sowie bereinigte
+Website-Artefakte und deren reale Buildskripte/HTTP-Header. Die Hauptserver-Fixes
+bestanden 97 fokussierte API-, QA- und Mobiltests sowie den TypeScript-Build.
+Zusätzlich bestanden 440 Unit-/Vertrags-/Integrationstests des neuen Kerns.
+Browser-Inspektion und der privilegierte Updaterpfad bleiben lokal wegen fehlendem
+Chromium beziehungsweise fremd beschreibbarem Workspace-Elternpfad ausgenommen;
+die CI prüft beide ohne Ausnahmen. Elf Release-Vertragstests bestanden.
+Die neuen Browserfälle laufen in der vollständigen CI; lokal scheiterte der
+Chromium-Download. Diese Einschränkung ersetzt kein Release-Gate.
+
+Die Veröffentlichung verlangt sämtliche fünf Workflows am selben Main-Commit.
+[Release und Manifest](https://github.com/irongeeks/ironcrew/releases/tag/v0.4.3)
+binden den tatsächlichen Nachweis an die ausgelieferten Quellen. Ein echter
+Modellaufruf mit dem privaten Betreiberkonto ist kein Teil der Fixtures.
+
 ## Wartungsrelease 0.4.2
 
 Die [Korrekturen zu Issues #31–34](../../docs/releases/v0.4.2.md) werden mit

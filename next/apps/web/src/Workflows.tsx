@@ -1,3 +1,4 @@
+import { idSchema } from "../../../packages/contracts/src/index.ts";
 import { useId, Children, isValidElement, cloneElement } from "react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { list, request, string as str, type Row } from "./api.ts";
@@ -14,6 +15,15 @@ import OAuthProfiles from "./OAuthProfiles.tsx";
 import { useRemote, records } from "./Operations.tsx";
 type Locale = "de" | "en";
 const useText = (locale: Locale) => (de: string, en: string) => (locale === "de" ? de : en);
+function modelLabel(model: Row, locale: Locale) {
+  const label = str(model, "name", str(model, "id"));
+  return str(model, "id") === "openrouter/free"
+    ? `${label} · ${locale === "de" ? "Empfohlenes Free-Sammelmodell" : "Recommended free router"}`
+    : label;
+}
+function preferredModels(models: Row[]) {
+  return [...models].sort((a, b) => Number(b.id === "openrouter/free") - Number(a.id === "openrouter/free"));
+}
 function workflowStateLabel(state: string, locale: Locale) {
   const labels: Record<string, [string, string]> = {
     not_started: ["Noch nicht begonnen", "Not started"],
@@ -134,7 +144,7 @@ export function ConfigurationPanel({ company, locale, section }: { company: Row;
     void Promise.all([request("/configuration"), list("/models"), list("/areas")])
       .then(([c, m, a]) => {
         setConfiguration(c);
-        setModels(m);
+        setModels(preferredModels(m));
         setAreas(a);
         setLoadError("");
       })
@@ -285,7 +295,7 @@ export function ConfigurationPanel({ company, locale, section }: { company: Row;
               <datalist id="models">
                 {models.map((model) => (
                   <option key={str(model, "id")} value={str(model, "id")}>
-                    {str(model, "name")}
+                    {modelLabel(model, locale)}
                   </option>
                 ))}
               </datalist>
@@ -320,8 +330,7 @@ export function ConfigurationPanel({ company, locale, section }: { company: Row;
           <ul>
             {models.map((model) => (
               <li key={str(model, "id")}>
-                <strong>{str(model, "name", str(model, "id"))}</strong>{" "}
-                <span className={styles.muted}>{str(model, "id")}</span>
+                <strong>{modelLabel(model, locale)}</strong> <span className={styles.muted}>{str(model, "id")}</span>
               </li>
             ))}
           </ul>
@@ -508,10 +517,13 @@ function RunOrder({ order, locale, onChange }: { order: Row; locale: Locale; onC
     [mandates, setMandates] = useState<Row[]>([]),
     [enabled, setEnabled] = useState(false);
   const mutation = useMutation(onChange);
+  const ready =
+    ["ready", "running"].includes(str(order, "status")) ||
+    (order.status === "blocked" && order.waitReason === "user_input");
   useEffect(() => {
     void Promise.all([list("/models"), list("/mandates"), request("/configuration")])
       .then(([models, mandates, config]) => {
-        setModels(models);
+        setModels(preferredModels(models));
         setMandates(mandates);
         setEnabled(config.liveExecutionEnabled === true);
       })
@@ -520,6 +532,14 @@ function RunOrder({ order, locale, onChange }: { order: Row; locale: Locale; onC
   return (
     <details className={styles.panel}>
       <summary>{t("Crew-Ausführung starten", "Start crew execution")}</summary>
+      {!ready && (
+        <p className={styles.warning}>
+          {t(
+            "Zuerst einen Arbeitsplan speichern und den Auftrag zur Ausführung vorbereiten.",
+            "Save a work plan and prepare the order for execution first.",
+          )}
+        </p>
+      )}
       {!enabled && (
         <p className={styles.warning}>
           {t(
@@ -543,7 +563,7 @@ function RunOrder({ order, locale, onChange }: { order: Row; locale: Locale; onC
           <select name="modelId" required>
             {models.map((m) => (
               <option key={str(m, "id")} value={str(m, "id")}>
-                {str(m, "name", str(m, "id"))}
+                {modelLabel(m, locale)}
               </option>
             ))}
           </select>
@@ -558,7 +578,7 @@ function RunOrder({ order, locale, onChange }: { order: Row; locale: Locale; onC
           </select>
         </Field>
         <Feedback state={mutation} locale={locale} />
-        <button disabled={!enabled || !models.length || !mandates.length || mutation.busy}>
+        <button disabled={!ready || !enabled || !models.length || !mandates.length || mutation.busy}>
           {t("Innerhalb des Mandats ausführen", "Execute within mandate")}
         </button>
       </form>
@@ -1585,7 +1605,9 @@ export function SchedulePanel({ crew, locale }: { crew: Row[]; locale: Locale })
 export function MandatePanel({ company, locale }: { company: Row; locale: Locale }) {
   const t = useText(locale),
     mutation = useMutation(),
-    [areas, setAreas] = useState<Row[]>([]);
+    [areas, setAreas] = useState<Row[]>([]),
+    [targetError, setTargetError] = useState("");
+  const targetHintId = useId();
   useEffect(() => {
     void list("/areas").then(setAreas);
   }, []);
@@ -1636,22 +1658,37 @@ export function MandatePanel({ company, locale }: { company: Row; locale: Locale
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          const f = new FormData(e.currentTarget),
-            constraints = Object.fromEntries(
-              String(f.get("constraints"))
-                .split("\n")
-                .filter(Boolean)
-                .map((line) => {
-                  const i = line.indexOf("=");
-                  return [line.slice(0, i).trim(), line.slice(i + 1).trim()];
-                }),
+          const f = new FormData(e.currentTarget);
+          const targetIds = String(f.get("targetIds"))
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean);
+          const invalidLine = targetIds.findIndex((id) => !idSchema.safeParse(id).success);
+          if (invalidLine >= 0) {
+            setTargetError(
+              t(
+                `Erlaubte Ziel-IDs: Zeile ${invalidLine + 1} muss eine gültige UUID sein.`,
+                `Allowed target IDs: line ${invalidLine + 1} must be a valid UUID.`,
+              ),
             );
+            return;
+          }
+          setTargetError("");
+          const constraints = Object.fromEntries(
+            String(f.get("constraints"))
+              .split("\n")
+              .filter(Boolean)
+              .map((line) => {
+                const i = line.indexOf("=");
+                return [line.slice(0, i).trim(), line.slice(i + 1).trim()];
+              }),
+          );
           void mutation.save("/mandates", {
             id: crypto.randomUUID(),
             version: 1,
             scope: { companyId: company.id, areaId: f.get("areaId") },
             allowedToolIds: f.getAll("tool"),
-            targetIds: String(f.get("targetIds")).split("\n").filter(Boolean),
+            targetIds,
             parameterConstraints: constraints,
             expiresAt: new Date(String(f.get("expiresAt"))).toISOString(),
             maxAttempts: Number(f.get("maxAttempts")),
@@ -1670,7 +1707,25 @@ export function MandatePanel({ company, locale }: { company: Row; locale: Locale
           </select>
         </Field>
         <Field label={t("Erlaubte Ziel-IDs (eine je Zeile)", "Allowed target IDs (one per line)")}>
-          <textarea name="targetIds" required rows={3} />
+          <textarea
+            name="targetIds"
+            required
+            rows={3}
+            aria-invalid={!!targetError}
+            aria-describedby={targetHintId}
+            onChange={() => setTargetError("")}
+          />
+          <span id={targetHintId} className={styles.muted}>
+            {t(
+              "UUID eines vorhandenen Ziels, z. B. eines Auftrags: 55555555-5555-4555-8555-555555555555. Eine UUID je Zeile.",
+              "UUID of an existing target, such as an order: 55555555-5555-4555-8555-555555555555. One UUID per line.",
+            )}
+          </span>
+          {targetError && (
+            <p className={styles.error} role="alert">
+              {targetError}
+            </p>
+          )}
         </Field>
         <fieldset>
           <legend>{t("Erlaubte Werkzeuge", "Allowed tools")}</legend>

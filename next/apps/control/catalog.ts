@@ -18,7 +18,23 @@ const storageDiagnostic = (error: unknown) => ({
   reason: error instanceof DomainError && error.code !== "persistence_error" ? "storage_rejected" : "storage_failure",
   ...(error instanceof DomainError && storageCodes.has(error.code) ? { code: error.code } : {}),
 });
-export async function refreshCatalog(repo: Repository, scope: Scope) {
+type CatalogRefresh = Promise<{ models: Model[]; observedAt: string }>;
+// Repository identity prevents sharing results between control instances/databases.
+// Include the complete scope: joining a flight must never bypass scope validation.
+const refreshes = new WeakMap<Repository, Map<string, CatalogRefresh>>();
+export function refreshCatalog(repo: Repository, scope: Scope): CatalogRefresh {
+  const key = JSON.stringify([scope.companyId, scope.areaId, scope.customerId, scope.projectId]);
+  let pending = refreshes.get(repo);
+  if (!pending) refreshes.set(repo, (pending = new Map()));
+  const current = pending.get(key);
+  if (current) return current;
+  const flight = refreshSnapshot(repo, scope).finally(() => {
+    pending.delete(key);
+  });
+  pending.set(key, flight);
+  return flight;
+}
+async function refreshSnapshot(repo: Repository, scope: Scope) {
   const client = new OpenRouterClient({
     secret: async () => {
       throw new Error("Catalog never needs an inference credential");
@@ -29,11 +45,24 @@ export async function refreshCatalog(repo: Repository, scope: Scope) {
   try {
     status = await repo.getDocument<Record<string, unknown>>(scope, "catalog-status", scope.companyId);
     phase = "provider";
-    const models = await client.catalog();
-    if (client.catalogDiagnostics?.rejected)
+    const received = await client.catalog();
+    // Provider IDs are not guaranteed unique. The last valid entry wins, using
+    // the same identity as persistence so each document is mutated only once.
+    const unique = new Map(received.map((model) => [shaUuid(model.id), model]));
+    const models = [...unique.values()];
+    const duplicateCount = received.length - models.length;
+    if (client.catalogDiagnostics) {
+      client.catalogDiagnostics.accepted = models.length;
+      client.catalogDiagnostics.duplicates = duplicateCount;
+    }
+    if (client.catalogDiagnostics?.rejected || duplicateCount)
       console.warn("IronCrew catalog entries rejected", client.catalogDiagnostics);
     const observedAt = new Date().toISOString();
     phase = "storage";
+    // A separate repository handle may have recorded a failed attempt while
+    // this provider request was in flight. Read the current write revision so
+    // that failure cannot discard a successfully fetched snapshot.
+    const currentStatus = await repo.getDocument(scope, "catalog-status", scope.companyId);
     const prior = await repo.listDocuments<CatalogModel>(scope, "model");
     const revisions = new Map(prior.map((model) => [model.id, model.revision]));
     const ids = new Set(models.map((m) => m.id));
@@ -61,8 +90,9 @@ export async function refreshCatalog(repo: Repository, scope: Scope) {
           state: "ready",
           count: models.length,
           rejectedCount: client.catalogDiagnostics?.rejected ?? 0,
+          duplicateCount,
         },
-        expectedRevision: status?.revision ?? 0,
+        expectedRevision: currentStatus?.revision ?? 0,
       },
     ]);
     return { models, observedAt };

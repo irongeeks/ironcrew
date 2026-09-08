@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import { create as createTar } from "tar";
 import { safeRelative } from "../../tools/isolation/files.ts";
+import { safeSiteHtml, siteResponseSecurityPolicy } from "../../tools/site-safety.ts";
 import { siteProject, buildSiteProject } from "../../tools/site-build.ts";
 import type { ExecutionPort, ExecutionContext } from "../../tools/isolation/index.ts";
 import { randomUUID } from "node:crypto";
@@ -181,14 +182,14 @@ export class WebsiteWorkflow {
     const versionId = randomUUID();
     const workspace = new Workspace(path.join(this.directory, "sites", versionId));
     await workspace.init();
-    const server = `import {createServer} from 'node:http';import {readFile} from 'node:fs/promises';if(process.version!=='v26.4.0')throw new Error('Node 26.4.0 required');const html=await readFile(new URL('./index.html',import.meta.url));const app=createServer((req,res)=>{if(req.url!=='/'&&req.url!=='/index.html'){res.writeHead(404);return res.end();}res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff'});res.end(html);}).listen(Number(process.env.PORT||3000),'127.0.0.1',()=>{if(process.send)process.send({port:app.address().port});});\n`;
+    const server = `import {createServer} from 'node:http';import {readFile} from 'node:fs/promises';if(process.version!=='v26.4.0')throw new Error('Node 26.4.0 required');const html=await readFile(new URL('./index.html',import.meta.url));const app=createServer((req,res)=>{if(req.url!=='/'&&req.url!=='/index.html'){res.writeHead(404);return res.end();}res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':${JSON.stringify(siteResponseSecurityPolicy)}});res.end(html);}).listen(Number(process.env.PORT||3000),'127.0.0.1',()=>{if(process.send)process.send({port:app.address().port});});\n`;
     const files = [
-      { path: "index.html", content: concept.html, expectedSha256: null },
+      { path: "index.html", content: safeSiteHtml(concept.html).document, expectedSha256: null },
       { path: "server.mjs", content: server, expectedSha256: null },
       {
         path: "README.md",
         content:
-          "# Selbsthosting\n\nNode 26.4.0 installieren. `node server.mjs` startet auf 127.0.0.1:3000. PORT ist konfigurierbar. Für externen Zugriff eigenen TLS-Reverse-Proxy einrichten. Updates: neue geprüfte Version in eigenes Verzeichnis entpacken, Dienst stoppen, Pfad wechseln, starten und Funktion prüfen; altes Verzeichnis für Rückweg aufbewahren. Diese Übergabe ist kein bestätigter Livebetrieb.\n",
+          "# Selbsthosting\n\nNode 26.4.0 installieren. `node server.mjs` startet auf 127.0.0.1:3000. PORT ist konfigurierbar. Konzept-HTML wird vor der Ausgabe bereinigt; Skripte, Eventattribute und aktive Einbettungen werden entfernt. HTML und Server liefern eine CSP mit lokalen Skripten, Inline-CSS und HTTPS-Bildern; Formulare und Netzwerk-APIs sind gesperrt. Für externen Zugriff eigenen TLS-Reverse-Proxy einrichten. Updates: neue geprüfte Version in eigenes Verzeichnis entpacken, Dienst stoppen, Pfad wechseln, starten und Funktion prüfen; altes Verzeichnis für Rückweg aufbewahren. Diese Übergabe ist kein bestätigter Livebetrieb.\n",
         expectedSha256: null,
       },
     ];

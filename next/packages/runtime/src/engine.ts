@@ -10,6 +10,7 @@ import { Workspace, patchSchema, listSchema, digest } from "../../tools/workspac
 import { ExecutionJournal, type ToolResult } from "../../tools/journal.ts";
 import {
   estimate,
+  ModelRequestRejected,
   type Message,
   type Model,
   type ModelClient,
@@ -272,6 +273,66 @@ export class Runtime {
     const doc = await this.repo.getDocument<Run>(scope, "run", orderId);
     if (!doc) throw new DomainError("run_not_found");
     return doc.data;
+  }
+  async discardModelResponse(scope: Scope, orderId: string, turnId: string, revision: number, actorId: string) {
+    if (!this.acceptingRuns || this.active.has(orderId)) throw new DomainError("runtime_busy");
+    this.active.add(orderId);
+    try {
+      const record = await this.repo.getDocument<Run>(scope, "run", orderId);
+      if (!record || record.revision !== revision) throw new DomainError("revision_conflict");
+      if (record.data.pendingTurnId !== turnId || record.data.blockedReason !== "model_response_unknown")
+        throw new DomainError("model_response_not_pending");
+      const turn = await this.repo.getDocument<Turn>(scope, "model-turn", turnId);
+      const evidence = await this.repo.getDocument<{ turnId: string; requestSha256: string }>(
+        scope,
+        "model-cost-evidence",
+        turnId,
+      );
+      const reservation = (await this.repo.budget(scope.companyId)).reservations.find(
+        (r) => r.id === turn?.data.reservationId,
+      );
+      if (
+        !turn ||
+        turn.data.runId !== orderId ||
+        turn.data.response ||
+        turn.data.usageState !== "reconciled" ||
+        !evidence ||
+        evidence.data.turnId !== turnId ||
+        evidence.data.requestSha256 !== turn.data.requestSha256 ||
+        !reservation ||
+        reservation.modelTurnId !== turnId ||
+        reservation.orderId !== orderId ||
+        !["settled", "released"].includes(reservation.state)
+      )
+        throw new DomainError("model_cost_reconciliation_required");
+      const run = { ...record.data, pendingTurnId: undefined, blockedReason: "model_response_discarded" };
+      await this.repo.transact(
+        scope,
+        [
+          { kind: "run", id: orderId, data: run, expectedRevision: revision },
+          {
+            kind: "model-response-discard",
+            id: turnId,
+            immutable: true,
+            expectedRevision: 0,
+            data: {
+              turnId,
+              orderId,
+              actorId,
+              discardedAt: new Date().toISOString(),
+              requestSha256: turn.data.requestSha256,
+            },
+          },
+        ],
+        { type: "model.response.discarded", aggregateId: orderId, data: { turnId, actorId } },
+      );
+      const order = await this.repo.getOrder(scope, orderId);
+      if (order.status === "blocked")
+        await this.repo.updateOrder(scope, orderId, order.revision, { waitReason: "user_input" });
+      return run;
+    } finally {
+      this.active.delete(orderId);
+    }
   }
   static async appendMessage(repo: Repository, scope: Scope, orderId: string, content: string) {
     await repo.getOrder(scope, orderId);
@@ -707,7 +768,9 @@ export class Runtime {
           });
         } catch (error) {
           turn.state = "interrupted";
-          const denied = error instanceof DomainError && error.code === "model_dispatch_denied";
+          const denied =
+            (error instanceof DomainError && error.code === "model_dispatch_denied") ||
+            error instanceof ModelRequestRejected;
           turn.usageState = denied ? "reconciled" : "unreconciled";
           if (denied) run.pendingTurnId = undefined;
           run.state = "blocked";

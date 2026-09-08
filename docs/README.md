@@ -2,14 +2,14 @@
 
 IronCrew ist eine lokal betreibbare virtuelle AI-Firma. Der CEO arbeitet über einen Executive Assistant mit einer Crew aus Fachmitarbeitern; Aufgaben, Ausführung, Reviews und Freigaben bleiben nachvollziehbar.
 
-## Aktuell: IronCrew 0.4.2
+## Aktuell: IronCrew 0.4.3
 
 Der neue Produktkern liegt unter `next/` und unterstützt Linux, macOS und Windows.
 
 | Einstieg | Inhalt |
 | --- | --- |
 | [Einrichtung und Bedienung](../next/README.md) | Firma, CEO, Crew, Modelle, Mandate und Arbeitsabläufe |
-| [0.4.2 und Update von 0.4.0/0.4.1](releases/v0.4.2.md) | Quellrelease, Datenverzeichnis beibehalten, Korrekturen und Prüfbedingungen |
+| [0.4.3 und Update von 0.4.0–0.4.2](releases/v0.4.3.md) | Quellrelease, Datenverzeichnis beibehalten, Korrekturen und Prüfbedingungen |
 | [Modellzugang und Fehlerdiagnose](../next/docs/model-access-troubleshooting.md) | Proton Pass, OpenRouter-Katalog, Bereitschaft und optionale Einrichtung |
 | [Prüfnachweise](../next/docs/verification.md) | Tatsächliche Nachweise und Bindung an den jeweiligen Quellstand |
 | [Releasebereitschaft](../next/docs/release-readiness.md) | Betriebsgrenzen und externe Abnahmen |
@@ -17,7 +17,7 @@ Der neue Produktkern liegt unter `next/` und unterstützt Linux, macOS und Windo
 ## Legacy 0.3.x
 
 Die folgenden Anleitungen beschreiben den bisherigen Produktkern im Repository-
-Root. Sie sind keine Installations- oder Updateanleitung für den Quellrelease 0.4.2.
+Root. Sie sind keine Installations- oder Updateanleitung für den Quellrelease 0.4.3.
 
 ## Installieren und betreiben
 

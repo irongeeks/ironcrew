@@ -60,6 +60,8 @@ async function fixture(api = false) {
   const site = (await repo.getDocument<{ concepts: { id: string }[] }>(scope, "website", order.id))!;
   await website.select(scope, order.id, site.data.concepts[0]!.id);
   const artifact = await website.build(scope, order.id);
+  // The broker serves the built artifact, whose CSP and sanitization can change concept bytes.
+  const hostedHtml = await readFile(path.join(directory, "blobs", artifact.sha256), "utf8");
   const backupSource = path.join(directory, "site-backup.json"),
     runtimeFile = path.join(directory, "runtime.json");
   await writeFile(backupSource, (await website.packageArchive(scope, artifact.id)).content);
@@ -84,7 +86,7 @@ async function fixture(api = false) {
         if (req.method === "GET") {
           if (req.url === "/") {
             res.setHeader("content-type", "text/html");
-            res.end(unhealthy || (badUpdate && runtime.version === "1.0.1") ? "<h1>Failed service</h1>" : html);
+            res.end(unhealthy || (badUpdate && runtime.version === "1.0.1") ? "<h1>Failed service</h1>" : hostedHtml);
             return;
           }
           res.setHeader("content-type", "application/json");
@@ -109,7 +111,7 @@ async function fixture(api = false) {
           const archive = path.join(directory, input.actionId + ".age");
           await exec(age, ["-r", recipient, "-o", archive, backupSource]);
           const bytes = await readFile(archive);
-          expect(bytes.includes(Buffer.from(html))).toBe(false);
+          expect(bytes.includes(Buffer.from(hostedHtml))).toBe(false);
           backups.set(input.actionId, { archive, hash: sha(bytes) });
           result = {
             id: input.actionId,
@@ -139,7 +141,7 @@ async function fixture(api = false) {
             }),
           );
           expect(restoredFiles).toEqual(artifact.files);
-          expect(await readFile(path.join(restoreRoot, "index.html"), "utf8")).toBe(html);
+          expect(await readFile(path.join(restoreRoot, "index.html"), "utf8")).toBe(hostedHtml);
           result = {
             backupId,
             archiveSha256: backup.hash,

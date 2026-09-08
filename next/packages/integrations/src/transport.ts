@@ -204,9 +204,11 @@ export function redact<T>(value: T, secrets: readonly string[]): T {
       ? scrub(input)
       : Array.isArray(input)
         ? input.map(walk)
-        : input && typeof input === "object"
-          ? Object.fromEntries(Object.entries(input).map(([key, value]) => [scrub(key), walk(value)]))
-          : input;
+        : input instanceof Date
+          ? new Date(input.getTime())
+          : input && typeof input === "object"
+            ? Object.fromEntries(Object.entries(input).map(([key, value]) => [scrub(key), walk(value)]))
+            : input;
   return walk(value) as T;
 }
 
