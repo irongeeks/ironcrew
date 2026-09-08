@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../packages/contracts/src/version.ts";
 import { writeFile, readFile } from "node:fs/promises";
 import { z } from "zod";
 import { createApp } from "../apps/control/app.ts";
@@ -282,7 +283,7 @@ export function generateOpenAPI() {
     openapi: "3.1.0",
     info: {
       title: "IronCrew Control API",
-      version: "0.4.0",
+      version: APP_VERSION,
       description:
         "Explicit HTTP request/response contracts matched to mounted Express routes. Shared runtime Zod inputs preserve schema behavior. JSON Schema cannot encode stateful scope/CAS/approval guards, byte hash checks or all Zod refinements; those are tested at runtime and described per operation. Opaque JSON is limited to genuine extension payloads, tool results and event/step data.",
     },

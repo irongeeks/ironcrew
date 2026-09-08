@@ -12,7 +12,7 @@ Der lokale HTTP-Eingang legt authentifizierte Discord-/Telegram-Ereignisse und N
 - `conversationIds`: explizit erlaubte Telegram-Chat- bzw. Discord-Kanal-IDs. Kein Wildcard-Modus.
 - `kind`: Auftragstyp `research`, `website`, `incident` oder `finance`; Standard `research`.
 - `budgetLimitUsdMicros`: ganzzahlige USD-Mikrobeträge als Zeichenkette; Standard `"0"`. Der Eingang erzeugt einen Auftrag, er autorisiert keine Ausführung.
-- `proton`: absoluter Pfad zur unterstützten `pass-cli` 2.3.3 und optional ein eigenes Sitzungsverzeichnis. Die Zentrale löst Telegram-/Mailbridge-Geheimnisse über `SecretRef` auf. Rohgeheimnisse gehören nicht in die Konfiguration.
+- `proton`: absoluter Pfad zur unterstützten `pass-cli` ab stabiler Version 2.3.2 und optional ein eigenes Sitzungsverzeichnis. Die Zentrale löst Telegram-/Mailbridge-Geheimnisse über `SecretRef` auf. Rohgeheimnisse gehören nicht in die Konfiguration.
 
 `registerChannelRoutes(app, { repo, directory, assertWritable })` muss **vor** `express.json()` und der CEO-Session-/CSRF-Middleware registriert werden. Die Signaturprüfung benötigt die unveränderten JSON-Bytes. `assertWritable` bindet den Backup-/Restore-Schreibschutz ein. Nur `/api/v1/channel-webhooks/:provider/:id` verwendet Provider-Authentifizierung; die übrigen API-Wege bleiben hinter der CEO-Anmeldung.
 

@@ -1,19 +1,47 @@
 import { z } from "zod";
 import { DomainError } from "../../domain/src/index.ts";
+// Provider extensions (for example tiered-pricing overrides) are not necessarily strings.
+// Keep the rates used for budgeting typed while retaining new catalog metadata.
+export const pricingSchema = z
+  .object({
+    prompt: z.string().optional(),
+    completion: z.string().optional(),
+    request: z.string().optional(),
+    image: z.string().optional(),
+    web_search: z.string().optional(),
+    internal_reasoning: z.string().optional(),
+    input_cache_read: z.string().optional(),
+    input_cache_write: z.string().optional(),
+  })
+  .passthrough();
 export const modelSchema = z
   .object({
-    id: z.string(),
-    name: z.string(),
+    id: z.string().min(1),
+    name: z.string().min(1),
     context_length: z.number().nullable().optional(),
     supported_parameters: z.array(z.string()).default([]),
     architecture: z
-      .object({ input_modalities: z.array(z.string()).default([]), output_modalities: z.array(z.string()).default([]) })
+      .object({
+        input_modalities: z.array(z.string()).default([]),
+        output_modalities: z.array(z.string()).default([]),
+      })
       .passthrough()
       .optional(),
-    pricing: z.record(z.string(), z.string()).default({}),
+    pricing: pricingSchema.default({}),
   })
   .passthrough();
 export type Model = z.infer<typeof modelSchema>;
+export type CatalogDiagnostics = {
+  received: number;
+  accepted: number;
+  rejected: number;
+  // Do not retain provider payloads or arbitrary validation error messages.
+  issues: { index: number; fields: string[] }[];
+};
+export type CatalogFailure = {
+  reason: "http" | "schema" | "invalid_json" | "timeout" | "transport";
+  status?: number;
+};
 export const callSchema = z.object({
   id: z.string().min(1),
   type: z.literal("function"),
@@ -30,7 +58,12 @@ export type Message = {
   tool_calls?: z.infer<typeof callSchema>[];
   tool_call_id?: string;
 };
-export type ModelRequest = { model: string; messages: Message[]; tools: unknown[]; max_tokens: number };
+export type ModelRequest = {
+  model: string;
+  messages: Message[];
+  tools: unknown[];
+  max_tokens: number;
+};
 export type ModelResponse = {
   id: string;
   message: Message;
@@ -39,7 +72,12 @@ export type ModelResponse = {
   outputTokens?: number;
   latencyMs?: number;
 };
-export type GenerationUsage = { id: string; modelId: string; costUsdMicros: string; createdAt?: string };
+export type GenerationUsage = {
+  id: string;
+  modelId: string;
+  costUsdMicros: string;
+  createdAt?: string;
+};
 export interface GenerationClient {
   generation(id: string, options?: { beforeDispatch?: () => Promise<void> }): Promise<GenerationUsage>;
 }
@@ -65,7 +103,10 @@ export function estimate(model: Model, request: ModelRequest): string {
   const bytes = Buffer.byteLength(JSON.stringify({ messages: request.messages, tools: request.tools })) + 1024;
   if (!model.pricing.prompt || !model.pricing.completion) throw new DomainError("unknown_pricing");
   const extras = Object.entries(model.pricing).filter(
-    ([k, v]) => !["prompt", "completion", "input_cache_read", "input_cache_write", "discount"].includes(k) && v !== "0",
+    ([k, v]) =>
+      !["prompt", "completion", "input_cache_read", "input_cache_write", "discount"].includes(k) &&
+      !(typeof v === "string" && /^0(?:\.0+)?$/.test(v)) &&
+      !(k === "overrides" && Array.isArray(v) && v.length === 0),
   );
   if (extras.some(([k]) => k !== "request")) throw new DomainError("unsupported_pricing");
   return (
@@ -122,6 +163,8 @@ export class OpenRouterClient implements ModelClient {
   baseUrl: string;
   secret: () => Promise<string>;
   timeoutMs: number;
+  catalogDiagnostics: CatalogDiagnostics | undefined;
+  catalogFailure: CatalogFailure | undefined;
   private calls = 0;
   private readonly pending: (() => void)[] = [];
   private readonly maxConcurrent: number;
@@ -145,12 +188,60 @@ export class OpenRouterClient implements ModelClient {
       throw new DomainError("tls_required");
   }
   async catalog(): Promise<Model[]> {
-    const response = await fetch(this.baseUrl + "/models?output_modalities=all", {
-      signal: AbortSignal.timeout(30_000),
-      redirect: "error",
-    });
-    if (!response.ok) throw new DomainError("catalog_unavailable");
-    return z.object({ data: z.array(modelSchema) }).parse(await response.json()).data;
+    this.catalogDiagnostics = undefined;
+    this.catalogFailure = undefined;
+    const signal = AbortSignal.timeout(30_000);
+    let payload: unknown;
+    try {
+      const response = await fetch(this.baseUrl + "/models?output_modalities=all", {
+        signal,
+        redirect: "error",
+      });
+      if (!response.ok) {
+        this.catalogFailure = { reason: "http", status: response.status };
+        await response.body?.cancel().catch(() => {});
+        throw new DomainError("catalog_unavailable");
+      }
+      payload = await response.json();
+    } catch (error) {
+      this.catalogFailure ??= {
+        reason:
+          signal.aborted || (error instanceof Error && error.name === "TimeoutError")
+            ? "timeout"
+            : error instanceof SyntaxError
+              ? "invalid_json"
+              : "transport",
+      };
+      throw new DomainError("catalog_unavailable");
+    }
+    const envelope = z.object({ data: z.array(z.unknown()) }).safeParse(payload);
+    if (!envelope.success) {
+      this.catalogFailure = { reason: "schema" };
+      throw new DomainError("catalog_unavailable");
+    }
+    const models: Model[] = [];
+    const issues: CatalogDiagnostics["issues"] = [];
+    for (const [index, entry] of envelope.data.data.entries()) {
+      const parsed = modelSchema.safeParse(entry);
+      if (parsed.success) models.push(parsed.data);
+      else
+        issues.push({
+          index,
+          fields: [...new Set(parsed.error.issues.map((issue) => issue.path.map(String).join(".")))],
+        });
+    }
+    this.catalogDiagnostics = {
+      received: envelope.data.data.length,
+      accepted: models.length,
+      rejected: issues.length,
+      issues,
+    };
+    // A genuinely empty catalog is valid; a wholly unreadable one must not replace cached models.
+    if (envelope.data.data.length > 0 && models.length === 0) {
+      this.catalogFailure = { reason: "schema" };
+      throw new DomainError("catalog_unavailable");
+    }
+    return models;
   }
   async generation(id: string, options?: { beforeDispatch?: () => Promise<void> }): Promise<GenerationUsage> {
     z.string()
@@ -227,7 +318,10 @@ export class OpenRouterClient implements ModelClient {
     try {
       const started = performance.now();
       const result = await this.performComplete(request, options);
-      return { ...result, latencyMs: Math.max(0, Math.round(performance.now() - started)) };
+      return {
+        ...result,
+        latencyMs: Math.max(0, Math.round(performance.now() - started)),
+      };
     } finally {
       const next = this.pending.shift();
       if (next) next();
@@ -253,8 +347,15 @@ export class OpenRouterClient implements ModelClient {
     try {
       r = await fetch(this.baseUrl + "/chat/completions", {
         method: "POST",
-        headers: { Authorization: "Bearer " + secret, "Content-Type": "application/json" },
-        body: JSON.stringify({ ...request, stream: true, stream_options: { include_usage: true } }),
+        headers: {
+          Authorization: "Bearer " + secret,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...request,
+          stream: true,
+          stream_options: { include_usage: true },
+        }),
         signal: AbortSignal.timeout(this.timeoutMs),
         redirect: "error",
       });
@@ -278,14 +379,25 @@ export class OpenRouterClient implements ModelClient {
         .parse(await r.json());
       if (!/^[A-Za-z0-9_.:-]{1,300}$/.test(data.id) || (secret && data.id.includes(secret)))
         throw new DomainError("model_response_id_invalid");
-      return { id: data.id, message: data.choices[0]!.message, ...usageFields(data.usage) };
+      return {
+        id: data.id,
+        message: data.choices[0]!.message,
+        ...usageFields(data.usage),
+      };
     }
     let buffer = "",
       id = "",
       content = "",
       done = false,
       bytes = 0;
-    const calls = new Map<number, { id: string; type: "function"; function: { name: string; arguments: string } }>();
+    const calls = new Map<
+      number,
+      {
+        id: string;
+        type: "function";
+        function: { name: string; arguments: string };
+      }
+    >();
     let usage: unknown;
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
@@ -321,7 +433,10 @@ export class OpenRouterClient implements ModelClient {
                               index: z.number().int().nonnegative(),
                               id: z.string().optional(),
                               function: z
-                                .object({ name: z.string().optional(), arguments: z.string().optional() })
+                                .object({
+                                  name: z.string().optional(),
+                                  arguments: z.string().optional(),
+                                })
                                 .optional(),
                             }),
                           )
@@ -341,7 +456,11 @@ export class OpenRouterClient implements ModelClient {
           for (const choice of event.choices ?? []) {
             content += choice.delta?.content ?? "";
             for (const part of choice.delta?.tool_calls ?? []) {
-              const call = calls.get(part.index) ?? { id: "", type: "function", function: { name: "", arguments: "" } };
+              const call = calls.get(part.index) ?? {
+                id: "",
+                type: "function",
+                function: { name: "", arguments: "" },
+              };
               if (part.id) call.id = part.id;
               call.function.name += part.function?.name ?? "";
               call.function.arguments += part.function?.arguments ?? "";
@@ -367,7 +486,11 @@ export class OpenRouterClient implements ModelClient {
     }
     return {
       id,
-      message: { role: "assistant", content, ...(tool_calls.length ? { tool_calls } : {}) },
+      message: {
+        role: "assistant",
+        content,
+        ...(tool_calls.length ? { tool_calls } : {}),
+      },
       ...usageFields(usage),
     };
   }

@@ -55,7 +55,7 @@ type Turn = {
   profileVersion: number;
   requestSha256: string;
   messagesArtifactId: string;
-  priceSnapshot: Record<string, string>;
+  priceSnapshot: Model["pricing"];
   preparedAt: string;
   id: string;
   request: ModelRequest;

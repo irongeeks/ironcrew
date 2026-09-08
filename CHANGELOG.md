@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1 — 2026-09-08
+
+- Fix Linux model access: accept stable Proton Pass CLI 2.3.2 and later with the official version output.
+- Preserve valid OpenRouter models when pricing includes structured metadata; retain cached models on failed refreshes and report safe diagnostics.
+- Verify actual secret access before enabling the runtime, and keep configuration repair available after startup failures.
+- Explain onboarding validation and cover incomplete optional forms with a browser regression.
+- Report the current version consistently in health, workers, backups and updates.
+- Refresh README, setup troubleshooting, update instructions and verification documentation. Publish the source archive only after all required checks pass for the release commit.
+- Details and update steps: [v0.4.1](docs/releases/v0.4.1.md).
+
+## 0.4.0 — 2026-09-07
+
+- Introduce the rebuilt product core in `next/`, distributed as a source archive. The repository-root application remains the legacy 0.3.1 line. See [v0.4.0](docs/releases/v0.4.0.md).
+
 ## Unreleased
 
 - Add Linux/macOS prerequisite bootstrap with read-only checks, verified Node 26 downloads, pinned user-local pnpm, native build tools and repeatable setup.

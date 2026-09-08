@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../../packages/contracts/src/version.ts";
 import { readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -62,7 +63,7 @@ async function main() {
           outputDirectory: path.resolve(required(values.output, "output")),
           ageExecutable: path.resolve(required(values.age, "age")),
           recipient: required(values.recipient, "recipient"),
-          appVersion: "0.4.0",
+          appVersion: APP_VERSION,
           configuration,
           quiesce: async () => async () => {}, // The outer shared instance lease already freezes the offline operation.
         });

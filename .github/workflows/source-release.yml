@@ -1,0 +1,84 @@
+name: Source release
+on:
+  pull_request:
+    paths: ["scripts/release/source-release*", ".github/workflows/source-release.yml"]
+  workflow_run:
+    workflows:
+      - IronCrew rebuild
+      - Linux isolation adversarial gate
+      - Windows native diagnostics
+      - CI
+      - Platform and production verification
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ironcrew-source-release-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'publish' }}
+  cancel-in-progress: false
+jobs:
+  contracts:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26.4.0
+          package-manager-cache: false
+      - run: node --test scripts/release/source-release.test.mjs
+  gate:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      ready: ${{ steps.gate.outputs.ready }}
+      commit: ${{ steps.gate.outputs.commit }}
+    steps:
+      # Always execute trusted default-branch code. No upstream artifacts are consumed.
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26.4.0
+          package-manager-cache: false
+      - run: node --test scripts/release/source-release.test.mjs
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/release/source-release.mjs gate
+  publish:
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26.4.0
+          package-manager-cache: false
+      - name: Package exact source, verify all gates again, publish matching draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.gate.outputs.commit }}
+        run: node scripts/release/source-release.mjs publish

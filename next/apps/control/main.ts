@@ -16,6 +16,7 @@ import { BackgroundCoordinator } from "./background.ts";
 import { WebsiteWorkflow } from "../../packages/domain/workflows/website.ts";
 import type { Model } from "../../packages/runtime/src/openrouter.ts";
 import { acquireInstanceLock } from "../../packages/operations/src/instance-lock.ts";
+import { DomainError } from "../../packages/domain/src/index.ts";
 const directory = path.resolve(process.env.IRONCREW_DATA_DIR ?? ".var");
 const instanceLock = await acquireInstanceLock(directory, "control");
 const repo = await Repository.open(path.join(directory, "company.sqlite"));
@@ -86,11 +87,20 @@ const runtime = await configuredRuntime(
   config,
   cached.map((d) => d.data),
   appOptions.workers,
-);
+).catch((error: unknown) => {
+  if (
+    !(error instanceof DomainError) ||
+    !["model_secret_configuration", "model_secret_unavailable"].includes(error.code)
+  )
+    throw error;
+  console.error("IronCrew model access is not ready", { code: error.code });
+  // Keep settings accessible so an expired session or invalid path can be repaired.
+  return undefined;
+});
 appOptions.runtime = runtime;
 server.listen(port, host, () =>
   console.info(
-    `IronCrew: ${publicOrigin} · eigener Kern · Liveausführung ${config.liveExecutionEnabled ? "explizit aktiviert" : "deaktiviert"}`,
+    `IronCrew: ${publicOrigin} · eigener Kern · Liveausführung ${runtime ? "bereit (Secretzugriff geprüft)" : config.liveExecutionEnabled ? "gesperrt: Modellzugang nicht bereit" : "deaktiviert"}`,
   ),
 );
 const sites = new WebsiteWorkflow(repo, directory);

@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../../packages/contracts/src/version.ts";
 import { registerMailInboxRoutes } from "./mail-inbox-routes.ts";
 import { configuredMailInboxService } from "./mail-inbox-configured.ts";
 import { registerReleaseFeedRoutes } from "./release-feed-routes.ts";
@@ -293,7 +294,7 @@ export function createApp(options: Options) {
     res.json({
       status: "ok",
       database: await repo.health(),
-      version: options.releaseIdentity?.version ?? "0.4.0",
+      version: options.releaseIdentity?.version ?? APP_VERSION,
       ...(options.releaseIdentity ? { releaseManifestSha256: options.releaseIdentity.releaseManifestSha256 } : {}),
       instanceId,
     }),
@@ -770,7 +771,7 @@ export function createApp(options: Options) {
               outputDirectory: path.resolve(b.outputDirectory),
               ageExecutable: path.resolve(b.ageExecutable),
               recipient: b.recipient,
-              appVersion: options.releaseIdentity?.version ?? "0.4.0",
+              appVersion: options.releaseIdentity?.version ?? APP_VERSION,
               configuration: config,
             },
           },

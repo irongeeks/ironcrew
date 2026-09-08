@@ -41,10 +41,29 @@ export async function request<T = Row>(
   }));
   if (!response.ok) {
     const parsed = errorSchema.safeParse(payload);
+    const messages: Record<string, [string, string]> = {
+      catalog_refresh_failed: [
+        "Der OpenRouter-Katalog konnte nicht aktualisiert werden. Vorhandene Modelle bleiben erhalten. Verbindung prüfen und erneut versuchen; Details stehen im Serverprotokoll.",
+        "The OpenRouter catalog could not be refreshed. Existing models are retained. Check the connection and retry; see the server log for details.",
+      ],
+      model_secret_configuration: [
+        "Der Modellzugang wurde nicht gespeichert: Proton Pass CLI benötigt einen absoluten Programmpfad und eine stabile Version ab 2.3.2.",
+        "Model access was not saved: Proton Pass CLI requires an absolute executable path and a stable version of 2.3.2 or newer.",
+      ],
+      model_secret_unavailable: [
+        "Der Modellzugang wurde nicht gespeichert: Proton Pass konnte das Secret nicht lesen. Anmeldung, Sitzung, Berechtigungen und Feldverweis prüfen.",
+        "Model access was not saved: Proton Pass could not read the secret. Check login, session, permissions and the field reference.",
+      ],
+    };
+    const translated =
+      parsed.success && parsed.data.code
+        ? messages[parsed.data.code]?.[document.documentElement.lang === "en" ? 1 : 0]
+        : undefined;
     throw new Error(
-      parsed.success
-        ? (parsed.data.message ?? parsed.data.messageKey ?? parsed.data.code ?? `HTTP ${response.status}`)
-        : `HTTP ${response.status}`,
+      translated ??
+        (parsed.success
+          ? (parsed.data.message ?? parsed.data.messageKey ?? parsed.data.code ?? `HTTP ${response.status}`)
+          : `HTTP ${response.status}`),
     );
   }
   if (path === "/session" || path === "/setup") {

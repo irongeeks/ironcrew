@@ -84,9 +84,49 @@ test("fresh local setup performs real configuration and preserves each step with
     await expect(areas.getByText("Actually persisted business area", { exact: false })).toBeVisible();
     await page.reload();
     await expect(areas.getByText("Actually persisted business area", { exact: false })).toBeVisible();
+    // Optional editors keep their own native validation, even after they have been touched.
+    // Neither hidden required fields nor enabled draft channels may become navigation requirements.
+    const connectionStep = page.getByRole("heading", { name: "Bereiche & Verbindungen", exact: true });
+    await page.getByRole("button", { name: "Speichern & weiter", exact: true }).click();
+    await expect(connectionStep).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("Pflichtangaben und Bestätigungen");
+    const mutations: string[] = [];
+    page.on("request", (request) => {
+      if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
+        mutations.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    });
+    await areas.getByRole("button", { name: "Bereich anlegen", exact: true }).click();
+    await expect(areas.getByLabel("Neuer Bereich", { exact: true })).toBeFocused();
+    await page.getByText("Neue Verbindung einrichten", { exact: true }).click();
+    await page.getByLabel("Dienstadresse (falls erforderlich)", { exact: true }).fill("not-a-url");
+    const connectionForm = page.locator("form").filter({
+      has: page.getByRole("button", { name: "Verbindung speichern", exact: true }),
+    });
+    for (const checkbox of await connectionForm.getByRole("checkbox").all()) await checkbox.check();
+    await page.getByText("Kunden und Projekte einrichten (optional)", { exact: true }).click();
+    const customerForm = page.getByRole("form", { name: "Kunde anlegen", exact: true });
+    const projectForm = page.getByRole("form", { name: "Projekt anlegen", exact: true });
+    await customerForm.getByLabel("Beschreibung", { exact: true }).fill("Unsaved customer draft");
+    await projectForm.getByLabel("Beschreibung", { exact: true }).fill("Unsaved project draft");
+    await customerForm.getByRole("button", { name: "Kunde anlegen", exact: true }).click();
+    await expect(customerForm.getByLabel("Name", { exact: true })).toBeFocused();
+    await page.getByText("Proton-Pass-Resolver für Eingänge", { exact: true }).click();
+    await page.getByLabel("Eigenes Proton-Sitzungsverzeichnis (optional)", { exact: true }).fill("/draft/session");
+    await page.getByLabel("Eingang ausdrücklich aktivieren", { exact: true }).check();
+    await page.getByText("TLS-Postfach einrichten", { exact: true }).click();
+    await page.getByLabel("Postfachadresse", { exact: true }).fill("not-an-email");
+    expect(await page.locator("input:invalid,select:invalid,textarea:invalid").count()).toBeGreaterThan(1);
     await page.getByLabel(/Gespeicherte Bereiche und Verbindungen geprüft/).check();
+    expect(await page.locator("#setup-navigation").evaluate((form) => (form as HTMLFormElement).checkValidity())).toBe(
+      true,
+    );
     await page.getByRole("button", { name: "Speichern & weiter", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Mandate & Routinen", exact: true })).toBeVisible();
+    expect(mutations).toEqual(["PATCH /api/v1/setup"]);
+    progress = await (await page.request.get(origin + "/api/v1/setup")).json();
+    expect(progress.step).toBe(6);
+    expect(JSON.stringify(progress.data)).not.toContain("Unsaved customer draft");
+    expect(JSON.stringify(progress.data)).not.toContain("not-an-email");
     await page.getByLabel(/Konkrete Mandate und Routinen geprüft/).check();
     await page.getByRole("button", { name: "Speichern & weiter", exact: true }).click();
     const summary = page.getByRole("region", { name: "Tatsächlicher Einrichtungsstand", exact: true });

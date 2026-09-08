@@ -258,7 +258,19 @@ function Setup({ locale, onReady, existing = false }: { locale: Locale; onReady:
         <SetupDraft step={step}>
           {step > 0 && step !== 3 && <SetupSteps key={`step-${step}`} step={step} locale={locale} />}
         </SetupDraft>
-        <form id="setup-navigation" key={`navigation-${step}`} onSubmit={(event) => void submit(event)}>
+        <form
+          id="setup-navigation"
+          key={`navigation-${step}`}
+          onSubmit={(event) => void submit(event)}
+          onInvalid={() =>
+            setError(
+              t(
+                "Bitte vervollständige die Pflichtangaben und Bestätigungen dieses Einrichtungsschritts.",
+                "Please complete the required fields and confirmations for this setup step.",
+              ),
+            )
+          }
+        >
           {step === 0 && (
             <>
               <Field label={t("Dein Name", "Your name")}>

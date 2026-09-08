@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../../packages/contracts/src/version.ts";
 import path from "node:path";
 import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { createPublicKey, randomUUID } from "node:crypto";
@@ -506,7 +507,7 @@ export class MaintenanceService {
       "maintenance-installed-release",
       scope.companyId,
     );
-    const fromVersion = installed?.data.version ?? this.options.currentVersion ?? "0.4.0",
+    const fromVersion = installed?.data.version ?? this.options.currentVersion ?? APP_VERSION,
       kind = updateClass(fromVersion, manifest.version);
     if (!policy.data.allowedClasses.includes(kind)) throw new DomainError("update_class_denied");
     const plan: UpdatePlan = {
@@ -576,7 +577,7 @@ export class MaintenanceService {
       "maintenance-installed-release",
       scope.companyId,
     );
-    if (plan.data.fromVersion !== (installed?.data.version ?? this.options.currentVersion ?? "0.4.0"))
+    if (plan.data.fromVersion !== (installed?.data.version ?? this.options.currentVersion ?? APP_VERSION))
       throw new DomainError("update_base_changed");
     const policy = await this.repo.getDocument<UpdatePolicy>(scope, "update-policy", plan.data.policyId);
     if (
