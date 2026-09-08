@@ -11,8 +11,10 @@
 ## Review und lokale Prüfung
 
 - Katalogfehler vor Änderung reproduziert: 99 Modelle bestanden, 100/579/1.200 scheiterten.
-- Nach Korrektur: 187 Unit-/Vertrags-/Integrationstests und elf Manifesttests bestanden.
+- Nach Korrektur: 194 Unit-/Vertrags-/Integrationstests und elf Manifesttests bestanden.
 - Unabhängiger Review prüfte Bulkpfad, Revisionen und Diagnosen. Veraltete Fehlercodes entfernt; konkurrierender erfolgreicher Refresh durch Regression geschützt.
 - Vollständige Betriebssystem- und Release-Gates werden am veröffentlichten Main-Commit erneut ausgeführt.
 - Kein echter Betreiber-Modellaufruf auf tank; Fixtures enthalten keine Kontozugangsdaten.
 - Typecheck, ESLint, Formatprüfung, Produktionsbuild und OpenAPI-Abgleich bestanden.
+- Echter öffentlicher OpenRouter-Katalog erfolgreich bis SQLite geprüft: 579 Modelle, 22 Free-IDs, ready, Audit gültig.
+- Vollständige erste CI deckte eine alte Telegram-CLI-Testfixture auf; Named-Argument-Vertrag angeglichen, alle sieben Kanaltests bestanden.

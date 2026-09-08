@@ -9,8 +9,11 @@ Refreshes geprüft. Ausführbare CLI-Fixtures prüfen IDs mit führendem Bindest
 und unveränderte Sonderzeichen. Ein unabhängiger Manifest-Vertrag prüft Schema 3,
 exakte Laufzeitvoraussetzungen, Archiv-Commit und Prüfsummen.
 
-Lokal bestanden 187 Unit-, Vertrags- und Integrationstests sowie elf
-Manifest-/Veröffentlichungstests.
+Lokal bestanden 194 Unit-, Vertrags- und Integrationstests sowie elf
+Manifest-/Veröffentlichungstests. Zusätzlich wurde der echte öffentliche
+OpenRouter-Katalog ohne Schlüssel abgerufen und vollständig in eine temporäre
+SQLite-Datenbank geschrieben: 579 Modelle, darunter 22 mit `:free`-ID, Status
+`ready` und gültige Audit-Kette. Dies war kein Modellaufruf.
 
 Die Veröffentlichung verlangt alle fünf vollständigen CI-Workflows für denselben
 Main-Commit. Die tatsächliche Quellbindung und CI-Links stehen im
