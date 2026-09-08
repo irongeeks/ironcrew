@@ -16,3 +16,11 @@ Der Workflow führt anschließend `python scripts/verify-local.py --require-tool
 Prüfprotokolle, Zähler, Audit, Quellmanifest und Werkzeughashes werden auch bei Fehlern als Matrixartefakt hochgeladen. Ein fehlendes age-Programm darf somit keinen grünen Lauf mit ausgelassenen Backup-/Updatetests erzeugen. Ein Betriebssystemfehler wird als solcher sichtbar und nicht durch eine weitere Skip-Ausnahme versteckt.
 
 Lokal geprüft wurden fünf Python-Regressionsfälle, die YAML-Struktur, die SHA-256-Werte und erwarteten Programmdateien aller sechs echten Releasearchive sowie die native macOS-Versionsprüfung. Die Belege stehen in [ci-bootstrap.json](test-evidence/ci-bootstrap.json). Windows- und Linuxarchive wurden dabei nicht auf macOS ausgeführt. Ein GitHub-Actions-Lauf wurde nicht gestartet; tatsächliche Matrixergebnisse stehen noch aus.
+
+## Hauptserver-Tests im Quellrelease
+
+Die zusätzlich geprüften Root-API-Suiten begrenzen Vitest auf zwei Worker, damit
+dateibasierte Migrationen und SQLite-Neuöffnungen unter gemeinsam genutzten
+CI-Ressourcen nicht beliebig konkurrieren. Die regulären Test-/Hook-Zeitlimits,
+Dateiisolation und sämtliche Assertions bleiben unverändert. Die Neubau-Suite
+behält ihre separat konfigurierte Parallelität.

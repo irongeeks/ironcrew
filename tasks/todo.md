@@ -22,3 +22,6 @@ Die Befunde umfassen die Anwendung unter next/ und den mitgelieferten Hauptserve
 - Unabhängiger Review verschärfte Discard-Beleg-/Reservierungsbindung und korrigierte HTML-Darstellungserhalt.
 - Website-Wartungsfixture nutzt die tatsächlich bereinigten Ausgabebytes; alle neun Tests bestanden.
 - #37 Neustartpflicht nicht reproduzierbar: echte alte→neue CLI-Konfiguration ohne Neustart erfolgreich; keine unbewiesene Ursachenbehauptung.
+
+- Erste PR-CI: Linux-Neubau einschließlich aller Browser-/Recovery-/Installationsgates und Dependency-Audit bestanden. Hauptserver-CI und native macOS-Prüfung bestanden.
+- Zusätzliche native Linux-Hauptserverprüfung: drei Zeitüberschreitungen in SQLite-Reopen/Migrationsfixtures bei unbeschränkter Workerzahl. Auf zwei Worker begrenzen; Assertions, Zeitlimits und vollständige Suiten unverändert erneut prüfen.
