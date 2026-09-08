@@ -247,6 +247,9 @@ export class Repository {
   ): Promise<Document<unknown>[]> {
     return this.call("transact", [scope, mutations, event]);
   }
+  transactCatalog(scope: Scope, mutations: Mutation[]): Promise<void> {
+    return this.call("transactCatalog", [scope, mutations]);
+  }
   authorizeAndTransact(
     scope: Scope,
     input: AuthorizationInput,

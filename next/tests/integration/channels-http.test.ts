@@ -5,6 +5,7 @@ import { createHmac, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parseArgs } from "node:util";
 import { Repository } from "../../packages/persistence/src/index.ts";
 import { Channels } from "../../packages/domain/workflows/automation.ts";
 import { DomainError } from "../../packages/domain/src/index.ts";
@@ -89,8 +90,20 @@ async function startServer() {
     run: async (_executable, args) => {
       if (args[0] === "--version") return "2.3.3\n";
       expect(args.slice(0, 2)).toEqual(["item", "view"]);
+      const { values } = parseArgs({
+        args: args.slice(2),
+        strict: true,
+        options: {
+          "share-id": { type: "string" },
+          "item-id": { type: "string" },
+          field: { type: "string" },
+        },
+      });
+      expect(values["share-id"]).toBe("local-fixture");
+      expect(values.field).toBe("password");
+      expect(["telegram", "email"]).toContain(values["item-id"]);
       await beforeSecret?.();
-      return args.includes("telegram") ? telegramSecret : mailSecret;
+      return values["item-id"] === "telegram" ? telegramSecret : mailSecret;
     },
   });
   const app = express();

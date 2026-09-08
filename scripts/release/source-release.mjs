@@ -135,6 +135,14 @@ export function packageSource({ cwd, outDir, repository, candidate }) {
   assert.equal(git("rev-parse", "HEAD"), candidate.commit, "Checkout must match release commit");
   const committedPackage = JSON.parse(git("show", `${candidate.commit}:next/package.json`));
   assert.equal(committedPackage.version, candidate.version);
+  assert.equal(candidate.tag, `v${candidate.version}`, "Tag must match release version");
+  const exactVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+  assert.match(committedPackage.engines?.node ?? "", exactVersion, "Exact Node version required in next/package.json");
+  const pnpmVersion = /^pnpm@((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/.exec(
+    committedPackage.packageManager ?? "",
+  )?.[1];
+  assert(pnpmVersion, "Exact pnpm packageManager required in next/package.json");
+  const requirements = { node: committedPackage.engines.node, pnpm: pnpmVersion };
   const notesPath = `docs/releases/v${candidate.version}.md`;
   const notes = execFileSync("git", ["show", `${candidate.commit}:${notesPath}`], { cwd, encoding: "utf8" });
   assert(notes.length > 100, "Release notes must describe the release scope");
@@ -149,13 +157,14 @@ export function packageSource({ cwd, outDir, repository, candidate }) {
   );
   const archiveBytes = fs.readFileSync(path.join(outDir, archive));
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 3,
     kind: "source-release",
     repository,
     version: candidate.version,
     tag: candidate.tag,
     commit: candidate.commit,
     applicationDirectory: "next",
+    requirements,
     archive: {
       name: archive,
       sha256: hash(archiveBytes),

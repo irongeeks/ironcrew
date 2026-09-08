@@ -1,15 +1,17 @@
 # Releases und Updates
 
-## Aktueller Quellrelease 0.4.1
+## Aktueller Quellrelease 0.4.2
 
-Für **0.4.1** gilt der Einstieg im Workspace [`next/`](../next/README.md) mit
+Für **0.4.2** gilt der Einstieg im Workspace [`next/`](../next/README.md) mit
 **Node.js 26.4.0** und **pnpm 10.30.1**. Der Release enthält Quellarchiv, Manifest
-und `SHA256SUMS`; er ist kein OCI-Image und kein signiertes natives Updatepaket.
+und `SHA256SUMS`. Das [Manifest-Schema 3](releases/source-manifest.md) enthält wieder
+exakte Laufzeitvoraussetzungen; Konsumenten müssen die Schemaversion ausdrücklich
+auswerten. Der Quellrelease ist kein OCI-Image und kein signiertes natives Updatepaket.
 Die Anwendungsversion steht in `next/package.json`; der Root bleibt Legacy 0.3.1.
 
 Beim Wechsel von 0.4.0 das bestehende Datenverzeichnis sichern und über
 `IRONCREW_DATA_DIR` weiterverwenden. Es ist keine neue Datenbankmigration nötig.
-Die [vollständige Updateanleitung](releases/v0.4.1.md#update-von-040) und die
+Die [vollständige Updateanleitung](releases/v0.4.2.md#update-von-040-und-041) und die
 [Fehlerdiagnose für Modellzugang](../next/docs/model-access-troubleshooting.md)
 beschreiben die Schritte. Für 0.3.x gibt es keinen automatischen Datenimport.
 

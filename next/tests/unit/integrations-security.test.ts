@@ -78,7 +78,7 @@ describe("integration security boundaries", () => {
       "Action 1: connector access",
     );
     expect(result).toBe("  exact secret  ");
-    expect(calls[1].args).toEqual(["item", "view", "--share-id", "vault", "--item-id", "item", "--field", "password"]);
+    expect(calls[1].args).toEqual(["item", "view", "--share-id=vault", "--item-id=item", "--field=password"]);
     expect(calls[1].env.PROTON_PASS_AGENT_REASON).toBe("Action 1: connector access");
     expect(calls[1].env.DANGEROUS_SECRET).toBeUndefined();
     expect(calls[1].env.NODE_OPTIONS).toBeUndefined();

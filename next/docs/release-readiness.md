@@ -1,5 +1,27 @@
 # Releasebereitschaft — Entwicklungsstand
 
+## Wartungsrelease 0.4.2
+
+Die [Korrekturen zu Issues #31–34](../../docs/releases/v0.4.2.md) werden mit
+HTTP-/SQLite-Regressionen für 99, 100, 579 und 1.200 Modelle, wiederholte
+Aktualisierung, entfernte Modelle, vollständigen Rollback und konkurrierende
+Refreshes geprüft. Ausführbare CLI-Fixtures prüfen IDs mit führendem Bindestrich
+und unveränderte Sonderzeichen. Ein unabhängiger Manifest-Vertrag prüft Schema 3,
+exakte Laufzeitvoraussetzungen, Archiv-Commit und Prüfsummen.
+
+Lokal bestanden 194 Unit-, Vertrags- und Integrationstests sowie elf
+Manifest-/Veröffentlichungstests. Zusätzlich wurde der echte öffentliche
+OpenRouter-Katalog ohne Schlüssel abgerufen und vollständig in eine temporäre
+SQLite-Datenbank geschrieben: 579 Modelle, darunter 22 mit `:free`-ID, Status
+`ready` und gültige Audit-Kette. Dies war kein Modellaufruf.
+
+Die Veröffentlichung verlangt alle fünf vollständigen CI-Workflows für denselben
+Main-Commit. Die tatsächliche Quellbindung und CI-Links stehen im
+[Release 0.4.2](https://github.com/irongeeks/ironcrew/releases/tag/v0.4.2) und seinem
+Manifest. Ein erneuter echter OpenRouter-Aufruf mit dem Betreiberkonto auf tank
+ist kein Bestandteil der automatisierten Fixtures. Die folgenden Nachweise
+bleiben an ihre jeweiligen historischen Versionen gebunden.
+
 ## Wartungsrelease 0.4.1
 
 [Release-Hinweise](../../docs/releases/v0.4.1.md) und

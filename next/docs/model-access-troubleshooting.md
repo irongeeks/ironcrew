@@ -1,16 +1,19 @@
-# Modellzugang in 0.4.1 prüfen
+# Modellzugang in 0.4.2 prüfen
 
 Diese Anleitung gilt für den neuen Produktkern unter `next/`. Die CLI-Provider-
 und Docker-Anleitungen im Repository-Root beschreiben weiterhin die ältere Linie.
 
-## Nach dem Update von 0.4.0
+## Nach dem Update von 0.4.0 oder 0.4.1/0.4.1
 
 1. Unter **Einstellungen → Modelle** den Modellkatalog aktualisieren. Der Abruf
    benötigt keinen OpenRouter-Schlüssel. Ein Fehler bei einzelnen Modellen darf
    gültige Einträge und Free-Modelle nicht mehr aus dem gesamten Katalog entfernen.
 2. Den absoluten Pfad zum installierten Proton-Pass-CLI verwenden. Stabile
    Versionen ab **2.3.2** werden unterstützt. `--version` darf beispielsweise
-   `Proton Pass CLI 2.3.2 (ac04625)` ausgeben.
+   `Proton Pass CLI 2.3.2 (ac04625)` ausgeben. Share-/Item-IDs und Feldnamen
+   unverändert übernehmen, auch wenn sie mit `-` beginnen. IronCrew bindet Werte
+   jetzt als `--item-id=<Wert>` an ihre Option; keine zusätzlichen Anführungszeichen
+   in die Oberfläche eingeben.
 3. Die Proton-Anmeldung muss für das Betriebskonto der Zentrale gültig sein.
    Share-ID, Item-ID und Feldname verweisen auf den OpenRouter-Schlüssel.
    Ein optionales eigenes Sitzungsverzeichnis muss zu dieser Anmeldung passen.
@@ -42,6 +45,11 @@ Einstellungen nicht automatisch.
 Bei Katalogfehlern protokolliert die Zentrale die feste Fehlerklasse: `http`
 mit HTTP-Status, `schema`, `invalid_json`, `timeout` oder `transport`. Für
 abgewiesene Einträge werden Anzahl, Index und betroffene Feldpfade aufgezeichnet.
+Speicherung wird getrennt als `storage_rejected` (z. B. `invalid_transaction` oder
+`revision_conflict`) bzw. `storage_failure` (z. B. `persistence_error`) ausgewiesen.
+Große Kataloge werden seit 0.4.2 samt Status in einer SQLite-Transaktion gespeichert;
+ein fehlgeschlagener Schreibvorgang hinterlässt keinen Teilkatalog. Bei wiederholten
+Speicherfehlern den sicheren Code und die Version mit dem Fehlerbericht übermitteln.
 Providerantworten und Secrets werden dabei nicht protokolliert.
 
 Kann die Zentrale ein gespeichertes Secret nach einem Neustart nicht mehr lesen,
@@ -56,5 +64,5 @@ werden und werden beim Weitergehen nicht mitgespeichert. Die Pflichtbestätigung
 für den Einrichtungsschritt bleibt erforderlich; fehlt sie, erscheint ein
 sichtbarer Hinweis im Assistenten.
 
-[Updateanleitung und Releaseumfang](../../docs/releases/v0.4.1.md) ·
+[Updateanleitung und Releaseumfang](../../docs/releases/v0.4.2.md) ·
 [Einrichtung](../README.md) · [Prüfnachweise](verification.md)

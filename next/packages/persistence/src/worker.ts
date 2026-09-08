@@ -30,6 +30,7 @@ const allowed = new Set([
   "listDocuments",
   "putDocument",
   "transact",
+  "transactCatalog",
   "createMandate",
   "revokeMandate",
   "approve",

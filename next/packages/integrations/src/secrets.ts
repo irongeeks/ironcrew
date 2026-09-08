@@ -93,9 +93,10 @@ export class ProtonPassResolver implements SecretResolver {
           `pass-cli ab Version ${PROTON_PASS_MIN_VERSION} ist erforderlich (stabile Version).`,
         );
       // The upstream implementation prints the selected field as plain text, even with --output json.
+      // Bind values to their options so clap cannot interpret leading hyphens as new flags.
       const output = await this.run(
         this.options.executable,
-        ["item", "view", "--share-id", ref.shareId, "--item-id", ref.itemId, "--field", ref.field],
+        ["item", "view", `--share-id=${ref.shareId}`, `--item-id=${ref.itemId}`, `--field=${ref.field}`],
         options,
       );
       const value = output.replace(/\r?\n$/, "");
