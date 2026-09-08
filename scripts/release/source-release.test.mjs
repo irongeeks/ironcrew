@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { gunzipSync } from "node:zlib";
 import { packageSource, publishSource, requiredWorkflows, sourceGate } from "./source-release.mjs";
 
 const repository = "irongeeks/ironcrew";
@@ -248,7 +249,10 @@ test("archives the committed full repository reproducibly, hashes notes and excl
   const cwd = path.join(temp, "repo");
   fs.mkdirSync(path.join(cwd, "next"), { recursive: true });
   fs.mkdirSync(path.join(cwd, "docs/releases"), { recursive: true });
-  fs.writeFileSync(path.join(cwd, "next/package.json"), JSON.stringify({ version: "0.4.1" }));
+  fs.writeFileSync(
+    path.join(cwd, "next/package.json"),
+    JSON.stringify({ version: "0.4.1", engines: { node: "26.4.0" }, packageManager: "pnpm@10.30.1" }),
+  );
   fs.writeFileSync(path.join(cwd, "legacy.txt"), "legacy source\n");
   const notes =
     "Source release with full repository and next application; no signed native package or OCI image is published.\n\n";
@@ -270,6 +274,10 @@ test("archives the committed full repository reproducibly, hashes notes and excl
     evidence: [],
   };
   fs.writeFileSync(path.join(cwd, "secret.txt"), "untracked secret");
+  fs.writeFileSync(
+    path.join(cwd, "next/package.json"),
+    JSON.stringify({ version: "9.9.9", engines: { node: "99.0.0" }, packageManager: "pnpm@99.0.0" }),
+  );
   fs.writeFileSync(path.join(cwd, "legacy.txt"), "dirty source");
   const packaged = packageSource({
     cwd,
@@ -284,11 +292,37 @@ test("archives the committed full repository reproducibly, hashes notes and excl
     candidate,
   });
   assert.deepEqual(packaged.assets, repeated.assets);
+  // Read the public asset bytes, independently of the producer's returned object.
+  const manifest = readSourceManifest(packaged.assets[1].bytes);
+  assert.equal(manifest.schemaVersion, 3);
+  assert.equal(manifest.commit, candidate.commit);
+  assert.equal(manifest.tag, `v${manifest.version}`);
+  assert.deepEqual(manifest.requirements, { node: "26.4.0", pnpm: "10.30.1" });
+  assert.equal(manifest.archive.bytes, packaged.assets[0].bytes.length);
+  assert.equal(manifest.archive.sha256, sha(packaged.assets[0].bytes));
+  assert.equal(manifest.archive.name, packaged.assets[0].name);
+  assert.equal(
+    execFileSync("git", ["get-tar-commit-id"], {
+      input: gunzipSync(packaged.assets[0].bytes),
+      encoding: "utf8",
+    }).trim(),
+    manifest.commit,
+  );
   assert.equal(packaged.manifest.notes.sha256, sha(Buffer.from(notes)));
   assert.equal(packaged.manifest.distribution.nativeUpdaterCompatible, false);
   const archive = path.join(temp, "a", packaged.assets[0].name);
   const contents = execFileSync("tar", ["-tzf", archive], { encoding: "utf8" });
   assert.match(contents, /ironcrew-0.4.1\/next\/package.json/);
+  const archivedPackage = JSON.parse(
+    execFileSync("tar", ["-xOzf", archive, "ironcrew-0.4.1/next/package.json"], { encoding: "utf8" }),
+  );
+  assert.equal(archivedPackage.version, manifest.version);
+  assert.equal(archivedPackage.engines.node, manifest.requirements.node);
+  assert.equal(archivedPackage.packageManager, `pnpm@${manifest.requirements.pnpm}`);
+  assert.equal(
+    sha(execFileSync("tar", ["-xOzf", archive, `ironcrew-0.4.1/${manifest.notes.path}`])),
+    manifest.notes.sha256,
+  );
   assert.doesNotMatch(contents, /secret.txt/);
   assert.equal(
     execFileSync("tar", ["-xOzf", archive, "ironcrew-0.4.1/legacy.txt"], {
@@ -309,4 +343,59 @@ test("archives the committed full repository reproducibly, hashes notes and excl
       }),
     /Checkout must match/,
   );
+  for (const invalidPackage of [
+    { version: "0.4.1" },
+    { version: "0.4.1", engines: { node: ">=26" }, packageManager: "pnpm@10.30.1" },
+    { version: "0.4.1", engines: { node: "26.4.0" }, packageManager: "pnpm@^10.30.1" },
+    { version: "0.4.1", engines: { node: "26.4.0-rc.1" }, packageManager: "pnpm@10.30.1" },
+    { version: "0.4.1", engines: { node: "26.4.0" }, packageManager: "npm@10.30.1" },
+  ]) {
+    fs.writeFileSync(path.join(cwd, "next/package.json"), JSON.stringify(invalidPackage));
+    git("add", "next/package.json");
+    git(
+      "-c",
+      "user.name=Source Release Test",
+      "-c",
+      "user.email=source-test@example.invalid",
+      "commit",
+      "-m",
+      "invalid requirements",
+    );
+    assert.throws(
+      () =>
+        packageSource({
+          cwd,
+          outDir: path.join(temp, "invalid"),
+          repository,
+          candidate: { ...candidate, commit: git("rev-parse", "HEAD") },
+        }),
+      /Exact (Node version|pnpm packageManager) required/,
+    );
+    assert.equal(fs.existsSync(path.join(temp, "invalid")), false);
+  }
+});
+
+// Independent consumer contract: never interpret a new/old schema as schema 3.
+function readSourceManifest(bytes) {
+  const value = JSON.parse(bytes.toString("utf8"));
+  assert.equal(value.schemaVersion, 3, "Unsupported source manifest schema");
+  assert.equal(value.kind, "source-release");
+  assert.equal(value.applicationDirectory, "next");
+  assert.match(value.requirements.node, /^\d+\.\d+\.\d+$/);
+  assert.match(value.requirements.pnpm, /^\d+\.\d+\.\d+$/);
+  assert.match(value.commit, /^[a-f0-9]{40}$/);
+  assert.match(value.archive.sha256, /^[a-f0-9]{64}$/);
+  assert(Number.isSafeInteger(value.archive.bytes) && value.archive.bytes > 0);
+  assert(Array.isArray(value.verification));
+  assert.deepEqual(value.distribution, { ociImage: false, signedNativePackage: false, nativeUpdaterCompatible: false });
+  return value;
+}
+
+test("consumer rejects unsupported or missing schema before interpreting source manifest fields", () => {
+  for (const schemaVersion of [undefined, null, 1, 2, 4, "3"]) {
+    assert.throws(
+      () => readSourceManifest(Buffer.from(JSON.stringify({ schemaVersion }))),
+      /Unsupported source manifest schema/,
+    );
+  }
 });

@@ -2,6 +2,8 @@
 
 ## IronCrew
 
+- [v0.4.2](v0.4.2.md) — große Kataloge atomar speichern, Proton-IDs korrekt übergeben, Speicherdiagnosen und Manifest-Schema 3.
+
 - [v0.4.1](v0.4.1.md) — Linux-Korrekturen für Proton Pass, OpenRouter-Katalog, Bereitschaft und Einrichtung.
 - [v0.4.0](v0.4.0.md) — neuer Produktkern im Workspace `next/`, veröffentlicht als Quellarchiv.
 
@@ -13,7 +15,7 @@
 - [v0.1.0](v0.1.0.md) — eigene Produktversionierung, gezielter Übergang von 2.8.0 und aktuelle Dokumentation mit Screenshots.
 - [v2.8.0](v2.8.0.md) — historischer erster Release unter übernommener Versionsnummer.
 
-[Installation und Versionswechsel](../RELEASES.md) · [Dokumentationsindex](../README.md)
+[Manifestformat](source-manifest.md) · [Installation und Versionswechsel](../RELEASES.md) · [Dokumentationsindex](../README.md)
 
 ## Historische Entwicklungs- und Upstream-Hinweise
 

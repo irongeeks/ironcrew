@@ -85,7 +85,7 @@ it("reports a stable process identity and the administratively verified release 
   expect(first.body.instanceId).toBe(second.body.instanceId);
   expect(first.body.instanceId).not.toBe(another.body.instanceId);
   expect(another.body.releaseManifestSha256).toBeUndefined();
-  expect(another.body.version).toBe("0.4.1");
+  expect(another.body.version).toBe("0.4.2");
 });
 
 it("drains administrative update-result writes and refuses a concurrent backup snapshot", async () => {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2 — 2026-09-08
+
+- Fix #31: persist full provider catalogs atomically without widening the generic transaction limit; cover 99, 100, 579 and 1,200 models, refreshes and rollback.
+- Fix #32: bind Proton Pass option values with `=` so leading-hyphen share/item IDs and field names remain literal.
+- Fix #34: distinguish transport, storage rejection and storage failure; retain safe internal codes without logging payloads or secrets.
+- Fix #33: publish source manifest schema 3 with exact Node/pnpm requirements from the committed package.
+- Update README, troubleshooting, release and manifest documentation. See [v0.4.2](docs/releases/v0.4.2.md).
+
 ## 0.4.1 — 2026-09-08
 
 - Fix Linux model access: accept stable Proton Pass CLI 2.3.2 and later with the official version output.

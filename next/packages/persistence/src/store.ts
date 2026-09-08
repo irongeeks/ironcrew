@@ -585,6 +585,24 @@ export class Store {
       return docs;
     });
   }
+  // Provider catalogs exceed the general 100-mutation limit. Keep the complete
+  // snapshot and its status/event in one transaction, without widening other writes.
+  transactCatalog(scope: Scope, mutations: Mutation[]): void {
+    this.atomic(() => {
+      const status = mutations.at(-1);
+      assert(
+        status?.kind === "catalog-status" &&
+          status.id === scope.companyId &&
+          mutations.slice(0, -1).every((mutation) => mutation.kind === "model") &&
+          new Set(mutations.map((mutation) => `${mutation.kind}:${mutation.id}`)).size === mutations.length,
+        "invalid_transaction",
+        400,
+      );
+      let revision = 0;
+      for (const mutation of mutations) revision = Math.max(revision, this.writeDocument(scope, mutation).revision);
+      this.event(scope, "catalog.updated", scope.companyId, revision);
+    });
+  }
   authorizeAndTransact(
     scope: Scope,
     input: AuthorizationInput,
