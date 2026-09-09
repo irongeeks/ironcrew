@@ -69,6 +69,7 @@ type Options = {
   repo: Repository;
   directory: string;
   publicOrigin: string;
+  previewOrigin?: string;
   runtime?: Runtime;
   webDirectory?: string;
   workers?: () => Promise<WorkerServer | undefined>;
@@ -83,6 +84,14 @@ type Options = {
 };
 export function createApp(options: Options) {
   const { repo, directory, publicOrigin } = options;
+  const previewOrigin = z
+    .string()
+    .regex(/^http:\/\/127\.0\.0\.1:\d{1,5}$/)
+    .refine((value) => {
+      const port = Number(value.split(":").at(-1));
+      return port > 0 && port <= 65535;
+    })
+    .parse(options.previewOrigin ?? "http://127.0.0.1:8792");
   const app = express();
   const instanceId = randomUUID();
   app.disable("x-powered-by");
@@ -92,7 +101,7 @@ export function createApp(options: Options) {
         directives: {
           "img-src": ["'self'", "data:", "blob:"],
           "connect-src": ["'self'"],
-          "frame-src": ["'self'", "http://127.0.0.1:8792"],
+          "frame-src": ["'self'", previewOrigin],
           "worker-src": ["'self'", "blob:"],
         },
       },
@@ -1051,7 +1060,7 @@ export function createApp(options: Options) {
     });
     await tick();
   });
-  registerWorkflowRoutes(app, { repo, directory, context, order, mutate, workers: options.workers });
+  registerWorkflowRoutes(app, { repo, directory, context, order, mutate, workers: options.workers, previewOrigin });
   registerFinanceRoutes(app, { service: new FinanceService({ repo, directory }), context, mutate });
   registerFinanceCorrectionRoutes(app, { repo, directory, context, mutate });
   registerEntityRoutes(app, { repo, context, mutate });

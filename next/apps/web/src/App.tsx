@@ -13,7 +13,7 @@ import {
   BackupPanel,
 } from "./Workflows.tsx";
 import { Component, Suspense, lazy, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { list, money, request, string as str, type Row } from "./api.ts";
+import { ApiError, SESSION_EXPIRED_EVENT, list, money, request, string as str, type Row } from "./api.ts";
 import styles from "./App.module.css";
 import Finance from "./Finance.tsx";
 import CommandPalette from "./CommandPalette.tsx";
@@ -479,6 +479,14 @@ export default function App() {
   const t = (de: string, en: string) => (locale === "de" ? de : en);
   const reload = () => setRevision((v) => v + 1);
   useEffect(() => {
+    const expired = () => {
+      setSession({ authenticated: false, setupRequired: false });
+      setError("");
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, expired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expired);
+  }, []);
+  useEffect(() => {
     document.documentElement.lang = locale;
     localStorage.setItem("ironcrew.locale", locale);
   }, [locale]);
@@ -584,7 +592,17 @@ export default function App() {
               <summary>CEO</summary>
               <button
                 className={styles.secondary}
-                onClick={() => void request("/session", { method: "DELETE", body: {} }).then(reload)}
+                onClick={() => {
+                  void request("/session", { method: "DELETE", body: {} })
+                    .then(reload)
+                    .catch((error: unknown) => {
+                      if (error instanceof ApiError && error.status === 401) {
+                        // Another request may already have expired this session and
+                        // the user may have signed in again while logout was pending.
+                        reload();
+                      } else setError(error instanceof Error ? error.message : String(error));
+                    });
+                }}
               >
                 {t("Abmelden", "Sign out")}
               </button>

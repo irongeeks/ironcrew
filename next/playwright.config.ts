@@ -1,4 +1,12 @@
 import { defineConfig } from "@playwright/test";
+
+// Playwright sets FORCE_COLOR in its child processes. Express a caller's
+// NO_COLOR preference using the same variable before those children inherit it.
+if (process.env.NO_COLOR !== undefined) {
+  process.env.FORCE_COLOR ??= "0";
+  delete process.env.NO_COLOR;
+}
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,

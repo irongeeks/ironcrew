@@ -629,10 +629,11 @@ function WebsitePanel({
       active = false;
     };
   }, [base, workflow]);
+  const previewBase = str(workflow, "previewUrl");
   const preview =
-    displayedVersion && /^[a-f0-9-]{36}$/.test(displayedVersion)
-      ? `http://127.0.0.1:8792/${displayedVersion}/`
-      : str(workflow, "previewUrl");
+    /^http:\/\/127\.0\.0\.1:\d{1,5}\/[a-f0-9-]{36}\/$/.test(previewBase) && /^[a-f0-9-]{36}$/.test(displayedVersion)
+      ? new URL(`/${displayedVersion}/`, previewBase).href
+      : "";
   return (
     <>
       {workflow.state === "not_started" && (
@@ -795,7 +796,7 @@ function WebsitePanel({
               </button>
             ))}
           </div>
-          {/^http:\/\/127\.0\.0\.1:8792\/[a-f0-9-]+\/$/.test(preview) && (
+          {preview && (
             <SitePreview
               key={`${displayedVersion}:${viewport}`}
               src={preview}

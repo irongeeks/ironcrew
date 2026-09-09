@@ -11,7 +11,7 @@ import { saveConfiguration } from "../apps/control/configuration.ts";
 import { Repository } from "../packages/persistence/src/index.ts";
 import { createApp } from "../apps/control/app.ts";
 import { hashPassword } from "../apps/control/auth.ts";
-import express from "express";
+import { createPreviewApp } from "../apps/control/preview.ts";
 import { WebsiteWorkflow } from "../packages/domain/workflows/website.ts";
 const directory = await mkdtemp(path.join(tmpdir(), "ironcrew-e2e-"));
 const repo = await Repository.open(path.join(directory, "company.sqlite"));
@@ -108,21 +108,16 @@ const watch = await watcher.create(scope, {
 });
 observation = "Explizite lokale Testquelle: Lieferung in sechs Tagen.";
 await watcher.check(scope, watch.id, { checkId: randomUUID() });
-const preview = express();
+// Exercise the actual isolated preview and configurable port in every website browser test.
 const sites = new WebsiteWorkflow(repo, directory);
-preview.get("/:version/", async (req, res) => {
-  try {
-    res
-      .set({
-        "Content-Type": "text/html; charset=utf-8",
-        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox",
-      })
-      .send(await sites.preview(req.params.version));
-  } catch {
-    res.status(404).end();
-  }
+const previewServer = createPreviewApp(sites).listen(0, "127.0.0.1");
+await new Promise<void>((resolve, reject) => {
+  previewServer.once("listening", resolve);
+  previewServer.once("error", reject);
 });
-const previewServer = preview.listen(8792, "127.0.0.1");
+const previewAddress = previewServer.address();
+if (!previewAddress || typeof previewAddress === "string") throw new Error("Preview listener has no TCP address");
+const previewOrigin = `http://127.0.0.1:${previewAddress.port}`;
 // Real local TLS worker transport. Credentials/certificate belong only to the isolated test process.
 const workerTls = createTlsServer({
   key: await readFile(new URL("../tests/integration/worker-fixtures/key.pem", import.meta.url)),
@@ -136,6 +131,7 @@ const server = createServer(
     repo,
     directory,
     publicOrigin: "http://127.0.0.1:8899",
+    previewOrigin,
     webDirectory: path.resolve("dist/web"),
     workers: async () => workerServer,
     workerConnectUrl,

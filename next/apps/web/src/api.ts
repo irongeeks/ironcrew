@@ -4,6 +4,15 @@ const errorSchema = z
   .passthrough();
 const rowSchema = z.record(z.string(), z.unknown());
 export type Row = Record<string, unknown>;
+export const SESSION_EXPIRED_EVENT = "ironcrew:session-expired";
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
+}
 let csrf = "";
 export function setCsrf(value: string) {
   csrf = value;
@@ -14,6 +23,7 @@ export async function request<T = Row>(
   path: string,
   options: { method?: string; body?: unknown; revision?: unknown; token?: string } = {},
 ): Promise<T> {
+  const requestCsrf = csrf;
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -40,6 +50,10 @@ export async function request<T = Row>(
       : {}),
   }));
   if (!response.ok) {
+    if (response.status === 401 && csrf && csrf === requestCsrf) {
+      csrf = "";
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
     const parsed = errorSchema.safeParse(payload);
     const messages: Record<string, [string, string]> = {
       model_free_endpoint_unavailable: [
@@ -71,11 +85,12 @@ export async function request<T = Row>(
       parsed.success && parsed.data.code
         ? messages[parsed.data.code]?.[document.documentElement.lang === "en" ? 1 : 0]
         : undefined;
-    throw new Error(
+    throw new ApiError(
       translated ??
         (parsed.success
           ? (parsed.data.message ?? parsed.data.messageKey ?? parsed.data.code ?? `HTTP ${response.status}`)
           : `HTTP ${response.status}`),
+      response.status,
     );
   }
   if (path === "/session" || path === "/setup") {

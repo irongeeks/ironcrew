@@ -4,7 +4,8 @@ import type { Group } from "three";
 import { createCrewModel, crewKeys } from "./CrewModel.ts";
 import manifest from "../public/crew/manifest.json" with { type: "json" };
 // Only bundled, self-contained, checksum-matched GLBs enter the renderer.
-async function loadAsset(entry: (typeof manifest.models)[number]) {
+type AssetReference = { url: string; sha256: string; byteLength: number };
+async function loadAsset(entry: AssetReference) {
   if (!/^\/crew\/[a-z-]+\.glb$/.test(entry.url) || entry.byteLength > 2000000)
     throw new Error("asset_manifest_invalid");
   const response = await fetch(entry.url, { credentials: "same-origin" });
@@ -33,34 +34,39 @@ async function loadAsset(entry: (typeof manifest.models)[number]) {
     throw new Error("asset_external_resource_denied");
   return (await new GLTFLoader().parseAsync(bytes, "")).scene;
 }
-let cached: Promise<(Group | undefined)[]> | undefined;
+type CrewAsset = { full: Group; distant?: Group };
+let cached: Promise<CrewAsset[]> | undefined;
 export function useCrewAssets() {
-  const [assets, setAssets] = useState<(Group | undefined)[]>([]);
+  const [loaded, setLoaded] = useState<CrewAsset[]>([]);
   useEffect(() => {
     let active = true;
     cached ??= Promise.all(
-      crewKeys.map((key, index) => {
+      crewKeys.map(async (key, index) => {
         const entry = manifest.models.find((model) => model.seedKey === key);
-        return entry
-          ? loadAsset(entry).catch(() => {
+        const full = entry
+          ? await loadAsset(entry).catch(() => {
               const fallback = createCrewModel(index);
               fallback.userData.fallback = true;
               return fallback;
             })
-          : Promise.resolve(createCrewModel(index));
+          : createCrewModel(index);
+        const lod = entry?.lod;
+        const distant = lod ? await loadAsset(lod).catch(() => undefined) : undefined;
+        return { full, distant };
       }),
     );
     void cached.then((value) => {
-      if (active) setAssets(value);
+      if (active) setLoaded(value);
     });
     return () => {
       active = false;
     };
   }, []);
   return {
-    assets,
-    state: assets.length
-      ? assets.every((asset) => asset && !asset.userData.fallback)
+    assets: loaded.map((item) => item.full),
+    distantAssets: loaded.map((item) => item.distant),
+    state: loaded.length
+      ? loaded.every((asset) => !asset.full.userData.fallback)
         ? "verified"
         : "fallback"
       : "loading",

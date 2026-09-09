@@ -26,6 +26,7 @@ export function registerWorkflowRoutes(
   options: {
     repo: Repository;
     directory: string;
+    previewOrigin: string;
     workers?: () => Promise<WorkerServer | undefined>;
     context: (res: Response) => Scope;
     order: (req: Request, res: Response) => Promise<Order>;
@@ -52,7 +53,15 @@ export function registerWorkflowRoutes(
       o.kind === "research" ? "research" : o.kind === "finance" ? "finance-workflow" : o.kind,
       o.id,
     );
-    res.json(doc ? { ...(doc.data as object), revision: doc.revision } : { kind: o.kind, state: "not_started" });
+    if (!doc) return void res.json({ kind: o.kind, state: "not_started" });
+    const data = doc.data as Record<string, unknown>;
+    // URLs belong to the running installation, including restored older artifacts.
+    const version = o.kind === "website" ? z.uuid().safeParse(data.artifactVersionId) : undefined;
+    res.json({
+      ...data,
+      ...(version?.success ? { previewUrl: `${options.previewOrigin}/${version.data}/` } : {}),
+      revision: doc.revision,
+    });
   });
   app.post(
     "/api/v1/orders/:id/plan",

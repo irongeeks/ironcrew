@@ -1,0 +1,47 @@
+{
+  "sourceRepository": "https://github.com/makehumancommunity/makehuman",
+  "sourceCommit": "a8bc2d54ff0ac92e78ff71431b1023eda42bf482",
+  "sourceAsset": "makehuman/data/3dobjs/base.obj",
+  "sourceSha256": "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c",
+  "license": "CC0-1.0",
+  "licenseEvidence": "LICENSE.md section C explicitly includes the base mesh; LICENSE.ASSETS.md contains CC0 dedication",
+  "sourceGroup": "body",
+  "excludedGroups": "All helper and joint groups excluded from rendered geometry; helper-eye bounds used only for landmarks",
+  "axes": {
+    "up": "+Y",
+    "front": "+Z",
+    "characterLeft": "+X"
+  },
+  "transform": {
+    "formula": "normalized=(source-[0,5.8,0.1])*scale",
+    "offset": [0, 5.8, 0.1],
+    "scale": 0.37156764388957,
+    "normalizedHeight": 1
+  },
+  "landmarks": {
+    "leftEyeCenter": [0.1143582, 0.551458, 0.4255771],
+    "rightEyeCenter": [-0.1143582, 0.551458, 0.4255771],
+    "headJoint": [0, 0.4365734, 0.0225727],
+    "jawJoint": [0, 0.1451901, 0.4922714],
+    "neckJoint": [0, 0.033534, -0.0118716],
+    "leftEyeTarget": [0.117917, 0.555475, 0.5640954],
+    "rightEyeTarget": [-0.117917, 0.555475, 0.5640954],
+    "eyeRadius": 0.05133207000334409,
+    "noseTip": [0, 0.4120685, 0.587337]
+  },
+  "bounds": {
+    "min": [-0.3267194, 0, -0.1813993],
+    "max": [0.3267194, 1, 0.587337]
+  },
+  "neckBoundary": "Open planar cut at normalized Y=0; attach collar/neck, no bottom cap",
+  "uv": "Not included; use solid skin material and vertex normals",
+  "winding": "Source OBJ winding preserved",
+  "simplification": {
+    "tool": "meshoptimizer 1.1.1 (MIT), local installed tooling only",
+    "fullTriangles": 8668,
+    "triangles": 3500,
+    "vertices": 1775,
+    "relativeError": 0.002671000314876437,
+    "lockBoundary": true
+  }
+}

@@ -5,65 +5,65 @@
     {
       "seedKey": "chief_of_staff",
       "url": "/crew/cersei-lannister.png",
-      "sourceGlbSha256": "b420bdcfcddcb2ebe3a01b24de1881925f685bc8d0dbb39894f34423e12adfbf",
-      "sha256": "dd006f3a6b6e88dc4ed14ee61cb5f4c19767fcbae3ecb17d2764128a561ce0cd",
-      "byteLength": 40730
+      "sourceGlbSha256": "eb93a403e0de21b7f0c12939a4281c3f6bb3568909ff946066c9fe752c761d27",
+      "sha256": "ea15d92cf90b8bf38fb640fd2b3e9f8c59e7b9048063b69d4a02bccae04fc915",
+      "byteLength": 87388
     },
     {
       "seedKey": "software",
       "url": "/crew/mr-robot.png",
-      "sourceGlbSha256": "444954eea9b3988ef87c4f8615c86defd86cfbe352bfcb7de7e5f09090879836",
-      "sha256": "596fd7ecb58fd7b42352a2c55053c043810f1b05a94b81fdb8f3b41dd77c7509",
-      "byteLength": 34766
+      "sourceGlbSha256": "968990959bae774fdfccd551555705112c03d777ec014ea29bd204e7eb24179b",
+      "sha256": "19bee67f0c0f3ba96639c4f1b3e71b0092a7a3b620d4cada4edf58f7f32f3dce",
+      "byteLength": 75825
     },
     {
       "seedKey": "operations",
       "url": "/crew/morpheus.png",
-      "sourceGlbSha256": "159249f990a3be4871b568b875b14d7b9beff92366646465cc81f6c0cbd6e3dd",
-      "sha256": "e0700a7a79398e85d19b896fa7ecb65acb02b6c9d6794e68655c4ebf0f3a2e78",
-      "byteLength": 38616
+      "sourceGlbSha256": "1f265ac27d798007a6fa0b89745bef52ceba8958060313667b452ca0224db1e5",
+      "sha256": "eb89aaa6080992230950993ce8a26c706860bec6d27f59530be5087c3a684af5",
+      "byteLength": 74760
     },
     {
       "seedKey": "design",
       "url": "/crew/steve-jobs.png",
-      "sourceGlbSha256": "69193f2e0285deaa3069c693e3a9cf79cf97115a2d8328abea5a28da4516fb3d",
-      "sha256": "8daffd701c6cadc6272389e1a611e7874d0cc6a9639484cb74dfa84fa00005ce",
-      "byteLength": 35915
+      "sourceGlbSha256": "9da831ad87ca342a35def9576b69997dfc27c9dbde7f9cbd692158adb73bdc2a",
+      "sha256": "42634921b0555a0979dce10a5d3ad9a4eba0204ddae550f5b3c33b6b97b91caa",
+      "byteLength": 64887
     },
     {
       "seedKey": "marketing",
       "url": "/crew/tyrion-lannister.png",
-      "sourceGlbSha256": "a51d78fad4d6ca3437bc4ea8bf24a5c52f269e3668983df5836a64c0602409c7",
-      "sha256": "4b19f36807eafad0d0ff8026cf22d7a9036505cd405dc0992c986cbc85b32779",
-      "byteLength": 35399
+      "sourceGlbSha256": "6edd60dad78fbeede6243a4c6373197215a12d37b7ffdefa5c02ae94bca29973",
+      "sha256": "30588c409d5bdab13e56c8bbab087ec60c9ffec42b9721568b7b73b4736ea6d2",
+      "byteLength": 73220
     },
     {
       "seedKey": "finance",
       "url": "/crew/saul-goodman.png",
-      "sourceGlbSha256": "1bc03c7ceb57cd74747408c19027d649fa612bb0461cb9210329724cfddcda58",
-      "sha256": "80052c2a0e4dfca436d10c7277f51205245a0350daaafab1f326cd1254891539",
-      "byteLength": 35467
+      "sourceGlbSha256": "bd2155c0eb3698da660cc41a8584cb37859b231a5fce80cfdb5fe2cf6e87b9cb",
+      "sha256": "f032e0542e36b9697188314a70743492c952c0c634098b7cc2e4e49110da3dba",
+      "byteLength": 73145
     },
     {
       "seedKey": "research",
       "url": "/crew/karla-kolumna.png",
-      "sourceGlbSha256": "7028f26d0ade684a93d059540c618fdde006c1f9dda9744a5199196b2353c540",
-      "sha256": "afed411fcd64310b2f77b07b06a22df33ec3d463b39c5d8d06c34a9caf9bf968",
-      "byteLength": 34532
+      "sourceGlbSha256": "bfc14cc7f3aeed9c08572341ad824d0329869bfbdf7b10e1ce2e6174817ce4fe",
+      "sha256": "a67e58562feedab150ab4df143198007e7813a1525c861cc723b5d6a169015b3",
+      "byteLength": 72503
     },
     {
       "seedKey": "quality",
       "url": "/crew/der-professor.png",
-      "sourceGlbSha256": "809030b66d10a5d7e58b5ae3ef4121070f3f79e5ae201dd1aad96a6684dad485",
-      "sha256": "6e285797d6526251b173bb3200829a3a62c7bac06702b59bbd88ba3574cf7735",
-      "byteLength": 38255
+      "sourceGlbSha256": "5efb7e0a8415c6f7f1d840f9da1e85d85ef807174ae80c797bbfc5d7a2cacb6a",
+      "sha256": "50e3ef9cc1b74aa6162b377fe1331e468d0df6394f05da6a85782f2d4fcae89d",
+      "byteLength": 72993
     },
     {
       "seedKey": "security",
       "url": "/crew/nick-fury.png",
-      "sourceGlbSha256": "048b844aca56d9f69cb876b638c6136e63d9d0a20a7dd16ba40efb194df433e1",
-      "sha256": "71b11c3015cd059ae5ae511e61be43e3638c838774ee76dfd4bc8b09ee757024",
-      "byteLength": 42251
+      "sourceGlbSha256": "c745259ff4e5be34f62fb5aeafd695a378e6ddb543bc91545f8e7ac4be648953",
+      "sha256": "398d28fc0a005aa73c467f62f3edd2d22cea5e91876e0c312375f9f7d1ae5648",
+      "byteLength": 75170
     }
   ]
 }

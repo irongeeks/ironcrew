@@ -24,3 +24,9 @@
 - CLI-Fakes müssen die reale Ausgabeform des gewählten Unterbefehls abbilden. Bei `pass-cli --field` Klartext einschließlich JSON-artiger Secrets und bedeutungstragender Leerzeichen testen.
 - Test-Runtimes nicht an einmalige temporäre Installationspfade binden. Explizite Runtime-Pfade prüfen; fehlende Konfiguration und ungeeignete portable Binaries dürfen nicht als bestandene oder still übersprungene Tests erscheinen.
 - Zeilenenden am externen Ausgabeprotokoll prüfen: Rust `println!` fügt auf allen Plattformen ausschließlich LF hinzu. Ein unmittelbar davor stehendes CR kann Secretinhalt sein und muss erhalten bleiben.
+
+# Präventionsregeln aus dem Mac-Produktreview
+
+- Grüne GLB-/Polygon-/Laufzeittests belegen keine überzeugende Figurenqualität. Vor visueller Fertigmeldung alle neun Figuren in Nahansicht und in der echten Halle ansehen; Körperproportionen, Gesichter, Hände, Haare und Stoff-/Lederwirkung separat beurteilen.
+- Konfigurierbare Listener-Adressen müssen auch persistierte URLs, Browserfilter und CSP erreichen. Abweichende Ports end-to-end prüfen.
+- Eine während geöffneter Oberfläche ablaufende Sitzung braucht einen getesteten Weg zurück zur Anmeldung, einschließlich bereits abgelaufener Logout-Anfragen.

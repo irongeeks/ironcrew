@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
-import { Group, TextureLoader, SRGBColorSpace, Vector3 } from "three";
+import { Group, LOD, TextureLoader, SRGBColorSpace, Vector3 } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { string as str, type Row } from "./api.ts";
 import styles from "./App.module.css";
@@ -19,6 +19,7 @@ function Box({ p, s, c, metal = 0 }: { p: Point; s: Point; c: string; metal?: nu
 function AssetCharacter({
   index,
   asset,
+  distantAsset,
   employee,
   order,
   reduced,
@@ -26,14 +27,20 @@ function AssetCharacter({
 }: {
   index: number;
   asset: Group;
+  distantAsset?: Group;
   employee: Row;
   order?: Row;
   reduced: boolean;
   onClick: () => void;
 }) {
   const root = useRef<Group>(null),
-    model = useMemo(() => asset.clone(true), [asset]);
-  const rig = useMemo(() => crewRig(model), [model]);
+    model = useMemo(() => {
+      const detail = new LOD();
+      detail.addLevel(asset.clone(true), 0);
+      if (distantAsset) detail.addLevel(distantAsset.clone(true), 6, 0.12);
+      return detail;
+    }, [asset, distantAsset]);
+  const rigs = useMemo(() => model.levels.map((level) => crewRig(level.object as Group)), [model]);
   const activity = crewActivity(employee, order);
   const home = useMemo(() => new Vector3(...crewPosition(index, "idle")), [index]);
   const target = useMemo(() => new Vector3(...crewPosition(index, activity)), [index, activity]);
@@ -50,7 +57,7 @@ function AssetCharacter({
       : activity === "working" || activity === "reviewing"
         ? Math.PI
         : Math.atan2(-target.x, -target.z);
-    poseCrew(rig, activity, state.clock.elapsedTime, moving, reduced, index * 0.73);
+    for (const rig of rigs) poseCrew(rig, activity, state.clock.elapsedTime, moving, reduced, index * 0.73);
   });
   return (
     <group
@@ -128,6 +135,7 @@ function Emblem() {
 }
 function Scene({
   assets,
+  distantAssets,
   employees,
   orders,
   reduced,
@@ -135,6 +143,7 @@ function Scene({
   onOrder,
 }: {
   assets: (Group | undefined)[];
+  distantAssets: (Group | undefined)[];
   employees: Row[];
   orders: Row[];
   reduced: boolean;
@@ -205,6 +214,7 @@ function Scene({
             key={str(employee, "id")}
             index={index}
             asset={asset}
+            distantAsset={distantAssets[index]}
             employee={employee}
             order={orderOf(employee)}
             reduced={reduced}
@@ -308,6 +318,7 @@ export default function Hall({
           <CameraRig preset={preset} />
           <Scene
             assets={crewAssets.assets}
+            distantAssets={crewAssets.distantAssets}
             employees={employees}
             orders={orders}
             reduced={reduced}

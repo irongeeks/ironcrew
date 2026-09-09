@@ -21,10 +21,16 @@ const server = createServer(async (req, res) => {
       res.setHeader("Content-Type", "text/html");
       res.end(`<!doctype html><html><head><style>html,body{margin:0;background:transparent}canvas{display:block}</style><script type="importmap">{"imports":{"three":"/three.js"}}</script></head><body><script type="module">
 import * as T from 'three'; import { GLTFLoader } from '/GLTFLoader.js';
-const renderer = new T.WebGLRenderer({antialias:true, alpha:true, preserveDrawingBuffer:true}); renderer.setSize(320,420); renderer.setPixelRatio(1); renderer.setClearColor(0x000000,0); renderer.outputColorSpace=T.SRGBColorSpace; document.body.append(renderer.domElement);
+const renderer = new T.WebGLRenderer({antialias:true, alpha:true, preserveDrawingBuffer:true}); renderer.setSize(320,420); renderer.setPixelRatio(1); renderer.setClearColor(0x000000,0); renderer.outputColorSpace=T.SRGBColorSpace; renderer.toneMapping=T.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05; document.body.append(renderer.domElement);
 const scene = new T.Scene(); scene.add(new T.HemisphereLight(0xdce5ed,0x625442,2.4)); const key=new T.DirectionalLight(0xffe2bc,3); key.position.set(3,4,4); scene.add(key); const rim=new T.DirectionalLight(0x91a6b6,2);rim.position.set(-3,3,-3);scene.add(rim);
 const camera=new T.OrthographicCamera(-.76,.76,1,-1,.1,20); camera.position.set(2,1.4,8); camera.lookAt(0,1,0);
-let current; window.renderCrew=async(url)=>{if(current)scene.remove(current);current=(await new GLTFLoader().loadAsync(url)).scene;scene.add(current);renderer.render(scene,camera);return renderer.domElement.toDataURL('image/png');}; window.ready=true;
+let current; window.renderCrew=async(url,close=false)=>{
+if(current){scene.remove(current);current.traverse(item=>{if(item.isMesh){item.geometry.dispose();(Array.isArray(item.material)?item.material:[item.material]).forEach(m=>m.dispose());}});}
+current=(await new GLTFLoader().loadAsync(url)).scene;scene.add(current);current.updateMatrixWorld(true);
+const head=current.getObjectByName('Head').getWorldPosition(new T.Vector3());
+const extent=close?.32:1; camera.left=-extent*320/420;camera.right=extent*320/420;camera.top=extent;camera.bottom=-extent;camera.updateProjectionMatrix();
+const target=close?new T.Vector3(0,head.y-.095,.02):new T.Vector3(0,.94,0);camera.position.copy(target).add(new T.Vector3(close?.7:1.7,close?.12:.4,8));camera.lookAt(target);
+renderer.render(scene,camera);return renderer.domElement.toDataURL('image/png');}; window.ready=true;
 </script></body></html>`);
       return;
     }
@@ -54,8 +60,10 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => window.ready === true);
   const portraits = [];
+  const bodyImages = [];
   for (const model of manifest.models) {
-    const dataUrl = await page.evaluate((url) => window.renderCrew(url), model.url);
+    bodyImages.push(await page.evaluate((url) => window.renderCrew(url, false), model.url));
+    const dataUrl = await page.evaluate((url) => window.renderCrew(url, true), model.url);
     const bytes = Buffer.from(dataUrl.split(",")[1], "base64");
     const url = `/crew/${model.id}.png`;
     await writeFile(new URL(url.slice(1), publicDirectory), bytes);
@@ -75,18 +83,39 @@ try {
   const cards = await Promise.all(
     portraits.map(
       async (portrait, index) =>
-        `<figure><img src="data:image/png;base64,${(await readFile(new URL(portrait.url.slice(1), publicDirectory))).toString("base64")}"><figcaption>${manifest.models[index].id.replaceAll("-", " ")}</figcaption></figure>`,
+        `<figure><img src="data:image/png;base64,${bodyImages[index].split(",")[1]}"><figcaption>${manifest.models[index].id.replaceAll("-", " ")}</figcaption></figure>`,
     ),
   );
   await page.setViewportSize({ width: 1500, height: 1050 });
   await page.setContent(
-    `<html><head><style>body{background:#192226;color:#e8e4d6;font-family:system-ui;margin:24px}main{display:grid;grid-template-columns:repeat(5,1fr);gap:20px}figure{margin:0;background:#263137;border:1px solid #455153}img{display:block;width:100%;height:420px;object-fit:contain}figcaption{padding:12px;text-transform:capitalize;font-size:17px;border-top:1px solid #455153}h1{font-size:25px;font-weight:500}</style></head><body><h1>IronCrew · Neun stilisierte Charaktere / GLB Revision 2</h1><main>${cards.join("")}</main></body></html>`,
+    `<html><head><style>body{background:#192226;color:#e8e4d6;font-family:system-ui;margin:24px}main{display:grid;grid-template-columns:repeat(5,1fr);gap:20px}figure{margin:0;background:#263137;border:1px solid #455153}img{display:block;width:100%;height:420px;object-fit:contain}figcaption{padding:12px;text-transform:capitalize;font-size:17px;border-top:1px solid #455153}h1{font-size:25px;font-weight:500}</style></head><body><h1>IronCrew · Neun Charaktere / GLB Revision 3</h1><main>${cards.join("")}</main></body></html>`,
   );
   await page.screenshot({
     path: new URL("../../../docs/test-evidence/crew-character-contact-sheet.png", import.meta.url).pathname,
     fullPage: true,
   });
-  console.log(`Rendered ${portraits.length} local GLB portraits and contact sheet.`);
+  await page.locator("figure img").evaluateAll(
+    (images, sources) => {
+      images.forEach((image, index) => {
+        image.src = sources[index];
+      });
+    },
+    await Promise.all(
+      portraits.map(
+        async (portrait) =>
+          "data:image/png;base64," +
+          (await readFile(new URL(portrait.url.slice(1), publicDirectory))).toString("base64"),
+      ),
+    ),
+  );
+  await page.locator("figure img").evaluateAll(async (images) => {
+    await Promise.all(images.map((image) => image.decode()));
+  });
+  await page.screenshot({
+    path: new URL("../../../docs/test-evidence/crew-character-faces.png", import.meta.url).pathname,
+    fullPage: true,
+  });
+  console.log(`Rendered ${portraits.length} local GLB portraits, body and face contact sheets.`);
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));

@@ -1,5 +1,6 @@
 import { discoverDueReleases } from "./release-feed-routes.ts";
 import { UpdateScheduler } from "./update-scheduler.ts";
+import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { productionUpdates } from "./production-update.ts";
 import { readFile } from "node:fs/promises";
@@ -72,6 +73,12 @@ const appOptions: Parameters<typeof createApp>[0] = {
     return workers;
   },
 };
+const sites = new WebsiteWorkflow(repo, directory);
+const previewServer = createPreviewApp(sites).listen(Number(process.env.IRONCREW_PREVIEW_PORT ?? 8792), "127.0.0.1");
+await once(previewServer, "listening");
+const previewAddress = previewServer.address();
+if (!previewAddress || typeof previewAddress === "string") throw new Error("Preview listener has no TCP address");
+appOptions.previewOrigin = `http://127.0.0.1:${previewAddress.port}`;
 const app = createApp(appOptions);
 const server = tls ? createHttpsServer(tls, app) : createHttpServer(app);
 if (tls && setup)
@@ -103,8 +110,6 @@ server.listen(port, host, () =>
     `IronCrew: ${publicOrigin} · eigener Kern · Liveausführung ${runtime ? "bereit (Secretzugriff geprüft)" : config.liveExecutionEnabled ? "gesperrt: Modellzugang nicht bereit" : "deaktiviert"}`,
   ),
 );
-const sites = new WebsiteWorkflow(repo, directory);
-const previewServer = createPreviewApp(sites).listen(Number(process.env.IRONCREW_PREVIEW_PORT ?? 8792), "127.0.0.1");
 const background = new BackgroundCoordinator(
   repo,
   () => (app.locals.getRuntime ? app.locals.getRuntime() : runtime),

@@ -32,4 +32,31 @@ Die abschließende Remote-Verifikation erfolgt am daraus erzeugten Commit auf
 
 Akzeptanz: keine Warnungsunterdrückung oder angehobenen Schwellwerte, keine entfernten Produktfunktionen, bestätigter Testumfang und bereinigter Git-Arbeitsstand nach Push.
 
-Abschluss der lokalen Fortsetzung: 6.983 Tests plus Produktions-GLB-Durchlauf bestanden; keine Skips, keine Lint-/Buildwarnungen, beide Audits0.189 überholte CI-Rohdateien entfernt. Supertest-Adressfamilienfehler deterministisch reproduziert und mit4 Regressionen abgesichert. Details: [Prüfbericht](../docs/maintenance/repo-cleanup-2026-09-09.md).
+Abschluss der lokalen Fortsetzung: 6.983 Tests plus Produktions-GLB-Durchlauf bestanden; keine Skips, keine Root-Lint-/Buildwarnungen, beide Audits0.189 überholte CI-Rohdateien entfernt. Supertest-Adressfamilienfehler deterministisch reproduziert und mit4 Regressionen abgesichert. Details: [Prüfbericht](../docs/maintenance/repo-cleanup-2026-09-09.md).
+
+# 2026-09-09 – Lokaler Mac-Test und Produktreview
+
+- [x] Aktuellen Commit und lokale Laufzeit prüfen.
+- [x] Aktuellen next-Produktbuild isoliert auf dem Mac starten und zentrale UI-Abläufe prüfen.
+- [x] Native Start-/Neustart-/Persistenzprüfung und passende Regressionen ausführen.
+- [x] Unabhängiges Code-/Produktreview mit reproduzierbaren Befunden abschließen.
+- [x] Ergebnisse, Screenshots und Grenzen dokumentieren; eigene Testprozesse bereinigen.
+
+Prüfstand: 8521efd. Fokus ist der aktuelle Produktkern next/; frühere grüne
+Legacy-Tests sind Kontext und werden nicht als neuer Mac-Produkttest ausgegeben.
+
+Live-Testvorgabe: Zugang über vorhandene lokale `pass-cli`; ausschließlich `openrouter/free`, Modell-, Firmen- und Mandatsbudget 0 USD. Zwei echte Aufrufe erfolgreich, beide mit abgeglichenen Kosten von 0 USD.
+
+Ergebnis: 616 Tests, Lint, Typecheck und Formatprüfung bestanden; echter macOS-LaunchAgent mit Neustart und Datenerhalt geprüft. Zwei reproduzierte P2-Befunde (abweichender Vorschauport, Login nach Sitzungsablauf) und next-Buildgrößenwarnung offen. Eigene Testdienste beendet. [Prüfbericht](../docs/maintenance/mac-review-2026-09-09.md).
+
+# 2026-09-09 – Reviewfehler und Crew-Figuren überarbeiten
+
+- [x] Vorschauport durchgängig konfigurieren und Sitzungsablauf/Logout korrigieren; beide Fehler mit Regressionen absichern.
+- [x] next-Bundleaufteilung ohne angehobene Warnschwellen korrigieren.
+- [x] Neun Crew-Modelle mit natürlichen Proportionen, anatomischen Gesichtern/Händen und differenzierten Kleidungs-/Haarformen überarbeiten; GLBs und zugehörige Porträts erneuern.
+- [x] Nahansichten und echte Halle visuell prüfen, Artikulation und gemessene Rendering-Leistung erhalten.
+- [x] Gesamte next-Testsuite und Qualität erneut prüfen; Ergebnis und Grenzen dokumentieren.
+
+Vorgaben: bestehende Rollen und Namen erhalten, lokale nachvollziehbare 3D-Assets, keine kostenpflichtigen Modellaufrufe; pass-cli/free-only gilt weiterhin für eventuelle Live-Tests.
+
+Abschluss: beide P2-Fehler samt verspäteter Logout-Antwort korrigiert; 634 Tests ohne Skips und alle Qualitätsprüfungen grün, Audit 0. Crew-Revision 3 mit anatomischer Kopfbasis, neuen Körper-/Kleidungsformen und Distanzvarianten; echte Halle im vollständigen Lauf 35,19 FPS bei unverändert 30 FPS Mindestanforderung. Erneuter pass-cli/free-Livevertrag erfolgreich, Kosten 0 USD. [Fixbericht und Bildnachweise](../docs/maintenance/mac-fixes-and-crew-2026-09-09.md).

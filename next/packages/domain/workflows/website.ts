@@ -266,7 +266,7 @@ export class WebsiteWorkflow {
             artifactVersionId: versionId,
             sha256: manifestHash,
             acceptedVersionId: undefined,
-            previewUrl: `http://127.0.0.1:8792/${versionId}/`,
+            previewUrl: `/${versionId}/`,
           },
           expectedRevision: site.revision,
         },

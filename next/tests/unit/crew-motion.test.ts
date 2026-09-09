@@ -48,6 +48,25 @@ describe("crew presentation follows domain state", () => {
   });
 });
 describe("authored character assets", () => {
+  it("keeps detailed anatomy inside the articulated draw-call budget", () => {
+    for (let index = 0; index < crewKeys.length; index++) {
+      const model = createCrewModel(index);
+      const head = model.getObjectByName("AnatomicalFace") as Mesh;
+      expect(head.geometry.getAttribute("color").count).toBe(head.geometry.getAttribute("position").count);
+      const hand = model.getObjectByName("LeftHand")!;
+      expect(hand.parent?.name).toBe("LeftForearm");
+      expect(hand.children.filter((part) => part.name === "Finger")).toHaveLength(4);
+      let draws = 0;
+      model.traverse((part) => {
+        if (!(part instanceof Mesh)) return;
+        draws++;
+        for (const attribute of ["position", "normal"]) {
+          expect(Array.from(part.geometry.getAttribute(attribute).array).every(Number.isFinite)).toBe(true);
+        }
+      });
+      expect(draws).toBeLessThanOrEqual(40);
+    }
+  });
   it("bundles nine checksum verified articulated self-contained GLBs", () => {
     expect(manifest.models).toHaveLength(9);
     expect(new Set(manifest.models.map((model) => model.seedKey)).size).toBe(9);
