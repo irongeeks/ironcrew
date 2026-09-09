@@ -109,7 +109,7 @@ jobs:
           attempt=1
           max_attempts=3
           while true; do
-            if output=$(pnpm audit --prod --audit-level=high 2>&1); then
+            if output=$(pnpm audit --audit-level=low 2>&1); then
               echo "$output"
               exit 0
             fi
@@ -225,6 +225,12 @@ jobs:
         run: pnpm run test:e2e
         env:
           CI: true
+
+      - name: Verify the production 3D preview chunks
+        run: pnpm build && pnpm test:e2e tests/e2e/flows/character-model.spec.ts
+        env:
+          CI: true
+          IRONCREW_E2E_PREVIEW: "1"
 
       - name: Upload Playwright report
         if: always()

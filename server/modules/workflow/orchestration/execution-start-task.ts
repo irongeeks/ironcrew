@@ -1,3 +1,5 @@
+import type { AgentRow } from "../../../types/workflow-types.ts";
+import type { notifyTaskStatus } from "../../../gateway/client.ts";
 import fs from "node:fs";
 import path from "node:path";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
@@ -20,7 +22,7 @@ type CreateExecutionStartTaskToolsDeps = {
   broadcast: RuntimeContext["broadcast"];
   ensureTaskExecutionSession: RuntimeContext["ensureTaskExecutionSession"];
   resolveLang: RuntimeContext["resolveLang"];
-  notifyTaskStatus: (...args: any[]) => any;
+  notifyTaskStatus: typeof notifyTaskStatus;
   resolveProjectPath: RuntimeContext["resolveProjectPath"];
   createWorktree: RuntimeContext["createWorktree"];
   getDeptRoleConstraint: RuntimeContext["getDeptRoleConstraint"];
@@ -77,7 +79,26 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
     mcpManager,
   } = deps;
 
-  function startTaskExecutionForAgent(taskId: string, execAgent: any, deptId: string | null, deptName: string): void {
+  function startTaskExecutionForAgent(
+    taskId: string,
+    execAgent: Pick<
+      AgentRow,
+      | "api_model"
+      | "api_provider_id"
+      | "cli_model"
+      | "cli_profile"
+      | "cli_provider"
+      | "cli_reasoning_level"
+      | "id"
+      | "name"
+      | "name_ko"
+      | "oauth_account_id"
+      | "personality"
+      | "role"
+    >,
+    deptId: string | null,
+    deptName: string,
+  ): void {
     const execName = execAgent.name_ko || execAgent.name;
     const t = nowMs();
     db.prepare(
@@ -93,7 +114,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
     if (!["claude", "codex", "gemini", "opencode", "copilot", "antigravity", "api", "openclaw"].includes(provider))
       return;
     const executionSession = ensureTaskExecutionSession(taskId, execAgent.id, provider);
-    const pendingInterruptPrompts = loadPendingInterruptPrompts(db as any, taskId, executionSession.sessionId);
+    const pendingInterruptPrompts = loadPendingInterruptPrompts(db, taskId, executionSession.sessionId);
     const interruptPromptBlock = buildInterruptPromptBlock(pendingInterruptPrompts);
 
     const taskData = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as
@@ -111,7 +132,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
       | undefined;
     if (!taskData) return;
     ensureVideoPreprodRemotionBestPracticesSkill({
-      db: db as any,
+      db: db,
       nowMs,
       workflowPackKey: taskData.workflow_pack_key,
       provider,
@@ -124,7 +145,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
       taskType: taskData.task_type,
       workflowMetaJson: taskData.workflow_meta_json,
     });
-    const serverAccess = requestServerAccess(db as any, {
+    const serverAccess = requestServerAccess(db, {
       nowMs: nowMs(),
       taskId,
       agentId: execAgent.id,
@@ -180,7 +201,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
     }
     let sshGuidance = "";
     try {
-      const alloc = (db as any)
+      const alloc = db
         .prepare(
           "SELECT sa.server_id, s.id, s.name, s.ssh_config_json FROM server_allocations sa JOIN servers s ON s.id = sa.server_id WHERE sa.task_id = ? AND sa.status = 'active' AND s.ssh_config_json IS NOT NULL LIMIT 1",
         )
@@ -271,7 +292,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
       appendTaskLog(taskId, "system", `Git worktree created: ${wtPath} (branch: ironcrew/${taskId.slice(0, 8)})`);
     }
     const docsContext = buildDocsExecutionContextBlock({
-      db: db as any,
+      db: db,
       task: {
         id: taskId,
         project_id: taskData.project_id,
@@ -289,7 +310,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
     };
     const roleLabel = roleLabels[execAgent.role] ?? execAgent.role;
     const deptConstraint = deptId ? getDeptRoleConstraint(deptId, deptName) : "";
-    const deptPromptRaw = deptId ? getDepartmentPromptForPack(db as any, taskData.workflow_pack_key, deptId) : null;
+    const deptPromptRaw = deptId ? getDepartmentPromptForPack(db, taskData.workflow_pack_key, deptId) : null;
     const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
     const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
     const conversationCtx = getRecentConversationContext(execAgent.id);
@@ -364,7 +385,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
 
     if (pendingInterruptPrompts.length > 0) {
       consumeInterruptPrompts(
-        db as any,
+        db,
         pendingInterruptPrompts.map((row) => row.id),
         nowMs(),
       );

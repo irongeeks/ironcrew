@@ -73,43 +73,19 @@ else
   pass "No .env runtime files are tracked"
 fi
 
-tracked_key_files="$(git ls-files | rg '(^|/)(id_rsa|id_ed25519)$|\.(pem|key|p12|pfx|cer|crt)$|(^|/)credentials\.json$|(^|/)secrets[^/]*\.json$' || true)"
-if [ -n "$tracked_key_files" ]; then
-  fail "Credential/key files are tracked"
-  printf '%s\n' "$tracked_key_files"
-else
-  pass "No credential/key files are tracked"
-fi
-
 if git ls-files | rg -q '^logs/'; then
   fail "logs/ contains tracked files"
 else
   pass "No runtime logs are tracked"
 fi
 
-secret_pattern='(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{80,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)'
-
-working_tree_hits="$(mktemp)"
-if git grep -nI -E "$secret_pattern" -- . ':(exclude).env.example' >"$working_tree_hits" 2>/dev/null; then
-  fail "Potential secret pattern found in tracked working tree files"
-  cat "$working_tree_hits"
+# The scanner reports paths only and permits the documented public test PKI
+# solely when the complete current/historical blob matches its pinned SHA-256.
+if node scripts/lib/public-secret-scan.mjs; then
+  pass "No unexpected credential/key files or secret patterns in tracked files and history"
 else
-  pass "No high-confidence secret patterns in tracked working tree files"
+  fail "Credential/secret scan failed (see path-only findings above)"
 fi
-rm -f "$working_tree_hits"
-
-history_hits="$(mktemp)"
-while IFS= read -r rev; do
-  git grep -nI -E "$secret_pattern" "$rev" -- . ':(exclude).env.example' >>"$history_hits" 2>/dev/null || true
-done < <(git rev-list --all)
-
-if [ -s "$history_hits" ]; then
-  fail "Potential secret pattern found in git history"
-  cat "$history_hits"
-else
-  pass "No high-confidence secret patterns in git history"
-fi
-rm -f "$history_hits"
 
 required_env_vars=(
   "PORT"

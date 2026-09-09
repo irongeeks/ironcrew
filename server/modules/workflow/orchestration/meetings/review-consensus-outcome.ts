@@ -102,11 +102,11 @@ export async function processReviewConsensusOutcome(ctx: OutcomeContext): Promis
 
   // Final review result should follow each leader's last approval statement,
   // not stale "needs revision" flags from earlier feedback turns.
-  const finalHoldLeaders: any[] = [];
-  const deferredMonitoringLeaders: any[] = [];
+  const finalHoldLeaders: AgentRow[] = [];
+  const deferredMonitoringLeaders: AgentRow[] = [];
   const deferredMonitoringNotes: string[] = [];
   const finalHoldDeptCount = new Map<string, number>();
-  for (const leader of leaders as any[]) {
+  for (const leader of leaders) {
     if (meetingReviewDecisionByAgent.get(leader.id) !== "hold") continue;
     const latestDecisionLine = findLatestTranscriptContentByAgent(transcript as MeetingTranscriptEntry[], leader.id);
     if (isDeferrableReviewHold(latestDecisionLine)) {

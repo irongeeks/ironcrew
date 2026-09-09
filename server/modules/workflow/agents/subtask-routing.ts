@@ -1,3 +1,4 @@
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import type { DbLike } from "../../../types/db-like.ts";
 import type { Lang } from "../../../types/lang.ts";
 import { resolveConstrainedAgentScopeForTask } from "../../routes/core/tasks/execution-run-auto-assign.ts";
@@ -14,17 +15,17 @@ type SubtaskRoutingDeps = {
   db: DbLike;
   DEPT_KEYWORDS: Record<string, string[]>;
   detectTargetDepartments: (text: string) => string[];
-  runAgentOneShot: (agent: any, prompt: string, options: any) => Promise<{ text: string }>;
+  runAgentOneShot: RuntimeContext["runAgentOneShot"];
   resolveProjectPath: (task: {
     title?: string;
     description?: string | null;
     project_path?: string | null;
   }) => string | null;
   resolveLang: (text?: string, fallback?: Lang) => Lang;
-  findTeamLeader: (departmentId: string | null, candidateAgentIds?: string[] | null) => any;
+  findTeamLeader: RuntimeContext["findTeamLeader"];
   getDeptName: (departmentId: string, workflowPackKey?: string | null) => string;
-  pickL: (choices: any, lang: Lang) => string;
-  l: (ko: string[], en: string[], ja?: string[], zh?: string[], de?: string[]) => any;
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
   broadcast: (event: string, payload: unknown) => void;
   appendTaskLog: (taskId: string, kind: string, message: string) => void;
   notifyCeo: (content: string, taskId?: string | null, messageType?: string) => void;
@@ -177,24 +178,27 @@ export function createSubtaskRoutingTools(deps: SubtaskRoutingDeps) {
     if (objectMatch?.[0]) candidates.push(objectMatch[0]);
 
     for (const candidate of candidates) {
-      let parsed: any;
+      let parsed: unknown;
       try {
         parsed = JSON.parse(candidate);
       } catch {
         continue;
       }
-      const rows = Array.isArray(parsed?.assignments) ? parsed.assignments : Array.isArray(parsed) ? parsed : [];
+      const assignments = parsed && typeof parsed === "object" && "assignments" in parsed ? parsed.assignments : parsed;
+      const rows: unknown[] = Array.isArray(assignments) ? assignments : [];
       if (!Array.isArray(rows) || rows.length === 0) continue;
 
       const normalized: PlannerSubtaskAssignment[] = [];
       for (const row of rows) {
         if (!row || typeof row !== "object") continue;
-        const subtaskId = typeof row.subtask_id === "string" ? row.subtask_id.trim() : "";
+        const fields: Record<string, unknown> = Object.fromEntries(Object.entries(row));
+        const subtaskId = typeof fields.subtask_id === "string" ? fields.subtask_id.trim() : "";
         if (!subtaskId) continue;
         const targetRaw =
-          row.target_department_id ?? row.target_department ?? row.department_id ?? row.department ?? null;
-        const reason = typeof row.reason === "string" ? row.reason.trim() : undefined;
-        const confidence = typeof row.confidence === "number" ? Math.max(0, Math.min(1, row.confidence)) : undefined;
+          fields.target_department_id ?? fields.target_department ?? fields.department_id ?? fields.department ?? null;
+        const reason = typeof fields.reason === "string" ? fields.reason.trim() : undefined;
+        const confidence =
+          typeof fields.confidence === "number" ? Math.max(0, Math.min(1, fields.confidence)) : undefined;
         normalized.push({
           subtask_id: subtaskId,
           target_department_id: targetRaw == null ? null : String(targetRaw),
@@ -234,7 +238,7 @@ export function createSubtaskRoutingTools(deps: SubtaskRoutingDeps) {
           }
         | undefined;
       if (!task) return;
-      const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+      const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db, {
         project_id: task.project_id,
         workflow_pack_key: task.workflow_pack_key,
         department_id: task.department_id ?? ownerDeptId,

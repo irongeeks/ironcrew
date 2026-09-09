@@ -56,7 +56,7 @@ export function createDirectTaskFlow(deps: TaskFlowDeps) {
     const selectedProject = deps.resolveProjectFromOptions(options);
     const explicitPackKey = inferPackKeyFromAgentId(agent.id);
     const workflowPackKey = resolveWorkflowPackKeyForTask({
-      db: deps.db as any,
+      db: deps.db,
       explicitPackKey,
       projectId: selectedProject.id,
     });

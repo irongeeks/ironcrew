@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { PackRegistry } from "../../../packs/pack-registry.ts";
+import type { LoadedPack } from "../../../packs/pack-loader.ts";
 
 export interface PackArtifact {
   name: string;
@@ -50,7 +50,7 @@ const BINARY_EXTENSIONS = new Set([
  * Returns artifacts sorted by size (largest first) with content truncated.
  */
 export function collectPackTerminalArtifacts(
-  packRegistry: PackRegistry,
+  packRegistry: { get(key: string): { graph: Pick<LoadedPack["graph"], "terminals" | "phases"> } },
   workflowPackKey: string,
   projectPath: string,
   contentLimit = ARTIFACT_CONTENT_LIMIT,

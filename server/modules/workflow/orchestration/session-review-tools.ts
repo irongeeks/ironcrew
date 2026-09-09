@@ -1,6 +1,31 @@
+import type { TaskExecutionSessionState } from "../../../types/workflow-types.ts";
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import type { DbLike } from "../../../types/db-like.ts";
 import type { Lang } from "../../../types/lang.ts";
 
-type CreateSessionReviewToolsDeps = Record<string, any>;
+type CreateSessionReviewToolsDeps = {
+  taskExecutionSessions: RuntimeContext["taskExecutionSessions"];
+  nowMs: RuntimeContext["nowMs"];
+  randomUUID: () => string;
+  stopRequestedTasks: RuntimeContext["stopRequestedTasks"];
+  clearCliOutputDedup: RuntimeContext["clearCliOutputDedup"];
+  crossDeptNextCallbacks: RuntimeContext["crossDeptNextCallbacks"];
+  subtaskDelegationCallbacks: RuntimeContext["subtaskDelegationCallbacks"];
+  subtaskDelegationDispatchInFlight: RuntimeContext["subtaskDelegationDispatchInFlight"];
+  delegatedTaskToSubtask: RuntimeContext["delegatedTaskToSubtask"];
+  subtaskDelegationCompletionNoticeSent: RuntimeContext["subtaskDelegationCompletionNoticeSent"];
+  reviewRoundState: RuntimeContext["reviewRoundState"];
+  reviewInFlight: RuntimeContext["reviewInFlight"];
+  appendTaskLog: RuntimeContext["appendTaskLog"];
+  notifyCeo: RuntimeContext["notifyCeo"];
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
+  db: DbLike;
+  finishReview: RuntimeContext["finishReview"];
+  randomDelay: RuntimeContext["randomDelay"];
+  stopRequestModeByTask: RuntimeContext["stopRequestModeByTask"];
+  startPlannedApprovalMeeting: RuntimeContext["startPlannedApprovalMeeting"];
+};
 
 export function createSessionReviewTools(deps: CreateSessionReviewToolsDeps) {
   const {
@@ -25,7 +50,7 @@ export function createSessionReviewTools(deps: CreateSessionReviewToolsDeps) {
     randomDelay,
   } = deps;
 
-  function ensureTaskExecutionSession(taskId: string, agentId: string, provider: string): any {
+  function ensureTaskExecutionSession(taskId: string, agentId: string, provider: string): TaskExecutionSessionState {
     const now = nowMs();
     const existing = taskExecutionSessions.get(taskId);
     if (existing && existing.agentId === agentId && existing.provider === provider) {
@@ -34,7 +59,7 @@ export function createSessionReviewTools(deps: CreateSessionReviewToolsDeps) {
       return existing;
     }
 
-    const nextSession: any = {
+    const nextSession: TaskExecutionSessionState = {
       sessionId: randomUUID(),
       taskId,
       agentId,

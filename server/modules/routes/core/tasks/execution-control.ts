@@ -80,12 +80,9 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
     randomDelay,
   } = deps;
 
-  function requireCsrfGuard(
-    req: { method?: string; header(name: string): string | undefined },
-    res: Response,
-  ): boolean {
-    if (!shouldRequireCsrf(req as any)) return true;
-    if (hasValidCsrfToken(req as any)) return true;
+  function requireCsrfGuard(req: Parameters<typeof shouldRequireCsrf>[0], res: Response): boolean {
+    if (!shouldRequireCsrf(req)) return true;
+    if (hasValidCsrfToken(req)) return true;
     res.status(403).json({ error: "csrf_token_invalid" });
     return false;
   }
@@ -106,7 +103,9 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
     taskId: string,
     sessionId: string,
     controlToken: string,
-  ): { ok: true; session: any } | { ok: false; status: number; error: string } {
+  ):
+    | { ok: true; session: NonNullable<ReturnType<RuntimeContext["taskExecutionSessions"]["get"]>> }
+    | { ok: false; status: number; error: string } {
     const activeSession = taskExecutionSessions.get(taskId);
     if (!activeSession?.sessionId) return { ok: false, status: 409, error: "task_session_missing" };
     if (activeSession.sessionId !== sessionId) return { ok: false, status: 409, error: "task_session_mismatch" };
@@ -142,7 +141,7 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
 
   app.post("/api/tasks/:id/inject", (req, res) => {
     const id = String(req.params.id);
-    if (!requireCsrfGuard(req as any, res)) return;
+    if (!requireCsrfGuard(req, res)) return;
 
     const task = db.prepare("SELECT id, title, status FROM tasks WHERE id = ?").get(id) as
       | { id: string; title: string; status: string }
@@ -154,7 +153,7 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
         .json({ error: "invalid_status", message: `Cannot inject prompt while status is '${task.status}'` });
     }
 
-    const { sessionId, controlToken } = readInterruptSessionProof(req as any);
+    const { sessionId, controlToken } = readInterruptSessionProof(req);
     if (!sessionId || !controlToken) {
       return res.status(400).json({ error: "session_proof_required" });
     }
@@ -171,7 +170,7 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
 
     const promptHash = hashInterruptPrompt(sanitized.value);
     const controlTokenHash = createHash("sha256").update(controlToken, "utf8").digest("hex");
-    queueInterruptPrompt(db as any, {
+    queueInterruptPrompt(db, {
       taskId: id,
       sessionId,
       promptText: sanitized.value,
@@ -212,12 +211,12 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
 
   app.post("/api/tasks/:id/stop", (req, res) => {
     const id = String(req.params.id);
-    if (!requireCsrfGuard(req as any, res)) return;
+    if (!requireCsrfGuard(req, res)) return;
 
     const mode = String(req.body?.mode ?? req.query.mode ?? "cancel");
     const targetStatus = mode === "pause" ? "pending" : "cancelled";
     if (mode === "pause") {
-      const { sessionId, controlToken } = readInterruptSessionProof(req as any);
+      const { sessionId, controlToken } = readInterruptSessionProof(req);
       const hasAnyProof = Boolean(sessionId || controlToken);
       if (hasAnyProof) {
         if (!sessionId || !controlToken) {
@@ -470,9 +469,9 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
 
   app.post("/api/tasks/:id/resume", (req, res) => {
     const id = String(req.params.id);
-    if (!requireCsrfGuard(req as any, res)) return;
+    if (!requireCsrfGuard(req, res)) return;
 
-    const { sessionId, controlToken } = readInterruptSessionProof(req as any);
+    const { sessionId, controlToken } = readInterruptSessionProof(req);
     const hasAnyProof = Boolean(sessionId || controlToken);
     if (hasAnyProof) {
       if (!sessionId || !controlToken) {

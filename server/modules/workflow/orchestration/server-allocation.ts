@@ -1,13 +1,8 @@
+import type { SQLInputValue } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import { isBlockedSsrfTarget } from "../../../security/ssrf.ts";
 
-type DbLike = {
-  prepare: (sql: string) => {
-    get: (...args: unknown[]) => any;
-    all: (...args: unknown[]) => any[];
-    run: (...args: unknown[]) => { changes?: number };
-  };
-};
+import type { DbLike } from "../../../types/db-like.ts";
 
 export const SERVER_TYPES = ["comfyui", "llm_api", "database", "file_storage", "ssh_remote"] as const;
 export type ServerType = (typeof SERVER_TYPES)[number];
@@ -129,7 +124,7 @@ function findAvailableServer(
       ORDER BY current_jobs ASC, updated_at ASC, created_at ASC
       LIMIT 1
     `;
-  const args: unknown[] = [serverType, ...(allowedServerIds ?? [])];
+  const args: SQLInputValue[] = [serverType, ...(allowedServerIds ?? [])];
   const row = db.prepare(query).get(...args) as
     | {
         id: string;

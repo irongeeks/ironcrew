@@ -14,7 +14,7 @@ interface MetricsSink {
 export function createRequestTraceMiddleware(metrics: MetricsSink) {
   return function requestTraceMiddleware(req: Request, res: Response, next: NextFunction): void {
     const requestId = (req.headers["x-request-id"] as string) || randomUUID();
-    (req as any).requestId = requestId;
+    Object.assign(req, { requestId });
     const start = performance.now();
 
     res.on("finish", () => {
@@ -22,7 +22,14 @@ export function createRequestTraceMiddleware(metrics: MetricsSink) {
       // IMPORTANT: Never use req.path as metric label — unbounded cardinality.
       // req.route?.path gives the template, not the instance.
       // Fallback is always "unmatched" — never the raw path.
-      const route = (req as any).route?.path || "unmatched";
+      const matchedRoute: unknown = req.route;
+      const route =
+        matchedRoute &&
+        typeof matchedRoute === "object" &&
+        "path" in matchedRoute &&
+        typeof matchedRoute.path === "string"
+          ? matchedRoute.path
+          : "unmatched";
       const status = String(res.statusCode);
 
       log.info(

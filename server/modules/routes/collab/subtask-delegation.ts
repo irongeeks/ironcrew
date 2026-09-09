@@ -1,3 +1,4 @@
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import type { DbLike } from "../../../types/db-like.ts";
 import type { Lang } from "../../../types/lang.ts";
 import type { AgentRow } from "./direct-chat.ts";
@@ -46,7 +47,7 @@ interface SubtaskDelegationDeps {
   handleTaskRunComplete: (taskId: string, exitCode: number) => void;
   stopRequestedTasks: Set<string>;
   stopRequestModeByTask: Map<string, "pause" | "cancel">;
-  recordTaskCreationAudit: (payload: any) => void;
+  recordTaskCreationAudit: RuntimeContext["recordTaskCreationAudit"];
   resolveProjectPath: (taskLike: {
     project_id?: string | null;
     project_path?: string | null;

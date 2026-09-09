@@ -39,7 +39,9 @@ function normalizeBooleanLike(value: unknown): boolean | null {
   return null;
 }
 
-export function readYoloModeEnabled(db: { prepare: (sql: string) => { get: (...args: any[]) => unknown } }): boolean {
+export function readYoloModeEnabled(db: {
+  prepare: (sql: string) => { get: (...args: import("node:sqlite").SQLInputValue[]) => unknown };
+}): boolean {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'yoloMode' LIMIT 1").get() as
     | { value?: unknown }
     | undefined;

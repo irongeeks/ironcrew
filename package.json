@@ -65,10 +65,10 @@
     "test:api:ci": "vitest --config server/vitest.ci.config.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
     "test:e2e:smoke": "playwright test tests/e2e/smoke.spec.ts --config playwright.config.ts",
-    "test": "pnpm run test:web && pnpm run test:api && pnpm run test:scripts",
-    "test:ci:unit": "pnpm run test:web --coverage && pnpm run test:api:ci --coverage && pnpm run test:scripts",
+    "test": "pnpm run test:web --run && pnpm run test:api --run && pnpm run test:scripts",
+    "test:ci:unit": "pnpm run test:web --run --coverage && pnpm run test:api:ci --run --coverage && pnpm run test:scripts",
     "test:ci": "pnpm run test:ci:unit && pnpm run test:e2e",
-    "lint": "eslint src server",
+    "lint": "eslint src server --max-warnings=0",
     "lint:fix": "eslint src server --fix",
     "lint:staged": "lint-staged",
     "openapi:sync": "node scripts/openapi-contract.mjs --write",
@@ -128,7 +128,7 @@
     "@types/three": "^0.185.4",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.2",
-    "@vitest/coverage-v8": "^3.0.3",
+    "@vitest/coverage-v8": "^4.1.11",
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
     "eslint": "^9.39.3",
@@ -147,7 +147,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.61.1",
     "vite": "^8.0.16",
-    "vitest": "^3.0.3"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=26"

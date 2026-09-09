@@ -1,0 +1,20 @@
+diff --git a/lib/test.js b/lib/test.js
+index f83008811ab1aee6242d60b8b6fcc09b93e8396c..ad4f38bc02493e1d911f380a2469911afe9b7565 100644
+--- a/lib/test.js
++++ b/lib/test.js
+@@ -64,7 +64,13 @@ class Test extends Request {
+     // } else {
+     //   this._server = app;
+     // }
+-    const port = app.address().port;
++    const address = app.address();
++    const port = address.port;
++    // Keep the request in the listener's address family. An IPv4 listener can
++    // own the same port as an IPv6 listener and must not receive this request.
++    const host = address.family === 'IPv6'
++      ? '[' + (address.address === '::' ? '::1' : address.address) + ']'
++      : (address.address === '0.0.0.0' ? '127.0.0.1' : address.address);
+     const protocol = app instanceof Server ? 'https' : 'http';
+-    return protocol + '://127.0.0.1:' + port + path;
++    return protocol + '://' + host + ':' + port + path;
+   }

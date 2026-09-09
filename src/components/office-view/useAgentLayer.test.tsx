@@ -1,3 +1,4 @@
+import type { MockInstance } from "vitest";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useRef, type MutableRefObject } from "react";
@@ -73,11 +74,11 @@ vi.mock("../AgentAvatar", () => ({
 }));
 
 // Import AFTER mocks so they take effect.
-// eslint-disable-next-line import/first
+
 import { useAgentLayer } from "./useAgentLayer";
-// eslint-disable-next-line import/first
+
 import type { AgentAnimState } from "./agentSprites";
-// eslint-disable-next-line import/first
+
 import { Container, type Application } from "pixi.js";
 
 function makeAgent(overrides: Partial<Agent> & { id: string }): Agent {
@@ -122,7 +123,7 @@ const getAgentTarget = () => ({ x: 0, y: 0, seatDirection: null });
 const flushMicrotasks = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 describe("useAgentLayer per-agent failure isolation (T-007)", () => {
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: MockInstance<typeof console.error>;
 
   beforeEach(() => {
     loadCharWalkFramesMock.mockReset();

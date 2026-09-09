@@ -32,8 +32,7 @@
  */
 
 import { createHash } from "node:crypto";
-import fs from "node:fs";
-import { createReadStream } from "node:fs";
+import fs, { createReadStream } from "node:fs";
 import path from "node:path";
 import { createGunzip } from "node:zlib";
 

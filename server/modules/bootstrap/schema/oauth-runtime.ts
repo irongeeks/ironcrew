@@ -118,7 +118,9 @@ export function initializeOAuthRuntime(deps: OAuthRuntimeDeps): OAuthRuntimeHelp
   // Extend cli_provider CHECK constraint for existing DB (SQLite doesn't support ALTER CHECK, only applies to new rows)
   try {
     const hasBrowserCheck = (
-      db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='agents'").get() as any
+      db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='agents'").get() as
+        | { sql: string | null }
+        | undefined
     )?.sql?.includes("'browser'");
     if (!hasBrowserCheck) {
       db.exec(`
@@ -166,7 +168,11 @@ export function initializeOAuthRuntime(deps: OAuthRuntimeDeps): OAuthRuntimeHelp
   // Extend api_providers CHECK constraint: add cerebras
   try {
     const apiProvSql =
-      (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='api_providers'").get() as any)?.sql ?? "";
+      (
+        db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='api_providers'").get() as
+          | { sql: string | null }
+          | undefined
+      )?.sql ?? "";
     if (apiProvSql && !apiProvSql.includes("'cerebras'")) {
       db.exec(`
       CREATE TABLE IF NOT EXISTS api_providers_new (

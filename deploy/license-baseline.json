@@ -18,6 +18,11 @@
       "license": "SEE LICENSE IN LICENSE.md"
     },
     {
+      "name": "@remotion/compositor-darwin-arm64",
+      "version": "4.0.478",
+      "license": "Unknown"
+    },
+    {
       "name": "@remotion/compositor-linux-x64-gnu",
       "version": "4.0.478",
       "license": "Unknown"

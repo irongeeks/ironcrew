@@ -1,7 +1,5 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { DbLike } from "../../../types/db-like.ts";
 import { DEFAULT_WORKFLOW_PACK_KEY, isWorkflowPackKey, type WorkflowPackKey } from "./definitions.ts";
-
-type DbLike = Pick<DatabaseSync, "prepare">;
 
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";

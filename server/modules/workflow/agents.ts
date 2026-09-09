@@ -6,9 +6,6 @@ import { createCliRuntimeTools } from "./agents/cli-runtime.ts";
 import { createCredentialTools } from "./agents/providers/credential-tools.ts";
 import { createUsageCliTools } from "./agents/providers/usage-cli-tools.ts";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _ctx = (c: RuntimeContext) => c as any;
-
 export function initializeWorkflowPartB(ctx: RuntimeContext): WorkflowAgentExports {
   const __ctx: RuntimeContext = ctx;
 
@@ -19,18 +16,16 @@ export function initializeWorkflowPartB(ctx: RuntimeContext): WorkflowAgentExpor
   const appendTaskLog = __ctx.appendTaskLog;
   const broadcast = __ctx.broadcast;
   const runAgentOneShot = __ctx.runAgentOneShot;
-  const resolveProjectPath = ((...args: any[]) =>
-    _ctx(__ctx).resolveProjectPath(...args)) as RuntimeContext["resolveProjectPath"];
-  const resolveLang = ((...args: any[]) => _ctx(__ctx).resolveLang(...args)) as RuntimeContext["resolveLang"];
-  const findTeamLeader = ((...args: any[]) => _ctx(__ctx).findTeamLeader(...args)) as RuntimeContext["findTeamLeader"];
-  const getDeptName = ((...args: any[]) => _ctx(__ctx).getDeptName(...args)) as RuntimeContext["getDeptName"];
-  const getPreferredLanguage = ((...args: any[]) =>
-    _ctx(__ctx).getPreferredLanguage(...args)) as RuntimeContext["getPreferredLanguage"];
-  const l = ((...args: any[]) => _ctx(__ctx).l(...args)) as RuntimeContext["l"];
-  const pickL = ((...args: any[]) => _ctx(__ctx).pickL(...args)) as RuntimeContext["pickL"];
-  const notifyCeo = ((...args: any[]) => _ctx(__ctx).notifyCeo(...args)) as RuntimeContext["notifyCeo"];
-  const detectTargetDepartments = ((...args: any[]) =>
-    _ctx(__ctx).detectTargetDepartments(...args)) as RuntimeContext["detectTargetDepartments"];
+  const resolveProjectPath: RuntimeContext["resolveProjectPath"] = (...args) => __ctx.resolveProjectPath(...args);
+  const resolveLang: RuntimeContext["resolveLang"] = (...args) => __ctx.resolveLang(...args);
+  const findTeamLeader: RuntimeContext["findTeamLeader"] = (...args) => __ctx.findTeamLeader(...args);
+  const getDeptName: RuntimeContext["getDeptName"] = (...args) => __ctx.getDeptName(...args);
+  const getPreferredLanguage: RuntimeContext["getPreferredLanguage"] = (...args) => __ctx.getPreferredLanguage(...args);
+  const l: RuntimeContext["l"] = (...args) => __ctx.l(...args);
+  const pickL: RuntimeContext["pickL"] = (...args) => __ctx.pickL(...args);
+  const notifyCeo: RuntimeContext["notifyCeo"] = (...args) => __ctx.notifyCeo(...args);
+  const detectTargetDepartments: RuntimeContext["detectTargetDepartments"] = (...args) =>
+    __ctx.detectTargetDepartments(...args);
   const DEPT_KEYWORDS = __ctx.DEPT_KEYWORDS;
   const clearCliOutputDedup = __ctx.clearCliOutputDedup;
   const normalizeStreamChunk = __ctx.normalizeStreamChunk;
@@ -106,8 +101,7 @@ export function initializeWorkflowPartB(ctx: RuntimeContext): WorkflowAgentExpor
     normalizeStreamChunk,
     createSubtaskFromCli,
     completeSubtaskFromCli,
-    handleTaskRunComplete: ((...args: any[]) =>
-      _ctx(__ctx).handleTaskRunComplete(...args)) as RuntimeContext["handleTaskRunComplete"],
+    handleTaskRunComplete: (...args) => __ctx.handleTaskRunComplete(...args),
     ensureOAuthActiveAccount: __ctx.ensureOAuthActiveAccount,
     getActiveOAuthAccountIds: __ctx.getActiveOAuthAccountIds,
     setActiveOAuthAccount: __ctx.setActiveOAuthAccount,

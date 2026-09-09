@@ -1,34 +1,10 @@
+import type { RuntimeContext } from "../../../../types/runtime-context.ts";
+import type { AgentRow, MeetingTranscriptEntry } from "../../../../types/workflow-types.ts";
 import type { DbLike } from "../../../../types/db-like.ts";
 import type { Lang } from "../../../../types/lang.ts";
 import { randomUUID } from "node:crypto";
 
-interface AgentRow {
-  id: string;
-  name: string;
-  name_ko: string;
-  role: string;
-  personality: string | null;
-  status: string;
-  department_id: string | null;
-  current_task_id: string | null;
-  avatar_emoji: string;
-  cli_provider: string | null;
-  oauth_account_id: string | null;
-  api_provider_id: string | null;
-  api_model: string | null;
-  cli_model: string | null;
-  cli_reasoning_level: string | null;
-  cli_profile?: string | null;
-  acts_as_planning_leader?: number | null;
-}
-
-export type MeetingTranscriptEntry = {
-  speaker_agent_id: string;
-  speaker: string;
-  department: string;
-  role: string;
-  content: string;
-};
+export type { MeetingTranscriptEntry } from "../../../../types/workflow-types.ts";
 
 type MeetingMinutesDeps = {
   db: DbLike;
@@ -36,8 +12,8 @@ type MeetingMinutesDeps = {
   getDeptName: (departmentId: string, workflowPackKey?: string | null) => string;
   getRoleLabel: (role: string, lang: Lang) => string;
   getAgentDisplayName: (agent: AgentRow, lang: string) => string;
-  pickL: (choices: any, lang: string) => string;
-  l: (ko: string[], en: string[], ja?: string[], zh?: string[], de?: string[]) => any;
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
   summarizeForMeetingBubble: (text: string, maxChars?: number, lang?: Lang) => string;
   appendTaskLog: (taskId: string, kind: string, message: string) => void;
   broadcast: (event: string, payload: unknown) => void;

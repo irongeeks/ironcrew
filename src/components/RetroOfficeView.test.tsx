@@ -31,7 +31,7 @@ vi.mock("pixi.js", () => ({
 }));
 
 // Import AFTER mocks so the mocks take effect.
-// eslint-disable-next-line import/first
+
 import RetroOfficeView from "./RetroOfficeView";
 
 function makeDepartment(overrides: Partial<Department> = {}): Department {

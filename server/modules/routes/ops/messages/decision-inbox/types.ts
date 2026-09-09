@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { Request, Response } from "express";
+import type { RuntimeContext } from "../../../../../types/runtime-context.ts";
+import type { PackRegistry } from "../../../../../packs/pack-registry.ts";
 import type { AgentRow } from "../../../shared/types.ts";
 
 export type DecisionOption = {
@@ -125,21 +126,12 @@ export interface DecisionStateHelpers {
   recordProjectReviewDecisionEvent(input: ProjectReviewDecisionEventInput): void;
 }
 
-export type LocalizedTextBuilder = (ko: string[], en: string[], ja?: string[], zh?: string[], de?: string[]) => unknown;
-
-export type PickLocalizedText = (localized: any, lang: string) => string;
-
-export type AgentOneShotResult = {
-  text?: string | null;
-} & Record<string, unknown>;
-
-export type FindTeamLeader = (departmentKey: string | null, candidateAgentIds?: string[] | null) => AgentRow | null;
-export type RunAgentOneShot = (
-  agent: AgentRow,
-  prompt: string,
-  options?: { projectPath?: string; timeoutMs?: number; rawOutput?: boolean; noTools?: boolean },
-) => Promise<AgentOneShotResult>;
-export type ChooseSafeReply = (run: AgentOneShotResult, lang: string, mode: string, agent?: AgentRow) => string;
+export type LocalizedTextBuilder = RuntimeContext["l"];
+export type PickLocalizedText = (localized: ReturnType<LocalizedTextBuilder>, lang: string) => string;
+export type AgentOneShotResult = Awaited<ReturnType<RuntimeContext["runAgentOneShot"]>>;
+export type FindTeamLeader = RuntimeContext["findTeamLeader"];
+export type RunAgentOneShot = RuntimeContext["runAgentOneShot"];
+export type ChooseSafeReply = RuntimeContext["chooseSafeReply"];
 export type GetAgentDisplayName = (agent: AgentRow, lang: string) => string;
 
 export interface ProjectReviewPlanningDeps {
@@ -153,7 +145,7 @@ export interface ProjectReviewPlanningDeps {
   getAgentDisplayName: GetAgentDisplayName;
   getProjectReviewDecisionState: (projectId: string) => ProjectReviewDecisionState | null;
   recordProjectReviewDecisionEvent: (input: ProjectReviewDecisionEventInput) => void;
-  packRegistry?: { get: (key: string) => any } | null;
+  packRegistry?: Pick<PackRegistry, "get"> | null;
   taskWorktrees?: Map<string, { worktreePath: string; projectPath: string }>;
 }
 
@@ -313,8 +305,8 @@ export interface TimeoutReplyDeps {
 }
 
 export interface ProjectReviewReplyInput {
-  req: Request;
-  res: Response;
+  req: { body: Record<string, unknown> };
+  res: DecisionReplyResponse;
   currentItem: DecisionInboxRouteItem;
   selectedOption: DecisionOption;
   optionNumber: number;
@@ -322,8 +314,8 @@ export interface ProjectReviewReplyInput {
 }
 
 export interface ReviewRoundReplyInput {
-  req: Request;
-  res: Response;
+  req: { body: Record<string, unknown> };
+  res: DecisionReplyResponse;
   currentItem: DecisionInboxRouteItem;
   selectedOption: DecisionOption;
   optionNumber: number;
@@ -331,8 +323,13 @@ export interface ReviewRoundReplyInput {
 }
 
 export interface TimeoutReplyInput {
-  res: Response;
+  res: DecisionReplyResponse;
   currentItem: DecisionInboxRouteItem;
   selectedOption: DecisionOption;
   deps: TimeoutReplyDeps;
+}
+
+export interface DecisionReplyResponse {
+  status(code: number): DecisionReplyResponse;
+  json(value: Record<string, unknown>): unknown;
 }

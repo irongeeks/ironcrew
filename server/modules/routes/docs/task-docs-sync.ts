@@ -1,17 +1,10 @@
+import type { DbLike } from "../../../types/db-like.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { DOCS_SKILLS_PROFILE, createConnector, resolveTaskDocsProviders } from "./provider-service.ts";
 import { titleFromPath } from "./wikilinks.ts";
 import type { DocsProviderView, TaskDocsContextBundle } from "./types.ts";
 import { PROJECT_STATE_DIR_NAME } from "../../workflow/core/worktree/shared.ts";
-
-type DbLike = {
-  prepare: (sql: string) => {
-    all: (...args: any[]) => unknown;
-    get: (...args: any[]) => unknown;
-    run: (...args: any[]) => unknown;
-  };
-};
 
 type TaskLike = {
   id?: string;

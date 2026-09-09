@@ -1,7 +1,8 @@
+import type { Express, Response } from "express";
+import type { DbLike } from "../../../types/db-like.ts";
 import { e2ePaths } from "../../../config/e2e-isolation.ts";
 import fs from "node:fs";
 import path from "node:path";
-import type { Express } from "express";
 import { logger } from "../../../observability/logger.ts";
 import { requireAuth } from "../../../security/auth.ts";
 import { parseBody } from "../validation.ts";
@@ -32,18 +33,10 @@ import { syncTaskDocsBackToVault } from "./task-docs-sync.ts";
 import { extractTags, extractWikilinks, toWikilink, upsertTags } from "./wikilinks.ts";
 import type { DocsProviderRow } from "./types.ts";
 
-function safeErrorResponse(res: any, status: number, errorCode: string, err: unknown) {
+function safeErrorResponse(res: Response, status: number, errorCode: string, err: unknown) {
   logger.error({ module: "docs", err }, `[docs] ${errorCode}`);
   res.status(status).json({ error: errorCode });
 }
-
-type DbLike = {
-  prepare: (sql: string) => {
-    all: (...args: any[]) => unknown;
-    get: (...args: any[]) => unknown;
-    run: (...args: any[]) => unknown;
-  };
-};
 
 type RegisterDocsRoutesDeps = {
   app: Express;
@@ -53,7 +46,7 @@ type RegisterDocsRoutesDeps = {
   taskWorktrees: Map<string, { worktreePath: string; branchName: string; projectPath: string }>;
 };
 
-function getProviderOr404(db: DbLike, res: any, providerId: string) {
+function getProviderOr404(db: DbLike, res: Response, providerId: string) {
   const provider = getDocsProviderById(db, providerId);
   if (!provider) {
     res.status(404).json({ ok: false, error: "provider_not_found" });

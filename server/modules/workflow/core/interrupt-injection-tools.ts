@@ -1,7 +1,5 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { DbLike } from "../../../types/db-like.ts";
 import { createHash } from "node:crypto";
-
-type DbLike = Pick<DatabaseSync, "prepare">;
 
 const MAX_INTERRUPT_PROMPT_CHARS = 4000;
 // eslint-disable-next-line no-control-regex

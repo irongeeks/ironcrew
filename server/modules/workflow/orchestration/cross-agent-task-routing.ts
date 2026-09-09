@@ -1,12 +1,6 @@
 import type { SQLInputValue } from "node:sqlite";
 
-type DbLike = {
-  prepare: (sql: string) => {
-    all: (...params: SQLInputValue[]) => any[];
-    get: (...params: SQLInputValue[]) => any;
-    run: (...params: SQLInputValue[]) => any;
-  };
-};
+import type { DbLike } from "../../../types/db-like.ts";
 
 type AgentRow = {
   id: string;

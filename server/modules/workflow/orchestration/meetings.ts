@@ -12,8 +12,8 @@ import { createMeetingMinutesTools } from "./meetings/minutes.ts";
 import { createMeetingPresenceTools } from "./meetings/presence.ts";
 import { createReviewConsensusTools } from "./meetings/review-consensus.ts";
 
-export function initializeWorkflowMeetingTools(ctx: RuntimeContext): any {
-  const __ctx: RuntimeContext = ctx;
+export function initializeWorkflowMeetingTools(ctx: RuntimeContext & { reviewMeetingOneShotTimeoutMs?: number }) {
+  const __ctx = ctx;
   const db = __ctx.db;
   const nowMs = __ctx.nowMs;
   const broadcast = __ctx.broadcast;
@@ -52,7 +52,7 @@ export function initializeWorkflowMeetingTools(ctx: RuntimeContext): any {
   const clearTaskWorkflowState = __ctx.clearTaskWorkflowState;
   const isTaskWorkflowInterrupted = __ctx.isTaskWorkflowInterrupted;
   const buildMeetingPrompt = __ctx.buildMeetingPrompt;
-  const reviewMeetingOneShotTimeoutMs = Number((__ctx as any).reviewMeetingOneShotTimeoutMs ?? 65_000);
+  const reviewMeetingOneShotTimeoutMs = Number(__ctx.reviewMeetingOneShotTimeoutMs ?? 65_000);
 
   const { getLeadersByDepartmentIds, getAllActiveTeamLeaders, getTaskRelatedDepartmentIds, getTaskReviewLeaders } =
     createMeetingLeaderSelectionTools({
@@ -77,9 +77,9 @@ export function initializeWorkflowMeetingTools(ctx: RuntimeContext): any {
     nowMs,
     getDeptName,
     getRoleLabel,
-    getAgentDisplayName: getAgentDisplayName as any,
-    pickL: pickL as any,
-    l: l as any,
+    getAgentDisplayName,
+    pickL,
+    l,
     summarizeForMeetingBubble,
     appendTaskLog,
     broadcast,
@@ -110,7 +110,7 @@ export function initializeWorkflowMeetingTools(ctx: RuntimeContext): any {
     db,
     reviewInFlight,
     reviewRoundState,
-    getTaskReviewLeaders: getTaskReviewLeaders as any,
+    getTaskReviewLeaders,
     getTaskStatusById,
     getReviewRoundMode,
     scheduleNextReviewRound,
@@ -137,9 +137,9 @@ export function initializeWorkflowMeetingTools(ctx: RuntimeContext): any {
     findLatestTranscriptContentByAgent,
     isDeferrableReviewHold,
     summarizeForMeetingBubble,
-    appendTaskProjectMemo: appendTaskProjectMemo as any,
-    appendTaskReviewFinalMemo: appendTaskReviewFinalMemo as any,
-    collectRevisionMemoItems: collectRevisionMemoItems as any,
+    appendTaskProjectMemo,
+    appendTaskReviewFinalMemo,
+    collectRevisionMemoItems,
     reserveReviewRevisionMemoItems,
     loadRecentReviewRevisionMemoItems,
     clearTaskWorkflowState,

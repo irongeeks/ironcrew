@@ -22,16 +22,14 @@ export const FileEntrySchema = z.object({
 
 export type FileEntry = z.infer<typeof FileEntrySchema>;
 
-const FileStatSchema = z.object({
-  type: z.enum(["file", "directory", "symlink"]),
-  size: z.number(),
-  modified: z.string(),
-  permissions: z.string(),
-  owner: z.string(),
-  group: z.string(),
-});
-
-export type FileStat = z.infer<typeof FileStatSchema>;
+export interface FileStat {
+  type: "file" | "directory" | "symlink";
+  size: number;
+  modified: string;
+  permissions: string;
+  owner: string;
+  group: string;
+}
 
 export interface SshExecResult {
   stdout: string;

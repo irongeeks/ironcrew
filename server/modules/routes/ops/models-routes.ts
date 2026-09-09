@@ -1,3 +1,4 @@
+import { isRecord } from "../shared/json-record.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -12,6 +13,21 @@ interface CliModelInfoServer {
   defaultReasoningLevel?: string;
 }
 
+function isCliModelInfo(value: unknown): value is CliModelInfoServer {
+  return (
+    isRecord(value) &&
+    typeof value.slug === "string" &&
+    [value.displayName, value.description, value.defaultReasoningLevel].every(
+      (field) => field === undefined || typeof field === "string",
+    ) &&
+    (value.reasoningLevels === undefined ||
+      (Array.isArray(value.reasoningLevels) &&
+        value.reasoningLevels.every(
+          (level) => isRecord(level) && typeof level.effort === "string" && typeof level.description === "string",
+        )))
+  );
+}
+
 export function registerModelRoutes(ctx: RuntimeContext): void {
   const { app, db, exchangeCopilotToken, getPreferredOAuthAccounts, execWithTimeout } = ctx;
   let cachedModels = ctx.cachedModels;
@@ -20,7 +36,7 @@ export function registerModelRoutes(ctx: RuntimeContext): void {
   async function fetchCopilotModelsFromAPI(): Promise<string[]> {
     try {
       const accounts = getPreferredOAuthAccounts("github");
-      const account = accounts.find((a: any) => Boolean(a.accessToken));
+      const account = accounts.find((a) => Boolean(a.accessToken));
       if (!account) return [];
 
       const { token, baseUrl } = await exchangeCopilotToken(account.accessToken!);
@@ -177,17 +193,22 @@ export function registerModelRoutes(ctx: RuntimeContext): void {
     return { slug, displayName: slug };
   }
 
-  function readModelCache(cacheKey: string): any | null {
+  function readModelCache<T>(cacheKey: string, isModel: (value: unknown) => value is T): Record<string, T[]> | null {
     try {
-      const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(cacheKey) as any;
-      if (row?.value) return JSON.parse(row.value);
+      const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(cacheKey) as { value: string } | undefined;
+      if (row?.value) {
+        const data: unknown = JSON.parse(row.value);
+        if (isRecord(data) && Object.values(data).every((models) => Array.isArray(models) && models.every(isModel))) {
+          return data as Record<string, T[]>;
+        }
+      }
     } catch {
       // ignore malformed cache
     }
     return null;
   }
 
-  function writeModelCache(cacheKey: string, data: any): void {
+  function writeModelCache(cacheKey: string, data: unknown): void {
     try {
       db.prepare(
         "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -205,7 +226,7 @@ export function registerModelRoutes(ctx: RuntimeContext): void {
         if (cachedCliModels) {
           return res.json({ models: cachedCliModels.data });
         }
-        const dbCached = readModelCache("cli_models_cache");
+        const dbCached = readModelCache("cli_models_cache", isCliModelInfo);
         if (dbCached) {
           cachedCliModels = { data: dbCached, loadedAt: Date.now() };
           return res.json({ models: dbCached });
@@ -262,7 +283,7 @@ export function registerModelRoutes(ctx: RuntimeContext): void {
       if (cachedModels) {
         return res.json({ models: cachedModels.data });
       }
-      const dbCached = readModelCache("oauth_models_cache");
+      const dbCached = readModelCache("oauth_models_cache", (value): value is string => typeof value === "string");
       if (dbCached) {
         cachedModels = { data: dbCached, loadedAt: Date.now() };
         ctx.cachedModels = cachedModels;

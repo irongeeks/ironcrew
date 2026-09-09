@@ -1,3 +1,4 @@
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -54,7 +55,7 @@ interface BatchDeps {
     taskId?: string | null,
   ) => void;
   appendTaskLog: (taskId: string, source: string, message: string) => void;
-  recordTaskCreationAudit: (payload: any) => void;
+  recordTaskCreationAudit: RuntimeContext["recordTaskCreationAudit"];
   resolveProjectPath: (taskLike: {
     project_id?: string | null;
     project_path?: string | null;
@@ -154,10 +155,10 @@ export function createSubtaskDelegationBatch(deps: BatchDeps) {
     finalizeDelegatedSubtasks,
     buildSubtaskDelegationPrompt,
   } = deps;
-  const taskRouter = createCrossAgentTaskRouter({ db: db as any, nowMs });
+  const taskRouter = createCrossAgentTaskRouter({ db: db, nowMs });
 
   function getConstrainedAgentIds(parentTask: ParentTaskRow, targetDeptId: string | null): string[] | null {
-    return resolveConstrainedAgentScopeForTask(db as any, {
+    return resolveConstrainedAgentScopeForTask(db, {
       workflow_pack_key: parentTask.workflow_pack_key ?? null,
       department_id: targetDeptId ?? parentTask.department_id ?? null,
       project_id: parentTask.project_id,
@@ -176,7 +177,7 @@ export function createSubtaskDelegationBatch(deps: BatchDeps) {
 
     const excludedIds = [...new Set(excludeIds.map((id) => String(id || "").trim()).filter((id) => id.length > 0))];
     const idPlaceholders = candidateIds.map(() => "?").join(",");
-    const params: unknown[] = [...candidateIds];
+    const params: string[] = [...candidateIds];
 
     const deptClause = preferredDeptId ? "AND department_id = ?" : "";
     if (preferredDeptId) params.push(preferredDeptId);
@@ -370,7 +371,7 @@ export function createSubtaskDelegationBatch(deps: BatchDeps) {
         delegatedChecklist,
       });
       const delegatedWorkflowPackKey = resolveWorkflowPackKeyForTask({
-        db: db as any,
+        db: db,
         sourceTaskPackKey: parentTask.workflow_pack_key,
         sourceTaskId: parentTask.id,
         projectId: parentTask.project_id,
@@ -527,7 +528,7 @@ export function createSubtaskDelegationBatch(deps: BatchDeps) {
           );
           const logFilePath = path.join(logsDir, `${delegatedTaskId}.log`);
           ensureVideoPreprodRemotionBestPracticesSkill({
-            db: db as any,
+            db: db,
             nowMs,
             workflowPackKey: parentTask.workflow_pack_key ?? null,
             provider: execProvider,

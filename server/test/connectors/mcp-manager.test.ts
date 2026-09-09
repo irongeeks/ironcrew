@@ -5,27 +5,29 @@ import { ConnectorRegistry } from "../../connectors/registry.ts";
 
 // Mock McpConnector to avoid real MCP connections
 vi.mock("../../connectors/built-in/mcp/mcp-connector.ts", () => ({
-  McpConnector: vi.fn().mockImplementation((config) => ({
-    name: `mcp:${config.name}`,
-    capabilities: [
-      { name: "tool_a", description: "Tool A", inputSchema: {}, outputSchema: {} },
-      { name: "tool_b", description: "Tool B", inputSchema: {}, outputSchema: {} },
-    ],
-    connected: true,
-    error: undefined,
-    connect: vi.fn().mockResolvedValue(undefined),
-    disconnect: vi.fn().mockResolvedValue(undefined),
-    getStatus: vi.fn().mockReturnValue({
-      name: config.name,
-      label: config.label,
-      transport: config.transport,
-      connected: true,
-      tools: [
-        { name: "tool_a", description: "Tool A" },
-        { name: "tool_b", description: "Tool B" },
+  McpConnector: vi.fn().mockImplementation(function (config) {
+    return {
+      name: `mcp:${config.name}`,
+      capabilities: [
+        { name: "tool_a", description: "Tool A", inputSchema: {}, outputSchema: {} },
+        { name: "tool_b", description: "Tool B", inputSchema: {}, outputSchema: {} },
       ],
-    }),
-  })),
+      connected: true,
+      error: undefined,
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      getStatus: vi.fn().mockReturnValue({
+        name: config.name,
+        label: config.label,
+        transport: config.transport,
+        connected: true,
+        tools: [
+          { name: "tool_a", description: "Tool A" },
+          { name: "tool_b", description: "Tool B" },
+        ],
+      }),
+    };
+  }),
 }));
 
 function makeMockDb(settingsValue?: string) {

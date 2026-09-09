@@ -24,3 +24,23 @@ dateibasierte Migrationen und SQLite-Neuöffnungen unter gemeinsam genutzten
 CI-Ressourcen nicht beliebig konkurrieren. Die regulären Test-/Hook-Zeitlimits,
 Dateiisolation und sämtliche Assertions bleiben unverändert. Die Neubau-Suite
 behält ihre separat konfigurierte Parallelität.
+
+## Lokale Nachtests ohne Überschreiben historischer Nachweise
+
+Mit `--evidence-dir` schreibt der Runner die Protokolle, das Audit und den
+Quellnachweis in ein separates Verzeichnis. Relative Pfade gelten ab dem
+aktuellen Arbeitsverzeichnis; beispielsweise vom Repository-Root:
+
+```sh
+python3 next/scripts/verify-local.py --require-tools --evidence-dir .tmp/local-verification
+```
+
+Die drei oben beschriebenen `IRONCREW_TEST_*`-Programme müssen weiterhin
+ausdrücklich konfiguriert sein. Für portable Distributionstests ist eine
+eigenständig lauffähige offizielle Node-Runtime samt Original-Lizenz nötig.
+
+Eine Wiederaufnahme mit dem optionalen Gate-Namen akzeptiert ausschließlich
+einen erfolgreichen früheren Gate-Präfix mit identischem Quellfingerabdruck.
+Nach Änderungen an Quellen, Abhängigkeiten oder Testkonfiguration ist ein
+vollständiger neuer Lauf erforderlich. Ältere Berichte ohne diesen Fingerabdruck
+lassen sich ebenfalls nur durch einen vollständigen Lauf ersetzen.

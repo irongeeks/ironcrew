@@ -63,7 +63,7 @@ export function handleCliAuthPtyConnection(ws: WebSocket, provider: string): voi
     return;
   }
 
-  let pty: any;
+  let pty: typeof import("node-pty");
   try {
     pty = require("node-pty");
   } catch {
@@ -72,7 +72,7 @@ export function handleCliAuthPtyConnection(ws: WebSocket, provider: string): voi
     return;
   }
 
-  let shell: any;
+  let shell: import("node-pty").IPty;
   try {
     shell = pty.spawn(args[0], args.slice(1), {
       name: "xterm-256color",
@@ -80,8 +80,8 @@ export function handleCliAuthPtyConnection(ws: WebSocket, provider: string): voi
       rows: 24,
       env: buildFilteredEnv(),
     });
-  } catch (err: any) {
-    ws.send(`\x1b[31mFailed to start terminal: ${err.message}\x1b[0m\r\n`);
+  } catch (err) {
+    ws.send(`\x1b[31mFailed to start terminal: ${err instanceof Error ? err.message : String(err)}\x1b[0m\r\n`);
     ws.close();
     return;
   }

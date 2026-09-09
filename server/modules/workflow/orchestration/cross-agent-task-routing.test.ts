@@ -54,7 +54,7 @@ describe("cross-agent-task-routing", () => {
         `,
       ).run();
 
-      const router = createCrossAgentTaskRouter({ db: db as any, nowMs: () => 1000 });
+      const router = createCrossAgentTaskRouter({ db, nowMs: () => 1000 });
       const plan = router.planRouting({
         parentTask: {
           id: "parent-1",
@@ -64,8 +64,12 @@ describe("cross-agent-task-routing", () => {
         },
         subtasks: [{ id: "s1", title: "Design mockup", description: "UI layout", target_department_id: "design" }],
         targetDepartmentId: "design",
-        coordinator: db.prepare("SELECT * FROM agents WHERE id = 'design-lead'").get() as any,
-        executorFallback: db.prepare("SELECT * FROM agents WHERE id = 'design-exec-busy'").get() as any,
+        coordinator: db.prepare("SELECT * FROM agents WHERE id = 'design-lead'").get() as Parameters<
+          ReturnType<typeof createCrossAgentTaskRouter>["planRouting"]
+        >[0]["coordinator"],
+        executorFallback: db.prepare("SELECT * FROM agents WHERE id = 'design-exec-busy'").get() as Parameters<
+          ReturnType<typeof createCrossAgentTaskRouter>["planRouting"]
+        >[0]["coordinator"],
         originLeaderId: "planning-lead",
         candidateAgentIds: ["design-lead", "design-exec-busy", "design-exec-idle"],
       });
@@ -93,7 +97,7 @@ describe("cross-agent-task-routing", () => {
         `,
       ).run();
 
-      const router = createCrossAgentTaskRouter({ db: db as any, nowMs: () => 2000 });
+      const router = createCrossAgentTaskRouter({ db, nowMs: () => 2000 });
       const plan = router.planRouting({
         parentTask: {
           id: "parent-2",
@@ -103,8 +107,12 @@ describe("cross-agent-task-routing", () => {
         },
         subtasks: [{ id: "s2", title: "Code fix", description: "bug", target_department_id: "dev" }],
         targetDepartmentId: "dev",
-        coordinator: db.prepare("SELECT * FROM agents WHERE id = 'exec-1'").get() as any,
-        executorFallback: db.prepare("SELECT * FROM agents WHERE id = 'exec-1'").get() as any,
+        coordinator: db.prepare("SELECT * FROM agents WHERE id = 'exec-1'").get() as Parameters<
+          ReturnType<typeof createCrossAgentTaskRouter>["planRouting"]
+        >[0]["coordinator"],
+        executorFallback: db.prepare("SELECT * FROM agents WHERE id = 'exec-1'").get() as Parameters<
+          ReturnType<typeof createCrossAgentTaskRouter>["planRouting"]
+        >[0]["coordinator"],
         originLeaderId: "dev-lead",
         candidateAgentIds: ["exec-1"],
       });

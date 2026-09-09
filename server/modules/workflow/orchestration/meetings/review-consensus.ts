@@ -1,3 +1,4 @@
+import type { AgentRow, MeetingTranscriptEntry, OneShotRunResult } from "../../../../types/workflow-types.ts";
 import type { Lang } from "../../../../types/lang.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import { processReviewConsensusOutcome } from "./review-consensus-outcome.ts";
@@ -177,11 +178,11 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
         const isRound2Merge = roundMode === "merge_synthesis";
         const isFinalDecisionRound = roundMode === "final_decision";
 
-        const planningLeader = leaders.find((l: any) => l.department_id === "planning") ?? leaders[0];
-        const otherLeaders = leaders.filter((l: any) => l.id !== planningLeader.id);
+        const planningLeader = leaders.find((l) => l.department_id === "planning") ?? leaders[0];
+        const otherLeaders = leaders.filter((l) => l.id !== planningLeader.id);
         let needsRevision = false;
-        let reviseOwner: any = null;
-        const seatIndexByAgent = new Map(leaders.slice(0, 6).map((leader: any, idx: number) => [leader.id, idx]));
+        let reviseOwner: AgentRow | null = null;
+        const seatIndexByAgent = new Map(leaders.slice(0, 6).map((leader, idx) => [leader.id, idx]));
 
         const taskCtx = db
           .prepare("SELECT description, project_path, workflow_pack_key FROM tasks WHERE id = ?")
@@ -197,7 +198,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
             project_path: taskCtx?.project_path ?? null,
           }) ?? process.cwd();
         const lang = resolveLang(taskDescription ?? taskTitle);
-        const transcript: any[] = [];
+        const transcript: MeetingTranscriptEntry[] = [];
         const oneShotTimeoutMs = Math.max(5_000, Number(reviewMeetingOneShotTimeoutMs ?? 65_000));
         const oneShotOptions = { projectPath, timeoutMs: oneShotTimeoutMs, noTools: true };
         const isTimeoutRun = (run: { text?: string; error?: string } | null | undefined): boolean => {
@@ -215,10 +216,10 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
           return `${compacted}\n\n[retry] Previous attempt timed out. Respond concisely in short actionable points.`;
         };
         const runMeetingOneShotWithRetry = async (
-          agent: any,
+          agent: AgentRow,
           prompt: string,
           phase: "opening" | "feedback" | "summary" | "approval",
-        ): Promise<any> => {
+        ): Promise<OneShotRunResult> => {
           const first = await runAgentOneShot(agent, prompt, oneShotOptions);
           if (!isTimeoutRun(first)) return first;
           appendTaskLog(
@@ -255,7 +256,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
           return true;
         };
 
-        const pushTranscript = (leader: any, content: string) => {
+        const pushTranscript = (leader: AgentRow, content: string) => {
           transcript.push({
             speaker_agent_id: leader.id,
             speaker: getAgentDisplayName(leader, lang),
@@ -265,7 +266,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
           });
         };
         const speak = (
-          leader: any,
+          leader: AgentRow,
           messageType: string,
           receiverType: string,
           receiverId: string | null,

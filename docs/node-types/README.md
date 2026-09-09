@@ -55,7 +55,7 @@ The graph-runner auto-dispatches node type phases without spawning an agent.
 3. Restart the server — the loader auto-discovers it
 4. Reference it in any pack.yaml with `node_type: <your-key>`
 
-See the [Echo node](../../../server/node-types/built-in/echo/index.ts) as a minimal template.
+See the [Echo node](../../server/node-types/built-in/echo/index.ts) as a minimal template.
 
 ## API
 

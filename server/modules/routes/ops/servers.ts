@@ -190,7 +190,7 @@ export function registerServerManagementRoutes(ctx: ServerManagementRouteBaseDep
 
     const body = (req.body ?? {}) as Record<string, unknown>;
     const setParts: string[] = [];
-    const values: any[] = [];
+    const values: import("node:sqlite").SQLInputValue[] = [];
 
     if (body.name != null) {
       setParts.push("name = ?");
@@ -293,7 +293,7 @@ export function registerServerManagementRoutes(ctx: ServerManagementRouteBaseDep
     try {
       const body = (req.body ?? {}) as { server_ids?: string[] };
       const serverIds = Array.isArray(body.server_ids) ? body.server_ids : undefined;
-      const results = await runServerHealthChecks(db as any, nowMs(), { serverIds });
+      const results = await runServerHealthChecks(db, nowMs(), { serverIds });
       const servers = listServersStmt.all();
       broadcast("server_update", { action: "health_checked", servers });
       res.json({ ok: true, results, servers });
@@ -306,7 +306,7 @@ export function registerServerManagementRoutes(ctx: ServerManagementRouteBaseDep
     try {
       const id = normalizeTextField(req.params.id);
       if (!id) return res.status(400).json({ ok: false, error: "invalid_id" });
-      const results = await runServerHealthChecks(db as any, nowMs(), { serverIds: [id] });
+      const results = await runServerHealthChecks(db, nowMs(), { serverIds: [id] });
       const server = db.prepare("SELECT * FROM servers WHERE id = ?").get(id);
       broadcast("server_update", { action: "health_checked_single", server });
       res.json({ ok: true, result: results[0] ?? null, server });
@@ -327,7 +327,7 @@ export function registerServerManagementRoutes(ctx: ServerManagementRouteBaseDep
       workflowMetaJson: body.workflow_meta_json,
       taskType: body.task_type,
     });
-    const result = requestServerAccess(db as any, {
+    const result = requestServerAccess(db, {
       nowMs: nowMs(),
       taskId,
       agentId,
@@ -345,7 +345,7 @@ export function registerServerManagementRoutes(ctx: ServerManagementRouteBaseDep
     const agentId = normalizeTextField(body.agent_id) || null;
     if (!taskId) return res.status(400).json({ ok: false, error: "task_id_required" });
 
-    const result = releaseServerAccess(db as any, {
+    const result = releaseServerAccess(db, {
       nowMs: nowMs(),
       taskId,
       agentId,
@@ -357,7 +357,7 @@ export function registerServerManagementRoutes(ctx: ServerManagementRouteBaseDep
   });
 
   app.post("/api/ops/servers/allocations/process-queue", (_req, res) => {
-    const activated = processQueuedServerAllocations(db as any, nowMs());
+    const activated = processQueuedServerAllocations(db, nowMs());
     const servers = listServersStmt.all();
     broadcast("server_update", { action: "queue_processed", activated, servers });
     res.json({ ok: true, activated, servers });

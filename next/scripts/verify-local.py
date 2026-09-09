@@ -50,6 +50,29 @@ def write_json(filename, value):
     (EVIDENCE / filename).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n', encoding='utf8')
 
 
+def source_fingerprint(manifest):
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode('utf8')).hexdigest()
+
+
+def resume_prefix(prior, start, fingerprint):
+    if prior.get('sourceFingerprint') != fingerprint or prior.get('sourceIntegrity', {}).get('status') == 'changed_during_run':
+        raise ValueError('Resume requires unchanged sources bound to the earlier run; start a full verification.')
+    prefix = [name for name, _ in COMMANDS[:start]]
+    gates = [gate for gate in prior['gates'] if gate['name'] in prefix]
+    if [gate['name'] for gate in gates] != prefix or any(gate['exitCode'] for gate in gates):
+        raise ValueError('Resume requires a complete successful earlier gate prefix.')
+    return gates
+
+
+def evidence_path(filename):
+    file = EVIDENCE / filename
+    try:
+        return pathlib.Path(os.path.relpath(file, ROOT)).as_posix()
+    except ValueError:
+        # Windows cannot express a relative path across drive letters.
+        return file.as_posix()
+
+
 def pnpm_command(arguments):
     command = ['npx', '--yes', 'pnpm@10.30.1'] + arguments
     # Windows cannot execute a .cmd shim with CreateProcess directly.
@@ -76,16 +99,20 @@ def require_test_tools():
 
 
 def main():
+    global EVIDENCE
     # Preserve diagnostics on Windows hosts whose default console encoding is cp1252.
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--require-tools', action='store_true', help='Fail before gates when any native test prerequisite is missing')
+    parser.add_argument('--evidence-dir', type=pathlib.Path, default=EVIDENCE,
+                        help='Directory for this run; defaults to docs/test-evidence')
     parser.add_argument('resume', nargs='?', choices=[name for name, _ in COMMANDS])
     args = parser.parse_args()
     if args.require_tools:
         require_test_tools()
-    EVIDENCE.mkdir(exist_ok=True)
+    EVIDENCE = args.evidence_dir.resolve()
+    EVIDENCE.mkdir(parents=True, exist_ok=True)
     initial_sources = source_manifest()
     report = {
         'date': datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -95,6 +122,7 @@ def main():
         'platform': platform.platform(),
         'node': subprocess.check_output(['node', '--version'], text=True).strip(),
         'pnpm': '10.30.1', 'gates': [],
+        'sourceFingerprint': source_fingerprint(initial_sources),
         'live': {'status': 'not_run', 'reason': 'No provider test profile or paid test budget supplied.'},
         'osMatrix': ('This report covers only the named GitHub Actions matrix host, not other operating systems or customer installations.' if os.environ.get('GITHUB_ACTIONS') == 'true' else 'This suite runs on the named local host. Separate real Linux VM evidence is recorded under docs/test-evidence/isolation. Remote GitHub CI and the remaining OS installation matrix are not covered.'),
     }
@@ -102,14 +130,15 @@ def main():
     if args.resume:
         start = next(i for i, (name, _) in enumerate(COMMANDS) if name == args.resume)
         prior = json.loads((EVIDENCE / 'gates.json').read_text(encoding='utf8'))
-        prefix = [name for name, _ in COMMANDS[:start]]
-        report['gates'] = [g for g in prior['gates'] if g['name'] in prefix]
-        if [g['name'] for g in report['gates']] != prefix or any(g['exitCode'] for g in report['gates']):
-            parser.error('Resume requires a complete successful earlier gate prefix.')
+        try:
+            report['gates'] = resume_prefix(prior, start, report['sourceFingerprint'])
+        except ValueError as error:
+            parser.error(str(error))
         # Make mixed-run evidence explicit, rather than claiming the prefix was rerun.
         report['resumedFrom'] = {'gate': args.resume, 'priorRunDate': prior['date']}
         commands = COMMANDS[start:]
-    environment = dict(os.environ, NO_COLOR='1', FORCE_COLOR='0')
+    environment = dict(os.environ, NO_COLOR='1')
+    environment.pop('FORCE_COLOR', None)
     for name, arguments in commands:
         print('START ' + name, flush=True)
         started = time.monotonic()
@@ -119,7 +148,7 @@ def main():
         (EVIDENCE / (name + '.log')).write_text(result.stdout, encoding='utf8')
         gate = {'name': name, 'command': ' '.join(command), 'exitCode': result.returncode,
                 'durationSeconds': round(time.monotonic() - started, 2),
-                'log': 'docs/test-evidence/' + name + '.log'}
+                'log': evidence_path(name + '.log')}
         if name in TEST_GATES:
             gate['passedTests'], gate['skippedTests'] = test_counts(result.stdout)
             if result.returncode == 0 and (not gate['passedTests'] or gate['skippedTests']):
@@ -141,7 +170,7 @@ def main():
             audit_exit = audit_exit or 1
     except (ValueError, KeyError, TypeError):
         audit_exit = audit_exit or 1
-    report['audit'] = {'exitCode': audit_exit, 'log': 'docs/test-evidence/audit.json'}
+    report['audit'] = {'exitCode': audit_exit, 'log': evidence_path('audit.json')}
     final_sources = source_manifest()
     if final_sources != initial_sources:
         report['sourceIntegrity'] = {'status': 'changed_during_run'}

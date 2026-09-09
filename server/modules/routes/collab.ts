@@ -60,9 +60,11 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
   const subtaskDelegationCallbacks = __ctx.subtaskDelegationCallbacks;
   const subtaskDelegationCompletionNoticeSent = __ctx.subtaskDelegationCompletionNoticeSent;
   const subtaskDelegationDispatchInFlight = __ctx.subtaskDelegationDispatchInFlight;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const resolveProjectPathBase = ((...args: any[]) =>
-    (__ctx as any).resolveProjectPath(...args)) as RuntimeContext["resolveProjectPath"];
+  const resolveProjectPathBase = (task: {
+    title?: string | null;
+    project_path?: string | null;
+    description?: string | null;
+  }) => __ctx.resolveProjectPath({ ...task, title: task.title ?? undefined });
 
   // ---------------------------------------------------------------------------
   // Agent auto-reply & task delegation logic
@@ -732,11 +734,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
 
   function getDeptName(deptId: string, workflowPackKey?: string | null): string {
     const lang = getPreferredLanguage();
-    const scoped = getDepartmentForPack(
-      db as any,
-      workflowPackKey ?? readActiveOfficeWorkflowPackKey(db as any),
-      deptId,
-    );
+    const scoped = getDepartmentForPack(db, workflowPackKey ?? readActiveOfficeWorkflowPackKey(db), deptId);
     if (!scoped) return deptId;
     if (lang === "ko") return scoped.name_ko || scoped.name || deptId;
     if (lang === "ja") return scoped.name_ja || scoped.name || scoped.name_ko || deptId;
@@ -794,7 +792,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     stopRequestedTasks,
     stopRequestModeByTask,
     recordTaskCreationAudit,
-    resolveProjectPath: resolveProjectPathBase as any,
+    resolveProjectPath: resolveProjectPathBase,
     createWorktree,
     logsDir,
     ensureTaskExecutionSession,
@@ -879,10 +877,10 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     pickL,
     sendAgentMessage,
     registerTaskMessengerRoute,
-    chooseSafeReply: chooseSafeReply as any,
+    chooseSafeReply: chooseSafeReply,
     buildCliFailureMessage,
-    buildDirectReplyPrompt: buildDirectReplyPrompt as any,
-    runAgentOneShot: runAgentOneShot as any,
+    buildDirectReplyPrompt: buildDirectReplyPrompt,
+    runAgentOneShot: runAgentOneShot,
     executeApiProviderAgent,
     executeCopilotAgent,
     executeAntigravityAgent,
@@ -915,7 +913,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     maybeNotifyAllSubtasksComplete,
     reconcileCrossDeptSubtasks,
     recoverCrossDeptQueueAfterMissingCallback,
-    resolveProjectPath,
+    resolveProjectPath: (task) => resolveProjectPath({ ...task, title: task.title ?? undefined }),
     handleReportRequest,
     handleTaskDelegation,
     scheduleAgentReply,

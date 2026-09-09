@@ -1,3 +1,4 @@
+import type { SQLInputValue } from "node:sqlite";
 /**
  * Structural database type used across orchestration and route deps.
  *
@@ -13,8 +14,8 @@
  */
 export type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
-    all: (...args: any[]) => unknown;
-    run: (...args: any[]) => unknown;
+    get: (...args: SQLInputValue[]) => unknown;
+    all: (...args: SQLInputValue[]) => unknown[];
+    run: (...args: SQLInputValue[]) => { changes?: number | bigint } | void;
   };
 };

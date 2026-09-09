@@ -60,28 +60,26 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
   const buildMeetingPrompt = __ctx.buildMeetingPrompt;
   const codexThreadToSubtask = __ctx.codexThreadToSubtask;
   // Deferred proxies — __ctx fields may be populated after initialization
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const _c = __ctx as any;
-  const findTeamLeader = ((...a: any[]) => _c.findTeamLeader(...a)) as RuntimeContext["findTeamLeader"];
-  const formatTaskSubtaskProgressSummary = ((...a: any[]) =>
-    _c.formatTaskSubtaskProgressSummary(...a)) as RuntimeContext["formatTaskSubtaskProgressSummary"];
-  const getDeptName = ((...a: any[]) => _c.getDeptName(...a)) as RuntimeContext["getDeptName"];
-  const getDeptRoleConstraint = ((...a: any[]) =>
-    _c.getDeptRoleConstraint(...a)) as RuntimeContext["getDeptRoleConstraint"];
-  const getPreferredLanguage = ((...a: any[]) =>
-    _c.getPreferredLanguage(...a)) as RuntimeContext["getPreferredLanguage"];
-  const getRoleLabel = ((...a: any[]) => _c.getRoleLabel(...a)) as RuntimeContext["getRoleLabel"];
-  const l = ((...a: any[]) => _c.l(...a)) as RuntimeContext["l"];
-  const pickL = ((...a: any[]) => _c.pickL(...a)) as RuntimeContext["pickL"];
-  const prettyStreamJson = ((...a: any[]) => _c.prettyStreamJson(...a)) as RuntimeContext["prettyStreamJson"];
-  const processSubtaskDelegations = ((...a: any[]) =>
-    _c.processSubtaskDelegations(...a)) as RuntimeContext["processSubtaskDelegations"];
-  const recoverCrossDeptQueueAfterMissingCallback = ((...a: any[]) =>
-    _c.recoverCrossDeptQueueAfterMissingCallback(...a)) as RuntimeContext["recoverCrossDeptQueueAfterMissingCallback"];
-  const refreshCliUsageData = ((...a: any[]) => _c.refreshCliUsageData(...a)) as RuntimeContext["refreshCliUsageData"];
-  const resolveLang = ((...a: any[]) => _c.resolveLang(...a)) as RuntimeContext["resolveLang"];
-  const resolveProjectPath = ((...a: any[]) => _c.resolveProjectPath(...a)) as RuntimeContext["resolveProjectPath"];
-  const sendAgentMessage = ((...a: any[]) => _c.sendAgentMessage(...a)) as RuntimeContext["sendAgentMessage"];
+  const findTeamLeader: RuntimeContext["findTeamLeader"] = (...args) => __ctx.findTeamLeader(...args);
+  const formatTaskSubtaskProgressSummary: RuntimeContext["formatTaskSubtaskProgressSummary"] = (...args) =>
+    __ctx.formatTaskSubtaskProgressSummary(...args);
+  const getDeptName: RuntimeContext["getDeptName"] = (...args) => __ctx.getDeptName(...args);
+  const getDeptRoleConstraint: RuntimeContext["getDeptRoleConstraint"] = (...args) =>
+    __ctx.getDeptRoleConstraint(...args);
+  const getPreferredLanguage: RuntimeContext["getPreferredLanguage"] = (...args) => __ctx.getPreferredLanguage(...args);
+  const getRoleLabel: RuntimeContext["getRoleLabel"] = (...args) => __ctx.getRoleLabel(...args);
+  const l: RuntimeContext["l"] = (...args) => __ctx.l(...args);
+  const pickL: RuntimeContext["pickL"] = (...args) => __ctx.pickL(...args);
+  const prettyStreamJson: RuntimeContext["prettyStreamJson"] = (...args) => __ctx.prettyStreamJson(...args);
+  const processSubtaskDelegations: RuntimeContext["processSubtaskDelegations"] = (...args) =>
+    __ctx.processSubtaskDelegations(...args);
+  const recoverCrossDeptQueueAfterMissingCallback: RuntimeContext["recoverCrossDeptQueueAfterMissingCallback"] = (
+    ...args
+  ) => __ctx.recoverCrossDeptQueueAfterMissingCallback(...args);
+  const refreshCliUsageData: RuntimeContext["refreshCliUsageData"] = (...args) => __ctx.refreshCliUsageData(...args);
+  const resolveLang: RuntimeContext["resolveLang"] = (...args) => __ctx.resolveLang(...args);
+  const resolveProjectPath: RuntimeContext["resolveProjectPath"] = (...args) => __ctx.resolveProjectPath(...args);
+  const sendAgentMessage: RuntimeContext["sendAgentMessage"] = (...args) => __ctx.sendAgentMessage(...args);
 
   // ---------------------------------------------------------------------------
   // Helpers: progress timers, CEO notifications
@@ -368,9 +366,9 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
     pickL,
     l,
     db,
-    finishReview: (...args: any[]) => (finishReview as any)(...args),
+    finishReview,
     randomDelay,
-    startPlannedApprovalMeeting: (...args: any[]) => (startPlannedApprovalMeeting as any)(...args),
+    startPlannedApprovalMeeting,
   });
 
   const reportWorkflowTools = createReportWorkflowTools({
@@ -432,14 +430,14 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
     processSubtaskDelegations,
     taskWorktrees,
     cleanupWorktree,
-    findTeamLeader: findTeamLeader as any,
-    getAgentDisplayName: getAgentDisplayName as any,
-    pickL: pickL as any,
-    l: l as any,
+    findTeamLeader,
+    getAgentDisplayName,
+    pickL,
+    l,
     notifyCeo,
-    sendAgentMessage: sendAgentMessage as any,
-    resolveLang: resolveLang as any,
-    formatTaskSubtaskProgressSummary: formatTaskSubtaskProgressSummary as any,
+    sendAgentMessage,
+    resolveLang,
+    formatTaskSubtaskProgressSummary,
     crossDeptNextCallbacks,
     recoverCrossDeptQueueAfterMissingCallback,
     subtaskDelegationCallbacks,

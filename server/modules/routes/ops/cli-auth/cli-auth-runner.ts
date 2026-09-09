@@ -4,9 +4,10 @@ import { parseProviderOutput, type ParsedAuthOutput } from "./parsers.ts";
 
 // Strip ANSI escape sequences + control chars that PTY adds
 function stripAnsi(s: string): string {
+  const escape = String.fromCharCode(27);
   return s
-    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")
-    .replace(/\x1b[>=][^\x1b]*/g, "")
+    .replace(new RegExp(`${escape}\\[[0-9;?]*[A-Za-z]`, "g"), "")
+    .replace(new RegExp(`${escape}[>=][^${escape}]*`, "g"), "")
     .replace(/\r/g, "");
 }
 

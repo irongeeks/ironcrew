@@ -196,7 +196,7 @@ export function registerAgentSpawnRoute(
       return res.status(400).json({ ok: false, error: "task_not_found" });
     }
     ensureVideoPreprodRemotionBestPracticesSkill({
-      db: db as any,
+      db: db,
       nowMs,
       workflowPackKey: task.workflow_pack_key,
       provider,
@@ -256,7 +256,7 @@ export function registerAgentSpawnRoute(
     const departmentPromptBlock = departmentPrompt ? `[Department Shared Prompt]\n${departmentPrompt}` : "";
     let sshGuidance = "";
     try {
-      const alloc = (db as any)
+      const alloc = db
         .prepare(
           "SELECT sa.server_id, s.id, s.name, s.ssh_config_json FROM server_allocations sa JOIN servers s ON s.id = sa.server_id WHERE sa.task_id = ? AND sa.status = 'active' AND s.ssh_config_json IS NOT NULL LIMIT 1",
         )

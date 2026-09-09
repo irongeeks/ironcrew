@@ -1,10 +1,11 @@
+import type { SQLInputValue } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
-    run: (...args: any[]) => { changes?: number } | void;
+    get: (...args: SQLInputValue[]) => unknown;
+    run: (...args: SQLInputValue[]) => { changes?: number | bigint } | void;
   };
 };
 

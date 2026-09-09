@@ -1,3 +1,4 @@
+import type { SQLInputValue } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -11,7 +12,7 @@ const log = logger.child({ module: "workflow-agents" });
 
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
+    get: (...args: SQLInputValue[]) => unknown;
   };
 };
 

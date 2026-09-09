@@ -1,3 +1,4 @@
+import { isRecord, recordOrEmpty } from "../../shared/json-record.ts";
 export type TerminalProgressHintPhase = "use" | "ok" | "error";
 
 export interface TerminalProgressHintItem {
@@ -10,7 +11,7 @@ export interface TerminalProgressHintItem {
 interface StreamToolUseState {
   tool_use_id: string;
   tool: string;
-  initial_input: any;
+  initial_input: Record<string, unknown>;
   input_json: string;
 }
 
@@ -46,8 +47,8 @@ function normalizeShellCommand(command: string): string {
   return inner.trim() || trimmed;
 }
 
-function extractToolUseFilePath(toolName: string, input: any): string | null {
-  if (!input || typeof input !== "object") return null;
+function extractToolUseFilePath(toolName: string, input: unknown): string | null {
+  if (!isRecord(input)) return null;
   if (typeof input.file_path === "string" && input.file_path.trim()) {
     return input.file_path.trim();
   }
@@ -65,8 +66,8 @@ function extractToolUseFilePath(toolName: string, input: any): string | null {
   return null;
 }
 
-function summarizeToolUse(toolName: string, input: any): string {
-  if (!input || typeof input !== "object") return toolName;
+function summarizeToolUse(toolName: string, input: unknown): string {
+  if (!isRecord(input)) return toolName;
   if (typeof input.description === "string" && input.description.trim()) {
     return clipHint(input.description, 180);
   }
@@ -96,7 +97,7 @@ function summarizeToolResult(content: unknown): string {
         return clipHint(pickFirstNonEmptyLine(item), 180);
       }
       if (item && typeof item === "object") {
-        const text = (item as any).text;
+        const text = recordOrEmpty(item).text;
         if (typeof text === "string" && text.trim()) {
           return clipHint(pickFirstNonEmptyLine(text), 180);
         }
@@ -115,12 +116,12 @@ function summarizeToolResult(content: unknown): string {
   return "";
 }
 
-function parseJsonObject(value: string): any | null {
+function parseJsonObject(value: string): Record<string, unknown> | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   try {
-    const parsed = JSON.parse(trimmed);
-    return parsed && typeof parsed === "object" ? parsed : null;
+    const parsed: unknown = JSON.parse(trimmed);
+    return isRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -131,9 +132,9 @@ function capitalizeToolName(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-function normalizeOpencodeInput(input: any): any {
-  if (!input || typeof input !== "object") return input;
-  const normalized: any = { ...input };
+function normalizeOpencodeInput(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  const normalized: Record<string, unknown> = { ...input };
   if (typeof input.filePath === "string" && !input.file_path) {
     normalized.file_path = input.filePath;
   }
@@ -158,29 +159,32 @@ export function buildTerminalProgressHints(
     const t = line.trim();
     if (!t || !t.startsWith("{")) continue;
     try {
-      const j: any = JSON.parse(t);
+      const j = recordOrEmpty(JSON.parse(t));
+      const message = recordOrEmpty(j.message);
+      const part = recordOrEmpty(j.part);
 
       if (j.type === "stream_event") {
-        const ev = j.event;
-        if (ev?.type === "content_block_start" && ev?.content_block?.type === "tool_use") {
+        const ev = recordOrEmpty(j.event);
+        const contentBlock = recordOrEmpty(ev.content_block);
+        const delta = recordOrEmpty(ev.delta);
+        if (ev?.type === "content_block_start" && contentBlock.type === "tool_use") {
           const idx = Number(ev.index);
           if (Number.isFinite(idx)) {
             streamToolUseByIndex.set(idx, {
-              tool_use_id: String(ev.content_block.id || ""),
-              tool: String(ev.content_block.name || "Tool"),
-              initial_input:
-                ev.content_block.input && typeof ev.content_block.input === "object" ? ev.content_block.input : {},
+              tool_use_id: String(contentBlock.id || ""),
+              tool: String(contentBlock.name || "Tool"),
+              initial_input: recordOrEmpty(contentBlock.input),
               input_json: "",
             });
           }
           continue;
         }
-        if (ev?.type === "content_block_delta" && ev?.delta?.type === "input_json_delta") {
+        if (ev?.type === "content_block_delta" && delta.type === "input_json_delta") {
           const idx = Number(ev.index);
           if (Number.isFinite(idx)) {
             const state = streamToolUseByIndex.get(idx);
             if (state) {
-              state.input_json += String(ev.delta.partial_json ?? "");
+              state.input_json += String(delta.partial_json ?? "");
             }
           }
           continue;
@@ -214,8 +218,8 @@ export function buildTerminalProgressHints(
         }
       }
 
-      if (j.type === "assistant" && Array.isArray(j.message?.content)) {
-        for (const block of j.message.content) {
+      if (j.type === "assistant" && Array.isArray(message.content)) {
+        for (const block of message.content.filter(isRecord)) {
           if (block?.type !== "tool_use") continue;
           const toolUseId = String(block.id || "");
           if (toolUseId && emittedToolUseIds.has(toolUseId)) continue;
@@ -236,8 +240,8 @@ export function buildTerminalProgressHints(
         continue;
       }
 
-      if (j.type === "user" && Array.isArray(j.message?.content)) {
-        for (const block of j.message.content) {
+      if (j.type === "user" && Array.isArray(message.content)) {
+        for (const block of message.content.filter(isRecord)) {
           if (block?.type !== "tool_result") continue;
           const toolUseId = String(block.tool_use_id || "");
           const meta = toolUseMeta.get(toolUseId);
@@ -254,7 +258,7 @@ export function buildTerminalProgressHints(
       }
 
       if (j.type === "item.started" && j.item && typeof j.item === "object") {
-        const item = j.item as any;
+        const item = recordOrEmpty(j.item);
         if (item.type === "command_execution" || item.type === "collab_tool_call") {
           const toolUseIdRaw = String(item.id || "");
           const toolUseId = toolUseIdRaw ? `codex:${toolUseIdRaw}` : "";
@@ -287,7 +291,7 @@ export function buildTerminalProgressHints(
       }
 
       if (j.type === "item.completed" && j.item && typeof j.item === "object") {
-        const item = j.item as any;
+        const item = recordOrEmpty(j.item);
         if (item.type === "command_execution" || item.type === "collab_tool_call") {
           const toolUseIdRaw = String(item.id || "");
           const toolUseId = toolUseIdRaw ? `codex:${toolUseIdRaw}` : "";
@@ -324,7 +328,8 @@ export function buildTerminalProgressHints(
         }
         if (item.type === "file_change" && Array.isArray(item.changes)) {
           const changedPaths = item.changes
-            .map((row: any) => (typeof row?.path === "string" ? row.path.trim() : ""))
+            .filter(isRecord)
+            .map((row) => (typeof row.path === "string" ? row.path.trim() : ""))
             .filter(Boolean);
           if (changedPaths.length > 0) {
             const phase: TerminalProgressHintPhase =
@@ -340,8 +345,8 @@ export function buildTerminalProgressHints(
         }
       }
 
-      if (j.type === "tool_use" && j.part?.type === "tool") {
-        const part = j.part as any;
+      if (j.type === "tool_use" && part.type === "tool") {
+        const state = recordOrEmpty(part.state);
         const rawCallId =
           typeof part.callID === "string"
             ? part.callID.trim()
@@ -352,17 +357,16 @@ export function buildTerminalProgressHints(
                 : "";
         const toolUseId = rawCallId ? `opencode:${rawCallId}` : "";
         const tool = capitalizeToolName(String(part.tool || "Tool"));
-        const input = normalizeOpencodeInput(part.state?.input);
+        const input = normalizeOpencodeInput(state.input);
         const summary = summarizeToolUse(tool, input);
         const filePath = extractToolUseFilePath(tool, input);
-        const status = part.state?.status;
+        const status = state.status;
         const statusKey = toolUseId && (status === "completed" || status === "error") ? `${toolUseId}:${status}` : "";
 
         if (toolUseId && emittedToolUseIds.has(toolUseId)) {
           if (statusKey && !emittedToolResultIds.has(statusKey)) {
             const isError = status === "error";
-            const resultSummary =
-              summarizeToolResult(part.state?.output) || summarizeToolResult(part.state?.error) || summary;
+            const resultSummary = summarizeToolResult(state.output) || summarizeToolResult(state.error) || summary;
             emittedToolResultIds.add(statusKey);
             hints.push({
               phase: isError ? "error" : "ok",
@@ -382,8 +386,7 @@ export function buildTerminalProgressHints(
 
         if (status === "completed" || status === "error") {
           const isError = status === "error";
-          const resultSummary =
-            summarizeToolResult(part.state?.output) || summarizeToolResult(part.state?.error) || summary;
+          const resultSummary = summarizeToolResult(state.output) || summarizeToolResult(state.error) || summary;
           if (statusKey) emittedToolResultIds.add(statusKey);
           hints.push({
             phase: isError ? "error" : "ok",

@@ -1,8 +1,9 @@
+import type { SQLInputValue } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 
 type DbLike = {
   prepare: (sql: string) => {
-    run: (...args: any[]) => unknown;
+    run: (...args: SQLInputValue[]) => unknown;
   };
 };
 

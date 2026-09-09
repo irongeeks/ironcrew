@@ -96,6 +96,30 @@ test("requires all five workflows and all named OS jobs at the exact main SHA", 
   assert.equal(candidate.tag, "v0.4.1");
 });
 
+test("maintenance pushes skip an already tagged version without publishing or moving the tag", async () => {
+  const { api, state } = fixture();
+  state.tag = { object: { type: "commit", sha: "b".repeat(40) } };
+  const result = await sourceGate({ api, repository, commit });
+  assert.equal(result.ready, false);
+  assert.match(result.reason, /no new release version requested/);
+  assert.deepEqual(state.writes, []);
+  state.tag.object.sha = commit;
+  assert.equal((await sourceGate({ api, repository, commit })).ready, true);
+});
+
+test("maintenance detection resolves annotated tags and fails closed on tag cycles", async () => {
+  const { api, state } = fixture();
+  const annotated = { type: "tag", sha: "c".repeat(40) };
+  state.tag = { object: annotated };
+  let target = { type: "commit", sha: "b".repeat(40) };
+  const tagApi = (route, options) =>
+    route === `${base}/git/tags/${annotated.sha}` ? { object: target } : api(route, options);
+  assert.equal((await sourceGate({ api: tagApi, repository, commit })).ready, false);
+  target = annotated;
+  await assert.rejects(sourceGate({ api: tagApi, repository, commit }), /must resolve to a commit/);
+  assert.deepEqual(state.writes, []);
+});
+
 test("rejects forks, pull requests, stale main and wrong candidate SHA", async () => {
   for (const change of [
     { event: "pull_request" },

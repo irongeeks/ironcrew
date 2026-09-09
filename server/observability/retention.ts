@@ -20,7 +20,13 @@ export function runRetention(db: DatabaseSync, config: RetentionConfig): void {
     .prepare(
       "SELECT name, type, labels, value, recorded_at FROM metrics WHERE recorded_at < ? AND exported_at IS NOT NULL",
     )
-    .all(metricsThreshold) as any[];
+    .all(metricsThreshold) as {
+    name: string;
+    type: string;
+    labels: string | null;
+    value: number;
+    recorded_at: number;
+  }[];
 
   const buckets = new Map<
     string,
@@ -78,7 +84,7 @@ export function runRetention(db: DatabaseSync, config: RetentionConfig): void {
   db.prepare("DELETE FROM logs WHERE logged_at < ? AND exported_at IS NOT NULL").run(logThreshold);
 
   // 7. Emergency log purge if over max rows
-  const logCount = (db.prepare("SELECT COUNT(*) as c FROM logs").get() as any).c;
+  const logCount = (db.prepare("SELECT COUNT(*) as c FROM logs").get() as { c: number }).c;
   if (logCount > config.maxLogRows) {
     const purgeCount = Math.floor(config.maxLogRows * 0.1);
     db.prepare("DELETE FROM logs WHERE id IN (SELECT id FROM logs ORDER BY logged_at ASC LIMIT ?)").run(purgeCount);

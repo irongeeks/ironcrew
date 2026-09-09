@@ -72,6 +72,11 @@ export async function sourceGate({ api, repository, commit, trigger }) {
   const file = await api(`${base}/contents/next/package.json?ref=${commit}`);
   const version = JSON.parse(Buffer.from(file.content, "base64").toString("utf8")).version;
   validateVersion(version);
+  const tag = `v${version}`;
+  const existingTagCommit = await tagCommit(api, base, tag);
+  if (existingTagCommit !== null && existingTagCommit !== commit) {
+    return { ready: false, reason: `${tag} already belongs to another commit; no new release version requested` };
+  }
   const evidence = [];
   for (const [workflow, expectedJobs] of Object.entries(requiredWorkflows)) {
     const result = await api(
@@ -122,7 +127,7 @@ export async function sourceGate({ api, repository, commit, trigger }) {
       jobs: jobs.map((job) => job.name),
     });
   }
-  return { ready: true, commit, version, tag: `v${version}`, evidence };
+  return { ready: true, commit, version, tag, evidence };
 }
 
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -192,17 +197,20 @@ export function packageSource({ cwd, outDir, repository, candidate }) {
   return { assets, body, manifest };
 }
 
-async function checkTag(api, base, candidate) {
-  const ref = await api(`${base}/git/ref/tags/${candidate.tag}`);
-  if (!ref) return;
+async function tagCommit(api, base, tag) {
+  const ref = await api(`${base}/git/ref/tags/${tag}`);
+  if (!ref) return null;
   let object = ref.object;
   for (let depth = 0; object.type === "tag" && depth < 8; depth++) {
     object = (await api(`${base}/git/tags/${object.sha}`)).object;
   }
-  assert(
-    object.type === "commit" && object.sha === candidate.commit,
-    "Existing release tag points to a different commit",
-  );
+  assert(object.type === "commit", "Release tag must resolve to a commit");
+  return object.sha;
+}
+
+async function checkTag(api, base, candidate) {
+  const existing = await tagCommit(api, base, candidate.tag);
+  assert(existing === null || existing === candidate.commit, "Existing release tag points to a different commit");
 }
 
 export async function publishSource({ api, repository, candidate, packaged }) {

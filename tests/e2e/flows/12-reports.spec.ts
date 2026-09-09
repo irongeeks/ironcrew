@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { establishSession, navigateTo } from "../fixtures/test-helpers";
+import { establishSession, navigateTo, expectOkJson } from "../fixtures/test-helpers";
 
 test.describe("Reports Flow", () => {
   test.beforeEach(async ({ page, request }) => {
@@ -29,15 +29,34 @@ test.describe("Reports Flow", () => {
     ).toBeVisible();
   });
 
-  test("individual task report shows content", async ({ page, request }) => {
-    const reportsRes = await request.get("/api/task-reports");
-    const body = await reportsRes.json();
-    test.skip(!body.reports || body.reports.length === 0, "No task reports available to test");
-
-    const taskId = body.reports[0].id;
-    const reportRes = await request.get(`/api/task-reports/${taskId}`);
-    expect(reportRes.ok()).toBeTruthy();
-    const report = await reportRes.json();
-    expect(report).toBeTruthy();
+  test("individual task report shows content", async ({ request }) => {
+    const csrf = await establishSession(request);
+    const headers = { "x-csrf-token": csrf };
+    const title = `E2E report fixture ${Date.now()}`;
+    const { id } = await expectOkJson<{ id: string }>(
+      await request.post("/api/tasks", {
+        headers,
+        data: { title, description: "Verified report fixture", status: "planned" },
+      }),
+      "Create report fixture",
+    );
+    try {
+      await expectOkJson(
+        await request.patch(`/api/tasks/${id}`, { headers, data: { status: "done" } }),
+        "Complete fixture",
+      );
+      const { reports } = await expectOkJson<{ reports: Array<{ id: string }> }>(
+        await request.get("/api/task-reports"),
+        "List reports",
+      );
+      expect(reports.some((report) => report.id === id)).toBe(true);
+      const report = await expectOkJson<{ task: { id: string; title: string; description: string } }>(
+        await request.get(`/api/task-reports/${id}`),
+        "Read report detail",
+      );
+      expect(report.task).toMatchObject({ id, title, description: "Verified report fixture" });
+    } finally {
+      await expectOkJson(await request.delete(`/api/tasks/${id}`, { headers }), "Delete report fixture");
+    }
   });
 });

@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock logger before importing code under test.
@@ -153,8 +154,8 @@ function createMockDb(opts: {
 // ---------------------------------------------------------------------------
 
 describe("routeFollowUpViaCeo", () => {
-  let appendTaskLog: ReturnType<typeof vi.fn>;
-  let metrics: { incCounter: ReturnType<typeof vi.fn> };
+  let appendTaskLog: Mock<(taskId: string, kind: string, message: string) => void>;
+  let metrics: { incCounter: Mock<(name: string, labels?: Record<string, string>) => void> };
 
   beforeEach(() => {
     vi.clearAllMocks();

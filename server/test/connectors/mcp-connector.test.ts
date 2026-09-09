@@ -7,37 +7,45 @@ import type { McpServerConfig } from "../../connectors/built-in/mcp/mcp-config.t
 
 // Mock the MCP SDK modules
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
-  Client: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(undefined),
-    listTools: vi.fn().mockResolvedValue({
-      tools: [
-        { name: "read_file", description: "Read a file from disk", inputSchema: { type: "object" } },
-        { name: "write_file", description: "Write a file to disk", inputSchema: { type: "object" } },
-      ],
-    }),
-    callTool: vi.fn().mockResolvedValue({
-      content: [{ type: "text", text: "file contents here" }],
-      isError: false,
-    }),
-  })),
+  Client: vi.fn().mockImplementation(function () {
+    return {
+      connect: vi.fn().mockResolvedValue(undefined),
+      listTools: vi.fn().mockResolvedValue({
+        tools: [
+          { name: "read_file", description: "Read a file from disk", inputSchema: { type: "object" } },
+          { name: "write_file", description: "Write a file to disk", inputSchema: { type: "object" } },
+        ],
+      }),
+      callTool: vi.fn().mockResolvedValue({
+        content: [{ type: "text", text: "file contents here" }],
+        isError: false,
+      }),
+    };
+  }),
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
-  StdioClientTransport: vi.fn().mockImplementation(() => ({
-    close: vi.fn().mockResolvedValue(undefined),
-  })),
+  StdioClientTransport: vi.fn().mockImplementation(function () {
+    return {
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+  }),
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/sse.js", () => ({
-  SSEClientTransport: vi.fn().mockImplementation(() => ({
-    close: vi.fn().mockResolvedValue(undefined),
-  })),
+  SSEClientTransport: vi.fn().mockImplementation(function () {
+    return {
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+  }),
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
-  StreamableHTTPClientTransport: vi.fn().mockImplementation(() => ({
-    close: vi.fn().mockResolvedValue(undefined),
-  })),
+  StreamableHTTPClientTransport: vi.fn().mockImplementation(function () {
+    return {
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+  }),
 }));
 
 function makeStdioConfig(overrides?: Partial<McpServerConfig>): McpServerConfig {

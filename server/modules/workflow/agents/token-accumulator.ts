@@ -1,3 +1,4 @@
+import type { SQLInputValue } from "node:sqlite";
 import { logger } from "../../../observability/logger.ts";
 
 const log = logger.child({ module: "token-accumulator" });
@@ -19,7 +20,7 @@ interface TokenBudget {
 interface TokenAccumulatorDeps {
   db: {
     prepare: (sql: string) => {
-      run: (...args: unknown[]) => unknown;
+      run: (...args: SQLInputValue[]) => unknown;
     };
   };
   appendTaskLog: (taskId: string, kind: string, message: string) => void;

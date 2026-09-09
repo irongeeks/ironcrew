@@ -1,15 +1,8 @@
+import type { DbLike } from "../../../types/db-like.ts";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { DocsProviderBindingRow, DocsProviderRow, DocsProviderView, DocsSkillsProfile } from "./types.ts";
 import { ObsidianLocalConnector } from "./obsidian-local-connector.ts";
-
-type DbLike = {
-  prepare: (sql: string) => {
-    all: (...args: any[]) => unknown;
-    get: (...args: any[]) => unknown;
-    run: (...args: any[]) => unknown;
-  };
-};
 
 export const DOCS_SKILLS_PROFILE: DocsSkillsProfile = {
   note_taking:
@@ -128,7 +121,7 @@ export function updateDocsProvider(
   },
 ): DocsProviderView | null {
   const updates: string[] = [];
-  const values: unknown[] = [];
+  const values: import("node:sqlite").SQLInputValue[] = [];
 
   if (typeof input.name === "string") {
     updates.push("name = ?");

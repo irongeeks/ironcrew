@@ -1,6 +1,8 @@
 # CI-Nachweise
 
-Jeder Unterordner enthält heruntergeladene Originalnachweise und eine `github-run.json` mit Run-URL, Quellcommit, Ergebnis und SHA-256 der aufbewahrten Dateien. Frühere Erfolge und Fehler bleiben ihrem eigenen Commit zugeordnet; sie sind keine Abnahme späterer Änderungen. Den aktuellen Abschlussstand nennt [verification.md](../../verification.md).
+Jeder Unterordner enthält eine unveränderte `github-run.json` mit Run-URL, Quellcommit, Ergebnis und den damals verifizierten SHA-256-Werten. Die vollständigen Originalnachweise bleiben für die abschließenden Drei-OS-Matrizen `686022a` und `ebf3b98`, deren Linux-Isolation und den erfolgreichen nativen Windows-Lauf `native-e9734b0` erhalten.
+
+Die Rohdateien der übrigen, überholten Zwischenläufe wurden am 9. September 2026 entfernt. Ihre Run-Metadaten und historischen Prüfaussagen bleiben nachvollziehbar; die darin aufgeführten `files` sind eine historische Inventur und keine Liste noch lokal vorhandener Dateien. Bei Bedarf sind die entfernten Daten im [Git-Stand vor der Bereinigung](https://github.com/irongeeks/ironcrew/tree/0521a90/next/docs/test-evidence/ci) verfügbar. Frühere Erfolge und Fehler bleiben ihrem eigenen Commit zugeordnet; sie sind keine Abnahme späterer Änderungen. Den aktuellen Abschlussstand nennt [verification.md](../../verification.md).
 
 Bei erfolgreichen Drei-OS-Prüfungen werden die Manifestdateien unabhängig gegen Git geprüft. Die PowerShell-Datei erhält im frischen Checkout gemäß `.gitattributes` CRLF; diese nachgewiesene Normalisierung ist gesondert aufgeführt.
 

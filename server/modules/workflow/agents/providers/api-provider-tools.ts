@@ -1,3 +1,5 @@
+import type { Writable } from "node:stream";
+import type { SQLInputValue } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
@@ -12,7 +14,7 @@ const log = logger.child({ module: "workflow-agents" });
 
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
+    get: (...args: SQLInputValue[]) => unknown;
   };
 };
 
@@ -23,7 +25,7 @@ type CreateApiProviderToolsDeps = {
   broadcast: (event: string, payload: unknown) => void;
   normalizeStreamChunk: (raw: Buffer | string, opts?: { dropCliNoise?: boolean }) => string;
   handleTaskRunComplete: (taskId: string, exitCode: number) => void;
-  createSafeLogStreamOps: (logStream: any) => {
+  createSafeLogStreamOps: (logStream: Writable) => {
     safeWrite: (text: string) => boolean;
     safeEnd: (onDone?: () => void) => void;
     isClosed: () => boolean;

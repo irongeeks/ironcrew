@@ -129,6 +129,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
           department_id: string | null;
           project_id: string | null;
           workflow_pack_key: string | null;
+          agent_routing: string | null;
           project_path: string | null;
           status: string;
           task_type: string | null;
@@ -181,7 +182,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
     try {
       let agentId = task.assigned_agent_id || (req.body?.agent_id as string | undefined);
       if (agentId) {
-        const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+        const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db, {
           workflow_pack_key: task.workflow_pack_key,
           department_id: task.department_id,
           project_id: task.project_id,
@@ -200,7 +201,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
         }
       }
       if (!agentId) {
-        const autoSelected = selectAutoAssignableAgentForTask(db as any, {
+        const autoSelected = selectAutoAssignableAgentForTask(db, {
           workflow_pack_key: task.workflow_pack_key,
           department_id: task.department_id,
           project_id: task.project_id,
@@ -236,7 +237,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
           // Save original agent on first pipeline entry
           if (pipeline.current_step === 0 && !pipeline.original_agent_id) {
             pipeline.original_agent_id = agentId;
-            updateWorkflowMeta(db as any, id, { pipeline }, nowMs());
+            updateWorkflowMeta(db, id, { pipeline }, nowMs());
           }
 
           // Check if current agent is in the correct department
@@ -249,7 +250,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
           if (currentAgentDept !== currentDept) {
             // Need to reassign to an agent in the pipeline's current department
             const deptResult = selectAgentForDepartment(
-              db as any,
+              db,
               {
                 workflow_pack_key: task.workflow_pack_key,
                 department_id: currentDept,
@@ -390,7 +391,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
         return res.status(400).json({ error: "unsupported_provider", provider });
       }
       ensureVideoPreprodRemotionBestPracticesSkill({
-        db: db as any,
+        db: db,
         nowMs,
         workflowPackKey: task.workflow_pack_key,
         provider,
@@ -398,7 +399,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
         appendTaskLog,
       });
       const executionSession = ensureTaskExecutionSession(id, agentId, provider);
-      const pendingInterruptPrompts = loadPendingInterruptPrompts(db as any, id, executionSession.sessionId);
+      const pendingInterruptPrompts = loadPendingInterruptPrompts(db, id, executionSession.sessionId);
       const interruptPromptBlock = buildInterruptPromptBlock(pendingInterruptPrompts);
 
       let projectPath = resolveProjectPath(task) || task.project_path || null;
@@ -460,7 +461,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
       }
 
       const docsContext = buildDocsExecutionContextBlock({
-        db: db as any,
+        db: db,
         task,
         worktreePath: agentCwd,
         appendTaskLog,
@@ -483,10 +484,10 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
           if (parsed.title) {
             // Determine current phase department for selective injection
             let phaseDept: string | null = null;
-            if ((task as any).workflow_pack_key && packRegistry) {
+            if (task.workflow_pack_key && packRegistry) {
               try {
-                const pack = packRegistry.get((task as any).workflow_pack_key);
-                const currentPhaseSubtask = (db as any)
+                const pack = packRegistry.get(task.workflow_pack_key);
+                const currentPhaseSubtask = db
                   .prepare(
                     "SELECT title FROM subtasks WHERE task_id = ? AND title LIKE '[pipeline:%' AND status IN ('pending', 'in_progress') ORDER BY created_at ASC LIMIT 1",
                   )
@@ -495,7 +496,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
                   const phaseMatch = currentPhaseSubtask.title.match(/^\[pipeline:([^\]:]+)/);
                   if (phaseMatch) {
                     const phaseId = phaseMatch[1];
-                    const phase = pack.graph.phases.find((p: any) => p.id === phaseId);
+                    const phase = pack.graph.phases.find((p) => p.id === phaseId);
                     phaseDept = phase?.department ?? null;
                   }
                 }
@@ -515,8 +516,8 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
         { team_leader: "Team Leader", senior: "Senior", junior: "Junior", intern: "Intern" }[agent.role] || agent.role;
       const effectiveRouting = resolveAgentRouting(
         {
-          agent_routing: (task as any).agent_routing ?? null,
-          workflow_pack_key: (task as any).workflow_pack_key ?? null,
+          agent_routing: task.agent_routing ?? null,
+          workflow_pack_key: task.workflow_pack_key ?? null,
         },
         packRegistry ?? null,
       );
@@ -649,7 +650,7 @@ Whenever you complete a subtask, report it in this format:
           // pack not in registry — no seeding
         }
         if (registryPack) {
-          const existingPipelineSubtasks = (db as any)
+          const existingPipelineSubtasks = db
             .prepare("SELECT COUNT(*) as cnt FROM subtasks WHERE task_id = ? AND title LIKE '[pipeline:%'")
             .get(id) as { cnt: number } | undefined;
           if (!existingPipelineSubtasks || existingPipelineSubtasks.cnt === 0) {
@@ -699,7 +700,7 @@ Whenever you complete a subtask, report it in this format:
             // taskDone not yet set because terminals are blocked), skip agent spawn —
             // UNLESS a phase is awaiting_approval, which needs a different code path.
             if (dispatched.length > 0) {
-              const remainingActive = (db as any)
+              const remainingActive = db
                 .prepare(
                   "SELECT COUNT(*) as cnt FROM subtasks WHERE task_id = ? AND title LIKE '[pipeline:%' AND status IN ('pending', 'awaiting_approval')",
                 )
@@ -718,7 +719,7 @@ Whenever you complete a subtask, report it in this format:
       let sshGuidance = "";
       if (task.id) {
         try {
-          const alloc = (db as any)
+          const alloc = db
             .prepare(
               "SELECT sa.server_id, s.id, s.name, s.ssh_config_json FROM server_allocations sa JOIN servers s ON s.id = sa.server_id WHERE sa.task_id = ? AND sa.status = 'active' AND s.ssh_config_json IS NOT NULL LIMIT 1",
             )
@@ -750,7 +751,7 @@ Whenever you complete a subtask, report it in this format:
           // Guard: if a pipeline phase is awaiting user gate approval, reject the run.
           // This prevents the autonomous scheduler from re-running a task that is
           // intentionally paused at a user_approval gate.
-          const awaitingApprovalPhase = (db as any)
+          const awaitingApprovalPhase = db
             .prepare(
               "SELECT 1 FROM subtasks WHERE task_id = ? AND title LIKE '[pipeline:%' AND status = 'awaiting_approval' LIMIT 1",
             )
@@ -764,14 +765,14 @@ Whenever you complete a subtask, report it in this format:
 
           // Determine current phase from subtasks and mark it in_progress so
           // run-complete-handler can identify which phase just finished.
-          const currentPhaseSubtask = (db as any)
+          const currentPhaseSubtask = db
             .prepare(
               "SELECT id, title FROM subtasks WHERE task_id = ? AND title LIKE '[pipeline:%' AND status = 'pending' ORDER BY created_at ASC LIMIT 1",
             )
-            .get(id) as { id?: string; title?: string } | undefined;
+            .get(id) as { id: string; title: string } | undefined;
           if (currentPhaseSubtask?.title) {
             // Mark the pipeline subtask as in_progress
-            (db as any).prepare("UPDATE subtasks SET status = 'in_progress' WHERE id = ?").run(currentPhaseSubtask.id);
+            db.prepare("UPDATE subtasks SET status = 'in_progress' WHERE id = ?").run(currentPhaseSubtask.id);
 
             const phaseMatch = currentPhaseSubtask.title.match(/^\[pipeline:([^\]]+)\]/);
             if (phaseMatch) {
@@ -829,7 +830,7 @@ Whenever you complete a subtask, report it in this format:
           `[Task] ${task.title}`,
           task.description ? `\n${task.description}` : "",
           deptPipelineContextBlock,
-          buildRelatedTaskContextBlock(db as any, task, logsDir),
+          buildRelatedTaskContextBlock(db, task, logsDir),
           sshGuidance,
           mcpToolsBlock,
           pipelinePhaseHint,
@@ -854,7 +855,7 @@ Whenever you complete a subtask, report it in this format:
 
       if (pendingInterruptPrompts.length > 0) {
         consumeInterruptPrompts(
-          db as any,
+          db,
           pendingInterruptPrompts.map((row) => row.id),
           nowMs(),
         );

@@ -3,8 +3,9 @@ import path from "node:path";
 
 process.env.NODE_ENV = "test";
 
-// Force isolated SQLite/log paths for server-side Vitest runs.
-const workerSuffix = process.env.VITEST_WORKER_ID || String(process.pid);
+// Worker IDs restart at 1 in each Vitest invocation. Include the process so
+// simultaneous local/agent suites cannot reset each other's SQLite databases.
+const workerSuffix = `${process.pid}-${process.env.VITEST_WORKER_ID || "main"}`;
 const runtimeDir = path.resolve(process.cwd(), ".tmp", "vitest-runtime");
 const dbPath = path.join(runtimeDir, `ironcrew.vitest.${workerSuffix}.sqlite`);
 const logsDir = path.join(runtimeDir, `logs-${workerSuffix}`);

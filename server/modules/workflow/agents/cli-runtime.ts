@@ -1,3 +1,4 @@
+import type { Writable } from "node:stream";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -148,7 +149,7 @@ export function createCliRuntimeTools(deps: CliRuntimeDeps) {
   const dbPrepareOpenSubtaskToolUseIdByTitle = () =>
     db.prepare("SELECT cli_tool_use_id FROM subtasks WHERE task_id = ? AND title = ? AND status != 'done' LIMIT 1");
 
-  function createSafeLogStreamOps(logStream: any): {
+  function createSafeLogStreamOps(logStream: Writable): {
     safeWrite: (text: string) => boolean;
     safeEnd: (onDone?: () => void) => void;
     isClosed: () => boolean;

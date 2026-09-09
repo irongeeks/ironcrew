@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { DbLike } from "../../../types/db-like.ts";
 
 type PromptSkillProvider = "claude" | "codex" | "gemini" | "opencode" | "copilot" | "antigravity" | "api";
 type PromptSkillRow = {
@@ -78,7 +78,11 @@ function formatPromptSkillTagLine(rows: PromptSkillRow[]): string {
   return overflow > 0 ? `${inline}[+${overflow} more]` : inline;
 }
 
-function queryPromptSkillsByProvider(db: DatabaseSync, provider: PromptSkillProvider, limit: number): PromptSkillRow[] {
+function queryPromptSkillsByProvider(
+  db: { prepare: (sql: string) => Pick<ReturnType<DbLike["prepare"]>, "get" | "all"> },
+  provider: PromptSkillProvider,
+  limit: number,
+): PromptSkillRow[] {
   return db
     .prepare(
       `
@@ -97,7 +101,10 @@ function queryPromptSkillsByProvider(db: DatabaseSync, provider: PromptSkillProv
     .all(provider, limit) as PromptSkillRow[];
 }
 
-function queryPromptSkillsGlobal(db: DatabaseSync, limit: number): PromptSkillRow[] {
+function queryPromptSkillsGlobal(
+  db: { prepare: (sql: string) => Pick<ReturnType<DbLike["prepare"]>, "get" | "all"> },
+  limit: number,
+): PromptSkillRow[] {
   return db
     .prepare(
       `
@@ -127,7 +134,9 @@ function buildSkillRuntimePolicyLines(providerScoped: boolean): string[] {
   ];
 }
 
-export function createPromptSkillsHelper(db: DatabaseSync): {
+export function createPromptSkillsHelper(db: {
+  prepare: (sql: string) => Pick<ReturnType<DbLike["prepare"]>, "get" | "all">;
+}): {
   buildAvailableSkillsPromptBlock: (provider: string) => string;
 } {
   function buildAvailableSkillsPromptBlock(provider: string): string {

@@ -185,11 +185,7 @@ export function createSubtaskDelegationPromptBuilder(deps: PromptDeps) {
       { team_leader: "Team Leader", senior: "Senior", junior: "Junior", intern: "Intern" }[execAgent.role] ||
       execAgent.role;
     const deptConstraint = getDeptRoleConstraint(targetDeptId, targetDeptName);
-    const deptPromptRaw = getDepartmentPromptForPack(
-      db as any,
-      parentDept?.workflow_pack_key ?? "development",
-      targetDeptId,
-    );
+    const deptPromptRaw = getDepartmentPromptForPack(db, parentDept?.workflow_pack_key ?? "development", targetDeptId);
     const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
     const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
     const videoRuntimeRuleBlock =

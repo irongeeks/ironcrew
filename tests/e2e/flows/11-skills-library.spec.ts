@@ -36,15 +36,9 @@ test.describe("Skills Library Flow", () => {
 
   test("search filters skills", async ({ page }) => {
     await navigateTo(page, "skills");
-    const searchInput = page.getByRole("searchbox").first();
-    const searchVisible = await searchInput.isVisible().catch(() => false);
-    if (!searchVisible) {
-      const fallback = page.getByPlaceholder(/search|filter|find/i).first();
-      const fallbackVisible = await fallback.isVisible().catch(() => false);
-      test.skip(!fallbackVisible, "No search input found in skills library");
-      await fallback.fill("test-nonexistent-skill-xyz");
-    } else {
-      await searchInput.fill("test-nonexistent-skill-xyz");
-    }
+    const searchInput = page.getByPlaceholder("Search skills... (name, repo, category)", { exact: true });
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill("test-nonexistent-skill-xyz");
+    await expect(searchInput).toHaveValue("test-nonexistent-skill-xyz");
   });
 });

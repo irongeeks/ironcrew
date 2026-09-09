@@ -311,7 +311,7 @@ export function createProjectReviewPlanningHelpers(deps: ProjectReviewPlanningDe
               if (task.workflow_pack_key && taskEffectivePath && packRegistry) {
                 try {
                   const artifacts = collectPackTerminalArtifacts(
-                    packRegistry as any,
+                    packRegistry,
                     task.workflow_pack_key,
                     taskEffectivePath,
                     300,

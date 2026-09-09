@@ -1,3 +1,4 @@
+import type { MockInstance } from "vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPhaseApprovalBridge } from "../../../../modules/routes/ops/messages/phase-approval-bridge.ts";
 
@@ -74,11 +75,11 @@ function createMockDb(subtasks: MockSubtask[] = [], taskTitle = "Test Task") {
 // ---------------------------------------------------------------------------
 
 describe("phase-approval-bridge", () => {
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(() => {
     fetchSpy = vi
-      .spyOn(globalThis, "fetch" as never)
+      .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(JSON.stringify({ approved: true }), { status: 200 }));
   });
 

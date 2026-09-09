@@ -1,3 +1,4 @@
+import type { DbLike } from "../types/db-like.ts";
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 
 // ---------------------------------------------------------------------------
@@ -5,13 +6,7 @@ import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 // ---------------------------------------------------------------------------
 
 /** Minimal SQLite-like DB handle used by session helpers. */
-export type PasswordDb = {
-  prepare: (sql: string) => {
-    run: (...args: any[]) => any;
-    get: (...args: any[]) => any;
-    all: (...args: any[]) => any[];
-  };
-};
+export type PasswordDb = DbLike;
 
 // ---------------------------------------------------------------------------
 // scrypt parameters

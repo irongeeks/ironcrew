@@ -42,7 +42,13 @@ const vendorChunkName = (id: string): string | undefined => {
     if (match) return `vendor-${match[1].replace("@pixi/", "pixi-")}`;
   }
   if (id.includes("/node_modules/pixi.js/")) return "vendor-pixi";
-  if (id.includes("/node_modules/three/")) return "vendor-three";
+  if (id.includes("/node_modules/three/")) {
+    // Three publishes its renderer and shared scene/math core as separate modules.
+    // Keep those boundaries instead of merging the entire lazy preview into one chunk.
+    if (id.includes("/build/three.core.js")) return "vendor-three-core";
+    if (id.includes("/build/three.module.js")) return "vendor-three-renderer";
+    return "vendor-three-addons";
+  }
   if (id.includes("/node_modules/recharts/")) return "vendor-charts";
   if (id.includes("/node_modules/@xterm/")) return "vendor-terminal";
   if (id.includes("/node_modules/@xyflow/")) return "vendor-xyflow";
@@ -63,7 +69,16 @@ export default defineConfig({
     watch: {
       // The pre-rename directory is still listed: a checkout that predates
       // IronCrew keeps its worktrees there, and the watcher must not walk them.
-      ignored: ["**/.ironcrew-worktrees/**", "**/.octooffice-worktrees/**"],
+      ignored: [
+        "**/.ironcrew-worktrees/**",
+        "**/.octooffice-worktrees/**",
+        // Independent builds and test fixtures contain their own tsconfigs.
+        // Watching those forces a full reload and discards in-progress UI state.
+        "**/next/**",
+        "**/.tmp/**",
+        "**/coverage/**",
+        "**/test-results/**",
+      ],
     },
     proxy: {
       "/api": {
@@ -88,6 +103,18 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: "vendor-react", test: (id) => vendorChunkName(id) === "vendor-react", priority: 10 },
+            {
+              name: "vendor-three-core",
+              test: (id) => vendorChunkName(id) === "vendor-three-core",
+              priority: 9,
+              entriesAware: true,
+            },
+            {
+              name: "vendor-three-renderer",
+              test: (id) => vendorChunkName(id) === "vendor-three-renderer",
+              priority: 8,
+              entriesAware: true,
+            },
             { name: (id) => vendorChunkName(id) ?? null, entriesAware: true },
           ],
         },

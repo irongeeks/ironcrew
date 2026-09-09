@@ -240,7 +240,7 @@ export function registerRoutesPartA(ctx: RuntimeContext): Record<string, never> 
     stopRequestedTasks,
     killPidTree,
     logsDir,
-    packRegistry: (__ctx as any).packRegistry,
+    packRegistry: __ctx.packRegistry,
   });
 
   // ---------------------------------------------------------------------------
@@ -296,8 +296,8 @@ export function registerRoutesPartA(ctx: RuntimeContext): Record<string, never> 
     spawnCliAgent,
     handleTaskRunComplete,
     buildAvailableSkillsPromptBlock,
-    packRegistry: (__ctx as any).packRegistry,
-    graphRunner: (__ctx as any).graphRunner,
+    packRegistry: __ctx.packRegistry,
+    graphRunner: __ctx.graphRunner,
     stopProgressTimer,
     rollbackTaskWorktree,
     clearTaskWorkflowState,
@@ -330,14 +330,14 @@ export function registerRoutesPartA(ctx: RuntimeContext): Record<string, never> 
     nowMs,
     broadcast,
     appendTaskLog,
-    packRegistry: (__ctx as any).packRegistry,
-    graphRunner: (__ctx as any).graphRunner,
+    packRegistry: __ctx.packRegistry,
+    graphRunner: __ctx.graphRunner,
     activeProcesses,
     stopRequestedTasks: __ctx.stopRequestedTasks,
     killPidTree: __ctx.killPidTree,
     endTaskExecutionSession: __ctx.endTaskExecutionSession,
     runTask: __ctx.runTask,
-  } as any);
+  });
 
   registerGitHubRoutes({
     app,

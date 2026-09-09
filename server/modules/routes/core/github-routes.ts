@@ -1,3 +1,4 @@
+import { isRecord, recordOrEmpty } from "../shared/json-record.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -138,14 +139,14 @@ export function registerGitHubRoutes(deps: GitHubRouteDeps): void {
           .status(resp.status)
           .json({ ok: false, error: "github_api_error", status: resp.status, detail: body });
       }
-      const json = await resp.json();
-      const repos = q ? ((json as any).items ?? []) : json;
+      const json: unknown = await resp.json();
+      const repos = q ? (recordOrEmpty(json).items ?? []) : json;
       res.json({
-        repos: (repos as any[]).map((r: any) => ({
+        repos: (Array.isArray(repos) ? repos.filter(isRecord) : []).map((r) => ({
           id: r.id,
           name: r.name,
           full_name: r.full_name,
-          owner: r.owner?.login,
+          owner: recordOrEmpty(r.owner).login,
           private: r.private,
           description: r.description,
           default_branch: r.default_branch,
@@ -192,7 +193,7 @@ export function registerGitHubRoutes(deps: GitHubRouteDeps): void {
         }
         return res.status(resp.status).json({ ok: false, error: "github_api_error", status: resp.status });
       }
-      const branches = (await resp.json()) as any[];
+      const branches: unknown = await resp.json();
       const repoResp = await fetch(
         `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
         {
@@ -204,11 +205,11 @@ export function registerGitHubRoutes(deps: GitHubRouteDeps): void {
           signal: AbortSignal.timeout(10000),
         },
       );
-      const repoData = repoResp.ok ? ((await repoResp.json()) as any) : null;
+      const repoData = repoResp.ok ? recordOrEmpty(await repoResp.json()) : null;
       res.json({
-        remote_branches: branches.map((b: any) => ({
+        remote_branches: (Array.isArray(branches) ? branches.filter(isRecord) : []).map((b) => ({
           name: b.name,
-          sha: b.commit?.sha,
+          sha: recordOrEmpty(b.commit).sha,
           is_default: b.name === repoData?.default_branch,
         })),
         default_branch: repoData?.default_branch ?? null,
@@ -343,12 +344,12 @@ export function registerGitHubRoutes(deps: GitHubRouteDeps): void {
       if (!resp.ok) {
         return res.json({ pulls: [] });
       }
-      const pulls = (await resp.json()) as any[];
+      const pulls: unknown = await resp.json();
       res.json({
-        pulls: pulls.map((p: any) => ({
+        pulls: (Array.isArray(pulls) ? pulls.filter(isRecord) : []).map((p) => ({
           number: p.number,
           title: p.title,
-          user: p.user?.login ?? "",
+          user: recordOrEmpty(p.user).login ?? "",
           html_url: p.html_url,
           created_at: p.created_at,
           updated_at: p.updated_at,

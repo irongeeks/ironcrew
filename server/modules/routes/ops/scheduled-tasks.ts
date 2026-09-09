@@ -1,3 +1,4 @@
+import type { Response } from "express";
 /**
  * Scheduled Tasks CRUD API
  * Mounted at /api/ops/scheduled-tasks
@@ -9,6 +10,12 @@ import { CronExpressionParser } from "cron-parser";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import { requireAuth, shouldRequireCsrf, hasValidCsrfToken } from "../../../security/auth.ts";
 import { logger } from "../../../observability/logger.ts";
+
+type ScheduledTaskRow = Omit<z.infer<typeof ScheduledTaskInput>, "enabled"> & {
+  id: string;
+  enabled: number;
+  next_run_at: number | null;
+};
 
 const log = logger.child({ module: "scheduled-tasks-api" });
 
@@ -79,7 +86,7 @@ export function registerScheduledTaskRoutes(ctx: RuntimeContext): void {
 
   app.use(BASE, requireAuth);
 
-  function requireCsrfGuard(req: Parameters<typeof shouldRequireCsrf>[0], res: any): boolean {
+  function requireCsrfGuard(req: Parameters<typeof shouldRequireCsrf>[0], res: Response): boolean {
     if (!shouldRequireCsrf(req)) return true;
     if (hasValidCsrfToken(req)) return true;
     res.status(403).json({ error: "csrf_token_invalid" });
@@ -140,7 +147,9 @@ export function registerScheduledTaskRoutes(ctx: RuntimeContext): void {
   // PUT /:id
   app.put(`${BASE}/:id`, (req, res) => {
     if (!requireCsrfGuard(req, res)) return;
-    const existing = db.prepare("SELECT * FROM scheduled_tasks WHERE id = ?").get(req.params.id) as any;
+    const existing = db.prepare("SELECT * FROM scheduled_tasks WHERE id = ?").get(req.params.id) as
+      | ScheduledTaskRow
+      | undefined;
     if (!existing) return res.status(404).json({ error: "not_found" });
 
     const parsed = ScheduledTaskUpdate.safeParse(req.body);
@@ -197,7 +206,9 @@ export function registerScheduledTaskRoutes(ctx: RuntimeContext): void {
   // POST /:id/toggle
   app.post(`${BASE}/:id/toggle`, (req, res) => {
     if (!requireCsrfGuard(req, res)) return;
-    const existing = db.prepare("SELECT * FROM scheduled_tasks WHERE id = ?").get(req.params.id) as any;
+    const existing = db.prepare("SELECT * FROM scheduled_tasks WHERE id = ?").get(req.params.id) as
+      | ScheduledTaskRow
+      | undefined;
     if (!existing) return res.status(404).json({ error: "not_found" });
 
     const now = nowMs();
@@ -220,7 +231,9 @@ export function registerScheduledTaskRoutes(ctx: RuntimeContext): void {
   // POST /:id/trigger — manually trigger now
   app.post(`${BASE}/:id/trigger`, async (req, res) => {
     if (!requireCsrfGuard(req, res)) return;
-    const existing = db.prepare("SELECT * FROM scheduled_tasks WHERE id = ?").get(req.params.id) as any;
+    const existing = db.prepare("SELECT * FROM scheduled_tasks WHERE id = ?").get(req.params.id) as
+      | ScheduledTaskRow
+      | undefined;
     if (!existing) return res.status(404).json({ error: "not_found" });
 
     try {

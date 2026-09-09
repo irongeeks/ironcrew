@@ -1,3 +1,6 @@
+import type { notifyTaskStatus } from "../../../gateway/client.ts";
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import type { DbLike } from "../../../types/db-like.ts";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -13,7 +16,50 @@ import { logger } from "../../../observability/logger.ts";
 
 const log = logger.child({ module: "review-finalize" });
 
-type CreateReviewFinalizeToolsDeps = Record<string, any>;
+type CreateReviewFinalizeToolsDeps = {
+  db: DbLike;
+  nowMs: RuntimeContext["nowMs"];
+  logsDir: RuntimeContext["logsDir"];
+  broadcast: RuntimeContext["broadcast"];
+  appendTaskLog: RuntimeContext["appendTaskLog"];
+  getPreferredLanguage: RuntimeContext["getPreferredLanguage"];
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
+  resolveLang: RuntimeContext["resolveLang"];
+  getProjectReviewGateSnapshot: (projectId: string) => {
+    activeTotal: number;
+    activeReview: number;
+    rootReviewTotal: number;
+    ready: boolean;
+  };
+  projectReviewGateNotifiedAt: Map<string, number>;
+  notifyCeo: RuntimeContext["notifyCeo"];
+  taskWorktrees: RuntimeContext["taskWorktrees"];
+  mergeToDevAndCreatePR: RuntimeContext["mergeToDevAndCreatePR"];
+  mergeWorktree: RuntimeContext["mergeWorktree"];
+  cleanupWorktree: RuntimeContext["cleanupWorktree"];
+  findTeamLeader: RuntimeContext["findTeamLeader"];
+  getAgentDisplayName: RuntimeContext["getAgentDisplayName"];
+  setTaskCreationAuditCompletion: RuntimeContext["setTaskCreationAuditCompletion"];
+  endTaskExecutionSession: RuntimeContext["endTaskExecutionSession"];
+  notifyTaskStatus: typeof notifyTaskStatus;
+  refreshCliUsageData: RuntimeContext["refreshCliUsageData"];
+  shouldDeferTaskReportUntilPlanningArchive: (task: {
+    source_task_id?: string | null;
+    department_id?: string | null;
+  }) => boolean;
+  emitTaskReportEvent: (taskId: string) => void;
+  formatTaskSubtaskProgressSummary: RuntimeContext["formatTaskSubtaskProgressSummary"];
+  reviewRoundState: RuntimeContext["reviewRoundState"];
+  reviewInFlight: RuntimeContext["reviewInFlight"];
+  archivePlanningConsolidatedReport: RuntimeContext["archivePlanningConsolidatedReport"];
+  crossDeptNextCallbacks: RuntimeContext["crossDeptNextCallbacks"];
+  recoverCrossDeptQueueAfterMissingCallback: RuntimeContext["recoverCrossDeptQueueAfterMissingCallback"];
+  subtaskDelegationCallbacks: RuntimeContext["subtaskDelegationCallbacks"];
+  startReviewConsensusMeeting: RuntimeContext["startReviewConsensusMeeting"];
+  processSubtaskDelegations: RuntimeContext["processSubtaskDelegations"];
+  app?: RuntimeContext["app"];
+};
 
 export function createReviewFinalizeTools(deps: CreateReviewFinalizeToolsDeps) {
   const {
@@ -381,7 +427,7 @@ export function createReviewFinalizeTools(deps: CreateReviewFinalizeToolsDeps) {
         | { worktreePath?: string; projectPath?: string; branchName?: string }
         | undefined;
       const outputRoot = currentTask.project_path || wtInfo?.projectPath || process.cwd();
-      const videoArtifactSpec = resolveVideoArtifactSpecForTask(db as any, {
+      const videoArtifactSpec = resolveVideoArtifactSpecForTask(db, {
         project_id: currentTask.project_id,
         project_path: currentTask.project_path,
         department_id: currentTask.department_id,

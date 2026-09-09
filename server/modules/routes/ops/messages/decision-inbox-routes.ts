@@ -1,3 +1,4 @@
+import { isLang } from "../../../../types/lang.ts";
 import { randomUUID } from "node:crypto";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
@@ -71,11 +72,11 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
     createProjectReviewPlanningHelpers({
       db,
       nowMs,
-      l: l as any,
-      pickL: pickL as any,
-      findTeamLeader: findTeamLeader as any,
-      runAgentOneShot: runAgentOneShot as any,
-      chooseSafeReply: chooseSafeReply as any,
+      l: l,
+      pickL: (pool, lang) => pickL(pool, isLang(lang) ? lang : "en"),
+      findTeamLeader: findTeamLeader,
+      runAgentOneShot: runAgentOneShot,
+      chooseSafeReply: chooseSafeReply,
       getAgentDisplayName,
       getProjectReviewDecisionState,
       recordProjectReviewDecisionEvent,
@@ -86,11 +87,11 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
   const { queueReviewRoundPlanningConsolidation } = createReviewRoundPlanningHelpers({
     db,
     nowMs,
-    l: l as any,
-    pickL: pickL as any,
-    findTeamLeader: findTeamLeader as any,
-    runAgentOneShot: runAgentOneShot as any,
-    chooseSafeReply: chooseSafeReply as any,
+    l: l,
+    pickL: (pool, lang) => pickL(pool, isLang(lang) ? lang : "en"),
+    findTeamLeader: findTeamLeader,
+    runAgentOneShot: runAgentOneShot,
+    chooseSafeReply: chooseSafeReply,
     getAgentDisplayName,
     getReviewRoundDecisionState,
     formatPlannerSummaryForDisplay,
@@ -103,8 +104,8 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
       db,
       nowMs,
       getPreferredLanguage,
-      pickL: pickL as any,
-      l: l as any,
+      pickL: (pool, lang) => pickL(pool, isLang(lang) ? lang : "en"),
+      l: l,
       buildProjectReviewSnapshotHash,
       getProjectReviewDecisionState,
       upsertProjectReviewDecisionState,
@@ -119,8 +120,8 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
       db,
       nowMs,
       getPreferredLanguage,
-      pickL: pickL as any,
-      l: l as any,
+      pickL: (pool, lang) => pickL(pool, isLang(lang) ? lang : "en"),
+      l: l,
       buildReviewRoundSnapshotHash,
       getReviewRoundDecisionState,
       upsertReviewRoundDecisionState,
@@ -420,7 +421,7 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
 
     let status = 200;
     let payload: Record<string, unknown> = { ok: true };
-    const req = { body } as any;
+    const req = { body };
     const res = {
       status(code: number) {
         status = code;
@@ -430,7 +431,7 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
         payload = value;
         return this;
       },
-    } as any;
+    };
 
     if (
       await handleProjectReviewDecisionReply({
@@ -445,8 +446,8 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
           nowMs,
           normalizeTextField,
           getPreferredLanguage,
-          pickL: pickL as any,
-          l: l as any,
+          pickL: (pool, lang) => pickL(pool, isLang(lang) ? lang : "en"),
+          l: l,
           broadcast,
           finishReview,
           getProjectReviewDecisionState,
@@ -470,15 +471,16 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
         optionNumber,
         deps: {
           db,
-          l: l as any,
-          pickL: pickL as any,
+          l: l,
+          pickL: (pool, lang) => pickL(pool, isLang(lang) ? lang : "en"),
           nowMs,
           resolveLang,
           normalizeTextField,
           appendTaskLog,
           processSubtaskDelegations,
           seedReviewRevisionSubtasks,
-          scheduleNextReviewRound: scheduleNextReviewRound as any,
+          scheduleNextReviewRound: (taskId, title, round, lang) =>
+            scheduleNextReviewRound(taskId, title, round, isLang(lang) ? lang : "en"),
           getProjectReviewDecisionState,
           getReviewDecisionNotes,
           getReviewDecisionFallbackLabel,

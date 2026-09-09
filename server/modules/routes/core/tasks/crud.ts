@@ -334,7 +334,7 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       body.priority ?? 0,
       body.task_type ?? "general",
       resolveWorkflowPackKeyForTask({
-        db: db as any,
+        db: db,
         explicitPackKey: body.workflow_pack_key,
         projectId: resolvedProjectId,
       }),

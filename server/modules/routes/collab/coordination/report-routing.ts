@@ -271,7 +271,7 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
       if (!linkedProjectPath) linkedProjectPath = normalizeTextField(currentProject?.project_path);
     }
     const workflowPackKey = resolveWorkflowPackKeyForTask({
-      db: db as any,
+      db: db,
       projectId: linkedProjectId,
       fallbackPackKey: "web_research_report",
     });

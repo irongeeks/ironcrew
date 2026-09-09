@@ -1,6 +1,8 @@
+import type { Writable } from "node:stream";
+import type { SQLInputValue } from "node:sqlite";
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
+    get: (...args: SQLInputValue[]) => unknown;
   };
 };
 
@@ -58,7 +60,7 @@ export function createStreamTools(deps: CreateStreamToolsDeps) {
     }
   }
 
-  function createSafeLogStreamOps(logStream: any): {
+  function createSafeLogStreamOps(logStream: Writable): {
     safeWrite: (text: string) => boolean;
     safeEnd: (onDone?: () => void) => void;
     isClosed: () => boolean;

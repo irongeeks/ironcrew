@@ -1,8 +1,34 @@
+import type { AgentRow } from "../../../types/workflow-types.ts";
+import type { notifyTaskStatus } from "../../../gateway/client.ts";
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import type { DbLike } from "../../../types/db-like.ts";
 import { logger } from "../../../observability/logger.ts";
 
 const log = logger.child({ module: "orchestration" });
 
-type CreateReportWorkflowToolsDeps = Record<string, any>;
+type CreateReportWorkflowToolsDeps = {
+  db: DbLike;
+  broadcast: RuntimeContext["broadcast"];
+  appendTaskLog: RuntimeContext["appendTaskLog"];
+  nowMs: RuntimeContext["nowMs"];
+  resolveLang: RuntimeContext["resolveLang"];
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
+  sendAgentMessage: RuntimeContext["sendAgentMessage"];
+  findTeamLeader: RuntimeContext["findTeamLeader"];
+  getAgentDisplayName: RuntimeContext["getAgentDisplayName"];
+  setTaskCreationAuditCompletion: RuntimeContext["setTaskCreationAuditCompletion"];
+  reviewRoundState: RuntimeContext["reviewRoundState"];
+  reviewInFlight: RuntimeContext["reviewInFlight"];
+  endTaskExecutionSession: RuntimeContext["endTaskExecutionSession"];
+  notifyTaskStatus: typeof notifyTaskStatus;
+  refreshCliUsageData: RuntimeContext["refreshCliUsageData"];
+  archivePlanningConsolidatedReport: RuntimeContext["archivePlanningConsolidatedReport"];
+  crossDeptNextCallbacks: RuntimeContext["crossDeptNextCallbacks"];
+  recoverCrossDeptQueueAfterMissingCallback: RuntimeContext["recoverCrossDeptQueueAfterMissingCallback"];
+  subtaskDelegationCallbacks: RuntimeContext["subtaskDelegationCallbacks"];
+  notifyCeo: RuntimeContext["notifyCeo"];
+};
 
 export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
   const {
@@ -137,7 +163,7 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
     }
 
     const reporter = task.assigned_agent_id
-      ? (db.prepare("SELECT * FROM agents WHERE id = ?").get(task.assigned_agent_id) as any | undefined)
+      ? (db.prepare("SELECT * FROM agents WHERE id = ?").get(task.assigned_agent_id) as AgentRow | undefined)
       : undefined;
     if (reporter) {
       sendAgentMessage(

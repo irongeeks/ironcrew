@@ -6,7 +6,7 @@
  * automatic retry/reassign feature.
  */
 
-import type { DatabaseSync } from "node:sqlite";
+import type { DbLike } from "../../../types/db-like.ts";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ export function parseWorkflowMeta(raw: string | null | undefined): WorkflowMeta 
 }
 
 export function updateWorkflowMeta(
-  db: Pick<DatabaseSync, "prepare" | "exec">,
+  db: DbLike & { exec(sql: string): void },
   taskId: string,
   updates: Partial<WorkflowMeta>,
   nowMs: number,

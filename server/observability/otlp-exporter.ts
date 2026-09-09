@@ -1,6 +1,33 @@
 import type { DatabaseSync } from "node:sqlite";
 import { logger } from "./logger.ts";
 
+type SpanRow = {
+  id: string;
+  trace_id: string;
+  parent_span_id: string | null;
+  name: string;
+  start_time: number;
+  end_time: number | null;
+  status: string;
+  attributes: string | null;
+  events: string | null;
+};
+type MetricRow = { id: string; name: string; type: string; value: number; labels: string | null; recorded_at: number };
+type LogRow = { id: string; level: number; module: string | null; message: string; logged_at: number };
+function parseSpanEvents(raw: string | null): { time: number; name: string }[] {
+  const events: unknown = JSON.parse(raw || "[]");
+  if (!Array.isArray(events)) return [];
+  return events.filter(
+    (event: unknown): event is { time: number; name: string } =>
+      !!event &&
+      typeof event === "object" &&
+      "time" in event &&
+      typeof event.time === "number" &&
+      "name" in event &&
+      typeof event.name === "string",
+  );
+}
+
 const log = logger.child({ module: "otlp-exporter" });
 
 export interface OtlpExporterConfig {
@@ -35,7 +62,7 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
       .prepare(
         "SELECT id, trace_id, task_id, parent_span_id, name, kind, status, start_time, end_time, attributes, events FROM workflow_spans WHERE exported_at IS NULL AND end_time IS NOT NULL LIMIT 1000",
       )
-      .all() as any[];
+      .all() as SpanRow[];
 
     if (spans.length === 0) return;
 
@@ -47,7 +74,7 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
         scopeSpans: [
           {
             scope: { name: "ironcrew.observability" },
-            spans: spans.map((s: any) => ({
+            spans: spans.map((s) => ({
               traceId: s.trace_id.replace(/-/g, "").slice(0, 32).padStart(32, "0"),
               spanId: s.id.replace(/-/g, "").slice(0, 16).padStart(16, "0"),
               parentSpanId: s.parent_span_id ? s.parent_span_id.replace(/-/g, "").slice(0, 16).padStart(16, "0") : "",
@@ -60,7 +87,7 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
                 key: k,
                 value: { stringValue: String(v) },
               })),
-              events: (JSON.parse(s.events || "[]") as any[]).map((e: any) => ({
+              events: parseSpanEvents(s.events).map((e) => ({
                 timeUnixNano: String(e.time * 1_000_000),
                 name: e.name,
               })),
@@ -95,7 +122,7 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
   async function exportMetrics(): Promise<void> {
     const rows = db
       .prepare("SELECT id, name, type, value, labels, recorded_at FROM metrics WHERE exported_at IS NULL LIMIT 1000")
-      .all() as any[];
+      .all() as MetricRow[];
 
     if (rows.length === 0) return;
 
@@ -107,7 +134,7 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
         scopeMetrics: [
           {
             scope: { name: "ironcrew.observability" },
-            metrics: rows.map((m: any) => ({
+            metrics: rows.map((m) => ({
               name: m.name,
               sum:
                 m.type === "counter"
@@ -180,7 +207,7 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
   async function exportLogs(): Promise<void> {
     const rows = db
       .prepare("SELECT id, level, module, message, data, logged_at FROM logs WHERE exported_at IS NULL LIMIT 1000")
-      .all() as any[];
+      .all() as LogRow[];
 
     if (rows.length === 0) return;
 
@@ -201,7 +228,7 @@ export function createOtlpExporter(db: DatabaseSync, config: OtlpExporterConfig)
         scopeLogs: [
           {
             scope: { name: "ironcrew.observability" },
-            logRecords: rows.map((l: any) => {
+            logRecords: rows.map((l) => {
               const sev = severityMap[l.level] ?? { text: "INFO", number: 9 };
               return {
                 timeUnixNano: String(BigInt(l.logged_at) * 1_000_000n),

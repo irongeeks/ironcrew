@@ -1,3 +1,5 @@
+import type { RuntimeContext } from "../../../../types/runtime-context.ts";
+import type { SQLInputValue } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 import { decryptSecret } from "../../../../oauth/helpers.ts";
 import type { WorktreeInfo } from "./lifecycle.ts";
@@ -14,7 +16,7 @@ const log = logger.child({ module: "core-workflow" });
 
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
+    get: (...args: SQLInputValue[]) => unknown;
   };
 };
 
@@ -23,9 +25,9 @@ type CreateWorktreeMergeToolsDeps = {
   taskWorktrees: Map<string, WorktreeInfo>;
   appendTaskLog: (taskId: string, kind: string, message: string) => void;
   cleanupWorktree: (projectPath: string, taskId: string) => void;
-  resolveLang: (text: string) => string;
-  l: (...args: any[]) => any;
-  pickL: (...args: any[]) => string;
+  resolveLang: RuntimeContext["resolveLang"];
+  l: RuntimeContext["l"];
+  pickL: RuntimeContext["pickL"];
 };
 
 export function createWorktreeMergeTools(deps: CreateWorktreeMergeToolsDeps) {

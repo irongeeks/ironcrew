@@ -39,7 +39,7 @@ interface TaskDelegationDeps {
     projectPath: string | null;
     source: string;
   };
-  recordTaskCreationAudit: (payload: any) => void;
+  recordTaskCreationAudit: RuntimeContext["recordTaskCreationAudit"];
   appendTaskLog: (taskId: string, source: string, message: string) => void;
   broadcast: (event: string, payload: unknown) => void;
   l: (ko: string[], en: string[], ja?: string[], zh?: string[]) => L10n;
@@ -141,11 +141,11 @@ export function createTaskDelegationHandler(deps: TaskDelegationDeps) {
       const selectedProject = resolveProjectFromOptions(options);
       const explicitPackKey = inferPackKeyFromAgentId(teamLeader.id);
       const workflowPackKey = resolveWorkflowPackKeyForTask({
-        db: db as any,
+        db: db,
         explicitPackKey,
         projectId: selectedProject.id,
       });
-      const projectCandidateAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+      const projectCandidateAgentIds = resolveConstrainedAgentScopeForTask(db, {
         workflow_pack_key: workflowPackKey,
         department_id: leaderDeptId,
         project_id: selectedProject.id,

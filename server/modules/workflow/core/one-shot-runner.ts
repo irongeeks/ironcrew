@@ -1,6 +1,8 @@
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import type { Writable } from "node:stream";
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import type { AgentRow, OneShotRunOptions, OneShotRunResult } from "./conversation-types.ts";
 import { toErrorMessage } from "../../routes/validation.ts";
 
@@ -8,9 +10,9 @@ type CreateOneShotRunnerDeps = {
   logsDir: string;
   broadcast: (event: string, payload: unknown) => void;
   getProviderModelConfig: () => Record<string, { model?: string; reasoningLevel?: string }>;
-  executeApiProviderAgent: (...args: any[]) => Promise<void>;
-  executeCopilotAgent: (...args: any[]) => Promise<void>;
-  executeAntigravityAgent: (...args: any[]) => Promise<void>;
+  executeApiProviderAgent: RuntimeContext["executeApiProviderAgent"];
+  executeCopilotAgent: RuntimeContext["executeCopilotAgent"];
+  executeAntigravityAgent: RuntimeContext["executeAntigravityAgent"];
   killPidTree: (pid: number) => void;
   prettyStreamJson: (raw: string) => string;
   getPreferredLanguage: () => string;
@@ -51,7 +53,7 @@ export function createOneShotRunner(deps: CreateOneShotRunnerDeps) {
     return CLI_TOOL_SIGNAL_REGEX.test(text);
   }
 
-  function createSafeLogStreamOps(logStream: any): {
+  function createSafeLogStreamOps(logStream: Writable): {
     safeWrite: (text: string) => boolean;
     safeEnd: (onDone?: () => void) => void;
     isClosed: () => boolean;
@@ -100,7 +102,7 @@ export function createOneShotRunner(deps: CreateOneShotRunnerDeps) {
     const { safeWrite, safeEnd } = createSafeLogStreamOps(logStream);
     let rawOutput = "";
     let exitCode = 0;
-    let activeChild: any = null;
+    let activeChild: ChildProcess | null = null;
     let activeStdoutListener: ((chunk: Buffer) => void) | null = null;
     let activeStderrListener: ((chunk: Buffer) => void) | null = null;
     let activeErrorListener: ((err: Error) => void) | null = null;
@@ -154,8 +156,8 @@ export function createOneShotRunner(deps: CreateOneShotRunnerDeps) {
             logStream,
             controller.signal,
             streamTaskId ?? undefined,
-            (agent as any).api_provider_id ?? null,
-            (agent as any).api_model ?? null,
+            agent.api_provider_id ?? null,
+            agent.api_model ?? null,
             (text: string) => {
               rawOutput += text;
               return safeWrite(text);

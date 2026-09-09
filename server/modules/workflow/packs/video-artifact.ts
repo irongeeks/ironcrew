@@ -1,9 +1,10 @@
+import type { SQLInputValue } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...params: unknown[]) => Record<string, unknown> | undefined;
+    get: (...params: SQLInputValue[]) => unknown;
   };
 };
 

@@ -22,7 +22,7 @@ export type WorkflowAgentProviderDeps = Pick<
   | "setActiveOAuthAccount"
 >;
 
-export function initializeWorkflowAgentProviders(deps: WorkflowAgentProviderDeps): any {
+export function initializeWorkflowAgentProviders(deps: WorkflowAgentProviderDeps) {
   const {
     db,
     nowMs,

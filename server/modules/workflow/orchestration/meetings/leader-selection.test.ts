@@ -19,6 +19,7 @@ type AgentRow = {
   api_model: string | null;
   cli_model: string | null;
   cli_reasoning_level: string | null;
+  cli_profile: string | null;
 };
 
 function setupDb(): DatabaseSync {

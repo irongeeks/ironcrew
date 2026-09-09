@@ -1,13 +1,14 @@
+import { isRecord, recordOrEmpty } from "../../shared/json-record.ts";
 export function prettyStreamJson(raw: string, opts: { includeReasoning?: boolean } = {}): string {
   // OpenClaw: output is pretty-printed multi-line JSON with payloads array
   // Must handle before the line-by-line JSONL loop
   const trimmed = raw.trim();
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     try {
-      const whole: any = JSON.parse(trimmed);
+      const whole = recordOrEmpty(JSON.parse(trimmed));
       if (Array.isArray(whole.payloads)) {
         const texts: string[] = [];
-        for (const payload of whole.payloads) {
+        for (const payload of whole.payloads.filter(isRecord)) {
           if (payload && typeof payload.text === "string" && payload.text.trim()) {
             texts.push(payload.text.trim());
           }
@@ -44,26 +45,30 @@ export function prettyStreamJson(raw: string, opts: { includeReasoning?: boolean
     if (!t.startsWith("{")) continue;
 
     try {
-      const j: any = JSON.parse(t);
+      const j = recordOrEmpty(JSON.parse(t));
+      const message = recordOrEmpty(j.message);
+      const part = recordOrEmpty(j.part);
       sawJson = true;
 
       if (j.type === "stream_event") {
-        const ev = j.event;
-        if (ev?.type === "content_block_delta" && ev?.delta?.type === "text_delta") {
+        const ev = recordOrEmpty(j.event);
+        const delta = recordOrEmpty(ev.delta);
+        const contentBlock = recordOrEmpty(ev.content_block);
+        if (ev?.type === "content_block_delta" && delta.type === "text_delta") {
           sawClaudeTextDelta = true;
-          chunks.push(String(ev.delta.text ?? ""));
+          chunks.push(String(delta.text ?? ""));
           continue;
         }
-        if (ev?.type === "content_block_start" && ev?.content_block?.type === "text" && ev?.content_block?.text) {
-          chunks.push(String(ev.content_block.text));
+        if (ev?.type === "content_block_start" && contentBlock.type === "text" && contentBlock.text) {
+          chunks.push(String(contentBlock.text));
           continue;
         }
         continue;
       }
 
-      if (j.type === "assistant" && j.message?.content) {
+      if (j.type === "assistant" && Array.isArray(message.content)) {
         let assistantText = "";
-        for (const block of j.message.content) {
+        for (const block of (message.content as unknown[]).filter(isRecord)) {
           if (block.type === "text" && block.text && !sawClaudeTextDelta) {
             assistantText += String(block.text);
           }
@@ -83,7 +88,7 @@ export function prettyStreamJson(raw: string, opts: { includeReasoning?: boolean
       }
 
       if (j.type === "item.completed" && j.item) {
-        const item = j.item;
+        const item = recordOrEmpty(j.item);
         if (item.type === "agent_message" && item.text) {
           pushMessageChunk(String(item.text));
         }
@@ -91,14 +96,13 @@ export function prettyStreamJson(raw: string, opts: { includeReasoning?: boolean
       }
 
       if (j.type === "text") {
-        if (j.part?.type === "reasoning" || j.part?.type === "thinking") {
+        if (part.type === "reasoning" || part.type === "thinking") {
           if (!includeReasoning) continue;
-          const reasoningVal =
-            typeof j.part?.text === "string" ? j.part.text : typeof j.text === "string" ? j.text : "";
+          const reasoningVal = typeof part.text === "string" ? part.text : typeof j.text === "string" ? j.text : "";
           if (reasoningVal) pushReasoningChunk(String(reasoningVal));
           continue;
         }
-        const textVal = typeof j.part?.text === "string" ? j.part.text : typeof j.text === "string" ? j.text : "";
+        const textVal = typeof part.text === "string" ? part.text : typeof j.text === "string" ? j.text : "";
         if (textVal) chunks.push(String(textVal));
         continue;
       }
@@ -106,8 +110,8 @@ export function prettyStreamJson(raw: string, opts: { includeReasoning?: boolean
       if (j.type === "thinking" || j.type === "reasoning") {
         if (includeReasoning) {
           const reasoningVal =
-            typeof j.part?.text === "string"
-              ? j.part.text
+            typeof part.text === "string"
+              ? part.text
               : typeof j.text === "string"
                 ? j.text
                 : typeof j.content === "string"
@@ -135,10 +139,10 @@ export function prettyStreamJson(raw: string, opts: { includeReasoning?: boolean
           pushMessageChunk(j.content);
         } else if (Array.isArray(j.content)) {
           const parts: string[] = [];
-          for (const part of j.content) {
+          for (const part of j.content as unknown[]) {
             if (typeof part === "string") {
               parts.push(part);
-            } else if (part && typeof part.text === "string") {
+            } else if (isRecord(part) && typeof part.text === "string") {
               parts.push(part.text);
             }
           }
@@ -154,7 +158,7 @@ export function prettyStreamJson(raw: string, opts: { includeReasoning?: boolean
 
       // OpenClaw single-line JSONL fallback (payloads format)
       if (Array.isArray(j.payloads)) {
-        for (const payload of j.payloads) {
+        for (const payload of j.payloads.filter(isRecord)) {
           if (payload && typeof payload.text === "string" && payload.text.trim()) {
             pushMessageChunk(payload.text);
           }

@@ -66,7 +66,7 @@ export function registerDepartmentRoutes(deps: DepartmentRouteDeps): void {
     if (fromBody.invalid) return { packKey: DEFAULT_WORKFLOW_PACK_KEY, invalid: true };
     if (fromBody.packKey) return { packKey: fromBody.packKey, invalid: false };
 
-    return { packKey: readActiveOfficeWorkflowPackKey(db as any), invalid: false };
+    return { packKey: readActiveOfficeWorkflowPackKey(db), invalid: false };
   }
 
   function listDevelopmentDepartments(includeSeed: boolean): unknown[] {
@@ -138,7 +138,7 @@ export function registerDepartmentRoutes(deps: DepartmentRouteDeps): void {
     const id = String(req.params.id);
     const includeSeed = parseIncludeSeedParam(req.query?.include_seed);
     const seedFilterClause = includeSeed ? "" : " AND id NOT LIKE '%-seed-%'";
-    const department = getDepartmentForPack(db as any, resolved.packKey, id);
+    const department = getDepartmentForPack(db, resolved.packKey, id);
     if (!department) return res.status(404).json({ ok: false, error: "not_found" });
 
     const agents =
@@ -194,11 +194,12 @@ export function registerDepartmentRoutes(deps: DepartmentRouteDeps): void {
 
       const maxOrder =
         packKey === DEFAULT_WORKFLOW_PACK_KEY
-          ? ((db.prepare("SELECT MAX(sort_order) AS m FROM departments").get() as any)?.m ?? 0)
+          ? ((db.prepare("SELECT MAX(sort_order) AS m FROM departments").get() as { m: number | null } | undefined)
+              ?.m ?? 0)
           : ((
               db
                 .prepare("SELECT MAX(sort_order) AS m FROM office_pack_departments WHERE workflow_pack_key = ?")
-                .get(packKey) as any
+                .get(packKey) as { m: number | null } | undefined
             )?.m ?? 0);
       try {
         if (packKey === DEFAULT_WORKFLOW_PACK_KEY) {
@@ -234,7 +235,7 @@ export function registerDepartmentRoutes(deps: DepartmentRouteDeps): void {
         throw err;
       }
 
-      const dept = getDepartmentForPack(db as any, packKey, id);
+      const dept = getDepartmentForPack(db, packKey, id);
       broadcast("departments_changed", { workflow_pack_key: packKey });
       res.status(201).json({ ok: true, department: dept });
     } catch (err) {
@@ -278,9 +279,7 @@ export function registerDepartmentRoutes(deps: DepartmentRouteDeps): void {
                 )
                 .get(packKey, nextSortOrder, id);
         if (conflict) {
-          return res
-            .status(409)
-            .json({ ok: false, error: "sort_order_conflict", conflicting_id: (conflict as any).id });
+          return res.status(409).json({ ok: false, error: "sort_order_conflict", conflicting_id: conflict.id });
         }
       }
 
@@ -364,7 +363,7 @@ export function registerDepartmentRoutes(deps: DepartmentRouteDeps): void {
         throw err;
       }
 
-      const dept = getDepartmentForPack(db as any, packKey, id);
+      const dept = getDepartmentForPack(db, packKey, id);
       broadcast("departments_changed", { workflow_pack_key: packKey });
       res.json({ department: dept });
     } catch (err) {
@@ -401,14 +400,14 @@ export function registerDepartmentRoutes(deps: DepartmentRouteDeps): void {
                 .prepare(
                   `SELECT COUNT(*) AS c FROM agents WHERE department_id = ?${hasAgentWorkflowPackColumn ? " AND COALESCE(workflow_pack_key, 'development') = 'development'" : ""}`,
                 )
-                .get(id) as any
+                .get(id) as { c: number } | undefined
             )?.c ?? 0)
           : ((
               db
                 .prepare(
                   `SELECT COUNT(*) AS c FROM agents WHERE department_id = ?${hasAgentWorkflowPackColumn ? " AND COALESCE(workflow_pack_key, 'development') = ?" : ""}`,
                 )
-                .get(...(hasAgentWorkflowPackColumn ? [id, packKey] : [id])) as any
+                .get(...(hasAgentWorkflowPackColumn ? [id, packKey] : [id])) as { c: number } | undefined
             )?.c ?? 0);
       if (agentCount > 0)
         return res.status(409).json({ ok: false, error: "department_has_agents", agent_count: agentCount });
@@ -419,14 +418,14 @@ export function registerDepartmentRoutes(deps: DepartmentRouteDeps): void {
                 .prepare(
                   "SELECT COUNT(*) AS c FROM tasks WHERE department_id = ? AND COALESCE(workflow_pack_key, 'development') = 'development'",
                 )
-                .get(id) as any
+                .get(id) as { c: number } | undefined
             )?.c ?? 0)
           : ((
               db
                 .prepare(
                   "SELECT COUNT(*) AS c FROM tasks WHERE department_id = ? AND COALESCE(workflow_pack_key, 'development') = ?",
                 )
-                .get(id, packKey) as any
+                .get(id, packKey) as { c: number } | undefined
             )?.c ?? 0);
       if (taskCount > 0)
         return res.status(409).json({ ok: false, error: "department_has_tasks", task_count: taskCount });

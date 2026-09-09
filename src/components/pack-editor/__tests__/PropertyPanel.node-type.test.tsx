@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PropertyPanel } from "../PropertyPanel";
@@ -56,7 +57,7 @@ const AGENT_PHASE: PhaseDefinition = {
 };
 
 describe("PropertyPanel — node type change replaces ports", () => {
-  let onUpdate: ReturnType<typeof vi.fn>;
+  let onUpdate: Mock<(phaseId: string, updates: Partial<PhaseDefinition>) => void>;
 
   beforeEach(() => {
     onUpdate = vi.fn();

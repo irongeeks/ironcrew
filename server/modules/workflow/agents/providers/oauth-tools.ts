@@ -1,3 +1,4 @@
+import type { SQLInputValue } from "node:sqlite";
 import { createHash } from "node:crypto";
 import {
   BUILTIN_GOOGLE_CLIENT_ID,
@@ -9,9 +10,9 @@ import type { DecryptedOAuthToken } from "./types.ts";
 
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
-    all: (...args: any[]) => unknown;
-    run: (...args: any[]) => unknown;
+    get: (...args: SQLInputValue[]) => unknown;
+    all: (...args: SQLInputValue[]) => unknown;
+    run: (...args: SQLInputValue[]) => unknown;
   };
 };
 
@@ -355,8 +356,12 @@ export function createOAuthTools(deps: CreateOAuthToolsDeps) {
           signal,
         });
         if (!resp.ok) continue;
-        const data = (await resp.json()) as any;
-        const proj = data?.cloudaicompanionProject?.id ?? data?.cloudaicompanionProject;
+        const data: unknown = await resp.json();
+        const project =
+          data && typeof data === "object" && "cloudaicompanionProject" in data
+            ? data.cloudaicompanionProject
+            : undefined;
+        const proj = project && typeof project === "object" && "id" in project ? project.id : project;
         if (typeof proj === "string" && proj) {
           antigravityProjectCache = { projectId: proj, tokenHash };
           return proj;

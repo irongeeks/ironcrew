@@ -1,10 +1,10 @@
 const DEFERRED_RUNTIME_FN_TAG = Symbol.for("ironcrew.deferredRuntimeFnName");
 
-type RuntimeRecord = Record<string, any>;
+type RuntimeRecord = object;
 
-function createDeferredRuntimeFunction(runtime: RuntimeRecord, name: string): (...args: any[]) => any {
-  const deferred = (...args: any[]) => {
-    const current = runtime[name];
+function createDeferredRuntimeFunction(runtime: RuntimeRecord, name: string): (...args: unknown[]) => unknown {
+  const deferred = (...args: unknown[]) => {
+    const current = Reflect.get(runtime, name);
     if (typeof current !== "function" || current === deferred) {
       throw new Error(`${name}_not_initialized`);
     }
@@ -21,7 +21,7 @@ function createDeferredRuntimeFunction(runtime: RuntimeRecord, name: string): (.
   return deferred;
 }
 
-function isDeferredRuntimeFunction(value: unknown): value is (...args: any[]) => any {
+function isDeferredRuntimeFunction(value: unknown): value is (...args: unknown[]) => unknown {
   return typeof value === "function" && Object.prototype.hasOwnProperty.call(value, DEFERRED_RUNTIME_FN_TAG);
 }
 
@@ -44,7 +44,7 @@ export function createDeferredRuntimeProxy<T extends RuntimeRecord>(runtime: T):
 
       return Reflect.get(target, prop, receiver);
     },
-  }) as T;
+  });
 }
 
 function collectUnresolvedDeferredRuntimeFunctions(runtime: RuntimeRecord): string[] {
@@ -88,7 +88,7 @@ export function assertRuntimeFunctionsResolved(
   const unresolved: string[] = [];
 
   for (const name of uniqueNames) {
-    const value = runtime[name];
+    const value = Reflect.get(runtime, name);
     if (typeof value !== "function") {
       missing.push(name);
       continue;

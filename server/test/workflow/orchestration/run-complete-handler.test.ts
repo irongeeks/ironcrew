@@ -1,3 +1,6 @@
+import { translations } from "../../../modules/workflow/orchestration/test-fixtures.ts";
+import type { AgentRow, Lang } from "../../../types/workflow-types.ts";
+import type { L10n } from "../../../modules/routes/collab/language-policy.ts";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createRunCompleteHandler } from "../../../modules/workflow/orchestration/run-complete-handler.ts";
 
@@ -60,6 +63,7 @@ function createMockDb() {
 
   return {
     _store: store,
+    exec: vi.fn(),
 
     addTask(row: MockRow) {
       store.tasks.push(row);
@@ -160,12 +164,12 @@ function createMockDeps(dbOverride?: ReturnType<typeof createMockDb>) {
     taskWorktrees: new Map(),
     cleanupWorktree: vi.fn(),
     findTeamLeader: vi.fn(() => null),
-    getAgentDisplayName: vi.fn((_agent: Record<string, unknown>, _lang: string) => "Agent"),
-    pickL: vi.fn((_translations: string[][], _lang: string) => ""),
-    l: vi.fn((..._langArrays: string[][]) => [] as string[][]),
+    getAgentDisplayName: vi.fn((_agent: AgentRow, _lang: string) => "Agent"),
+    pickL: vi.fn((_translations: L10n, _lang: string) => ""),
+    l: vi.fn(translations),
     notifyCeo: vi.fn(),
     sendAgentMessage: vi.fn(),
-    resolveLang: vi.fn(() => "en"),
+    resolveLang: vi.fn((): Lang => "en"),
     formatTaskSubtaskProgressSummary: vi.fn(() => ""),
     crossDeptNextCallbacks: new Map<string, () => void>(),
     recoverCrossDeptQueueAfterMissingCallback: vi.fn(),

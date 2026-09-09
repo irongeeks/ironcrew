@@ -45,53 +45,36 @@ test.describe("Pack Editor Flow", () => {
     await expect(page.locator(".react-flow").first()).toBeVisible();
   });
 
-  test("builder mode: create new pack", async ({ page, request }) => {
-    test.fixme(true, "Builder mode (separate pack creation UI) not implemented in current WorkflowEditorPage");
+  test("editor mode: create and reopen a community pack", async ({ page, request }) => {
+    const csrf = await establishSession(request);
+    const headers = { "x-csrf-token": csrf };
     await navigateTo(page, "workflows");
-    const graphBtn = page.getByRole("button", { name: /graph|dag|flow/i }).first();
-    await graphBtn.click();
-    await expect(page.locator(".react-flow, [class*=react-flow], [class*=ReactFlow]").first()).toBeVisible({
-      timeout: 5000,
-    });
-
-    const builderBtn = page.getByRole("button", { name: /builder/i }).first();
-    await expect(builderBtn).toBeVisible();
-    await builderBtn.click();
-
-    const newPackBtn = page.getByRole("button", { name: /New Pack|Neues Pack|\+.*Pack/i }).first();
-    await expect(newPackBtn).toBeVisible();
-    await newPackBtn.click();
-
-    // CreatePackDialog is a fixed overlay, not role=dialog
-    // It has three inputs: Pack Key, Name, Description
-    const dialog = page.locator(".fixed.inset-0").last();
-    await expect(dialog).toBeVisible();
-    const packKey = `e2epack${Date.now()}`;
-    const packName = `E2E Test Pack`;
-
-    // First input is Pack Key
-    const keyInput = dialog.locator("input").first();
-    await keyInput.fill(packKey);
-
-    // Second input is Name
-    const nameInput = dialog.locator("input").nth(1);
-    await nameInput.fill(packName);
-
-    // Click "Create Pack" button
-    await dialog.getByRole("button", { name: /Create Pack|erstellen|create/i }).click();
-
-    // Verify the pack was created via API
-    const res = await request.get("/api/ops/workflow-packs/registry");
-    const registry = await res.json();
-    const pack = Object.values(registry).find((p: any) => p.key === packKey || p.name === packName);
-    if (pack) {
-      await request.delete(`/api/ops/workflow-packs/${packKey}`);
+    await page
+      .getByRole("button", { name: /graph|dag|flow/i })
+      .first()
+      .click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page.getByRole("button", { name: "+ New Pack", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Create New Pack", exact: true });
+    const packKey = `e2epack_${Date.now()}`;
+    try {
+      await dialog.getByPlaceholder("e.g. my_workflow", { exact: true }).fill(packKey);
+      await dialog.getByPlaceholder("e.g. My Custom Workflow", { exact: true }).fill("E2E stored workflow");
+      await dialog.getByRole("button", { name: "Create Pack", exact: true }).click();
+      await expect(dialog).toBeHidden();
+      const response = await request.get(`/api/ops/workflow-packs/${packKey}/definition`);
+      expect(response.ok()).toBe(true);
+      const pack = await response.json();
+      expect(pack.definition.pack.key).toBe(packKey);
+      expect(pack.definition.pack.name.en).toBe("E2E stored workflow");
+      await expect(page.locator(".react-flow__node")).toHaveCount(1);
+    } finally {
+      const response = await request.delete(`/api/ops/workflow-packs/${packKey}`, { headers });
+      expect([200, 404]).toContain(response.status());
     }
   });
 
   test("editor mode: select node and view properties", async ({ page }) => {
-    test.fixme(true, "PropertyPanel CSS class locators need data-testid attributes for reliable detection");
-
     await navigateTo(page, "workflows");
     const graphBtn = page.getByRole("button", { name: /graph|dag|flow/i }).first();
     await graphBtn.click();
@@ -106,5 +89,7 @@ test.describe("Pack Editor Flow", () => {
     const node = page.locator(".react-flow__node").first();
     await expect(node).toBeVisible();
     await node.click();
+    await expect(page.getByText("Phase ID", { exact: true })).toBeVisible();
+    await expect(page.getByText("Department", { exact: true }).last()).toBeVisible();
   });
 });

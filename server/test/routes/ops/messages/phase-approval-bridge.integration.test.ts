@@ -6,6 +6,7 @@
  * the actual approval route registered, verifying that the full round-trip — lookup, HTTP
  * delegate, DB mutation — works correctly with shared state.
  */
+import type { MockInstance } from "vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
@@ -131,10 +132,10 @@ function createSharedDb(tasks: TaskRow[], subtasks: SubtaskRow[]) {
 // ---------------------------------------------------------------------------
 
 describe("phase-approval-bridge integration: bridge → approval endpoint", () => {
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(() => {
-    fetchSpy = undefined as unknown as ReturnType<typeof vi.spyOn>;
+    fetchSpy = undefined as unknown as MockInstance<typeof fetch>;
   });
 
   afterEach(() => {
@@ -184,7 +185,7 @@ describe("phase-approval-bridge integration: bridge → approval endpoint", () =
     // Intercept the bridge's internal fetch and forward it to a supertest agent
     // backed by the real approval route.  This is the integration seam being tested.
     const supertestAgent = request(approvalApp);
-    fetchSpy = vi.spyOn(globalThis, "fetch" as never).mockImplementation(async (input: unknown, opts: unknown) => {
+    fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, opts) => {
       const urlStr = String(input);
       const m = urlStr.match(/\/api\/core\/tasks\/([^/]+)\/phases\/([^/]+)\/approve/);
       if (m) {

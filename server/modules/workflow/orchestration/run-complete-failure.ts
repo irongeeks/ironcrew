@@ -1,3 +1,4 @@
+import type { AgentRow } from "../../../types/workflow-types.ts";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -100,7 +101,7 @@ export function handleAutoRetry(
 
     const retryResult = retryDeptId
       ? selectAgentForDepartment(
-          db as any,
+          db,
           {
             workflow_pack_key: task.workflow_pack_key,
             department_id: retryDeptId,
@@ -110,7 +111,7 @@ export function handleAutoRetry(
           autoRetry.failed_agents,
         )
       : selectAutoAssignableAgentForTask(
-          db as any,
+          db,
           {
             workflow_pack_key: task.workflow_pack_key,
             department_id: task.department_id,
@@ -126,7 +127,7 @@ export function handleAutoRetry(
         t,
         taskId,
       );
-      updateWorkflowMeta(db as any, taskId, { auto_retry: autoRetry }, t);
+      updateWorkflowMeta(db, taskId, { auto_retry: autoRetry }, t);
 
       // Clean up worktree
       const wtInfo = taskWorktrees.get(taskId);
@@ -134,10 +135,13 @@ export function handleAutoRetry(
         cleanupWorktree(wtInfo.projectPath, taskId);
       }
 
+      const previousAgent = task.assigned_agent_id
+        ? (db.prepare("SELECT * FROM agents WHERE id = ?").get(task.assigned_agent_id) as AgentRow | undefined)
+        : undefined;
       appendTaskLog(
         taskId,
         "system",
-        `Auto-retry ${autoRetry.count}/${autoRetry.max}: ${getAgentDisplayName(task as any, "en")} → ${newAgent.name}`,
+        `Auto-retry ${autoRetry.count}/${autoRetry.max}: ${previousAgent ? getAgentDisplayName(previousAgent, "en") : (task.assigned_agent_id ?? "unassigned")} → ${newAgent.name}`,
       );
 
       const retryLang = resolveLang(task.description ?? task.title);
@@ -163,7 +167,7 @@ export function handleAutoRetry(
     }
 
     // No agent available — save updated count and fall through to normal failure
-    updateWorkflowMeta(db as any, taskId, { auto_retry: autoRetry }, t);
+    updateWorkflowMeta(db, taskId, { auto_retry: autoRetry }, t);
     appendTaskLog(
       taskId,
       "system",

@@ -28,7 +28,7 @@ export type CeoOrchestratorDeps = {
 };
 
 type CeoDecision =
-  | { type: "create_task"; title: string; description: string; department_id?: string; priority?: number }
+  | { type: "create_task"; title: string; description?: string; department_id?: string; priority?: number }
   | { type: "reprioritize"; task_id: string; priority: number }
   | { type: "reassign"; task_id: string; department_id: string }
   | { type: "approve_review"; task_id: string }
@@ -147,17 +147,18 @@ export function parseDecisions(raw: string): CeoDecision[] {
 
   // Try parsing as JSON array
   try {
-    const parsed = JSON.parse(jsonStr);
+    const parsed: unknown = JSON.parse(jsonStr);
     if (Array.isArray(parsed)) {
       return parsed
         .filter(
-          (d: any) =>
-            d &&
+          (d: unknown): d is Record<string, unknown> & { type: string } =>
+            !!d &&
             typeof d === "object" &&
+            "type" in d &&
             typeof d.type === "string" &&
             ["create_task", "reprioritize", "reassign", "approve_review", "message"].includes(d.type),
         )
-        .filter((d: any) => {
+        .filter((d) => {
           // Validate task_id for decision types that require it
           if (TASK_ID_REQUIRED_TYPES.has(d.type)) {
             if (typeof d.task_id !== "string" || !UUID_RE.test(d.task_id)) {
@@ -173,7 +174,32 @@ export function parseDecisions(raw: string): CeoDecision[] {
             }
           }
           return true;
-        }) as CeoDecision[];
+        })
+        .filter((d): d is CeoDecision & Record<string, unknown> => {
+          switch (d.type) {
+            case "create_task":
+              return (
+                typeof d.title === "string" &&
+                (d.description === undefined || typeof d.description === "string") &&
+                (d.department_id === undefined || typeof d.department_id === "string") &&
+                (d.priority === undefined || typeof d.priority === "number")
+              );
+            case "reprioritize":
+              return typeof d.task_id === "string" && typeof d.priority === "number";
+            case "reassign":
+              return typeof d.task_id === "string" && typeof d.department_id === "string";
+            case "approve_review":
+              return typeof d.task_id === "string";
+            case "message":
+              return (
+                typeof d.content === "string" &&
+                typeof d.receiver_type === "string" &&
+                (d.receiver_id === undefined || typeof d.receiver_id === "string")
+              );
+            default:
+              return false;
+          }
+        });
     }
   } catch {
     // Not valid JSON

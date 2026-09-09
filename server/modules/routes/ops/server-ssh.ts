@@ -1,3 +1,4 @@
+import type { Response } from "express";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import { createSshConnector } from "../../workflow/ssh/ssh-connector.ts";
 import { SshConfigSchema } from "../../workflow/ssh/types.ts";
@@ -9,7 +10,7 @@ import { SshExecSchema, SshMkdirSchema, SshUploadSchema, SshWriteSchema } from "
 export function registerServerSshRoutes(ctx: RuntimeContext): void {
   const { app, db } = ctx;
 
-  function requireLoopback(req: { socket?: { remoteAddress?: string } }, res: any): boolean {
+  function requireLoopback(req: { socket?: { remoteAddress?: string } }, res: Response): boolean {
     if (!isLoopbackRequest(req)) {
       res.status(403).json({ error: "loopback_only" });
       return false;
@@ -17,7 +18,7 @@ export function registerServerSshRoutes(ctx: RuntimeContext): void {
     return true;
   }
 
-  function requireCsrfGuard(req: Parameters<typeof shouldRequireCsrf>[0], res: any): boolean {
+  function requireCsrfGuard(req: Parameters<typeof shouldRequireCsrf>[0], res: Response): boolean {
     if (!shouldRequireCsrf(req)) return true;
     if (hasValidCsrfToken(req)) return true;
     res.status(403).json({ error: "csrf_token_invalid" });

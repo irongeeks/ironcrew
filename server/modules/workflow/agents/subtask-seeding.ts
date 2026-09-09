@@ -1,3 +1,4 @@
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import { randomUUID } from "node:crypto";
 import type { DbLike } from "../../../types/db-like.ts";
 import type { Lang } from "../../../types/lang.ts";
@@ -13,12 +14,12 @@ type SubtaskSeedingDeps = {
     ownerDeptId: string | null,
     phase: "planned" | "review",
   ) => Promise<void>;
-  findTeamLeader: (departmentId: string | null, candidateAgentIds?: string[] | null) => any;
+  findTeamLeader: RuntimeContext["findTeamLeader"];
   getDeptName: (departmentId: string, workflowPackKey?: string | null) => string;
   getPreferredLanguage: () => Lang;
   resolveLang: (text?: string, fallback?: Lang) => Lang;
-  l: (ko: string[], en: string[], ja?: string[], zh?: string[], de?: string[]) => any;
-  pickL: (choices: any, lang: Lang) => string;
+  l: RuntimeContext["l"];
+  pickL: RuntimeContext["pickL"];
   appendTaskLog: (taskId: string, kind: string, message: string) => void;
   notifyCeo: (content: string, taskId?: string | null, messageType?: string) => void;
 };
@@ -116,7 +117,7 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
 
     const baseDeptId = ownerDeptId ?? task.department_id;
     const lang = resolveLang(task.description ?? task.title);
-    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db, {
       project_id: task.project_id,
       workflow_pack_key: task.workflow_pack_key,
       department_id: baseDeptId,
@@ -391,7 +392,7 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
     const baseDeptId = ownerDeptId ?? task.department_id;
     const baseAssignee = task.assigned_agent_id;
     const lang = resolveLang(task.description ?? task.title);
-    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db, {
       project_id: task.project_id,
       workflow_pack_key: task.workflow_pack_key,
       department_id: baseDeptId,

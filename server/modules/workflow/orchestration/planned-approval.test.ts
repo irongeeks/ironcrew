@@ -1,3 +1,11 @@
+import type {
+  AgentRow,
+  MeetingTranscriptEntry,
+  OneShotRunResult,
+  MeetingPromptOptions,
+} from "../../../types/workflow-types.ts";
+import type { L10n } from "../../routes/collab/language-policy.ts";
+import { agentFixture, translations } from "./test-fixtures.ts";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPlannedApprovalTools } from "./planned-approval.ts";
 
@@ -5,15 +13,12 @@ import { createPlannedApprovalTools } from "./planned-approval.ts";
 // Helpers
 // ---------------------------------------------------------------------------
 
-type Leader = {
-  id: string;
-  department_id: string;
-  role: string;
-};
+type Leader = AgentRow;
+type ToolsDeps = Parameters<typeof createPlannedApprovalTools>[0];
 
-const planningLeader: Leader = { id: "leader-planning", department_id: "planning", role: "lead" };
-const devLeader: Leader = { id: "leader-dev", department_id: "development", role: "lead" };
-const qaLeader: Leader = { id: "leader-qa", department_id: "qa", role: "lead" };
+const planningLeader: Leader = agentFixture({ id: "leader-planning", department_id: "planning", role: "lead" });
+const devLeader: Leader = agentFixture({ id: "leader-dev", department_id: "development", role: "lead" });
+const qaLeader: Leader = agentFixture({ id: "leader-qa", department_id: "qa", role: "lead" });
 
 function buildTaskRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -33,17 +38,17 @@ function makeDb(taskRow: ReturnType<typeof buildTaskRow> | undefined = buildTask
         run: vi.fn(() => ({ changes: 0, lastInsertRowid: 0 })),
       };
     },
-  } as unknown as Parameters<typeof createPlannedApprovalTools>[0]["db"];
+  };
 }
 
-type Run = { text?: string; error?: string };
+type Run = OneShotRunResult;
 
 interface DepsOverrides {
   leaders?: Leader[];
   taskRow?: ReturnType<typeof buildTaskRow> | undefined;
-  runAgentOneShotImpl?: (agent: any, prompt: string, opts: any) => Promise<Run>;
+  runAgentOneShotImpl?: ToolsDeps["runAgentOneShot"];
   isTaskWorkflowInterruptedImpl?: (taskId: string) => boolean;
-  collectPlannedActionItemsImpl?: (transcript: any[], max: number) => any[];
+  collectPlannedActionItemsImpl?: ToolsDeps["collectPlannedActionItems"];
   beginMeetingMinutesImpl?: () => string | null;
   reviewInFlight?: Set<string>;
   reviewRoundState?: Map<string, number>;
@@ -53,25 +58,25 @@ interface DepsOverrides {
 function makeDeps(overrides: DepsOverrides = {}) {
   const leaders = overrides.leaders ?? [planningLeader, devLeader, qaLeader];
   const calls = {
-    sendAgentMessage: vi.fn(),
-    emitMeetingSpeech: vi.fn(),
-    appendMeetingMinuteEntry: vi.fn(),
-    notifyCeo: vi.fn(),
-    callLeadersToCeoOffice: vi.fn(),
-    dismissLeadersFromCeoOffice: vi.fn(),
-    clearTaskWorkflowState: vi.fn(),
-    finishMeetingMinutes: vi.fn(),
+    sendAgentMessage: vi.fn<ToolsDeps["sendAgentMessage"]>(),
+    emitMeetingSpeech: vi.fn<ToolsDeps["emitMeetingSpeech"]>(),
+    appendMeetingMinuteEntry: vi.fn<ToolsDeps["appendMeetingMinuteEntry"]>(),
+    notifyCeo: vi.fn<ToolsDeps["notifyCeo"]>(),
+    callLeadersToCeoOffice: vi.fn<ToolsDeps["callLeadersToCeoOffice"]>(),
+    dismissLeadersFromCeoOffice: vi.fn<ToolsDeps["dismissLeadersFromCeoOffice"]>(),
+    clearTaskWorkflowState: vi.fn<ToolsDeps["clearTaskWorkflowState"]>(),
+    finishMeetingMinutes: vi.fn<ToolsDeps["finishMeetingMinutes"]>(),
     beginMeetingMinutes: vi.fn(overrides.beginMeetingMinutesImpl ?? (() => "meeting-1")),
-    appendTaskLog: vi.fn(),
-    appendTaskProjectMemo: vi.fn(),
+    appendTaskLog: vi.fn<ToolsDeps["appendTaskLog"]>(),
+    appendTaskProjectMemo: vi.fn<ToolsDeps["appendTaskProjectMemo"]>(),
     runAgentOneShot: vi.fn(
       overrides.runAgentOneShotImpl ??
-        (async (_agent: any, _prompt: string) => ({ text: "actionable plan item" }) as Run),
+        (async (_agent: AgentRow, _prompt: string) => ({ text: "actionable plan item" }) as Run),
     ),
     isTaskWorkflowInterrupted: vi.fn(overrides.isTaskWorkflowInterruptedImpl ?? (() => false)),
     collectPlannedActionItems: vi.fn(
       overrides.collectPlannedActionItemsImpl ??
-        ((transcript: any[]) => transcript.slice(0, 3).map((t, i) => ({ idx: i, text: t.content }))),
+        ((transcript: MeetingTranscriptEntry[]) => transcript.slice(0, 3).map((t) => t.content)),
     ),
   };
 
@@ -80,15 +85,15 @@ function makeDeps(overrides: DepsOverrides = {}) {
     reviewRoundState: overrides.reviewRoundState ?? new Map<string, number>(),
     db: makeDb(overrides.taskRow),
     getTaskReviewLeaders: vi.fn(() => leaders.slice()),
-    resolveProjectPath: vi.fn(() => "/tmp/proj"),
-    resolveLang: vi.fn(() => "en"),
+    resolveProjectPath: vi.fn<ToolsDeps["resolveProjectPath"]>(() => "/tmp/proj"),
+    resolveLang: vi.fn<ToolsDeps["resolveLang"]>(() => "en"),
     beginMeetingMinutes: calls.beginMeetingMinutes,
     isTaskWorkflowInterrupted: calls.isTaskWorkflowInterrupted,
     getTaskStatusById: vi.fn(() => "in_progress"),
     finishMeetingMinutes: calls.finishMeetingMinutes,
     dismissLeadersFromCeoOffice: calls.dismissLeadersFromCeoOffice,
     clearTaskWorkflowState: calls.clearTaskWorkflowState,
-    getAgentDisplayName: vi.fn((leader: any) => `Display:${leader.id}`),
+    getAgentDisplayName: vi.fn((leader: AgentRow) => `Display:${leader.id}`),
     getDeptName: vi.fn((id: string) => `Dept:${id}`),
     getRoleLabel: vi.fn((role: string) => `Role:${role}`),
     sendAgentMessage: calls.sendAgentMessage,
@@ -96,18 +101,18 @@ function makeDeps(overrides: DepsOverrides = {}) {
     appendMeetingMinuteEntry: calls.appendMeetingMinuteEntry,
     callLeadersToCeoOffice: calls.callLeadersToCeoOffice,
     notifyCeo: calls.notifyCeo,
-    pickL: vi.fn((arrs: string[][], _lang: string) => arrs[0]?.[0] ?? ""),
-    l: vi.fn((...arrs: string[][]) => arrs),
-    buildMeetingPrompt: vi.fn((_leader: any, ctx: any) => `prompt:${ctx.turnObjective}`),
+    pickL: vi.fn((pool: L10n) => pool.ko[0] ?? ""),
+    l: vi.fn(translations),
+    buildMeetingPrompt: vi.fn((_leader: AgentRow, ctx: MeetingPromptOptions) => `prompt:${ctx.turnObjective}`),
     runAgentOneShot: calls.runAgentOneShot,
-    chooseSafeReply: vi.fn((run: Run, _lang: string, phase: string) => run?.text ?? `fallback:${phase}`),
+    chooseSafeReply: vi.fn((run: Run, _lang: string, phase: string) => run.text || `fallback:${phase}`),
     sleepMs: vi.fn(async () => undefined),
     randomDelay: vi.fn(() => 0),
     collectPlannedActionItems: calls.collectPlannedActionItems,
     appendTaskProjectMemo: calls.appendTaskProjectMemo,
     appendTaskLog: calls.appendTaskLog,
     reviewMeetingOneShotTimeoutMs: overrides.reviewMeetingOneShotTimeoutMs,
-  };
+  } satisfies ToolsDeps;
 
   return { deps, calls, leaders };
 }
@@ -120,22 +125,22 @@ async function runMeetingAndWait(
     taskTitle?: string;
     departmentId?: string | null;
   } = {},
-): Promise<{ approved: boolean; planningNotes?: any[] }> {
+): Promise<{ approved: boolean; planningNotes?: string[] }> {
   const taskId = options.taskId ?? "task-1";
   const taskTitle = options.taskTitle ?? "Test Task";
   const departmentId = options.departmentId ?? null;
 
   const tools = createPlannedApprovalTools(toolsDeps.deps);
 
-  return new Promise<{ approved: boolean; planningNotes?: any[] }>((resolve) => {
+  return new Promise<{ approved: boolean; planningNotes?: string[] }>((resolve) => {
     let resolved = false;
-    const finish = (approved: boolean, notes?: any[]) => {
+    const finish = (approved: boolean, notes?: string[]) => {
       if (resolved) return;
       resolved = true;
       resolve({ approved, planningNotes: notes });
     };
 
-    const onApproved = (notes?: any[]) => finish(true, notes);
+    const onApproved = (notes?: string[]) => finish(true, notes);
 
     // Failure / abort paths: detect via terminal cleanup mocks.
     toolsDeps.calls.dismissLeadersFromCeoOffice.mockImplementation(() => {
@@ -221,8 +226,8 @@ describe("createPlannedApprovalTools", () => {
     const harness = makeDeps({ reviewRoundState });
     await runMeetingAndWait(harness);
 
-    const calls = harness.deps.buildMeetingPrompt as ReturnType<typeof vi.fn>;
-    const allRounds = calls.mock.calls.map((c: any[]) => c[1]?.round);
+    const calls = harness.deps.buildMeetingPrompt;
+    const allRounds = calls.mock.calls.map((c) => c[1]?.round);
     expect(allRounds).toContain(3);
   });
 
@@ -233,13 +238,13 @@ describe("createPlannedApprovalTools", () => {
     expect(reviewRoundState.has("planned:task-1")).toBe(false);
   });
 
-  it("falls back to safe reply when runAgentOneShot returns empty/undefined text", async () => {
+  it("falls back to safe reply when runAgentOneShot returns empty text", async () => {
     const harness = makeDeps({
-      runAgentOneShotImpl: async () => ({ text: undefined }),
+      runAgentOneShotImpl: async () => ({ text: "" }),
     });
     await runMeetingAndWait(harness);
     expect(harness.deps.chooseSafeReply).toHaveBeenCalled();
-    const sentTexts = (harness.calls.sendAgentMessage.mock.calls as any[][]).map((c) => c[1]);
+    const sentTexts = harness.calls.sendAgentMessage.mock.calls.map((c) => c[1]);
     expect(sentTexts.some((t) => /fallback:/.test(t))).toBe(true);
   });
 
@@ -255,7 +260,7 @@ describe("createPlannedApprovalTools", () => {
     const result = await runMeetingAndWait(harness);
     expect(result.approved).toBe(true);
 
-    const logs = (harness.calls.appendTaskLog.mock.calls as any[][]).map((c) => c[2]);
+    const logs = harness.calls.appendTaskLog.mock.calls.map((c) => c[2]);
     expect(logs.some((m) => /timed out.*retrying once with compact prompt/.test(m))).toBe(true);
   });
 
@@ -265,7 +270,7 @@ describe("createPlannedApprovalTools", () => {
     });
     await runMeetingAndWait(harness);
 
-    const logs = (harness.calls.appendTaskLog.mock.calls as any[][]).map((c) => c[2]);
+    const logs = harness.calls.appendTaskLog.mock.calls.map((c) => c[2]);
     expect(logs.some((m) => /retrying once/.test(m))).toBe(true);
     expect(logs.some((m) => /retry timed out/.test(m))).toBe(true);
   });
@@ -276,11 +281,11 @@ describe("createPlannedApprovalTools", () => {
     const harness = makeDeps({
       runAgentOneShotImpl: async () => ({ text: "", error: "request timed out" }),
     });
-    (harness.deps.buildMeetingPrompt as ReturnType<typeof vi.fn>).mockImplementation(() => longHead + longTail);
+    harness.deps.buildMeetingPrompt.mockImplementation(() => longHead + longTail);
 
     await runMeetingAndWait(harness);
 
-    const calls = harness.calls.runAgentOneShot.mock.calls as any[][];
+    const calls = harness.calls.runAgentOneShot.mock.calls;
     const retryPrompts = calls.map((c) => String(c[1] ?? ""));
     expect(retryPrompts.some((p) => /timeout retry compacted/.test(p))).toBe(true);
   });
@@ -297,7 +302,7 @@ describe("createPlannedApprovalTools", () => {
     const result = await runMeetingAndWait(harness);
     expect(result.approved).toBe(true);
 
-    const sysLogs = (harness.calls.appendTaskLog.mock.calls as any[][]).map((c) => c[2]);
+    const sysLogs = harness.calls.appendTaskLog.mock.calls.map((c) => c[2]);
     expect(sysLogs.some((m) => /supplement-signals=yes/.test(m))).toBe(true);
   });
 
@@ -313,7 +318,7 @@ describe("createPlannedApprovalTools", () => {
     });
     const result = await runMeetingAndWait(harness);
     expect(result.approved).toBe(true);
-    const sysLogs = (harness.calls.appendTaskLog.mock.calls as any[][]).map((c) => c[2]);
+    const sysLogs = harness.calls.appendTaskLog.mock.calls.map((c) => c[2]);
     expect(sysLogs.some((m) => /supplement-signals=yes/.test(m))).toBe(true);
   });
 
@@ -322,7 +327,7 @@ describe("createPlannedApprovalTools", () => {
       runAgentOneShotImpl: async () => ({ text: "ready to ship, all clear" }),
     });
     await runMeetingAndWait(harness);
-    const sysLogs = (harness.calls.appendTaskLog.mock.calls as any[][]).map((c) => c[2]);
+    const sysLogs = harness.calls.appendTaskLog.mock.calls.map((c) => c[2]);
     expect(sysLogs.some((m) => /supplement-signals=no/.test(m))).toBe(true);
   });
 
@@ -388,7 +393,7 @@ describe("createPlannedApprovalTools", () => {
     const result = await runMeetingAndWait(harness);
     expect(result.approved).toBe(false);
 
-    const errorLogs = (harness.calls.appendTaskLog.mock.calls as any[][]).filter((c) => c[1] === "error");
+    const errorLogs = harness.calls.appendTaskLog.mock.calls.filter((c) => c[1] === "error");
     expect(errorLogs.some((c) => /Planned meeting error: .*model unavailable/.test(String(c[2])))).toBe(true);
 
     expect(harness.calls.finishMeetingMinutes).toHaveBeenCalledWith("meeting-1", "failed");
@@ -408,7 +413,7 @@ describe("createPlannedApprovalTools", () => {
     const result = await runMeetingAndWait(harness);
     expect(result.approved).toBe(false);
 
-    const errorLogs = (harness.calls.appendTaskLog.mock.calls as any[][]).filter((c) => c[1] === "error");
+    const errorLogs = harness.calls.appendTaskLog.mock.calls.filter((c) => c[1] === "error");
     expect(errorLogs.length).toBe(0);
     expect(harness.calls.clearTaskWorkflowState).toHaveBeenCalled();
   });
@@ -416,24 +421,24 @@ describe("createPlannedApprovalTools", () => {
   it("uses the custom one-shot timeout when provided", async () => {
     const harness = makeDeps({ reviewMeetingOneShotTimeoutMs: 12_345 });
     await runMeetingAndWait(harness);
-    const calls = harness.calls.runAgentOneShot.mock.calls as any[][];
+    const calls = harness.calls.runAgentOneShot.mock.calls;
     expect(calls[0]?.[2]?.timeoutMs).toBe(12_345);
   });
 
   it("clamps absurdly low timeouts to the 5_000 ms floor", async () => {
     const harness = makeDeps({ reviewMeetingOneShotTimeoutMs: 100 });
     await runMeetingAndWait(harness);
-    const calls = harness.calls.runAgentOneShot.mock.calls as any[][];
+    const calls = harness.calls.runAgentOneShot.mock.calls;
     expect(calls[0]?.[2]?.timeoutMs).toBe(5_000);
   });
 
   it("falls back to cwd when resolveProjectPath returns null", async () => {
     const harness = makeDeps();
-    (harness.deps.resolveProjectPath as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    harness.deps.resolveProjectPath.mockReturnValue(null);
     await runMeetingAndWait(harness);
-    const calls = harness.calls.runAgentOneShot.mock.calls as any[][];
+    const calls = harness.calls.runAgentOneShot.mock.calls;
     expect(typeof calls[0]?.[2]?.projectPath).toBe("string");
-    expect(calls[0]?.[2]?.projectPath.length).toBeGreaterThan(0);
+    expect(calls[0]?.[2]?.projectPath?.length).toBeGreaterThan(0);
   });
 
   it("works when DB has no task row (description/path null)", async () => {
@@ -455,7 +460,7 @@ describe("createPlannedApprovalTools", () => {
     const result = await runMeetingAndWait(harness);
     expect(result.approved).toBe(true);
 
-    const promptCalls = (harness.deps.buildMeetingPrompt as ReturnType<typeof vi.fn>).mock.calls as any[][];
+    const promptCalls = harness.deps.buildMeetingPrompt.mock.calls;
     expect(promptCalls[0]?.[0]?.id).toBe("leader-dev");
   });
 

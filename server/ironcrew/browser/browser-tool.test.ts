@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { BrowserTool, BrowserToolError, MAX_PAGE_TEXT_CHARS, type BrowserLike, type PageLike } from "./browser-tool.ts";
@@ -229,14 +230,31 @@ describe("testConnection", () => {
   });
 });
 
-// Kept skipped on purpose: launching real Chromium makes the suite slow and
-// dependent on a browser being installed, and every rule above is about the
-// policy rather than about Playwright. Run it by hand after touching
-// defaultBrowserFactory:
-//   pnpm exec vitest run --config server/vitest.config.ts server/ironcrew/browser -t "real Chromium"
-it.skip("real Chromium: opens a page with an isolated profile", async () => {
-  const t = new BrowserTool({ profileDir, allowedHosts: ["example.com"] });
-  await t.open("https://example.com/");
-  expect(await t.readText()).toContain("Example");
-  await t.close();
-});
+// Real Chromium is opt-in so ordinary policy tests need no browser install.
+// Run after touching defaultBrowserFactory (uses only a local HTTP fixture):
+//   IRONCREW_BROWSER_SMOKE=1 pnpm exec vitest run --config server/vitest.config.ts server/ironcrew/browser -t "real Chromium"
+it.skipIf(process.env.IRONCREW_BROWSER_SMOKE !== "1")(
+  "real Chromium: opens a page with an isolated profile",
+  async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end("<!doctype html><title>Browser fixture</title><body>Isolated browser fixture</body>");
+    });
+    const t = new BrowserTool({ profileDir, allowedHosts: ["127.0.0.1"] });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+      });
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("Missing browser fixture address");
+      await t.open(`http://127.0.0.1:${address.port}/`);
+      expect(await t.readText()).toContain("Isolated browser fixture");
+    } finally {
+      await t.close();
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  },
+);

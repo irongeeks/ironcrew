@@ -19,6 +19,7 @@ export function assertE2EPathsSafe(runId: string, cwd = process.cwd()): void {
     path.resolve(cwd, ".tmp"),
     path.dirname(runtimeDir),
     runtimeDir,
+    path.join(runtimeDir, "community-packs"),
     dbPath,
     `${dbPath}-wal`,
     `${dbPath}-shm`,

@@ -10,6 +10,7 @@ import type { ConnectorRegistry } from "../../../connectors/registry.ts";
 import type { NodeTypeRegistry } from "../../../node-types/node-type-registry.ts";
 import { PackDefinitionSchema } from "../../../packs/pack-schema.ts";
 import { buildGraph } from "../../../packs/graph-builder.ts";
+import { communityPacksDir } from "../../../packs/paths.ts";
 import { PackLoader, type LoadedPack } from "../../../packs/pack-loader.ts";
 import { resolveSessionWorkflowPackFromDb } from "../../../messenger/session-agent-routing.ts";
 import { shouldRequireCsrf, hasValidCsrfToken } from "../../../security/auth.ts";
@@ -81,7 +82,7 @@ function assertSafePackKey(key: string): void {
 /** Resolve a community pack directory and verify it's within the expected base */
 function safeCommunityPath(key: string): string {
   assertSafePackKey(key);
-  const base = path.resolve(process.cwd(), "server", "packs", "community");
+  const base = communityPacksDir();
   const resolved = path.resolve(base, key);
   if (!resolved.startsWith(base + path.sep)) {
     throw new Error(`Path traversal detected: "${key}"`);
@@ -647,7 +648,7 @@ export function registerWorkflowPackRoutes(ctx: WorkflowPackRouteBaseDeps): void
       return res.status(404).json({ error: "Pack not found" });
     }
 
-    const posPath = path.join(process.cwd(), "server", "packs", "community", key, ".positions.json");
+    const posPath = path.join(communityPacksDir(), key, ".positions.json");
     if (fs.existsSync(posPath)) {
       try {
         const data = JSON.parse(fs.readFileSync(posPath, "utf-8"));
@@ -738,7 +739,7 @@ export function registerWorkflowPackRoutes(ctx: WorkflowPackRouteBaseDeps): void
       const pack = packRegistry.get(key);
       // Built-in packs: save guidance as community override
       const content = typeof req.body?.content === "string" ? req.body.content : "";
-      const guidanceBase = path.resolve(process.cwd(), "server", "packs", "community");
+      const guidanceBase = communityPacksDir();
       const guidanceDir = path.resolve(guidanceBase, key, "guidance");
       if (!guidanceDir.startsWith(guidanceBase + path.sep)) {
         return res.status(400).json({ error: "Path traversal detected" });
@@ -821,10 +822,7 @@ export function registerWorkflowPackRoutes(ctx: WorkflowPackRouteBaseDeps): void
     // Reload the pack into registry
     try {
       const loader = new PackLoader();
-      const packs = await loader.loadAll(
-        path.join(process.cwd(), "server", "packs", "built-in"),
-        path.join(process.cwd(), "server", "packs", "community"),
-      );
+      const packs = await loader.loadAll(path.join(process.cwd(), "server", "packs", "built-in"), communityPacksDir());
       packRegistry.load(packs);
     } catch {
       // Non-fatal — pack is saved but registry may be stale until restart
@@ -873,7 +871,7 @@ export function registerWorkflowPackRoutes(ctx: WorkflowPackRouteBaseDeps): void
         const loader = new PackLoader();
         const packs = await loader.loadAll(
           path.join(process.cwd(), "server", "packs", "built-in"),
-          path.join(process.cwd(), "server", "packs", "community"),
+          communityPacksDir(),
         );
         packRegistry.load(packs);
       } catch {

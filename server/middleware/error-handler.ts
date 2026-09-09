@@ -32,11 +32,12 @@ export function globalErrorHandler(err: unknown, req: Request, res: Response, ne
   // Preserve 4xx so clients see the real problem instead of a misleading 500.
   if (
     err instanceof Error &&
-    typeof (err as any).status === "number" &&
-    (err as any).status >= 400 &&
-    (err as any).status < 500
+    "status" in err &&
+    typeof err.status === "number" &&
+    err.status >= 400 &&
+    err.status < 500
   ) {
-    const status: number = (err as any).status;
+    const status: number = err.status;
     log.warn({ err, method: req.method, url: req.originalUrl }, err.message);
     res.status(status).json({
       ok: false,

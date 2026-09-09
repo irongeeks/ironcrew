@@ -1,3 +1,5 @@
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import type { AgentRow, MeetingTranscriptEntry, OneShotRunResult } from "../../../types/workflow-types.ts";
 import type { DbLike } from "../../../types/db-like.ts";
 import { toErrorMessage } from "../../routes/validation.ts";
 
@@ -5,33 +7,33 @@ type CreatePlannedApprovalToolsDeps = {
   reviewInFlight: Set<string>;
   reviewRoundState: Map<string, number>;
   db: DbLike;
-  getTaskReviewLeaders: (...args: any[]) => any[];
-  resolveProjectPath: (...args: any[]) => any;
-  resolveLang: (...args: any[]) => any;
-  beginMeetingMinutes: (...args: any[]) => any;
-  isTaskWorkflowInterrupted: (...args: any[]) => any;
-  getTaskStatusById: (...args: any[]) => any;
-  finishMeetingMinutes: (...args: any[]) => any;
-  dismissLeadersFromCeoOffice: (...args: any[]) => any;
-  clearTaskWorkflowState: (...args: any[]) => any;
-  getAgentDisplayName: (...args: any[]) => any;
-  getDeptName: (...args: any[]) => any;
-  getRoleLabel: (...args: any[]) => any;
-  sendAgentMessage: (...args: any[]) => any;
-  emitMeetingSpeech: (...args: any[]) => any;
-  appendMeetingMinuteEntry: (...args: any[]) => any;
-  callLeadersToCeoOffice: (...args: any[]) => any;
-  notifyCeo: (...args: any[]) => any;
-  pickL: (...args: any[]) => any;
-  l: (...args: any[]) => any;
-  buildMeetingPrompt: (...args: any[]) => any;
-  runAgentOneShot: (...args: any[]) => Promise<any>;
-  chooseSafeReply: (...args: any[]) => any;
-  sleepMs: (...args: any[]) => Promise<void>;
-  randomDelay: (...args: any[]) => any;
-  collectPlannedActionItems: (...args: any[]) => any[];
-  appendTaskProjectMemo: (...args: any[]) => any;
-  appendTaskLog: (...args: any[]) => any;
+  getTaskReviewLeaders: RuntimeContext["getTaskReviewLeaders"];
+  resolveProjectPath: RuntimeContext["resolveProjectPath"];
+  resolveLang: RuntimeContext["resolveLang"];
+  beginMeetingMinutes: (...args: Parameters<RuntimeContext["beginMeetingMinutes"]>) => string | null;
+  isTaskWorkflowInterrupted: RuntimeContext["isTaskWorkflowInterrupted"];
+  getTaskStatusById: RuntimeContext["getTaskStatusById"];
+  finishMeetingMinutes: RuntimeContext["finishMeetingMinutes"];
+  dismissLeadersFromCeoOffice: RuntimeContext["dismissLeadersFromCeoOffice"];
+  clearTaskWorkflowState: RuntimeContext["clearTaskWorkflowState"];
+  getAgentDisplayName: RuntimeContext["getAgentDisplayName"];
+  getDeptName: RuntimeContext["getDeptName"];
+  getRoleLabel: RuntimeContext["getRoleLabel"];
+  sendAgentMessage: RuntimeContext["sendAgentMessage"];
+  emitMeetingSpeech: RuntimeContext["emitMeetingSpeech"];
+  appendMeetingMinuteEntry: RuntimeContext["appendMeetingMinuteEntry"];
+  callLeadersToCeoOffice: RuntimeContext["callLeadersToCeoOffice"];
+  notifyCeo: RuntimeContext["notifyCeo"];
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
+  buildMeetingPrompt: RuntimeContext["buildMeetingPrompt"];
+  runAgentOneShot: RuntimeContext["runAgentOneShot"];
+  chooseSafeReply: RuntimeContext["chooseSafeReply"];
+  sleepMs: RuntimeContext["sleepMs"];
+  randomDelay: RuntimeContext["randomDelay"];
+  collectPlannedActionItems: RuntimeContext["collectPlannedActionItems"];
+  appendTaskProjectMemo: RuntimeContext["appendTaskProjectMemo"];
+  appendTaskLog: RuntimeContext["appendTaskLog"];
   reviewMeetingOneShotTimeoutMs?: number;
 };
 
@@ -94,10 +96,10 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
         const round = (reviewRoundState.get(lockKey) ?? 0) + 1;
         reviewRoundState.set(lockKey, round);
 
-        const planningLeader = leaders.find((l: any) => l.department_id === "planning") ?? leaders[0];
-        const otherLeaders = leaders.filter((l: any) => l.id !== planningLeader.id);
+        const planningLeader = leaders.find((l) => l.department_id === "planning") ?? leaders[0];
+        const otherLeaders = leaders.filter((l) => l.id !== planningLeader.id);
         let hasSupplementSignals = false;
-        const seatIndexByAgent = new Map(leaders.slice(0, 6).map((leader: any, idx: number) => [leader.id, idx]));
+        const seatIndexByAgent = new Map(leaders.slice(0, 6).map((leader, idx) => [leader.id, idx]));
 
         const taskCtx = db
           .prepare("SELECT description, project_path, workflow_pack_key FROM tasks WHERE id = ?")
@@ -113,7 +115,7 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
             project_path: taskCtx?.project_path ?? null,
           }) ?? process.cwd();
         const lang = resolveLang(taskDescription ?? taskTitle);
-        const transcript: any[] = [];
+        const transcript: MeetingTranscriptEntry[] = [];
         const oneShotTimeoutMs = Math.max(5_000, Number(reviewMeetingOneShotTimeoutMs ?? 65_000));
         const oneShotOptions = { projectPath, timeoutMs: oneShotTimeoutMs, noTools: true };
         const wantsRevision = (content: string): boolean =>
@@ -135,10 +137,10 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
           return `${compacted}\n\n[retry] Previous attempt timed out. Respond concisely in short actionable points.`;
         };
         const runMeetingOneShotWithRetry = async (
-          agent: any,
+          agent: AgentRow,
           prompt: string,
           phase: "opening" | "feedback" | "summary" | "approval",
-        ): Promise<any> => {
+        ): Promise<OneShotRunResult> => {
           const first = await runAgentOneShot(agent, prompt, oneShotOptions);
           if (!isTimeoutRun(first)) return first;
           appendTaskLog(
@@ -167,7 +169,7 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
           return true;
         };
 
-        const pushTranscript = (leader: any, content: string) => {
+        const pushTranscript = (leader: AgentRow, content: string) => {
           transcript.push({
             speaker_agent_id: leader.id,
             speaker: getAgentDisplayName(leader, lang),
@@ -177,7 +179,7 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
           });
         };
         const speak = (
-          leader: any,
+          leader: AgentRow,
           messageType: string,
           receiverType: string,
           receiverId: string | null,

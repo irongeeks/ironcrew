@@ -17,28 +17,23 @@ export function initializeWorkflowPartA(ctx: RuntimeContext): WorkflowCoreExport
   const logsDir = __ctx.logsDir;
   const nowMs = __ctx.nowMs;
   // Deferred proxies — __ctx fields may be populated after initialization
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const _c = __ctx as any;
-  const appendTaskLog = ((...a: any[]) => _c.appendTaskLog(...a)) as RuntimeContext["appendTaskLog"];
-  const getProviderModelConfig = ((...a: any[]) =>
-    _c.getProviderModelConfig(...a)) as RuntimeContext["getProviderModelConfig"];
-  const killPidTree = ((...a: any[]) => _c.killPidTree(...a)) as RuntimeContext["killPidTree"];
-  const executeApiProviderAgent = ((...a: any[]) =>
-    _c.executeApiProviderAgent(...a)) as RuntimeContext["executeApiProviderAgent"];
-  const executeCopilotAgent = ((...a: any[]) => _c.executeCopilotAgent(...a)) as RuntimeContext["executeCopilotAgent"];
-  const executeAntigravityAgent = ((...a: any[]) =>
-    _c.executeAntigravityAgent(...a)) as RuntimeContext["executeAntigravityAgent"];
-  const detectLang = ((...a: any[]) => _c.detectLang(...a)) as RuntimeContext["detectLang"];
-  const getDeptName = ((...a: any[]) => _c.getDeptName(...a)) as RuntimeContext["getDeptName"];
-  const getDeptRoleConstraint = ((...a: any[]) =>
-    _c.getDeptRoleConstraint(...a)) as RuntimeContext["getDeptRoleConstraint"];
-  const getPreferredLanguage = ((...a: any[]) =>
-    _c.getPreferredLanguage(...a)) as RuntimeContext["getPreferredLanguage"];
-  const getRoleLabel = ((...a: any[]) => _c.getRoleLabel(...a)) as RuntimeContext["getRoleLabel"];
-  const l = ((...a: any[]) => _c.l(...a)) as RuntimeContext["l"];
-  const pickL = ((...a: any[]) => _c.pickL(...a)) as RuntimeContext["pickL"];
-  const prettyStreamJson = ((...a: any[]) => _c.prettyStreamJson(...a)) as RuntimeContext["prettyStreamJson"];
-  const resolveLang = ((...a: any[]) => _c.resolveLang(...a)) as RuntimeContext["resolveLang"];
+  const appendTaskLog: RuntimeContext["appendTaskLog"] = (...a) => __ctx.appendTaskLog(...a);
+  const getProviderModelConfig: RuntimeContext["getProviderModelConfig"] = (...a) => __ctx.getProviderModelConfig(...a);
+  const killPidTree: RuntimeContext["killPidTree"] = (...a) => __ctx.killPidTree(...a);
+  const executeApiProviderAgent: RuntimeContext["executeApiProviderAgent"] = (...a) =>
+    __ctx.executeApiProviderAgent(...a);
+  const executeCopilotAgent: RuntimeContext["executeCopilotAgent"] = (...a) => __ctx.executeCopilotAgent(...a);
+  const executeAntigravityAgent: RuntimeContext["executeAntigravityAgent"] = (...a) =>
+    __ctx.executeAntigravityAgent(...a);
+  const detectLang: RuntimeContext["detectLang"] = (...a) => __ctx.detectLang(...a);
+  const getDeptName: RuntimeContext["getDeptName"] = (...a) => __ctx.getDeptName(...a);
+  const getDeptRoleConstraint: RuntimeContext["getDeptRoleConstraint"] = (...a) => __ctx.getDeptRoleConstraint(...a);
+  const getPreferredLanguage: RuntimeContext["getPreferredLanguage"] = (...a) => __ctx.getPreferredLanguage(...a);
+  const getRoleLabel: RuntimeContext["getRoleLabel"] = (...a) => __ctx.getRoleLabel(...a);
+  const l: RuntimeContext["l"] = (...a) => __ctx.l(...a);
+  const pickL: RuntimeContext["pickL"] = (...a) => __ctx.pickL(...a);
+  const prettyStreamJson: RuntimeContext["prettyStreamJson"] = (...a) => __ctx.prettyStreamJson(...a);
+  const resolveLang: RuntimeContext["resolveLang"] = (...a) => __ctx.resolveLang(...a);
 
   // ---------------------------------------------------------------------------
   // Track active child processes
@@ -59,7 +54,7 @@ export function initializeWorkflowPartA(ctx: RuntimeContext): WorkflowCoreExport
   // ---------------------------------------------------------------------------
   const taskWorktrees = new Map<string, WorktreeInfo>();
   // Rehydrate worktree info from disk for tasks that survived a server restart
-  rehydrateWorktrees(db as any, taskWorktrees);
+  rehydrateWorktrees(db, taskWorktrees);
 
   const { isGitRepo, createWorktree, cleanupWorktree, ensureVideoTaskDirectory } = createWorktreeLifecycleTools({
     appendTaskLog,
@@ -68,7 +63,7 @@ export function initializeWorkflowPartA(ctx: RuntimeContext): WorkflowCoreExport
 
   const { mergeWorktree, mergeToDevAndCreatePR, rollbackTaskWorktree, getWorktreeDiffSummary, hasVisibleDiffSummary } =
     createWorktreeMergeTools({
-      db: db as any,
+      db: db,
       taskWorktrees,
       appendTaskLog,
       cleanupWorktree,
@@ -85,7 +80,7 @@ export function initializeWorkflowPartA(ctx: RuntimeContext): WorkflowCoreExport
     getRecentChanges,
     ensureClaudeMd,
   } = createProjectContextTools({
-    db: db as any,
+    db: db,
     isGitRepo,
     taskWorktrees,
   });
@@ -133,7 +128,7 @@ export function initializeWorkflowPartA(ctx: RuntimeContext): WorkflowCoreExport
   });
 
   const { getRecentConversationContext, getTaskContinuationContext } = createConversationContextTools({
-    db: db as any,
+    db: db,
     normalizeStreamChunk,
     summarizeForMeetingBubble,
   });

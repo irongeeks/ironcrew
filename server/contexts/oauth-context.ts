@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { SQLInputValue, DatabaseSync } from "node:sqlite";
 import { createOAuthTools } from "../modules/workflow/agents/providers/oauth-tools.ts";
 import { createCredentialTools } from "../modules/workflow/agents/providers/credential-tools.ts";
 import { createOAuthRouteHelpers } from "../modules/routes/ops/oauth/helpers.ts";
@@ -7,9 +7,9 @@ import type { OAuthContext } from "../types/runtime-context-domains.ts";
 
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
-    all: (...args: any[]) => unknown;
-    run: (...args: any[]) => unknown;
+    get: (...args: SQLInputValue[]) => unknown;
+    all: (...args: SQLInputValue[]) => unknown;
+    run: (...args: SQLInputValue[]) => unknown;
   };
 };
 

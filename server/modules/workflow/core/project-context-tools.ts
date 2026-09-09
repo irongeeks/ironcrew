@@ -1,3 +1,4 @@
+import type { SQLInputValue } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -43,8 +44,8 @@ const log = logger.child({ module: "core-workflow" });
 
 type DbLike = {
   prepare: (sql: string) => {
-    get: (...args: any[]) => unknown;
-    all: (...args: any[]) => unknown;
+    get: (...args: SQLInputValue[]) => unknown;
+    all: (...args: SQLInputValue[]) => unknown[];
   };
 };
 
@@ -109,7 +110,7 @@ export function createProjectContextTools(deps: CreateProjectContextToolsDeps) {
       .join("\n");
   }
 
-  const { buildAvailableSkillsPromptBlock } = createPromptSkillsHelper(db as any);
+  const { buildAvailableSkillsPromptBlock } = createPromptSkillsHelper(db);
 
   const CONTEXT_IGNORE_DIRS = new Set([
     "node_modules",

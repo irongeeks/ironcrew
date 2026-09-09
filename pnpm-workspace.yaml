@@ -15,9 +15,9 @@ overrides:
   serialize-javascript@<7.0.5: ">=7.0.5"
   brace-expansion@<1.1.13: ">=1.1.13"
   brace-expansion@>=2.0.0 <2.0.3: ">=2.0.3"
-  brace-expansion@>=4.0.0 <5.0.5: ">=5.0.5"
+  brace-expansion@>=4.0.0 <5.0.9: 5.0.9
   "@xmldom/xmldom@<0.8.15": 0.8.15
-  hono: 4.12.34
+  hono: 4.13.5
   "@hono/node-server@<1.19.15": 1.19.15
   protobufjs@<7.5.5: ">=7.5.5"
   postcss@<8.5.18: ">=8.5.18"
@@ -29,3 +29,11 @@ overrides:
   browserslist@<4.28.7: ">=4.28.7"
   nanoid@<3.3.18: ">=3.3.18"
   undici@8: ">=8.9.0"
+  undici@>=7.0.0 <7.29.0: 7.29.0
+  form-data@>=4.0.0 <4.0.6: 4.0.6
+  "@babel/core@<7.29.6": ">=7.29.6 <8"
+  shell-quote@<1.9.0: 1.9.0
+  "@humanfs/node@<0.16.8": 0.16.8
+
+patchedDependencies:
+  supertest@7.2.2: patches/supertest@7.2.2.patch

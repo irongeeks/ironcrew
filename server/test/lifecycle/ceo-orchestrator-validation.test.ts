@@ -31,6 +31,25 @@ describe("CEO Orchestrator — decision validation", () => {
     vi.restoreAllMocks();
   });
 
+  it("rejects malformed decision payload fields after JSON parsing", () => {
+    const taskId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    expect(
+      parseDecisions(
+        JSON.stringify([
+          null,
+          4,
+          { type: "message", content: {}, receiver_type: "all" },
+          { type: "reprioritize", task_id: taskId, priority: "urgent" },
+          { type: "reassign", task_id: taskId, department_id: [] },
+          { type: "create_task", title: "Valid title", description: {} },
+        ]),
+      ),
+    ).toEqual([]);
+    expect(parseDecisions('[{"type":"create_task","title":"Title only"}]')).toEqual([
+      { type: "create_task", title: "Title only" },
+    ]);
+  });
+
   // -----------------------------------------------------------------------
   // UUID_RE
   // -----------------------------------------------------------------------

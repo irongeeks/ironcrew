@@ -97,7 +97,15 @@ try {
   }
   if (!ready) throw new Error("Isolated E2E API did not become ready");
   const vite = path.join(path.dirname(require.resolve("vite/package.json")), "bin", "vite.js");
-  start([vite, "--host", "127.0.0.1", "--port", String(E2E_WEB_PORT), "--strictPort"]);
+  start([
+    vite,
+    ...(process.env.IRONCREW_E2E_PREVIEW === "1" ? ["preview"] : []),
+    "--host",
+    "127.0.0.1",
+    "--port",
+    String(E2E_WEB_PORT),
+    "--strictPort",
+  ]);
   console.log(`[e2e] isolated database: ${dbPath}`);
 } catch (error) {
   console.error(`[e2e] ${error instanceof Error ? error.message : error}`);

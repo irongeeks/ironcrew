@@ -16,9 +16,9 @@ type FakeRes = {
 };
 
 type StubStmt = {
-  all: (..._args: unknown[]) => unknown;
+  all: (..._args: unknown[]) => unknown[];
   get: (..._args: unknown[]) => unknown;
-  run: (..._args: unknown[]) => unknown;
+  run: (..._args: unknown[]) => void;
 };
 
 type StubDb = {

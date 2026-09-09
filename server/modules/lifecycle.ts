@@ -401,11 +401,11 @@ export function startLifecycle(ctx: RuntimeContext): void {
 
   async function sweepServerResources(): Promise<void> {
     const t = nowMs();
-    const activated = processQueuedServerAllocations(db as any, t);
+    const activated = processQueuedServerAllocations(db, t);
     if (activated.length > 0) {
       broadcast("server_update", { action: "queue_processed", activated });
     }
-    const health = await runServerHealthChecks(db as any, t);
+    const health = await runServerHealthChecks(db, t);
     if (health.length > 0) {
       broadcast("server_update", { action: "health_sweep", updates: health });
     }
@@ -513,7 +513,7 @@ export function startLifecycle(ctx: RuntimeContext): void {
     nowMs,
   });
   // Export for use by run-complete-handler (task chaining)
-  (ctx as any).autonomousSchedulerTick = autonomousScheduler.schedulerTick;
+  Object.assign(ctx, { autonomousSchedulerTick: autonomousScheduler.schedulerTick });
   setTimeout(() => autonomousScheduler.schedulerTick(), 10_000);
   setInterval(() => autonomousScheduler.schedulerTick(), 30_000);
 

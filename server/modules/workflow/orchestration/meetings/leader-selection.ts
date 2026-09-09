@@ -1,23 +1,6 @@
+import type { AgentRow } from "../../../../types/workflow-types.ts";
 import type { DbLike } from "../../../../types/db-like.ts";
 import { resolveConstrainedAgentScopeForTask } from "../../../routes/core/tasks/execution-run-auto-assign.ts";
-
-interface AgentRow {
-  id: string;
-  name: string;
-  name_ko: string;
-  role: string;
-  personality: string | null;
-  status: string;
-  department_id: string | null;
-  current_task_id: string | null;
-  avatar_emoji: string;
-  cli_provider: string | null;
-  oauth_account_id: string | null;
-  api_provider_id: string | null;
-  api_model: string | null;
-  cli_model: string | null;
-  cli_reasoning_level: string | null;
-}
 
 type LeaderSelectionDeps = {
   db: DbLike;
@@ -113,12 +96,12 @@ export function createMeetingLeaderSelectionTools(deps: LeaderSelectionDeps) {
           description: string | null;
         }
       | undefined;
-    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db, {
       project_id: taskMeta?.project_id ?? null,
       workflow_pack_key: taskMeta?.workflow_pack_key ?? null,
       department_id: taskMeta?.department_id ?? fallbackDeptId ?? null,
     });
-    const packScopedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+    const packScopedAgentIds = resolveConstrainedAgentScopeForTask(db, {
       project_id: null,
       workflow_pack_key: taskMeta?.workflow_pack_key ?? null,
       department_id: taskMeta?.department_id ?? fallbackDeptId ?? null,

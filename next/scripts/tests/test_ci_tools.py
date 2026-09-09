@@ -56,6 +56,34 @@ class CiToolsTest(unittest.TestCase):
         self.assertEqual(verification.test_counts('Tests  20 passed (20)'), (20, 0))
         self.assertEqual(verification.test_counts('No tests found'), (0, 0))
 
+    def test_resume_accepts_only_the_same_verified_source_prefix(self):
+        verification = load('verify-local')
+        manifest = [{'path': 'apps/control/main.ts', 'sha256': 'original'}]
+        fingerprint = verification.source_fingerprint(manifest)
+        prior = {'sourceFingerprint': fingerprint,
+                 'gates': [{'name': 'install', 'exitCode': 0}, {'name': 'format', 'exitCode': 1}]}
+        self.assertEqual(verification.resume_prefix(prior, 1, fingerprint), prior['gates'][:1])
+        with self.assertRaisesRegex(ValueError, 'successful earlier gate prefix'):
+            verification.resume_prefix(prior, 2, fingerprint)
+        changed = verification.source_fingerprint([{'path': 'apps/control/main.ts', 'sha256': 'changed'}])
+        with self.assertRaisesRegex(ValueError, 'unchanged sources'):
+            verification.resume_prefix(prior, 1, changed)
+        with self.assertRaisesRegex(ValueError, 'unchanged sources'):
+            verification.resume_prefix({'gates': prior['gates']}, 1, fingerprint)
+        prior['sourceIntegrity'] = {'status': 'changed_during_run'}
+        with self.assertRaisesRegex(ValueError, 'unchanged sources'):
+            verification.resume_prefix(prior, 1, fingerprint)
+
+    def test_relocated_evidence_links_resolve_to_the_actual_logs(self):
+        verification = load('verify-local')
+        with tempfile.TemporaryDirectory() as folder:
+            verification.EVIDENCE = pathlib.Path(folder) / 'run'
+            expected = verification.EVIDENCE / 'unit.log'
+            actual = (verification.ROOT / verification.evidence_path('unit.log')).resolve()
+            self.assertEqual(actual, expected.resolve())
+            with mock.patch.object(verification.os.path, 'relpath', side_effect=ValueError('path is on mount D:')):
+                self.assertEqual(verification.evidence_path('unit.log'), expected.as_posix())
+
 
 if __name__ == '__main__':
     unittest.main()

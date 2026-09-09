@@ -1,8 +1,26 @@
+import type { Lang } from "../../../types/lang.ts";
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import type { DbLike } from "../../../types/db-like.ts";
 import { logger } from "../../../observability/logger.ts";
 
 const log = logger.child({ module: "orchestration" });
 
-type CreatePlanningArchiveToolsDeps = Record<string, any>;
+type CreatePlanningArchiveToolsDeps = {
+  db: DbLike;
+  nowMs: RuntimeContext["nowMs"];
+  randomUUID: () => string;
+  appendTaskLog: RuntimeContext["appendTaskLog"];
+  sendAgentMessage: RuntimeContext["sendAgentMessage"];
+  broadcast: RuntimeContext["broadcast"];
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
+  resolveLang: RuntimeContext["resolveLang"];
+  runAgentOneShot: RuntimeContext["runAgentOneShot"];
+  normalizeConversationReply: RuntimeContext["normalizeConversationReply"];
+  findTeamLeader: RuntimeContext["findTeamLeader"];
+  getDeptName: RuntimeContext["getDeptName"];
+  getAgentDisplayName: RuntimeContext["getAgentDisplayName"];
+};
 
 export function createPlanningArchiveTools(deps: CreatePlanningArchiveToolsDeps) {
   const {
@@ -66,7 +84,7 @@ export function createPlanningArchiveTools(deps: CreatePlanningArchiveToolsDeps)
   function buildFallbackPlanningArchive(
     rootTask: Record<string, unknown>,
     entries: Array<Record<string, unknown>>,
-    lang: string,
+    lang: Lang,
   ): string {
     const header = pickL(
       l(

@@ -6,12 +6,14 @@ const mockStartSession = vi.fn();
 const mockGetStatus = vi.fn();
 const mockCancelSession = vi.fn();
 vi.mock("../../../../modules/routes/ops/cli-auth/cli-auth-runner.ts", () => ({
-  CliAuthRunner: vi.fn().mockImplementation(() => ({
-    startSession: mockStartSession,
-    getStatus: mockGetStatus,
-    cancelSession: mockCancelSession,
-    dispose: vi.fn(),
-  })),
+  CliAuthRunner: vi.fn().mockImplementation(function () {
+    return {
+      startSession: mockStartSession,
+      getStatus: mockGetStatus,
+      cancelSession: mockCancelSession,
+      dispose: vi.fn(),
+    };
+  }),
 }));
 
 import { registerCliAuthRoutes } from "../../../../modules/routes/ops/cli-auth/routes.ts";

@@ -11,7 +11,7 @@ describe("collectPackTerminalArtifacts", () => {
         throw new Error("not found");
       }),
     };
-    const result = collectPackTerminalArtifacts(mockRegistry as any, "unknown_pack", "/tmp/project");
+    const result = collectPackTerminalArtifacts(mockRegistry, "unknown_pack", "/tmp/project");
     expect(result).toEqual([]);
   });
 
@@ -24,7 +24,7 @@ describe("collectPackTerminalArtifacts", () => {
         },
       }),
     };
-    const result = collectPackTerminalArtifacts(mockRegistry as any, "web_research_report", "/tmp/nonexistent");
+    const result = collectPackTerminalArtifacts(mockRegistry, "web_research_report", "/tmp/nonexistent");
     expect(result).toEqual([]);
   });
 
@@ -42,7 +42,7 @@ describe("collectPackTerminalArtifacts", () => {
         },
       }),
     };
-    const result = collectPackTerminalArtifacts(mockRegistry as any, "web_research_report", tmpDir);
+    const result = collectPackTerminalArtifacts(mockRegistry, "web_research_report", tmpDir);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("report");
     expect(result[0].path).toBe("research_output/final_report.md");

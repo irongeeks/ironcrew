@@ -8,6 +8,7 @@ import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import type { BaseRuntimeContext, RuntimeContext } from "./types/runtime-context.ts";
 import { createAdapterRegistry, isCliAdapter } from "./adapters/index.ts";
+import { communityPacksDir } from "./packs/paths.ts";
 import { PackLoader } from "./packs/pack-loader.ts";
 import { PackRegistry } from "./packs/pack-registry.ts";
 import { GraphRunner } from "./modules/workflow/orchestration/graph-runner.ts";
@@ -34,13 +35,13 @@ import {
   installSecurityMiddleware,
   isIncomingMessageAuthenticated,
   isIncomingMessageOriginTrusted,
+  setCrewSessionResolver,
 } from "./security/auth.ts";
 import { assertRuntimeFunctionsResolved, createDeferredRuntimeProxy } from "./modules/deferred-runtime.ts";
 import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
 import { registerIronCrewRoutes } from "./ironcrew/api/routes.ts";
-import { setCrewSessionResolver } from "./security/auth.ts";
 import { ProxmoxAdapter } from "./ironcrew/packs/integrations/proxmox.ts";
 import { TacticalRmmAdapter } from "./ironcrew/packs/integrations/tactical-rmm.ts";
 import { UnifiAdapter } from "./ironcrew/packs/integrations/unifi.ts";
@@ -265,7 +266,7 @@ mcpManager.registerAll(connectorRegistry);
 const packLoader = new PackLoader();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const packs = await packLoader.loadAll(path.join(__dirname, "packs/built-in"), path.join(__dirname, "packs/community"));
+const packs = await packLoader.loadAll(path.join(__dirname, "packs/built-in"), communityPacksDir());
 const packRegistry = new PackRegistry();
 packRegistry.load(packs);
 
@@ -280,7 +281,7 @@ const graphRunner = new GraphRunner(connectorRegistry, tracer, metricsCollector,
 
 app.use(createRequestTraceMiddleware(metricsCollector));
 
-const runtimeContext: Record<string, any> & BaseRuntimeContext = {
+const runtimeContext: BaseRuntimeContext & Partial<RuntimeContext> & Record<string, unknown> = {
   app,
   db,
   dbPath,

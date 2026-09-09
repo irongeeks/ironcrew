@@ -1,3 +1,4 @@
+import { translations } from "./test-fixtures.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -53,14 +54,16 @@ describe("review finalize video gate", () => {
 
       const tools = createReviewFinalizeTools({
         db,
+        logsDir: "/tmp/unused-video-gate-logs",
+        processSubtaskDelegations: vi.fn(),
         nowMs: () => 1700000000000,
         broadcast: vi.fn(),
         appendTaskLog,
         getPreferredLanguage: () => "ko",
-        pickL: (pool: any) => (Array.isArray(pool?.ko) ? pool.ko[0] : ""),
-        l: (ko: string[], en: string[], ja: string[], zh: string[]) => ({ ko, en, ja, zh }),
+        pickL: (pool) => pool.ko[0] ?? "",
+        l: translations,
         resolveLang: () => "ko",
-        getProjectReviewGateSnapshot: () => ({ activeReview: 1, activeTotal: 1, ready: true }),
+        getProjectReviewGateSnapshot: () => ({ activeReview: 1, activeTotal: 1, ready: true, rootReviewTotal: 1 }),
         projectReviewGateNotifiedAt: new Map<string, number>(),
         notifyCeo,
         taskWorktrees: new Map<string, { worktreePath: string; projectPath: string; branchName: string }>(),
@@ -83,7 +86,7 @@ describe("review finalize video gate", () => {
         recoverCrossDeptQueueAfterMissingCallback: vi.fn(),
         subtaskDelegationCallbacks: new Map<string, () => void>(),
         startReviewConsensusMeeting,
-      } as any);
+      });
 
       tools.finishReview(taskId, "Video intro", {
         bypassProjectDecisionGate: true,
@@ -129,15 +132,16 @@ describe("review finalize video gate", () => {
 
       const tools = createReviewFinalizeTools({
         db,
+        processSubtaskDelegations: vi.fn(),
         nowMs: () => 1700000000000,
         logsDir,
         broadcast: vi.fn(),
         appendTaskLog,
         getPreferredLanguage: () => "ko",
-        pickL: (pool: any) => (Array.isArray(pool?.ko) ? pool.ko[0] : ""),
-        l: (ko: string[], en: string[], ja: string[], zh: string[]) => ({ ko, en, ja, zh }),
+        pickL: (pool) => pool.ko[0] ?? "",
+        l: translations,
         resolveLang: () => "ko",
-        getProjectReviewGateSnapshot: () => ({ activeReview: 1, activeTotal: 1, ready: true }),
+        getProjectReviewGateSnapshot: () => ({ activeReview: 1, activeTotal: 1, ready: true, rootReviewTotal: 1 }),
         projectReviewGateNotifiedAt: new Map<string, number>(),
         notifyCeo,
         taskWorktrees: new Map<string, { worktreePath: string; projectPath: string; branchName: string }>(),
@@ -160,7 +164,7 @@ describe("review finalize video gate", () => {
         recoverCrossDeptQueueAfterMissingCallback: vi.fn(),
         subtaskDelegationCallbacks: new Map<string, () => void>(),
         startReviewConsensusMeeting,
-      } as any);
+      });
 
       tools.finishReview(taskId, "Video intro", {
         bypassProjectDecisionGate: true,

@@ -1,3 +1,4 @@
+import type { ExecFileOptionsWithStringEncoding } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -231,7 +232,7 @@ export function createUsageCliTools(deps: CreateUsageCliToolsDeps) {
 
   function execWithTimeout(cmd: string, args: string[], timeoutMs: number): Promise<string> {
     return new Promise((resolve, reject) => {
-      const opts: any = { timeout: timeoutMs };
+      const opts: ExecFileOptionsWithStringEncoding = { timeout: timeoutMs, encoding: "utf8" };
       if (process.platform === "win32") opts.shell = true;
       const child = execFile(cmd, args, opts, (err, stdout) => {
         if (err) return reject(err);

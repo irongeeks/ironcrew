@@ -636,7 +636,7 @@ export function registerProjectRoutes({
   `,
       )
       .all(id);
-    const assignedAgentIds = assignedAgents.map((agent: any) => agent.id);
+    const assignedAgentIds = (assignedAgents as Array<{ id: string }>).map((agent) => agent.id);
 
     res.json({
       project: { ...project, assigned_agent_ids: assignedAgentIds },

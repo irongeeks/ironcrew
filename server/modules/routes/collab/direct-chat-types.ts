@@ -64,18 +64,10 @@ export type DirectChatDeps = {
     taskId?: string | null,
   ) => void;
   registerTaskMessengerRoute: (taskId: string, options?: DelegationOptions) => void;
-  chooseSafeReply: (run: { text?: string }, lang: string, context: string, agent?: AgentRow) => string;
+  chooseSafeReply: RuntimeContext["chooseSafeReply"];
   buildCliFailureMessage: (agent: AgentRow, lang: Lang, reason: string) => string;
-  buildDirectReplyPrompt: (
-    agent: AgentRow,
-    ceoMessage: string,
-    messageType: string,
-  ) => { prompt: string; lang: string };
-  runAgentOneShot: (
-    agent: AgentRow,
-    prompt: string,
-    opts?: { projectPath?: string; rawOutput?: true; noTools?: boolean },
-  ) => Promise<{ text?: string }>;
+  buildDirectReplyPrompt: RuntimeContext["buildDirectReplyPrompt"];
+  runAgentOneShot: RuntimeContext["runAgentOneShot"];
   executeApiProviderAgent: RuntimeContext["executeApiProviderAgent"];
   executeCopilotAgent: RuntimeContext["executeCopilotAgent"];
   executeAntigravityAgent: RuntimeContext["executeAntigravityAgent"];

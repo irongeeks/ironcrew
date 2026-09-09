@@ -181,7 +181,7 @@ export function createAutonomousScheduler(deps: AutonomousSchedulerDeps) {
       // Try to find an available agent
       let selection: AutoAssignSelectionResult | null = null;
       if (!task.assigned_agent_id) {
-        selection = selectAutoAssignableAgentForTask(db as any, task);
+        selection = selectAutoAssignableAgentForTask(db, task);
         if (!selection) {
           broadcast("autonomous_action", {
             action: "scheduler_skip",

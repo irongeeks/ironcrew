@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join, dirname, normalize, resolve as pathResolve, sep } from "node:path";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { communityPacksDir } from "../../../packs/paths.ts";
 import type { LoadedPack } from "../../../packs/pack-loader.ts";
 import type { Phase, PhaseOutput } from "../../../packs/pack-schema.ts";
 import type { ConnectorRegistry } from "../../../connectors/registry.ts";
@@ -1261,7 +1262,7 @@ export class GraphRunner {
       const packBaseDir =
         pack.source === "built-in"
           ? join(__dirname, "../../../packs/built-in", pack.key)
-          : join(__dirname, "../../../packs/community", pack.key);
+          : join(communityPacksDir(), pack.key);
       const fullPath = pathResolve(join(packBaseDir, hookPath));
 
       // Verify resolved path is within pack directory (defense in depth)

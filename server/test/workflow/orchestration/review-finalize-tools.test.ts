@@ -1,3 +1,6 @@
+import { translations } from "../../../modules/workflow/orchestration/test-fixtures.ts";
+import type { AgentRow, Lang } from "../../../types/workflow-types.ts";
+import type { L10n } from "../../../modules/routes/collab/language-policy.ts";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createReviewFinalizeTools } from "../../../modules/workflow/orchestration/review-finalize-tools.ts";
 
@@ -180,11 +183,11 @@ function createMockDeps(dbOverride?: ReturnType<typeof createMockDb>) {
     logsDir: "/tmp/test-logs",
     broadcast: vi.fn(),
     appendTaskLog: vi.fn(),
-    getPreferredLanguage: () => "en",
-    pickL: (_arr: string[][], _lang: string) => _arr[1]?.[0] ?? "",
-    l: (...args: string[][]) => args,
-    resolveLang: () => "en",
-    getProjectReviewGateSnapshot: vi.fn(() => ({ ready: false, activeReview: 1, activeTotal: 2 })),
+    getPreferredLanguage: (): Lang => "en",
+    pickL: (pool: L10n) => pool.en[0] ?? "",
+    l: translations,
+    resolveLang: (): Lang => "en",
+    getProjectReviewGateSnapshot: vi.fn(() => ({ ready: false, activeReview: 1, activeTotal: 2, rootReviewTotal: 1 })),
     projectReviewGateNotifiedAt: new Map<string, number>(),
     notifyCeo: vi.fn(),
     taskWorktrees: new Map(),
@@ -192,7 +195,7 @@ function createMockDeps(dbOverride?: ReturnType<typeof createMockDb>) {
     mergeWorktree: vi.fn(() => ({ success: true, message: "merged" })),
     cleanupWorktree: vi.fn(),
     findTeamLeader: vi.fn(() => null),
-    getAgentDisplayName: vi.fn((_a: any, _l: string) => "TestAgent"),
+    getAgentDisplayName: vi.fn((_a: AgentRow, _l: string) => "TestAgent"),
     setTaskCreationAuditCompletion: vi.fn(),
     endTaskExecutionSession: vi.fn(),
     notifyTaskStatus: vi.fn(),
@@ -200,9 +203,9 @@ function createMockDeps(dbOverride?: ReturnType<typeof createMockDb>) {
     shouldDeferTaskReportUntilPlanningArchive: vi.fn(() => false),
     emitTaskReportEvent: vi.fn(),
     formatTaskSubtaskProgressSummary: vi.fn(() => ""),
-    reviewRoundState: new Map(),
-    reviewInFlight: new Map(),
-    archivePlanningConsolidatedReport: vi.fn(),
+    reviewRoundState: new Map<string, number>(),
+    reviewInFlight: new Set<string>(),
+    archivePlanningConsolidatedReport: vi.fn(async () => undefined),
     crossDeptNextCallbacks: new Map(),
     recoverCrossDeptQueueAfterMissingCallback: vi.fn(),
     subtaskDelegationCallbacks: new Map(),
@@ -485,8 +488,8 @@ describe("finishReview", () => {
   });
 
   it("cleans up review state maps after finalization", () => {
-    deps.reviewRoundState.set("task-7", { round: 1 });
-    deps.reviewInFlight.set("task-7", true);
+    deps.reviewRoundState.set("task-7", 1);
+    deps.reviewInFlight.add("task-7");
     db.addTask({
       id: "task-7",
       title: "Task 7",

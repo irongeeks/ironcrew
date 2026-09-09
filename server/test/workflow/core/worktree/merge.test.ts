@@ -98,8 +98,14 @@ function buildDeps(overrides: Record<string, unknown> = {}) {
     taskWorktrees,
     appendTaskLog: vi.fn(),
     cleanupWorktree: vi.fn(),
-    resolveLang: vi.fn(() => "en"),
-    l: vi.fn((_ko: any, en: any) => en),
+    resolveLang: vi.fn(() => "en" as const),
+    l: vi.fn((ko: string[], en: string[], ja?: string[], zh?: string[], de?: string[]) => ({
+      ko,
+      en,
+      ja: ja ?? en,
+      zh: zh ?? en,
+      de: de ?? en,
+    })),
     pickL: vi.fn((_pool: any, _lang: any) => "translated"),
     ...overrides,
   };

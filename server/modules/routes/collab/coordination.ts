@@ -50,7 +50,7 @@ export type CollabCoordinationDeps = Pick<
   | "startTaskExecutionForAgent"
 >;
 
-export function initializeCollabCoordination(deps: CollabCoordinationDeps): any {
+export function initializeCollabCoordination(deps: CollabCoordinationDeps) {
   const {
     db,
     appendTaskLog,

@@ -1,28 +1,30 @@
+import type { Mock } from "vitest";
+import type { DbLike } from "../../../types/db-like.ts";
+import type { L10n } from "../../routes/collab/language-policy.ts";
+import { agentFixture, translations } from "./test-fixtures.ts";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPlanningArchiveTools } from "./planning-archive-tools.ts";
 
-type MockStmt = {
-  get: ReturnType<typeof vi.fn>;
-  all: ReturnType<typeof vi.fn>;
-  run: ReturnType<typeof vi.fn>;
-};
+type Statement = ReturnType<DbLike["prepare"]>;
+type MockStmt = { [Key in keyof Statement]: Mock<Statement[Key]> };
+type ArchiveDeps = Parameters<typeof createPlanningArchiveTools>[0];
 
 type SqlPlan = {
-  rootTask?: any;
-  relatedTasks?: any[];
-  reportByTaskId?: Record<string, any>;
-  insertRun?: ReturnType<typeof vi.fn>;
+  rootTask?: Record<string, unknown>;
+  relatedTasks?: Array<Record<string, unknown>>;
+  reportByTaskId?: Record<string, { content: string; created_at: number }>;
+  insertRun?: Mock<Statement["run"]>;
 };
 
 function makeDb(plan: SqlPlan) {
-  const insertRun = plan.insertRun ?? vi.fn();
+  const insertRun = plan.insertRun ?? vi.fn<Statement["run"]>();
   const calls: Array<{ sql: string; stmt: MockStmt }> = [];
   const db = {
     prepare: vi.fn((sql: string) => {
       const stmt: MockStmt = {
-        get: vi.fn(),
-        all: vi.fn(),
-        run: vi.fn(),
+        get: vi.fn<Statement["get"]>(),
+        all: vi.fn<Statement["all"]>(() => []),
+        run: vi.fn<Statement["run"]>(),
       };
       const trimmed = sql.replace(/\s+/g, " ").trim();
       if (trimmed.startsWith("SELECT id, title, description, project_path")) {
@@ -30,7 +32,9 @@ function makeDb(plan: SqlPlan) {
       } else if (trimmed.startsWith("SELECT t.id, t.title, t.status")) {
         stmt.all.mockReturnValue(plan.relatedTasks ?? []);
       } else if (trimmed.startsWith("SELECT m.content, m.created_at")) {
-        stmt.get.mockImplementation((taskId: string) => plan.reportByTaskId?.[taskId]);
+        stmt.get.mockImplementation((taskId) =>
+          typeof taskId === "string" ? plan.reportByTaskId?.[taskId] : undefined,
+        );
       } else if (trimmed.startsWith("INSERT INTO task_report_archives")) {
         stmt.run = insertRun;
       }
@@ -41,18 +45,17 @@ function makeDb(plan: SqlPlan) {
   return { db, insertRun, calls };
 }
 
-function makeDeps(overrides: Partial<Record<string, any>> = {}) {
-  const findTeamLeader = vi.fn().mockReturnValue({ id: "leader-1", name: "Planning Lead" });
-  const runAgentOneShot = vi.fn().mockResolvedValue({ text: "x".repeat(500) });
+function defaultDeps() {
+  const findTeamLeader = vi
+    .fn<ArchiveDeps["findTeamLeader"]>()
+    .mockReturnValue(agentFixture({ id: "leader-1", name: "Planning Lead" }));
+  const runAgentOneShot = vi.fn<ArchiveDeps["runAgentOneShot"]>().mockResolvedValue({ text: "x".repeat(500) });
   const normalizeConversationReply = vi.fn((s: string) => s);
   const appendTaskLog = vi.fn();
   const sendAgentMessage = vi.fn();
   const broadcast = vi.fn();
-  const pickL = vi.fn((bundle: any, _lang: string) => {
-    if (Array.isArray(bundle)) return bundle[1]?.[0] ?? "";
-    return "";
-  });
-  const l = vi.fn((ko: string[], en: string[], ja: string[], zh: string[]) => [ko, en, ja, zh]);
+  const pickL = vi.fn((bundle: L10n) => bundle.en[0] ?? "");
+  const l = vi.fn(translations);
   const resolveLang = vi.fn().mockReturnValue("en");
   const nowMs = vi.fn(() => 1234567890);
   const randomUUID = vi.fn(() => "uuid-1");
@@ -69,15 +72,20 @@ function makeDeps(overrides: Partial<Record<string, any>> = {}) {
     runAgentOneShot,
     normalizeConversationReply,
     findTeamLeader,
-    ...overrides,
+    getDeptName: vi.fn((id: string) => id),
+    getAgentDisplayName: vi.fn(() => "Planning Lead"),
   };
+}
+
+function makeDeps(overrides: Partial<ReturnType<typeof defaultDeps>> = {}) {
+  return { ...defaultDeps(), ...overrides };
 }
 
 describe("createPlanningArchiveTools", () => {
   describe("cleanArchiveText", () => {
     let tools: ReturnType<typeof createPlanningArchiveTools>;
     beforeEach(() => {
-      tools = createPlanningArchiveTools({ db: {}, ...makeDeps() } as any);
+      tools = createPlanningArchiveTools({ db: makeDb({}).db, ...makeDeps() });
     });
 
     it("returns empty string for non-string and empty inputs", () => {
@@ -118,7 +126,7 @@ describe("createPlanningArchiveTools", () => {
   describe("clipArchiveText", () => {
     let tools: ReturnType<typeof createPlanningArchiveTools>;
     beforeEach(() => {
-      tools = createPlanningArchiveTools({ db: {}, ...makeDeps() } as any);
+      tools = createPlanningArchiveTools({ db: makeDb({}).db, ...makeDeps() });
     });
 
     it("returns empty for empty text", () => {
@@ -147,7 +155,7 @@ describe("createPlanningArchiveTools", () => {
 
   describe("buildFallbackPlanningArchive", () => {
     it("builds markdown with header, summary, team sections", () => {
-      const tools = createPlanningArchiveTools({ db: {}, ...makeDeps() } as any);
+      const tools = createPlanningArchiveTools({ db: makeDb({}).db, ...makeDeps() });
       const root = { title: "MyProject" };
       const entries = [
         {
@@ -170,7 +178,7 @@ describe("createPlanningArchiveTools", () => {
     });
 
     it("handles missing fields with defaults", () => {
-      const tools = createPlanningArchiveTools({ db: {}, ...makeDeps() } as any);
+      const tools = createPlanningArchiveTools({ db: makeDb({}).db, ...makeDeps() });
       const md = tools.buildFallbackPlanningArchive({}, [{}], "en");
       expect(md).toContain("### 1. Task");
       expect(md).toContain("- Department: -");
@@ -179,7 +187,7 @@ describe("createPlanningArchiveTools", () => {
     });
 
     it("returns header-only output for empty entries", () => {
-      const tools = createPlanningArchiveTools({ db: {}, ...makeDeps() } as any);
+      const tools = createPlanningArchiveTools({ db: makeDb({}).db, ...makeDeps() });
       const md = tools.buildFallbackPlanningArchive({ title: "P" }, [], "en");
       expect(md).toContain("Final Consolidated Report: P");
       expect(md).not.toContain("### 1.");
@@ -190,7 +198,7 @@ describe("createPlanningArchiveTools", () => {
     it("returns early when root task is not found", async () => {
       const { db } = makeDb({ rootTask: undefined });
       const deps = makeDeps();
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("missing");
       expect(deps.findTeamLeader).not.toHaveBeenCalled();
       expect(deps.broadcast).not.toHaveBeenCalled();
@@ -208,7 +216,7 @@ describe("createPlanningArchiveTools", () => {
         },
       });
       const deps = makeDeps({ findTeamLeader: vi.fn().mockReturnValue(null) });
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
       expect(deps.appendTaskLog).not.toHaveBeenCalled();
     });
@@ -226,7 +234,7 @@ describe("createPlanningArchiveTools", () => {
         relatedTasks: [],
       });
       const deps = makeDeps();
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
       expect(insertRun).not.toHaveBeenCalled();
       expect(deps.broadcast).not.toHaveBeenCalled();
@@ -262,7 +270,7 @@ describe("createPlanningArchiveTools", () => {
       const deps = makeDeps({
         runAgentOneShot: vi.fn().mockResolvedValue({ text: longSummary }),
       });
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
 
       expect(deps.runAgentOneShot).toHaveBeenCalledTimes(1);
@@ -279,12 +287,20 @@ describe("createPlanningArchiveTools", () => {
       expect(args[3]).toContain("real summary content");
 
       // schema check: snapshot must be parseable JSON with shape
-      const snapshot = JSON.parse(args[4]);
+      if (typeof args[4] !== "string") throw new Error("Expected a serialized archive snapshot");
+      const snapshot: unknown = JSON.parse(args[4]);
       expect(snapshot).toMatchObject({
         root_task_id: "r1",
         generated_at: 1234567890,
       });
-      expect(Array.isArray(snapshot.entries)).toBe(true);
+      if (
+        typeof snapshot !== "object" ||
+        snapshot === null ||
+        !("entries" in snapshot) ||
+        !Array.isArray(snapshot.entries)
+      ) {
+        throw new Error("Expected an archive snapshot with entries");
+      }
       expect(snapshot.entries[0]).toMatchObject({ id: "t1", title: "Sub 1" });
 
       expect(deps.appendTaskLog).toHaveBeenCalledWith(
@@ -322,7 +338,7 @@ describe("createPlanningArchiveTools", () => {
       const deps = makeDeps({
         runAgentOneShot: vi.fn().mockRejectedValue(new Error("agent failed")),
       });
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
 
       expect(insertRun).toHaveBeenCalledTimes(1);
@@ -357,7 +373,7 @@ describe("createPlanningArchiveTools", () => {
       const deps = makeDeps({
         runAgentOneShot: vi.fn().mockResolvedValue({ text: "tiny" }),
       });
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
       const md = insertRun.mock.calls[0][3] as string;
       expect(md).toContain("Final Consolidated Report");
@@ -390,7 +406,7 @@ describe("createPlanningArchiveTools", () => {
       const deps = makeDeps({
         runAgentOneShot: vi.fn().mockResolvedValue({ text: longSummary }),
       });
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
       const md = insertRun.mock.calls[0][3] as string;
       expect(md).toContain("Consolidation Evidence Snapshot");
@@ -425,7 +441,7 @@ describe("createPlanningArchiveTools", () => {
       const deps = makeDeps({
         runAgentOneShot: vi.fn().mockResolvedValue({ text: summary }),
       });
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
       const md = insertRun.mock.calls[0][3] as string;
       const occurrences = md.match(/Consolidation Evidence Snapshot/g)?.length ?? 0;
@@ -439,7 +455,7 @@ describe("createPlanningArchiveTools", () => {
         }),
       };
       const deps = makeDeps();
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await expect(tools.archivePlanningConsolidatedReport("r1")).resolves.toBeUndefined();
       expect(deps.broadcast).not.toHaveBeenCalled();
     });
@@ -474,7 +490,7 @@ describe("createPlanningArchiveTools", () => {
         findTeamLeader,
         runAgentOneShot: vi.fn().mockResolvedValue({ text: "x".repeat(500) }),
       });
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
       expect(findTeamLeader).toHaveBeenCalledWith("planning");
       expect(findTeamLeader).toHaveBeenCalledWith("research");
@@ -504,12 +520,12 @@ describe("createPlanningArchiveTools", () => {
           },
         ],
       });
-      const runAgentOneShot = vi.fn().mockResolvedValue({ text: "x".repeat(500) });
+      const runAgentOneShot = vi.fn<ArchiveDeps["runAgentOneShot"]>().mockResolvedValue({ text: "x".repeat(500) });
       const deps = makeDeps({ runAgentOneShot });
-      const tools = createPlanningArchiveTools({ db, ...deps } as any);
+      const tools = createPlanningArchiveTools({ db, ...deps });
       await tools.archivePlanningConsolidatedReport("r1");
       const opts = runAgentOneShot.mock.calls[0][2];
-      expect(opts.projectPath).toBe(process.cwd());
+      expect(opts?.projectPath).toBe(process.cwd());
     });
   });
 });

@@ -1,11 +1,11 @@
-import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
+import type { DbLike } from "../../../../types/db-like.ts";
 import {
   DEFAULT_WORKFLOW_PACK_KEY,
   isWorkflowPackKey,
   type WorkflowPackKey,
 } from "../../../workflow/packs/definitions.ts";
 
-type DbLike = Pick<DatabaseSync, "prepare">;
 let cachedHasAgentWorkflowPackColumn: boolean | null = null;
 
 type ProjectAssignmentModeRow = {

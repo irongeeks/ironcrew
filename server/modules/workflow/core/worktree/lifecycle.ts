@@ -250,7 +250,7 @@ export function createWorktreeLifecycleTools(deps: CreateWorktreeLifecycleToolsD
  * Called once at server startup to restore worktree info lost by restart.
  */
 export function rehydrateWorktrees(
-  db: { prepare: (sql: string) => { all: (...args: unknown[]) => unknown[] } },
+  db: { prepare: (sql: string) => { all: () => unknown[] } },
   taskWorktrees: Map<string, WorktreeInfo>,
 ): void {
   const rows = db

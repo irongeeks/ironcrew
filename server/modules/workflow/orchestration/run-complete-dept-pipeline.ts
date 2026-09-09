@@ -81,7 +81,7 @@ export function handleDeptPipelineAdvancement(
 
     // Find agent for next department
     const nextAgentResult = selectAgentForDepartment(
-      db as any,
+      db,
       {
         workflow_pack_key: task.workflow_pack_key,
         department_id: nextDept,
@@ -99,7 +99,7 @@ export function handleDeptPipelineAdvancement(
     ).run(nextAgentId, nextDept, t, taskId);
 
     // Update workflow meta
-    updateWorkflowMeta(db as any, taskId, { pipeline }, t);
+    updateWorkflowMeta(db, taskId, { pipeline }, t);
 
     // Handle worktree — skip cleanup for video tasks (plain directories, not git worktrees)
     const isVideoTask = task.workflow_pack_key === "video_preprod";
@@ -141,7 +141,7 @@ export function handleDeptPipelineAdvancement(
   }
 
   // Pipeline is complete — save final state and fall through to normal review
-  updateWorkflowMeta(db as any, taskId, { pipeline }, t);
+  updateWorkflowMeta(db, taskId, { pipeline }, t);
   appendTaskLog(taskId, "system", `Pipeline complete (${pipeline.steps.length} steps finished)`);
 
   return { handled: false };
@@ -203,7 +203,7 @@ export function handleQaBounceBack(
   db.prepare(
     "UPDATE tasks SET assigned_agent_id = ?, department_id = ?, status = 'planned', updated_at = ? WHERE id = ?",
   ).run(prevAgentId, prevDept, t, taskId);
-  updateWorkflowMeta(db as any, taskId, { pipeline }, t);
+  updateWorkflowMeta(db, taskId, { pipeline }, t);
 
   // Clean up worktree — dev agent gets a fresh one (with QA feedback in description)
   const wtInfo = taskWorktrees.get(taskId);

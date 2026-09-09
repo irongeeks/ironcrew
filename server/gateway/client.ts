@@ -1014,7 +1014,7 @@ export function notifyPhaseApprovalNeeded(taskId: string, taskTitle: string, pha
 export async function gatewayHttpInvoke(_req: {
   tool: string;
   action?: string;
-  args?: Record<string, any>;
-}): Promise<any> {
+  args?: Record<string, unknown>;
+}): Promise<never> {
   throw new Error("openclaw gateway integration has been removed; use direct messenger transports");
 }

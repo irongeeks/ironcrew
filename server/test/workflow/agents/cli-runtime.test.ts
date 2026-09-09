@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
 import type { ChildProcess } from "node:child_process";
@@ -104,23 +105,25 @@ function createMockLogStream() {
   };
 }
 
+type RuntimeDeps = Parameters<typeof createCliRuntimeTools>[0];
+
 interface MockDeps {
   db: any;
   logsDir: string;
   adapterRegistry: ReturnType<typeof createMockAdapterRegistry>;
-  clearCliOutputDedup: ReturnType<typeof vi.fn>;
-  normalizeStreamChunk: ReturnType<typeof vi.fn>;
-  shouldSkipDuplicateCliOutput: ReturnType<typeof vi.fn>;
-  broadcast: ReturnType<typeof vi.fn>;
+  clearCliOutputDedup: Mock<RuntimeDeps["clearCliOutputDedup"]>;
+  normalizeStreamChunk: Mock<RuntimeDeps["normalizeStreamChunk"]>;
+  shouldSkipDuplicateCliOutput: Mock<RuntimeDeps["shouldSkipDuplicateCliOutput"]>;
+  broadcast: Mock<RuntimeDeps["broadcast"]>;
   TASK_RUN_IDLE_TIMEOUT_MS: number;
   TASK_RUN_HARD_TIMEOUT_MS: number;
-  killPidTree: ReturnType<typeof vi.fn>;
-  appendTaskLog: ReturnType<typeof vi.fn>;
+  killPidTree: Mock<RuntimeDeps["killPidTree"]>;
+  appendTaskLog: Mock<RuntimeDeps["appendTaskLog"]>;
   activeProcesses: Map<string, ChildProcess>;
   stopRequestedTasks: Set<string>;
   stopRequestModeByTask: Map<string, "pause" | "cancel">;
-  createSubtaskFromCli: ReturnType<typeof vi.fn>;
-  completeSubtaskFromCli: ReturnType<typeof vi.fn>;
+  createSubtaskFromCli: Mock<RuntimeDeps["createSubtaskFromCli"]>;
+  completeSubtaskFromCli: Mock<RuntimeDeps["completeSubtaskFromCli"]>;
   nowMs: () => number;
 }
 

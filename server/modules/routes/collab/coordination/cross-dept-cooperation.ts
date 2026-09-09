@@ -96,7 +96,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
     projectId: string | null | undefined,
     departmentId: string | null | undefined,
   ): string[] | null {
-    return resolveConstrainedAgentScopeForTask(db as any, {
+    return resolveConstrainedAgentScopeForTask(db, {
       workflow_pack_key: workflowPackKey ?? null,
       project_id: projectId ?? null,
       department_id: departmentId ?? null,
@@ -447,7 +447,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
         | undefined;
       const crossDetectedPath = parentTaskPath?.project_path ?? detectProjectPath(ceoMessage);
       const crossWorkflowPackKey = resolveWorkflowPackKeyForTask({
-        db: db as any,
+        db: db,
         sourceTaskPackKey: parentTaskPath?.workflow_pack_key,
         sourceTaskId: taskId,
         projectId: parentTaskPath?.project_id ?? null,
@@ -561,7 +561,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
           };
           const roleLabel = roleLabels[execAgent.role] ?? execAgent.role;
           const deptConstraint = getDeptRoleConstraint(crossDeptId, crossDeptName);
-          const deptPromptRaw = getDepartmentPromptForPack(db as any, crossTaskData.workflow_pack_key, crossDeptId);
+          const deptPromptRaw = getDepartmentPromptForPack(db, crossTaskData.workflow_pack_key, crossDeptId);
           const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
           const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
           const crossConversationCtx = getRecentConversationContext(execAgent.id);

@@ -1,3 +1,5 @@
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import type { SQLInputValue } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { syncTaskDocsBackToVault } from "../../routes/docs/index.ts";
@@ -20,10 +22,11 @@ const log = logger.child({ module: "run-complete-handler" });
 
 /** Minimal DB interface covering the statements used across run-complete modules. */
 export interface RunCompleteDb {
+  exec(sql: string): void;
   prepare(sql: string): {
-    get(...params: unknown[]): unknown;
-    all(...params: unknown[]): unknown[];
-    run(...params: unknown[]): { changes: number | bigint };
+    get(...params: SQLInputValue[]): unknown;
+    all(...params: SQLInputValue[]): unknown[];
+    run(...params: SQLInputValue[]): { changes: number | bigint };
   };
 }
 
@@ -31,7 +34,7 @@ export interface RunCompleteDb {
 export interface WorktreeInfo {
   worktreePath: string;
   projectPath: string;
-  branchName?: string;
+  branchName: string;
 }
 
 /**
@@ -57,21 +60,14 @@ export interface RunCompleteDeps {
   cleanupWorktree: (projectPath: string, taskId: string) => void;
 
   // Agent / notification helpers
-  findTeamLeader: (deptId: string | null) => Record<string, unknown> | null;
-  getAgentDisplayName: (agent: Record<string, unknown>, lang: string) => string;
-  pickL: (translations: string[][], lang: string) => string;
-  l: (...langArrays: string[][]) => string[][];
-  notifyCeo: (message: string, taskId?: string) => void;
-  sendAgentMessage: (
-    agent: Record<string, unknown>,
-    content: string,
-    kind: string,
-    visibility: string,
-    replyTo: string | null,
-    taskId: string,
-  ) => void;
-  resolveLang: (text: string) => string;
-  formatTaskSubtaskProgressSummary: (taskId: string, lang: string) => string;
+  findTeamLeader: RuntimeContext["findTeamLeader"];
+  getAgentDisplayName: RuntimeContext["getAgentDisplayName"];
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
+  notifyCeo: RuntimeContext["notifyCeo"];
+  sendAgentMessage: RuntimeContext["sendAgentMessage"];
+  resolveLang: RuntimeContext["resolveLang"];
+  formatTaskSubtaskProgressSummary: RuntimeContext["formatTaskSubtaskProgressSummary"];
 
   // Cross-department & delegation state
   crossDeptNextCallbacks: Map<string, () => void>;
@@ -164,7 +160,7 @@ export function createRunCompleteHandler(deps: RunCompleteDeps) {
     stopProgressTimer(taskId);
     // Observability: record task run completion metric
     deps.metrics?.incCounter("task.run.complete", { exit: exitCode === 0 ? "ok" : "error" });
-    const releasedServerAccess = releaseServerAccess(db as any, {
+    const releasedServerAccess = releaseServerAccess(db, {
       nowMs: nowMs(),
       taskId,
       reason: exitCode === 0 ? "task_completed" : "task_failed",
@@ -189,6 +185,7 @@ export function createRunCompleteHandler(deps: RunCompleteDeps) {
           task_type: string | null;
           workflow_pack_key: string | null;
           workflow_meta_json: string | null;
+          agent_routing: string | null;
           project_id: string | null;
           project_path: string | null;
           source_task_id: string | null;
@@ -248,13 +245,13 @@ export function createRunCompleteHandler(deps: RunCompleteDeps) {
 
     if (finalExitCode === 0 && task) {
       const docsSync = syncTaskDocsBackToVault({
-        db: db as any,
+        db: db,
         task: {
           id: taskId,
           project_id: task.project_id,
           project_path: task.project_path,
         },
-        taskWorktrees: taskWorktrees as any,
+        taskWorktrees: taskWorktrees,
         appendTaskLog,
       });
       if (docsSync.syncedProviders > 0) {
@@ -308,7 +305,7 @@ export function createRunCompleteHandler(deps: RunCompleteDeps) {
         }
         if (registryPackForComplete) {
           // Find the completed pipeline subtask title — the agent was working on an in_progress subtask
-          const completedSubtask = (db as any)
+          const completedSubtask = db
             .prepare(
               "SELECT title FROM subtasks WHERE task_id = ? AND title LIKE '[pipeline:%' AND status = 'in_progress' ORDER BY created_at DESC LIMIT 1",
             )
@@ -321,9 +318,11 @@ export function createRunCompleteHandler(deps: RunCompleteDeps) {
 
           if (completedPhaseId) {
             // Mark the completed phase subtask as done
-            (db as any)
-              .prepare("UPDATE subtasks SET status = 'done', completed_at = ? WHERE task_id = ? AND title = ?")
-              .run(nowMs(), taskId, completedSubtask?.title);
+            db.prepare("UPDATE subtasks SET status = 'done', completed_at = ? WHERE task_id = ? AND title = ?").run(
+              nowMs(),
+              taskId,
+              completedSubtask?.title ?? null,
+            );
 
             // Use task's project_path; log a warning if falling back to cwd (should not happen)
             const rootDir = task.project_path || process.cwd();
@@ -374,8 +373,8 @@ export function createRunCompleteHandler(deps: RunCompleteDeps) {
               // Department routing: reassign agent if routing mode is "department"
               const routingMode = resolveAgentRouting(
                 {
-                  agent_routing: (task as any).agent_routing ?? null,
-                  workflow_pack_key: (task as any).workflow_pack_key ?? null,
+                  agent_routing: task.agent_routing ?? null,
+                  workflow_pack_key: task.workflow_pack_key ?? null,
                 },
                 packRegistryInst ?? null,
               );
@@ -383,19 +382,19 @@ export function createRunCompleteHandler(deps: RunCompleteDeps) {
                 const nextPhaseId = result.nextPhases[0];
                 // Strip fan-out index (e.g. "crawl:0" → "crawl")
                 const baseNextPhaseId = nextPhaseId.includes(":") ? nextPhaseId.split(":")[0] : nextPhaseId;
-                const nextPhase = registryPackForComplete.graph.phases.find((p: any) => p.id === baseNextPhaseId);
+                const nextPhase = registryPackForComplete.graph.phases.find((p) => p.id === baseNextPhaseId);
                 const targetDept = nextPhase?.department;
                 if (targetDept) {
                   const currentAgent = db
                     .prepare("SELECT department_id FROM agents WHERE id = ?")
-                    .get((task as any).assigned_agent_id) as { department_id: string | null } | undefined;
+                    .get(task.assigned_agent_id) as { department_id: string | null } | undefined;
                   if (currentAgent && currentAgent.department_id !== targetDept) {
                     const nextAgentResult = selectAgentForDepartment(
-                      db as any,
+                      db,
                       {
-                        workflow_pack_key: (task as any).workflow_pack_key,
+                        workflow_pack_key: task.workflow_pack_key,
                         department_id: targetDept,
-                        project_id: (task as any).project_id,
+                        project_id: task.project_id,
                       },
                       targetDept,
                     );

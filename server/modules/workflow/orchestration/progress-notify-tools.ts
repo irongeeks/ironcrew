@@ -1,4 +1,17 @@
-type CreateProgressNotifyToolsDeps = Record<string, any>;
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import type { DbLike } from "../../../types/db-like.ts";
+type CreateProgressNotifyToolsDeps = {
+  db: DbLike;
+  progressTimers: RuntimeContext["progressTimers"];
+  findTeamLeader: RuntimeContext["findTeamLeader"];
+  resolveLang: RuntimeContext["resolveLang"];
+  sendAgentMessage: RuntimeContext["sendAgentMessage"];
+  pickL: RuntimeContext["pickL"];
+  l: RuntimeContext["l"];
+  randomUUID: () => string;
+  nowMs: RuntimeContext["nowMs"];
+  broadcast: RuntimeContext["broadcast"];
+};
 
 export function createProgressNotifyTools(deps: CreateProgressNotifyToolsDeps) {
   const { db, progressTimers, findTeamLeader, resolveLang, sendAgentMessage, pickL, l, randomUUID, nowMs, broadcast } =

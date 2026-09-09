@@ -1,3 +1,4 @@
+import { isRecord } from "../../shared/json-record.ts";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
@@ -52,7 +53,7 @@ function runExecFileText(cmd: string, args: string[], timeoutMs = 15000): Promis
       { encoding: "utf8", timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err) {
-          (err as any).stderr = stderr;
+          Object.assign(err, { stderr });
           reject(err);
           return;
         }
@@ -86,7 +87,7 @@ function parseUnixProcessTable(raw: string): SystemProcessInfo[] {
 }
 
 function parseWindowsProcessJson(raw: string): SystemProcessInfo[] {
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
@@ -95,6 +96,7 @@ function parseWindowsProcessJson(raw: string): SystemProcessInfo[] {
   const items = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
   const rows: SystemProcessInfo[] = [];
   for (const item of items) {
+    if (!isRecord(item)) continue;
     const pid = Number(item?.ProcessId ?? item?.processid ?? item?.pid);
     if (!Number.isFinite(pid) || pid <= 0) continue;
     const ppidRaw = Number(item?.ParentProcessId ?? item?.parentprocessid ?? item?.ppid);
