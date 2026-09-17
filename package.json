@@ -88,7 +88,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
-    "imapflow": "^1.7.8",
+    "imapflow": "^2.0.2",
     "js-yaml": "^4.1.1",
     "mailparser": "^3.9.20",
     "node-pty": "^1.1.0",
