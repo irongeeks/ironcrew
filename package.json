@@ -92,7 +92,7 @@
     "js-yaml": "^4.1.1",
     "mailparser": "^3.9.20",
     "node-pty": "^1.1.0",
-    "nodemailer": "^9.1.1",
+    "nodemailer": "^10.0.9",
     "pino": "^10.3.1",
     "pixi.js": "^8.19.0",
     "playwright": "^1.61.0",
